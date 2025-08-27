@@ -28,16 +28,12 @@ export function QRCodeGenerator({
   const generateQRCode = async () => {
     setIsGenerating(true);
     try {
-      const qrData = {
-        assetId,
-        assetName,
-        propertyName,
-        customText,
-        timestamp: new Date().toISOString(),
-        url: `${window.location.origin}/assets/${assetId}`
-      };
+  // Build a direct link URL for the QR payload (so scanners open the page directly)
+  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  const normalizedBase = (base || '').replace(/\/$/, '');
+  const qrLink = `${normalizedBase}/assets/${assetId}`;
 
-      const qrCodeDataUrl = await QRCode.toDataURL(JSON.stringify(qrData), {
+  const qrCodeDataUrl = await QRCode.toDataURL(qrLink, {
         width: 300,
         margin: 2,
         color: {

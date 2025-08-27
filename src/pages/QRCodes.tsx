@@ -395,14 +395,10 @@ export default function QRCodes() {
     document.body.removeChild(link);
   };
   const generateQrPng = async (qr: any) => {
-    const payload = {
-      assetId: qr.assetId,
-      assetName: qr.assetName,
-      property: qr.property,
-      generatedDate: qr.generatedDate,
-      url: `${window.location.origin}/assets/${qr.assetId}`,
-    };
-    return await QRCode.toDataURL(JSON.stringify(payload), {
+  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  const normalizedBase = (base || '').replace(/\/$/, '');
+  const url = `${normalizedBase}/assets/${qr.assetId}`;
+  return await QRCode.toDataURL(url, {
       width: 300,
       margin: 2,
       color: { dark: '#000000', light: '#FFFFFF' },
