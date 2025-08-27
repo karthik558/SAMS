@@ -8,7 +8,8 @@
   },
   // Serve the built Vite site from ./dist with SPA-style routing
   "assets": {
-    "directory": "./dist",
-    "html_handling": "single-page-application"
+  "directory": "./dist",
+  "html_handling": "auto-trailing-slash",
+  "not_found_handling": "single-page-application"
   }
 }
