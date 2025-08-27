@@ -19,6 +19,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
   const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0 });
+  const [firstName, setFirstName] = useState<string>("");
 
   useEffect(() => {
     if (!hasSupabaseEnv) return;
@@ -59,6 +60,20 @@ const Index = () => {
     })();
   }, []);
 
+  // Load current user's first name for greeting
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      if (raw) {
+        const u = JSON.parse(raw) as { name?: string };
+        const fn = String(u?.name || "").trim().split(/\s+/)[0] || "";
+        setFirstName(fn);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "Add Asset":
@@ -87,10 +102,9 @@ const Index = () => {
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">SAMS Dashboard</h1>
-            <p className="text-muted-foreground">
-              Smart Asset Management System - Monitor and manage your organization's assets
-            </p>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">{
+              `Welcome to SAMS${firstName ? ", " + firstName : ""}`
+            }</h1>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
             <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2 w-full sm:w-auto">

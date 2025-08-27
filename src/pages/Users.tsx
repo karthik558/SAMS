@@ -45,9 +45,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { AppUser, createUser, deleteUser, listUsers } from "@/services/users";
+import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
-import { setUserPropertyAccess } from "@/services/userAccess";
+import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -144,6 +146,8 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -154,6 +158,16 @@ export default function Users() {
   const [mustChangePassword, setMustChangePassword] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
+
+  // Edit form fields
+  const [eFirstName, setEFirstName] = useState("");
+  const [eLastName, setELastName] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [ePhone, setEPhone] = useState("");
+  const [eRole, setERole] = useState<string | undefined>(undefined);
+  const [eDepartment, setEDepartment] = useState<string | undefined>(undefined);
+  const [eStatus, setEStatus] = useState<string>("active");
 
   // Local fallback properties (ids align with demo data used elsewhere)
   const fallbackProperties: Property[] = [
@@ -256,6 +270,10 @@ export default function Users() {
 
     try {
       const created = await createUser(payload);
+      // If Supabase is configured and a password is provided, set hash via RPC
+      if (hasSupabaseEnv && password) {
+        try { await setUserPassword(created.id, password); } catch (e) { console.error(e); }
+      }
       // Persist property access mapping
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
@@ -294,11 +312,63 @@ export default function Users() {
     resetForm();
   };
 
-  const handleEditUser = (userId: string) => {
-    toast({
-      title: "Edit user",
-      description: `Editing user with ID: ${userId}`,
-    });
+  const openEditUser = async (user: AppUser) => {
+    setEditingUser(user);
+    // Split name into first/last best-effort
+    const parts = (user.name || "").trim().split(/\s+/);
+    setEFirstName(parts[0] || "");
+    setELastName(parts.slice(1).join(" "));
+    setEEmail(user.email || "");
+    setEPhone(user.phone || "");
+    setERole((user.role || "").toLowerCase());
+    setEDepartment((user.department || "")?.toString().toLowerCase());
+    setEStatus((user.status || "Active").toLowerCase());
+    try {
+      const ids = await listUserPropertyAccess(user.id);
+      setEditSelectedPropertyIds(ids);
+    } catch {
+      setEditSelectedPropertyIds([]);
+    }
+    setIsEditUserOpen(true);
+  };
+
+  const handleSaveEditUser = async () => {
+    if (!editingUser) return;
+    const name = `${eFirstName.trim()} ${eLastName.trim()}`.trim();
+    if (!name || !eEmail.trim()) {
+      toast({ title: "Missing info", description: "Name and email are required.", variant: "destructive" });
+      return;
+    }
+    const patch: Partial<AppUser> = {
+      name,
+      email: eEmail.trim(),
+      phone: ePhone || null,
+      role: mapRole(eRole),
+      department: mapDept(eDepartment),
+      status: eStatus === "inactive" ? "Inactive" : "Active",
+    };
+    try {
+      let updated: AppUser | null = null;
+      try {
+        updated = await updateUser(editingUser.id, patch);
+      } catch (e) {
+        // Local fallback
+        updated = { ...editingUser, ...patch } as AppUser;
+        const next = users.map(u => (u.id === editingUser!.id ? updated! : u));
+        setUsers(next);
+        writeLocalUsers(next);
+      }
+      if (updated) {
+        setUsers(prev => prev.map(u => (u.id === updated!.id ? updated! : u)));
+      }
+      // Persist property access mapping
+      try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
+      toast({ title: "User updated", description: `${name} has been saved.` });
+      setIsEditUserOpen(false);
+      setEditingUser(null);
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e?.message || "Unable to update user.", variant: "destructive" });
+    }
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
@@ -601,7 +671,7 @@ export default function Users() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditUser(user.id)}>
+                          <DropdownMenuItem onClick={() => openEditUser(user)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
@@ -629,6 +699,154 @@ export default function Users() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>Update user details and access</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="efirstName">First Name</Label>
+                <Input id="efirstName" placeholder="Abc" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="elastName">Last Name</Label>
+                <Input id="elastName" placeholder="Abc" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eemail">Email</Label>
+              <Input id="eemail" type="email" placeholder="abc@example.com" value={eEmail} onChange={(e) => setEEmail(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ephone">Phone</Label>
+              <Input id="ephone" type="tel" placeholder="+1 (555) 123-4567" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="erole">Role</Label>
+                <Select value={eRole} onValueChange={setERole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edepartment">Department</Label>
+                <Select value={eDepartment} onValueChange={setEDepartment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select dept" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="it">IT</SelectItem>
+                    <SelectItem value="hr">HR</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
+                    <SelectItem value="operations">Operations</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="estatus">Status</Label>
+              <Select value={eStatus} onValueChange={setEStatus}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Property Access - Dropdown multi-select (edit) */}
+            <div className="space-y-2">
+              <Label>Property Access</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                    <span className="truncate text-left flex-1 min-w-0">
+                      {editSelectedPropertyIds.length > 0
+                        ? (() => {
+                            const map = new Map(properties.map(p => [p.id, p.name] as const));
+                            const names = editSelectedPropertyIds.map(id => map.get(id) || id);
+                            const preview = names.slice(0, 2).join(", ");
+                            const extra = names.length - 2;
+                            const label = preview.length > 24 ? `${names.length} selected` : preview;
+                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                          })()
+                        : "Select properties (e.g., Abc, Abc)"}
+                    </span>
+                    <MoreHorizontal className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                    const checked = editSelectedPropertyIds.includes(p.id);
+                    return (
+                      <DropdownMenuItem
+                        key={p.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          const next = new Set(editSelectedPropertyIds);
+                          if (checked) next.delete(p.id); else next.add(p.id);
+                          setEditSelectedPropertyIds(Array.from(next));
+                        }}
+                        className="gap-2 w-full"
+                      >
+                        <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                  )}
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
+                    <>
+                      <div className="my-1 h-px bg-border" />
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
+                          setEditSelectedPropertyIds(ids);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Select all
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setEditSelectedPropertyIds([]);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Clear selection
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveEditUser}>
+              <Edit className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* User Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

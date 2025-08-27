@@ -1,4 +1,5 @@
 import { Bell, Search, User, Moon, Sun } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,9 +22,11 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
+  const navigate = useNavigate();
   const [isDark, setIsDark] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [authUser, setAuthUser] = useState<{ id: string; name: string; email: string } | null>(null);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -50,6 +53,13 @@ export function Header({ onMenuClick }: HeaderProps) {
     } catch {
       // no-op if storage unavailable
     }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      if (raw) setAuthUser(JSON.parse(raw));
+    } catch {}
   }, []);
 
   // Notifications: load from service (Supabase or localStorage)
@@ -169,13 +179,13 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <Avatar className="h-8 w-8">
                   <AvatarImage src="/placeholder-avatar.jpg" />
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    AL
+                    {(authUser?.name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Admin User</DropdownMenuLabel>
+              <DropdownMenuLabel>{authUser?.name || "User"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem>
                 <User className="mr-2 h-4 w-4" />
@@ -186,7 +196,16 @@ export function Header({ onMenuClick }: HeaderProps) {
                 Preferences
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  try {
+                    localStorage.removeItem("current_user_id");
+                    localStorage.removeItem("auth_user");
+                  } catch {}
+                  navigate("/login", { replace: true });
+                }}
+              >
                 Sign out
               </DropdownMenuItem>
             </DropdownMenuContent>
