@@ -408,6 +408,8 @@ export default function Users() {
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
+  const ok = window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`);
+  if (!ok) return;
     try {
       await deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));

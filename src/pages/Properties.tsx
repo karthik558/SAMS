@@ -181,6 +181,8 @@ export default function Properties() {
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
+    const ok = window.confirm(`Are you sure you want to delete property ${propertyId}? This action cannot be undone.`);
+    if (!ok) return;
     try {
       if (isSupabase) {
         await sbDeleteProperty(propertyId);
@@ -204,8 +206,7 @@ export default function Properties() {
         toast.error("Please fill required fields");
         return;
       }
-  const id = editingId ? editingId : (form.id || `PROP-${Math.floor(Math.random()*900+100)}`);
-
+      const id = editingId ? editingId : (form.id || `PROP-${Math.floor(Math.random()*900+100)}`);
       if (isSupabase) {
         if (editingId) {
           await sbUpdateProperty(editingId, {

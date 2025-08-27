@@ -291,6 +291,8 @@ export default function Assets() {
 
   const handleDeleteAsset = async (assetId: string) => {
     if (role !== 'admin') return; // only admin can delete
+  const ok = window.confirm(`Are you sure you want to delete asset ${assetId}? This action cannot be undone.`);
+  if (!ok) return;
     try {
       if (hasSupabaseEnv) {
         await sbDeleteAsset(assetId);
