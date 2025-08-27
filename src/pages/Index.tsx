@@ -1,16 +1,85 @@
 import { StatCard } from "@/components/ui/stat-card";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { Package, Building2, Users, AlertTriangle, TrendingUp, DollarSign } from "lucide-react";
+import { Package, Building2, Users, AlertTriangle, TrendingUp, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Download, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { useEffect, useState } from "react";
+import { listAssets } from "@/services/assets";
+import { listProperties } from "@/services/properties";
+import { listUsers } from "@/services/users";
+import { listQRCodes } from "@/services/qrcodes";
 
 const Index = () => {
+  const navigate = useNavigate();
+  const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
+  const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0 });
+
+  useEffect(() => {
+    if (!hasSupabaseEnv) return;
+    (async () => {
+      try {
+        const [assets, properties, users, qrs] = await Promise.all([
+          listAssets().catch(() => [] as any[]),
+          listProperties().catch(() => [] as any[]),
+          listUsers().catch(() => [] as any[]),
+          listQRCodes().catch(() => [] as any[]),
+        ]);
+        const expiringSoon = (assets as any[]).filter(a => {
+          if (!a.expiryDate) return false;
+          const d = new Date(a.expiryDate);
+          const now = new Date();
+          const diff = (d.getTime() - now.getTime()) / (1000*60*60*24);
+          return diff >= 0 && diff <= 30;
+        }).length;
+        setCounts({ assets: assets.length, properties: properties.length, users: users.length, expiring: expiringSoon });
+
+        // Derived metrics
+        const totalQuantity = (assets as any[]).reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const startThisMonth = new Date(year, month, 1);
+        const startNextMonth = new Date(year, month + 1, 1);
+        const startPrevMonth = new Date(year, month - 1, 1);
+        const endPrevMonth = new Date(year, month, 1);
+        const monthlyPurchases = (assets as any[]).filter(a => a.purchaseDate && new Date(a.purchaseDate) >= startThisMonth && new Date(a.purchaseDate) < startNextMonth).length;
+        const monthlyPurchasesPrev = (assets as any[]).filter(a => a.purchaseDate && new Date(a.purchaseDate) >= startPrevMonth && new Date(a.purchaseDate) < endPrevMonth).length;
+        const codesTotal = (qrs as any[]).length;
+        const codesReady = (qrs as any[]).filter((q: any) => !q.printed).length;
+        setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady });
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
   const handleQuickAction = (action: string) => {
-    toast.info(`${action} feature requires Supabase connection for full functionality`);
+    switch (action) {
+      case "Add Asset":
+        navigate("/assets?new=1");
+        break;
+      case "Generate QR Codes":
+        navigate("/qr-codes");
+        break;
+      case "Property Report":
+      case "Generate Report":
+        navigate("/reports");
+        if (!hasSupabaseEnv) {
+          toast.info("Reports may be limited without Supabase configured");
+        }
+        break;
+      case "User Management":
+        navigate("/users");
+        break;
+      default:
+        navigate("/");
+    }
   };
 
   return (
@@ -39,27 +108,27 @@ const Index = () => {
   <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Assets"
-            value="1,247"
+            value={String(counts.assets)}
             description="Active assets"
             icon={Package}
             trend={{ value: 12, isPositive: true }}
           />
           <StatCard
             title="Properties"
-            value="8"
+            value={String(counts.properties)}
             description="Managed locations"
             icon={Building2}
             trend={{ value: 2, isPositive: true }}
           />
           <StatCard
             title="Users"
-            value="24"
+            value={String(counts.users)}
             description="Active users"
             icon={Users}
           />
           <StatCard
             title="Expiring Soon"
-            value="15"
+            value={String(counts.expiring)}
             description="Within 30 days"
             icon={AlertTriangle}
             trend={{ value: 5, isPositive: false }}
@@ -71,15 +140,13 @@ const Index = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total Asset Value
+                Total Asset Quantity
               </CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">$2,847,320</div>
-              <p className="text-xs text-muted-foreground">
-                <span className="text-success font-medium">+8.2%</span> from last month
-              </p>
+              <div className="text-2xl font-bold text-foreground">{metrics.totalQuantity}</div>
+              <p className="text-xs text-muted-foreground">Across all assets</p>
             </CardContent>
           </Card>
           
@@ -91,9 +158,16 @@ const Index = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">$78,540</div>
+              <div className="text-2xl font-bold text-foreground">{metrics.monthlyPurchases}</div>
               <p className="text-xs text-muted-foreground">
-                22 new assets this month
+                {(() => {
+                  const prev = metrics.monthlyPurchasesPrev;
+                  const curr = metrics.monthlyPurchases;
+                  if (prev === 0 && curr === 0) return "No change from last month";
+                  if (prev === 0) return "+100% from last month";
+                  const pct = Math.round(((curr - prev) / prev) * 100);
+                  return `${pct >= 0 ? "+" : ""}${pct}% from last month`;
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -103,13 +177,11 @@ const Index = () => {
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 QR Codes Generated
               </CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <QrCode className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">156</div>
-              <p className="text-xs text-muted-foreground">
-                Ready for printing
-              </p>
+              <div className="text-2xl font-bold text-foreground">{metrics.codesTotal}</div>
+              <p className="text-xs text-muted-foreground">Ready for printing: {metrics.codesReady}</p>
             </CardContent>
           </Card>
         </div>
@@ -171,27 +243,28 @@ const Index = () => {
         </Card>
 
         {/* Backend Connection Notice */}
-        <Card className="border-warning/50 bg-warning/5">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-4">
-              <AlertTriangle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
-              <div className="space-y-2">
-                <h3 className="font-semibold text-foreground">Connect to Supabase for Full Functionality</h3>
-                <p className="text-sm text-muted-foreground">
-                  This asset management system requires a backend database for user authentication, 
-                  asset storage, and full functionality. Click the green Supabase button in the top right 
-                  to connect your project to Supabase and enable features like:
-                </p>
-                <ul className="text-sm text-muted-foreground space-y-1 ml-4">
-                  <li>• User authentication and role-based access</li>
-                  <li>• Asset and property data storage</li>
-                  <li>• Real-time updates and audit logs</li>
-                  <li>• Report generation and data export</li>
-                </ul>
+        {!hasSupabaseEnv && (
+          <Card className="border-warning/50 bg-warning/5">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-4">
+                <AlertTriangle className="h-6 w-6 text-warning shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-foreground">Connect to Supabase for Full Functionality</h3>
+                  <p className="text-sm text-muted-foreground">
+                    This asset management system requires a backend database for user authentication, 
+                    asset storage, and full functionality. Add your Supabase keys to .env.local to enable features like:
+                  </p>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-4">
+                    <li>• User authentication and role-based access</li>
+                    <li>• Asset and property data storage</li>
+                    <li>• Real-time updates and audit logs</li>
+                    <li>• Report generation and data export</li>
+                  </ul>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
       </div>
   );
 };

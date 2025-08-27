@@ -101,7 +101,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   rel="noopener noreferrer"
                   className="text-primary hover:underline"
                 >
-                  Karthik Lal
+                  SAMS
                 </a>
                 . All rights reserved.
               </p>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,9 @@ import { CalendarIcon, Package, Save } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { listProperties, type Property } from "@/services/properties";
+import { listItemTypes, createItemType } from "@/services/itemTypes";
 
 interface AssetFormProps {
   onSubmit?: (data: any) => void;
@@ -36,6 +39,37 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     condition: initialData?.condition || "",
     serialNumber: initialData?.serialNumber || "",
   });
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
+  const [newType, setNewType] = useState<string>("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // Properties from Supabase (or fallback handled in page state)
+        if (hasSupabaseEnv) {
+          const props = await listProperties();
+          setProperties(props);
+        } else {
+          // fallback to common names when no Supabase
+          setProperties([
+            { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: "", manager: "" } as any,
+            { id: "PROP-002", name: "Warehouse", type: "Storage", status: "Active", address: "", manager: "" } as any,
+            { id: "PROP-003", name: "Branch Office", type: "Office", status: "Active", address: "", manager: "" } as any,
+            { id: "PROP-004", name: "Factory", type: "Manufacturing", status: "Active", address: "", manager: "" } as any,
+          ]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      try {
+        const types = await listItemTypes();
+        setItemTypes(types.map(t => t.name));
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,14 +152,37 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                   <SelectValue placeholder="Select item type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="furniture">Furniture</SelectItem>
-                  <SelectItem value="electronics">Electronics</SelectItem>
-                  <SelectItem value="vehicles">Vehicles</SelectItem>
-                  <SelectItem value="machinery">Machinery</SelectItem>
-                  <SelectItem value="office-supplies">Office Supplies</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {itemTypes.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  placeholder="Add new type (Admin)"
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={async () => {
+                    const name = newType.trim();
+                    if (!name) return;
+                    try {
+                      const created = await createItemType(name);
+                      setItemTypes((prev) => Array.from(new Set([...prev, created.name])));
+                      setNewType("");
+                      toast.success("Item type added");
+                    } catch (e: any) {
+                      console.error(e);
+                      toast.error(e.message || "Failed to add item type");
+                    }
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
             </div>
 
             {/* Property */}
@@ -136,11 +193,11 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                   <SelectValue placeholder="Select property" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="main-office">Main Office</SelectItem>
-                  <SelectItem value="warehouse">Warehouse</SelectItem>
-                  <SelectItem value="branch-office">Branch Office</SelectItem>
-                  <SelectItem value="factory">Factory</SelectItem>
-                  <SelectItem value="remote-site">Remote Site</SelectItem>
+                  {properties.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

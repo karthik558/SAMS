@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { listQRCodes, createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
+import { logActivity } from "@/services/activity";
+import { listProperties, type Property } from "@/services/properties";
 
 // Mock data for QR codes
 const mockQRCodes = [
@@ -60,6 +65,69 @@ export default function QRCodes() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [codes, setCodes] = useState<any[]>(mockQRCodes);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [propsById, setPropsById] = useState<Record<string, Property>>({});
+  const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
+  const [computedImages, setComputedImages] = useState<Record<string, string>>({});
+
+  // Load QR codes and properties (when Supabase is configured)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (hasSupabaseEnv) {
+          const [data, props] = await Promise.all([
+            listQRCodes(),
+            listProperties().catch(() => [] as Property[]),
+          ]);
+          const mapped = data.map(d => ({
+            id: d.id,
+            assetId: d.assetId,
+            assetName: d.assetName || d.assetId,
+            property: d.property || "",
+            imageUrl: d.imageUrl || null,
+            generatedDate: d.generatedDate,
+            status: d.status,
+            printed: d.printed,
+          }));
+          setCodes(mapped.sort((a,b) => (a.generatedDate < b.generatedDate ? 1 : -1)));
+          if (props?.length) {
+            setProperties(props);
+            setPropsById(Object.fromEntries(props.map(p => [p.id, p])));
+            setPropsByName(Object.fromEntries(props.map(p => [p.name, p])));
+          }
+        } else {
+          // Fallback properties for local mode
+          const fallback: Property[] = [
+            { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: null, manager: null } as any,
+            { id: "PROP-002", name: "Warehouse", type: "Storage", status: "Active", address: null, manager: null } as any,
+            { id: "PROP-003", name: "Branch Office", type: "Office", status: "Active", address: null, manager: null } as any,
+            { id: "PROP-004", name: "Factory", type: "Manufacturing", status: "Active", address: null, manager: null } as any,
+          ];
+          setProperties(fallback);
+          setPropsById(Object.fromEntries(fallback.map(p => [p.id, p])));
+          setPropsByName(Object.fromEntries(fallback.map(p => [p.name, p])));
+        }
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Failed to load data; using local fallbacks");
+      }
+    })();
+  }, []);
+
+  // Helpers to reconcile property codes vs names
+  const propertyCodeOf = (val: string) => {
+    if (!val) return val;
+    if (propsById[val]) return val; // already a code
+    const p = propsByName[val];
+    return p ? p.id : val; // fallback to given value
+  };
+  const propertyLabel = (val: string) => {
+    if (propsById[val]) return propsById[val].name;
+    return val;
+  };
+
+  // (moved below filteredQRCodes)
 
   const handleGenerateNew = () => {
     setSelectedAsset({
@@ -76,12 +144,48 @@ export default function QRCodes() {
   };
 
   const handleBulkPrint = () => {
-    const unprintedCodes = mockQRCodes.filter(qr => !qr.printed);
-    toast.success(`Printing ${unprintedCodes.length} QR codes. Connect Supabase for full functionality.`);
+    const unprintedCodes = codes.filter(qr => !qr.printed);
+    toast.success(`Printing ${unprintedCodes.length} QR codes`);
+    (async () => {
+      await logActivity("qr_bulk_print", `Bulk printed ${unprintedCodes.length} QR codes`);
+    })();
   };
 
-  const handleDownloadAll = () => {
-    toast.success("Downloading all QR codes as ZIP. Connect Supabase for full functionality.");
+  const handleDownloadAll = async () => {
+    try {
+      // Lightweight client-side zip using JSZip (optional). If not installed, fallback to sequential downloads.
+      const JSZipModule: any = (window as any).JSZip;
+      if (JSZipModule) {
+        const zip = new JSZipModule();
+        for (const qr of filteredQRCodes) {
+          let dataUrl = qr.imageUrl;
+          if (!dataUrl) dataUrl = await generateQrPng(qr);
+          const base64 = (dataUrl as string).split(',')[1];
+          zip.file(`qr-${qr.assetId}.png`, base64, { base64: true });
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `qr-codes-${new Date().toISOString().slice(0,10)}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // Fallback: sequential downloads
+        for (const qr of filteredQRCodes) {
+          let dataUrl = qr.imageUrl;
+          if (!dataUrl) dataUrl = await generateQrPng(qr);
+          downloadDataUrl(dataUrl, `qr-${qr.assetId}.png`);
+        }
+      }
+      toast.success("Downloading all QR codes");
+      await logActivity("qr_download_all", `Downloaded ${filteredQRCodes.length} QR codes`);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to download all QR codes");
+    }
   };
 
   const getStatusBadge = (status: string, printed: boolean) => {
@@ -93,16 +197,69 @@ export default function QRCodes() {
     return <Badge variant="outline">{status}</Badge>;
   };
 
-  const filteredQRCodes = mockQRCodes.filter(qr => {
+  const filteredQRCodes = codes.filter(qr => {
     const matchesSearch = qr.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          qr.assetId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesProperty = filterProperty === "all" || qr.property.toLowerCase().replace(" ", "-") === filterProperty;
+    const qrPropCode = propertyCodeOf(qr.property);
+    const matchesProperty = filterProperty === "all" || qrPropCode === filterProperty;
     const matchesStatus = filterStatus === "all" || 
                          (filterStatus === "printed" && qr.printed) ||
                          (filterStatus === "ready" && !qr.printed);
     
     return matchesSearch && matchesProperty && matchesStatus;
   });
+
+  // Precompute images for visible codes missing imageUrl
+  useEffect(() => {
+    (async () => {
+      const missing = filteredQRCodes.filter(q => !q.imageUrl && !computedImages[q.id]);
+      if (!missing.length) return;
+      const entries: Array<[string, string]> = [];
+      for (const q of missing) {
+        try {
+          const url = await generateQrPng(q);
+          entries.push([q.id, url]);
+        } catch (e) {
+          console.warn("Failed to generate QR preview for", q.id, e);
+        }
+      }
+      if (entries.length) {
+        setComputedImages(prev => ({ ...prev, ...Object.fromEntries(entries) }));
+      }
+    })();
+  }, [filteredQRCodes]);
+
+  const propertyOptions = useMemo(() => {
+    if (properties.length) return properties.map(p => ({ value: p.id, label: p.name }));
+    // derive from codes list as last resort
+    const uniq = Array.from(new Set(codes.map(c => propertyCodeOf(c.property)).filter(Boolean)));
+    return uniq.map(v => ({ value: v as string, label: propertyLabel(v as string) }));
+  }, [properties, codes, propsById, propsByName]);
+
+  // Download helpers
+  const downloadDataUrl = (dataUrl: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  const generateQrPng = async (qr: any) => {
+    const payload = {
+      assetId: qr.assetId,
+      assetName: qr.assetName,
+      property: qr.property,
+      generatedDate: qr.generatedDate,
+      url: `${window.location.origin}/assets/${qr.assetId}`,
+    };
+    return await QRCode.toDataURL(JSON.stringify(payload), {
+      width: 300,
+      margin: 2,
+      color: { dark: '#000000', light: '#FFFFFF' },
+      errorCorrectionLevel: 'M',
+    });
+  };
 
   if (showGenerator) {
     return (
@@ -120,6 +277,43 @@ export default function QRCodes() {
             onGenerated={(qrCodeUrl) => {
               console.log("QR Code generated:", qrCodeUrl);
               toast.success("QR Code generated successfully!");
+              if (hasSupabaseEnv && selectedAsset?.id) {
+                const id = `QR-${Math.floor(Math.random()*900+100)}`;
+                const payload: SbQRCode = {
+                  id,
+                  assetId: selectedAsset.id,
+                  property: selectedAsset.property,
+                  generatedDate: new Date().toISOString().slice(0,10),
+                  status: "Generated",
+                  printed: false,
+                  imageUrl: qrCodeUrl,
+                } as any;
+                createQRCode(payload).then(async () => {
+                  const data = await listQRCodes();
+                  const mapped = data.map(d => ({
+                    id: d.id,
+                    assetId: d.assetId,
+                    assetName: d.assetName || d.assetId,
+                    property: d.property || "",
+                    generatedDate: d.generatedDate,
+                    status: d.status,
+                    printed: d.printed,
+                  }));
+                  setCodes(mapped.sort((a,b) => (a.generatedDate < b.generatedDate ? 1 : -1)));
+                  await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
+                }).catch((e) => console.error(e));
+              } else {
+                setCodes(prev => [...prev, {
+                  id: `QR-${Math.floor(Math.random()*900+100)}`,
+                  assetId: selectedAsset?.id,
+                  assetName: selectedAsset?.name,
+                  property: selectedAsset?.property,
+                  generatedDate: new Date().toISOString().slice(0,10),
+                  status: "Generated",
+                  printed: false,
+                }]);
+                (async ()=>{ await logActivity("qr_generated", `QR generated for ${selectedAsset?.name} (${selectedAsset?.id}) (local)`, "Local"); })();
+              }
             }}
           />
         </div>
@@ -158,7 +352,7 @@ export default function QRCodes() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total QR Codes</p>
-                  <p className="text-2xl font-bold">{mockQRCodes.length}</p>
+                  <p className="text-2xl font-bold">{codes.length}</p>
                 </div>
                 <QrCode className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -171,7 +365,7 @@ export default function QRCodes() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Printed</p>
                   <p className="text-2xl font-bold text-success">
-                    {mockQRCodes.filter(qr => qr.printed).length}
+                    {codes.filter(qr => qr.printed).length}
                   </p>
                 </div>
                 <Printer className="h-8 w-8 text-muted-foreground" />
@@ -185,7 +379,7 @@ export default function QRCodes() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Ready to Print</p>
                   <p className="text-2xl font-bold text-warning">
-                    {mockQRCodes.filter(qr => !qr.printed).length}
+                    {codes.filter(qr => !qr.printed).length}
                   </p>
                 </div>
                 <Package className="h-8 w-8 text-muted-foreground" />
@@ -199,7 +393,7 @@ export default function QRCodes() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Properties</p>
                   <p className="text-2xl font-bold">
-                    {new Set(mockQRCodes.map(qr => qr.property)).size}
+                    {new Set(codes.map(qr => qr.property)).size}
                   </p>
                 </div>
                 <Building2 className="h-8 w-8 text-muted-foreground" />
@@ -234,10 +428,9 @@ export default function QRCodes() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Properties</SelectItem>
-                  <SelectItem value="main-office">Main Office</SelectItem>
-                  <SelectItem value="branch-office">Branch Office</SelectItem>
-                  <SelectItem value="warehouse">Warehouse</SelectItem>
-                  <SelectItem value="factory">Factory</SelectItem>
+                  {propertyOptions.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               
@@ -291,8 +484,16 @@ export default function QRCodes() {
 
                 {/* QR Code Preview */}
                 <div className="flex justify-center p-4 bg-muted/30 rounded-lg">
-                  <div className="w-24 h-24 bg-background border-2 border-border rounded flex items-center justify-center">
-                    <QrCode className="h-16 w-16 text-muted-foreground" />
+                  <div className="w-28 h-28 bg-background border-2 border-border rounded flex items-center justify-center overflow-hidden">
+                    { (qrCode.imageUrl || computedImages[qrCode.id]) ? (
+                      <img
+                        src={qrCode.imageUrl || computedImages[qrCode.id]}
+                        alt={`QR ${qrCode.assetId}`}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <QrCode className="h-16 w-16 text-muted-foreground" />
+                    ) }
                   </div>
                 </div>
 
@@ -311,6 +512,20 @@ export default function QRCodes() {
                     size="sm"
                     variant="outline"
                     className="gap-2"
+                    onClick={async () => {
+                      try {
+                        let dataUrl = qrCode.imageUrl;
+                        if (!dataUrl) dataUrl = await generateQrPng(qrCode);
+                        if (dataUrl) {
+                          downloadDataUrl(dataUrl, `qr-${qrCode.assetId}.png`);
+                        }
+                        toast.success(`Downloaded QR for ${qrCode.assetName}`);
+                        await logActivity("qr_download", `Downloaded QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                      } catch (e) {
+                        console.error(e);
+                        toast.error("Failed to download QR");
+                      }
+                    }}
                   >
                     <Download className="h-4 w-4" />
                     Download
@@ -319,6 +534,19 @@ export default function QRCodes() {
                     size="sm"
                     variant="outline"
                     className="gap-2"
+                    onClick={async () => {
+                      try {
+                        if (hasSupabaseEnv) {
+                          await updateQRCode(qrCode.id, { printed: true } as any);
+                        }
+                        setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
+                        toast.success(`Printed QR for ${qrCode.assetName}`);
+                        await logActivity("qr_printed", `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                      } catch (e) {
+                        console.error(e);
+                        toast.error("Failed to mark as printed");
+                      }
+                    }}
                   >
                     <Printer className="h-4 w-4" />
                     Print
@@ -329,21 +557,21 @@ export default function QRCodes() {
           ))}
         </div>
 
-        {/* Backend Connection Notice */}
-        <Card className="border-warning/50 bg-warning/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <QrCode className="h-6 w-6 text-warning shrink-0" />
-              <div>
-                <h3 className="font-semibold text-foreground">QR Code Management Features</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Full QR code management requires Supabase connection for persistent storage, 
-                  bulk operations, and integration with asset data.
-                </p>
+        {!hasSupabaseEnv && (
+          <Card className="border-warning/50 bg-warning/5">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <QrCode className="h-6 w-6 text-warning shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-foreground">QR Code Management Features</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Connect Supabase to persist generated QR codes and enable bulk operations.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }

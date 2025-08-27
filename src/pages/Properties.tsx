@@ -3,6 +3,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Users, Package, MapPin, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useEffect, useState } from "react";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { listProperties, deleteProperty as sbDeleteProperty, createProperty as sbCreateProperty, updateProperty as sbUpdateProperty, type Property } from "@/services/properties";
+import { logActivity } from "@/services/activity";
 
 const mockProperties = [
   {
@@ -58,16 +79,137 @@ const mockProperties = [
 ];
 
 export default function Properties() {
+  const [properties, setProperties] = useState<any[]>(mockProperties);
+  const isSupabase = hasSupabaseEnv;
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    id: "",
+    name: "",
+    address: "",
+    type: "Office",
+    status: "Active",
+    manager: "",
+  });
+
+  useEffect(() => {
+    if (!isSupabase) return;
+    (async () => {
+      try {
+        const data = await listProperties();
+        const counts = Object.fromEntries(mockProperties.map(p => [p.id, { assetCount: p.assetCount, userCount: p.userCount }]));
+        const merged = data.map((p: Property) => ({
+          id: p.id,
+          name: p.name,
+          address: p.address ?? "",
+          type: p.type,
+          status: p.status,
+          manager: p.manager ?? "",
+          assetCount: counts[p.id]?.assetCount ?? 0,
+          userCount: counts[p.id]?.userCount ?? 0,
+        }));
+        setProperties(merged);
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Failed to load properties from Supabase; using local data");
+      }
+    })();
+  }, [isSupabase]);
+
   const handleAddProperty = () => {
-    toast.info("Add Property feature requires Supabase connection");
+    setEditingId(null);
+    setForm({ id: "", name: "", address: "", type: "Office", status: "Active", manager: "" });
+    setIsDialogOpen(true);
   };
 
   const handleEditProperty = (propertyId: string) => {
-    toast.info(`Edit Property ${propertyId} requires Supabase connection`);
+    setEditingId(propertyId);
+    const p = properties.find((x: any) => x.id === propertyId);
+    if (p) {
+      setForm({
+        id: p.id,
+        name: p.name,
+        address: p.address ?? "",
+        type: p.type,
+        status: p.status,
+        manager: p.manager ?? "",
+      });
+      setIsDialogOpen(true);
+    }
   };
 
-  const handleDeleteProperty = (propertyId: string) => {
-    toast.info(`Delete Property ${propertyId} requires Supabase connection`);
+  const handleDeleteProperty = async (propertyId: string) => {
+    try {
+      if (isSupabase) {
+        await sbDeleteProperty(propertyId);
+        setProperties(prev => prev.filter(p => p.id !== propertyId));
+        toast.success(`Property ${propertyId} deleted`);
+  await logActivity("property_deleted", `Property ${propertyId} deleted`);
+      } else {
+        setProperties(prev => prev.filter(p => p.id !== propertyId));
+        toast.info("Supabase not configured; deleted locally only");
+  await logActivity("property_deleted", `Property ${propertyId} deleted (local)`, "Local");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to delete property");
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      if (!form.name || !form.type || !form.status) {
+        toast.error("Please fill required fields");
+        return;
+      }
+  const id = editingId ? editingId : (form.id || `PROP-${Math.floor(Math.random()*900+100)}`);
+
+      if (isSupabase) {
+        if (editingId) {
+          await sbUpdateProperty(editingId, {
+            // do not update primary key id to avoid FK issues
+            name: form.name,
+            address: form.address,
+            type: form.type,
+            status: form.status,
+            manager: form.manager,
+          });
+          setProperties(prev => prev.map((p: any) => p.id === editingId ? { ...p, ...form, id: editingId } : p));
+          toast.success("Property updated");
+          await logActivity("property_updated", `Property ${editingId} updated`);
+        } else {
+          const created = await sbCreateProperty({
+            id,
+            name: form.name,
+            address: form.address,
+            type: form.type,
+            status: form.status,
+            manager: form.manager,
+          } as Property);
+          setProperties(prev => [
+            ...prev,
+            { ...created, assetCount: 0, userCount: 0 }
+          ]);
+          toast.success("Property created");
+          await logActivity("property_created", `Property ${id} created`);
+        }
+      } else {
+        if (editingId) {
+          setProperties(prev => prev.map((p: any) => p.id === editingId ? { ...p, ...form, id: editingId } : p));
+          toast.info("Updated locally (no Supabase)");
+          await logActivity("property_updated", `Property ${editingId} updated (local)`, "Local");
+        } else {
+          setProperties(prev => [...prev, { ...form, id, assetCount: 0, userCount: 0 }]);
+          toast.info("Created locally (no Supabase)");
+          await logActivity("property_created", `Property ${id} created (local)`, "Local");
+        }
+      }
+      setIsDialogOpen(false);
+      setEditingId(null);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to save property");
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -110,14 +252,14 @@ export default function Properties() {
           </Button>
         </div>
 
-        {/* Stats */}
+    {/* Stats */}
   <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Properties</p>
-                  <p className="text-2xl font-bold">{mockProperties.length}</p>
+                  <p className="text-2xl font-bold">{properties.length}</p>
                 </div>
                 <Building2 className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -130,7 +272,7 @@ export default function Properties() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Active Properties</p>
                   <p className="text-2xl font-bold text-success">
-                    {mockProperties.filter(p => p.status === "Active").length}
+                    {properties.filter(p => p.status === "Active").length}
                   </p>
                 </div>
                 <MapPin className="h-8 w-8 text-muted-foreground" />
@@ -144,7 +286,7 @@ export default function Properties() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Assets</p>
                   <p className="text-2xl font-bold">
-                    {mockProperties.reduce((sum, prop) => sum + prop.assetCount, 0)}
+                    {properties.reduce((sum, prop) => sum + prop.assetCount, 0)}
                   </p>
                 </div>
                 <Package className="h-8 w-8 text-muted-foreground" />
@@ -158,7 +300,7 @@ export default function Properties() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Users</p>
                   <p className="text-2xl font-bold">
-                    {mockProperties.reduce((sum, prop) => sum + prop.userCount, 0)}
+                    {properties.reduce((sum, prop) => sum + prop.userCount, 0)}
                   </p>
                 </div>
                 <Users className="h-8 w-8 text-muted-foreground" />
@@ -169,7 +311,7 @@ export default function Properties() {
 
         {/* Properties Grid */}
   <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {mockProperties.map((property) => (
+          {properties.map((property) => (
             <Card key={property.id} className="hover:shadow-medium transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -251,7 +393,7 @@ export default function Properties() {
           <CardContent>
             <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
               {["Office", "Storage", "Manufacturing", "Site Office"].map((type) => {
-                const propertiesOfType = mockProperties.filter(p => p.type === type);
+                const propertiesOfType = properties.filter(p => p.type === type);
                 const totalAssets = propertiesOfType.reduce((sum, p) => sum + p.assetCount, 0);
                 
                 return (
@@ -270,20 +412,85 @@ export default function Properties() {
         </Card>
 
         {/* Backend Connection Notice */}
-        <Card className="border-warning/50 bg-warning/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <Building2 className="h-6 w-6 text-warning shrink-0" />
-              <div>
-                <h3 className="font-semibold text-foreground">Property Management Features</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Full property management requires Supabase connection for user assignments, 
-                  property creation, and asset-property relationships.
-                </p>
+        {!isSupabase && (
+          <Card className="border-warning/50 bg-warning/5">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <Building2 className="h-6 w-6 text-warning shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-foreground">Property Management Features</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Connect Supabase to persist properties and relationships.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Add/Edit Property Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingId ? "Edit Property" : "Add New Property"}</DialogTitle>
+              <DialogDescription>
+                {editingId ? "Update property details" : "Create a new property for asset tracking"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prop-id">Property ID</Label>
+                  <Input id="prop-id" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} placeholder="e.g., PROP-006" disabled={Boolean(editingId)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prop-name">Name</Label>
+                  <Input id="prop-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Main Office" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prop-address">Address</Label>
+                <Input id="prop-address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Full address" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Type</Label>
+                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Office">Office</SelectItem>
+                      <SelectItem value="Storage">Storage</SelectItem>
+                      <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                      <SelectItem value="Site Office">Site Office</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prop-manager">Manager</Label>
+                  <Input id="prop-manager" value={form.manager} onChange={(e) => setForm({ ...form, manager: e.target.value })} placeholder="Manager name" />
+                </div>
               </div>
             </div>
-          </CardContent>
-      </Card>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleSubmit}>{editingId ? "Save Changes" : "Create Property"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }

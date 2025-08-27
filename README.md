@@ -60,6 +60,35 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Supabase Setup (optional)
+
+To persist assets instead of using local mock data:
+
+1) Install deps and add env vars
+
+```sh
+npm i
+```
+
+Create a `.env` file (or `.env.local`) in the project root:
+
+```
+VITE_SUPABASE_URL=your-project-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+2) Create database objects
+
+Open Supabase SQL editor and run `supabase.sql` from the repo root. This creates the `assets` table and permissive RLS policies.
+
+3) Run the app
+
+```sh
+npm run dev
+```
+
+When env vars are present, the Assets page uses Supabase CRUD. Without them, it falls back to mock data.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/b6dbbed0-565e-48d8-9ba7-7342a1a9fa58) and click on Share -> Publish.

@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -18,13 +17,16 @@ import {
   CalendarIcon, 
   Filter, 
   BarChart3,
-  FileText,
-  Table2,
-  Mail
+  FileText
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { listProperties, type Property } from "@/services/properties";
+import { listItemTypes } from "@/services/itemTypes";
+import { listReports, createReport, type Report } from "@/services/reports";
+import { listAssets, type Asset } from "@/services/assets";
 
 const reportTypes = [
   {
@@ -44,18 +46,6 @@ const reportTypes = [
     name: "Expiry Tracking Report",
     description: "Assets approaching expiry dates with timeline",
     icon: CalendarIcon
-  },
-  {
-    id: "purchase-analysis",
-    name: "Purchase Analysis Report",
-    description: "Purchase trends and spending analysis over time",
-    icon: Table2
-  },
-  {
-    id: "audit-trail",
-    name: "Audit Trail Report",
-    description: "Complete audit log of all system activities",
-    icon: FileBarChart
   }
 ];
 
@@ -67,8 +57,53 @@ export default function Reports() {
   const [selectedAssetType, setSelectedAssetType] = useState("all");
   const [reportFormat, setReportFormat] = useState("pdf");
   const [emailReport, setEmailReport] = useState(false);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
+  const [recentReports, setRecentReports] = useState<Report[] | null>(null);
+  const [assetsCache, setAssetsCache] = useState<Asset[] | null>(null);
 
-  const handleGenerateReport = () => {
+  // Load properties, item types, and recent reports
+  // When Supabase is enabled, pull live data; else use light fallbacks
+  useEffect(() => {
+    (async () => {
+      try {
+        if (hasSupabaseEnv) {
+          const [props, types] = await Promise.all([
+            listProperties().catch(() => []),
+            listItemTypes().catch(() => []),
+          ]);
+          setProperties(props as Property[]);
+          setItemTypes((types as any[]).map(t => t.name));
+          // Preload assets for downloads/export
+          try {
+            const assets = await listAssets();
+            setAssetsCache(assets as Asset[]);
+          } catch { /* ignore */ }
+        } else {
+          setProperties([
+            { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: null, manager: null } as any,
+            { id: "PROP-002", name: "Warehouse", type: "Storage", status: "Active", address: null, manager: null } as any,
+            { id: "PROP-003", name: "Branch Office", type: "Office", status: "Active", address: null, manager: null } as any,
+          ]);
+          setItemTypes(["Electronics","Furniture","Machinery","Vehicles","Office Supplies"]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+      try {
+        if (hasSupabaseEnv) {
+          const reports = await listReports();
+          setRecentReports(reports);
+        } else {
+          setRecentReports(null);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  const handleGenerateReport = async () => {
     if (!selectedReportType) {
       toast.error("Please select a report type");
       return;
@@ -84,13 +119,117 @@ export default function Reports() {
       email: emailReport
     };
 
-    console.log("Generating report:", reportData);
-    toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated successfully! Connect Supabase for full functionality.`);
+    try {
+      if (hasSupabaseEnv) {
+        await createReport({
+          name: `${reportTypes.find(r => r.id === selectedReportType)?.name} - ${new Date().toISOString().slice(0,10)}`,
+          type: selectedReportType,
+          format: reportFormat.toUpperCase(),
+          status: "Completed",
+          date_from: dateFrom ? new Date(dateFrom).toISOString().slice(0,10) : null,
+          date_to: dateTo ? new Date(dateTo).toISOString().slice(0,10) : null,
+          file_url: null,
+        } as any);
+        const reports = await listReports();
+        setRecentReports(reports);
+      }
+      toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${hasSupabaseEnv ? "" : " (local)"}.`);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to generate report");
+    }
   };
 
   const handleQuickReport = (reportType: string) => {
-    const report = reportTypes.find(r => r.id === reportType);
-    toast.info(`Generating ${report?.name}. Connect Supabase for full functionality.`);
+  const report = reportTypes.find(r => r.id === reportType);
+  toast.info(`Generating ${report?.name}${hasSupabaseEnv ? "" : " (local)"}.`);
+  };
+
+  // Download a CSV for a given recent report (client-side export snapshot)
+  const downloadReport = async (report: any) => {
+    try {
+      // Prepare data set
+      let rows: any[] = [];
+      if (hasSupabaseEnv && !assetsCache) {
+        try { setAssetsCache(await listAssets()); } catch {}
+      }
+      const assets = assetsCache ?? [];
+      const from = report.date_from ? new Date(report.date_from) : null;
+      const to = report.date_to ? new Date(report.date_to) : null;
+      const inRange = (d: string | null) => {
+        if (!d) return true;
+        const dt = new Date(d);
+        if (from && dt < from) return false;
+        if (to && dt > to) return false;
+        return true;
+      };
+
+      switch ((report.type || "").toString()) {
+        case "asset-summary":
+          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            property: a.property,
+            quantity: a.quantity,
+            purchaseDate: a.purchaseDate,
+            expiryDate: a.expiryDate,
+            status: a.status,
+          }));
+          break;
+        case "property-wise":
+          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
+            property: a.property,
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            quantity: a.quantity,
+            status: a.status,
+          }));
+          break;
+        case "expiry-tracking":
+          rows = assets.filter(a => a.expiryDate && inRange(a.expiryDate)).map(a => ({
+            id: a.id,
+            name: a.name,
+            property: a.property,
+            expiryDate: a.expiryDate,
+            status: a.status,
+          }));
+          break;
+        default:
+          rows = [];
+      }
+
+      const toCsv = (data: any[]) => {
+        if (!data.length) return "";
+        const cols = Object.keys(data[0]);
+        const header = cols.join(",");
+        const lines = data.map(r => cols.map(c => {
+          const v = (r[c] ?? "").toString().replaceAll('"', '""');
+          return /[",\n]/.test(v) ? `"${v}"` : v;
+        }).join(","));
+        return [header, ...lines].join("\n");
+      };
+
+      const csv = toCsv(rows);
+      if (!csv) {
+        toast.info("No data to download for this report");
+        return;
+      }
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(report.name || 'report').toString().replaceAll(' ', '_')}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Report downloaded");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to download report");
+    }
   };
 
   return (
@@ -234,11 +373,9 @@ export default function Reports() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Properties</SelectItem>
-                    <SelectItem value="main-office">Main Office</SelectItem>
-                    <SelectItem value="branch-office">Branch Office</SelectItem>
-                    <SelectItem value="warehouse">Warehouse</SelectItem>
-                    <SelectItem value="factory">Factory</SelectItem>
-                    <SelectItem value="remote-site">Remote Site</SelectItem>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -251,11 +388,9 @@ export default function Reports() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="electronics">Electronics</SelectItem>
-                    <SelectItem value="furniture">Furniture</SelectItem>
-                    <SelectItem value="machinery">Machinery</SelectItem>
-                    <SelectItem value="vehicles">Vehicles</SelectItem>
-                    <SelectItem value="office-supplies">Office Supplies</SelectItem>
+                    {itemTypes.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -315,49 +450,29 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                {
-                  name: "Asset Summary Report - April 2024",
-                  type: "Monthly Summary",
-                  date: "2024-04-30",
-                  format: "PDF",
-                  status: "Completed"
-                },
-                {
-                  name: "Property-wise Asset Report - Q1 2024",
-                  type: "Quarterly Report",
-                  date: "2024-03-31",
-                  format: "Excel",
-                  status: "Completed"
-                },
-                {
-                  name: "Expiry Tracking Report - May 2024",
-                  type: "Monthly Alert",
-                  date: "2024-05-01",
-                  format: "PDF",
-                  status: "Scheduled"
-                }
-              ].map((report, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
+              {(recentReports ?? [
+                { name: "Asset Summary Report - Sample", type: "Sample", date_from: null, date_to: null, format: "PDF", status: "Completed" }
+              ] as any[]).map((report: any, index: number) => (
+                <div key={report.id ?? index} className="flex items-center justify-between p-3 border border-border rounded-lg">
                   <div className="flex items-center gap-3">
                     <FileText className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="font-medium">{report.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {report.type} • {report.date} • {report.format}
+                        {report.type} • {report.created_at?.slice(0,10) ?? "-"} • {report.format}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={cn(
                       "text-xs px-2 py-1 rounded",
-                      report.status === "Completed" 
+                      (report.status || "Completed") === "Completed" 
                         ? "bg-success/10 text-success" 
                         : "bg-warning/10 text-warning"
                     )}>
-                      {report.status}
+                      {report.status || "Completed"}
                     </span>
-                    <Button size="sm" variant="outline">
+                    <Button size="sm" variant="outline" onClick={() => downloadReport(report)}>
                       <Download className="h-4 w-4" />
                     </Button>
                   </div>
@@ -367,21 +482,21 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* Backend Connection Notice */}
-        <Card className="border-warning/50 bg-warning/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <FileBarChart className="h-6 w-6 text-warning shrink-0" />
-              <div>
-                <h3 className="font-semibold text-foreground">Advanced Reporting Features</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Full reporting functionality requires Supabase connection for data aggregation, 
-                  scheduled reports, email delivery, and audit trail generation.
-                </p>
+        {(!hasSupabaseEnv) && (
+          <Card className="border-warning/50 bg-warning/5">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <FileBarChart className="h-6 w-6 text-warning shrink-0" />
+                <div>
+                  <h3 className="font-semibold text-foreground">Advanced Reporting Features</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Connect Supabase to enable persisted reports, scheduling, and email delivery.
+                  </p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
     </div>
   );
 }
