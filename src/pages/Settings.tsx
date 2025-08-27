@@ -5,71 +5,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  User, 
-  Bell, 
-  Shield, 
-  Database, 
-  Palette, 
-  Globe, 
-  Mail,
-  Phone,
-  Building,
-  Save,
-  RefreshCw
-} from "lucide-react";
+import { Bell, Shield, Save } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings, type SystemSettings, type UserSettings } from "@/services/settings";
+import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { listUsers } from "@/services/users";
+import { verifyCredentials, setUserPassword } from "@/services/auth";
 
 export default function Settings() {
   const { toast } = useToast();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [timezone, setTimezone] = useState("UTC");
-  const [language, setLanguage] = useState("en");
-  const [backupFrequency, setBackupFrequency] = useState("daily");
-  const [autoBackup, setAutoBackup] = useState(true);
 
   // Demo current user id (wire to auth user/app user as needed)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+  // Password change fields
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Load settings
   useEffect(() => {
     (async () => {
-      // system
+      // current user from auth storage
       try {
-        if (hasSupabaseEnv) {
-          const sys = await getSystemSettings();
-          setTimezone(sys.timezone || "UTC");
-          setLanguage(sys.language || "en");
-          setBackupFrequency((sys.backup_frequency as any) || "daily");
-          setAutoBackup(!!sys.auto_backup);
-        } else {
-          const local = JSON.parse(localStorage.getItem("system_settings") || "{}");
-          if (local) {
-            setTimezone(local.timezone || "UTC");
-            setLanguage(local.language || "en");
-            setBackupFrequency(local.backup_frequency || "daily");
-            setAutoBackup(local.auto_backup ?? true);
-          }
+        const uid = localStorage.getItem("current_user_id");
+        const authRaw = localStorage.getItem("auth_user");
+        if (uid) setCurrentUserId(uid);
+        if (authRaw) {
+          const au = JSON.parse(authRaw) as { email?: string };
+          setCurrentUserEmail(au?.email || null);
         }
       } catch {}
 
-      // user
+      // user settings
       try {
         if (hasSupabaseEnv) {
-          const users = await listUsers().catch(() => [] as any[]);
-          const uid = users[0]?.id as string | undefined;
-          if (uid) {
-            setCurrentUserId(uid);
-            const us = await getUserSettings(uid);
+          if (currentUserId) {
+            const us = await getUserSettings(currentUserId);
             setNotifications(us.notifications ?? true);
             setEmailNotifications(us.email_notifications ?? true);
             setDarkMode(us.dark_mode ?? false);
@@ -82,17 +60,16 @@ export default function Settings() {
         }
       } catch {}
     })();
-  }, []);
+  }, [currentUserId]);
 
   const handleSave = async () => {
     try {
+      // Only user settings persisted (system config removed from UI)
       if (hasSupabaseEnv) {
-        await updateSystemSettings({ timezone, language, backup_frequency: backupFrequency as any, auto_backup: autoBackup });
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
         }
       } else {
-        localStorage.setItem("system_settings", JSON.stringify({ timezone, language, backup_frequency: backupFrequency, auto_backup: autoBackup }));
         localStorage.setItem("user_settings", JSON.stringify({ notifications, email_notifications: emailNotifications, dark_mode: darkMode }));
       }
       // apply theme preference globally
@@ -112,6 +89,56 @@ export default function Settings() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast({ title: "Missing fields", description: "Fill all password fields.", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", description: "New and confirm passwords must match.", variant: "destructive" });
+      return;
+    }
+    try {
+      if (hasSupabaseEnv) {
+        if (!currentUserEmail || !currentUserId) {
+          toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
+          return;
+        }
+        const valid = await verifyCredentials(currentUserEmail, currentPassword);
+        if (!valid) {
+          toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
+          return;
+        }
+        await setUserPassword(currentUserId, newPassword);
+      } else {
+        // Local fallback using demo users store
+        const rawUsers = localStorage.getItem("app_users_fallback");
+        const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
+        const uid = currentUserId || localStorage.getItem("current_user_id");
+        const idx = list.findIndex(u => u.id === uid);
+        if (idx === -1) {
+          toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
+          return;
+        }
+        const stored = list[idx].password_hash as string | undefined;
+        const computed = btoa(unescape(encodeURIComponent(currentPassword))).slice(0, 32);
+        if (!stored || stored !== computed) {
+          toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
+          return;
+        }
+        // Update hash
+        list[idx].password_hash = btoa(unescape(encodeURIComponent(newPassword))).slice(0, 32);
+        localStorage.setItem("app_users_fallback", JSON.stringify(list));
+      }
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({ title: "Password updated", description: "Your password has been changed." });
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e?.message || String(e), variant: "destructive" });
+    }
+  };
+
   return (
   <div className="space-y-6">
       <div className="flex flex-col gap-2">
@@ -121,12 +148,8 @@ export default function Settings() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 md:grid-cols-5">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">Profile</span>
-          </TabsTrigger>
+      <Tabs defaultValue="security" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
@@ -135,86 +158,7 @@ export default function Settings() {
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
-          <TabsTrigger value="system" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            <span className="hidden sm:inline">System</span>
-          </TabsTrigger>
-          <TabsTrigger value="appearance" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            <span className="hidden sm:inline">Appearance</span>
-          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="profile" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
-              <CardDescription>
-                Update your personal information and contact details
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input id="firstName" defaultValue="John" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input id="lastName" defaultValue="Doe" />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-muted-foreground" />
-                  <Input id="email" type="email" defaultValue="john.doe@company.com" className="flex-1" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <Input id="phone" type="tel" defaultValue="+1 (555) 123-4567" className="flex-1" />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department">Department</Label>
-                <div className="flex items-center gap-2">
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                  <Select defaultValue="it">
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="it">IT Department</SelectItem>
-                      <SelectItem value="hr">Human Resources</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="operations">Operations</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
-                <Textarea 
-                  id="bio" 
-                  placeholder="Tell us about yourself..."
-                  defaultValue="Asset management specialist with 5+ years of experience in inventory tracking and property management."
-                />
-              </div>
-
-              <Button onClick={handleSave} className="w-full md:w-auto">
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">
           <Card>
@@ -291,173 +235,24 @@ export default function Settings() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="current-password">Current Password</Label>
-                  <Input id="current-password" type="password" />
+                  <Input id="current-password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" />
+                  <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" />
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <Label>Account Status</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">Active</Badge>
-                  <Badge variant="outline">Admin</Badge>
-                  <Badge variant="outline">Two-Factor Enabled</Badge>
+                  <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleSave} className="flex-1 sm:flex-none">
+                <Button onClick={handleChangePassword} className="flex-1 sm:flex-none">
                   <Save className="h-4 w-4 mr-2" />
                   Update Password
                 </Button>
-                <Button variant="outline" className="flex-1 sm:flex-none">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Reset 2FA
-                </Button>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="system" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Configuration</CardTitle>
-              <CardDescription>
-                Configure system-wide settings and preferences
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={timezone} onValueChange={setTimezone}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UTC">UTC</SelectItem>
-                      <SelectItem value="EST">Eastern Time</SelectItem>
-                      <SelectItem value="PST">Pacific Time</SelectItem>
-                      <SelectItem value="CST">Central Time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <Select value={language} onValueChange={setLanguage}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="backup-frequency">Backup Frequency</Label>
-                <Select value={backupFrequency} onValueChange={setBackupFrequency}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hourly">Hourly</SelectItem>
-                    <SelectItem value="daily">Daily</SelectItem>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Auto-backup</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically backup system data
-                  </p>
-                </div>
-                <Switch checked={autoBackup} onCheckedChange={setAutoBackup} />
-              </div>
-
-              <Button onClick={handleSave} className="w-full md:w-auto">
-                <Save className="h-4 w-4 mr-2" />
-                Save Configuration
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="appearance" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Appearance Settings</CardTitle>
-              <CardDescription>
-                Customize the look and feel of your SAMS interface
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Dark Mode</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Switch between light and dark themes
-                  </p>
-                </div>
-                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
-              </div>
-
-              <Separator />
-
-              <div className="space-y-4">
-                <Label>Dashboard Layout</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="sidebar-width">Sidebar Width</Label>
-                    <Select defaultValue="normal">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="compact">Compact</SelectItem>
-                        <SelectItem value="normal">Normal</SelectItem>
-                        <SelectItem value="wide">Wide</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="chart-style">Chart Style</Label>
-                    <Select defaultValue="modern">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="classic">Classic</SelectItem>
-                        <SelectItem value="modern">Modern</SelectItem>
-                        <SelectItem value="minimal">Minimal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </div>
-
-              <Button onClick={handleSave} className="w-full md:w-auto">
-                <Save className="h-4 w-4 mr-2" />
-                Save Appearance
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>

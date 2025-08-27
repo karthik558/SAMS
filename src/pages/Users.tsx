@@ -168,6 +168,9 @@ export default function Users() {
   const [eRole, setERole] = useState<string | undefined>(undefined);
   const [eDepartment, setEDepartment] = useState<string | undefined>(undefined);
   const [eStatus, setEStatus] = useState<string>("active");
+  const [ePassword, setEPassword] = useState("");
+  const [eMustChange, setEMustChange] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Local fallback properties (ids align with demo data used elsewhere)
   const fallbackProperties: Property[] = [
@@ -323,6 +326,15 @@ export default function Users() {
     setERole((user.role || "").toLowerCase());
     setEDepartment((user.department || "")?.toString().toLowerCase());
     setEStatus((user.status || "Active").toLowerCase());
+    setEMustChange(!!user.must_change_password);
+    // Determine if current user is admin
+    try {
+      const raw = localStorage.getItem("auth_user");
+      if (raw) {
+        const au = JSON.parse(raw) as { role?: string };
+        setIsAdmin((au.role || "").toLowerCase() === "admin");
+      }
+    } catch {}
     try {
       const ids = await listUserPropertyAccess(user.id);
       setEditSelectedPropertyIds(ids);
@@ -346,6 +358,7 @@ export default function Users() {
       role: mapRole(eRole),
       department: mapDept(eDepartment),
       status: eStatus === "inactive" ? "Inactive" : "Active",
+      must_change_password: eMustChange,
     };
     try {
       let updated: AppUser | null = null;
@@ -357,6 +370,20 @@ export default function Users() {
         const next = users.map(u => (u.id === editingUser!.id ? updated! : u));
         setUsers(next);
         writeLocalUsers(next);
+      }
+      // If admin set a new password, apply via Supabase RPC or local fallback
+      if (ePassword.trim()) {
+        if (hasSupabaseEnv) {
+          try { await setUserPassword(editingUser.id, ePassword.trim()); } catch (e) { console.error(e); }
+        } else {
+          const rawUsers = localStorage.getItem(LS_KEY);
+          const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
+          const idx = list.findIndex(u => u.id === editingUser.id);
+          if (idx !== -1) {
+            list[idx].password_hash = btoa(unescape(encodeURIComponent(ePassword.trim()))).slice(0, 32);
+            localStorage.setItem(LS_KEY, JSON.stringify(list));
+          }
+        }
       }
       if (updated) {
         setUsers(prev => prev.map(u => (u.id === updated!.id ? updated! : u)));
@@ -836,6 +863,15 @@ export default function Users() {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
+          </div>
+          <div className="space-y-2 pt-2">
+            <Label htmlFor="etemp">Set Password</Label>
+            <Input id="etemp" type="password" placeholder="Leave blank to keep unchanged" value={ePassword} onChange={(e) => setEPassword(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Updates the user's password in the backend.</p>
+            <div className="flex items-center space-x-2">
+              <input id="emust" type="checkbox" className="h-4 w-4" checked={eMustChange} onChange={(e) => setEMustChange(e.target.checked)} />
+              <Label htmlFor="emust">Require password change on next login</Label>
             </div>
           </div>
           <DialogFooter>
