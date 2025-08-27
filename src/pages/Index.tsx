@@ -83,7 +83,7 @@ const Index = () => {
   };
 
   return (
-  <div className="space-y-4 md:space-y-6 p-3 md:p-0">
+  <div className="space-y-4 md:space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>

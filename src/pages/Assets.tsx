@@ -36,6 +36,7 @@ import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
@@ -107,6 +108,7 @@ export default function Assets() {
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [sortBy, setSortBy] = useState("newest");
+  const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -117,6 +119,13 @@ export default function Assets() {
   useEffect(() => {
     if (searchParams.get("new") === "1") setShowAddForm(true);
   }, [searchParams]);
+
+  useEffect(() => {
+    (async () => {
+      const ids = await getAccessiblePropertyIdsForCurrentUser();
+      setAccessibleProps(ids);
+    })();
+  }, []);
 
   // Load from Supabase when configured
   useEffect(() => {
@@ -304,6 +313,8 @@ export default function Assets() {
   const filteredAssets = assets.filter(asset => {
     // hide assets tied to disabled properties if we know properties
     if (activePropertyIds.size && asset.property && !activePropertyIds.has(asset.property)) return false;
+    // enforce user access if any set exists
+    if (accessibleProps.size && !(accessibleProps.has(String(asset.property_id || asset.property)))) return false;
     const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();

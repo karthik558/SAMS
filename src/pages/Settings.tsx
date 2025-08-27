@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,22 +23,97 @@ import {
   Save,
   RefreshCw
 } from "lucide-react";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings, type SystemSettings, type UserSettings } from "@/services/settings";
+import { listUsers } from "@/services/users";
 
 export default function Settings() {
   const { toast } = useToast();
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [timezone, setTimezone] = useState("UTC");
+  const [language, setLanguage] = useState("en");
+  const [backupFrequency, setBackupFrequency] = useState("daily");
+  const [autoBackup, setAutoBackup] = useState(true);
 
-  const handleSave = () => {
-    toast({
-      title: "Settings saved",
-      description: "Your settings have been updated successfully.",
-    });
+  // Demo current user id (wire to auth user/app user as needed)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Load settings
+  useEffect(() => {
+    (async () => {
+      // system
+      try {
+        if (hasSupabaseEnv) {
+          const sys = await getSystemSettings();
+          setTimezone(sys.timezone || "UTC");
+          setLanguage(sys.language || "en");
+          setBackupFrequency((sys.backup_frequency as any) || "daily");
+          setAutoBackup(!!sys.auto_backup);
+        } else {
+          const local = JSON.parse(localStorage.getItem("system_settings") || "{}");
+          if (local) {
+            setTimezone(local.timezone || "UTC");
+            setLanguage(local.language || "en");
+            setBackupFrequency(local.backup_frequency || "daily");
+            setAutoBackup(local.auto_backup ?? true);
+          }
+        }
+      } catch {}
+
+      // user
+      try {
+        if (hasSupabaseEnv) {
+          const users = await listUsers().catch(() => [] as any[]);
+          const uid = users[0]?.id as string | undefined;
+          if (uid) {
+            setCurrentUserId(uid);
+            const us = await getUserSettings(uid);
+            setNotifications(us.notifications ?? true);
+            setEmailNotifications(us.email_notifications ?? true);
+            setDarkMode(us.dark_mode ?? false);
+          }
+        } else {
+          const local = JSON.parse(localStorage.getItem("user_settings") || "{}");
+          setNotifications(local.notifications ?? true);
+          setEmailNotifications(local.email_notifications ?? true);
+          setDarkMode(local.dark_mode ?? false);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      if (hasSupabaseEnv) {
+        await updateSystemSettings({ timezone, language, backup_frequency: backupFrequency as any, auto_backup: autoBackup });
+        if (currentUserId) {
+          await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
+        }
+      } else {
+        localStorage.setItem("system_settings", JSON.stringify({ timezone, language, backup_frequency: backupFrequency, auto_backup: autoBackup }));
+        localStorage.setItem("user_settings", JSON.stringify({ notifications, email_notifications: emailNotifications, dark_mode: darkMode }));
+      }
+      // apply theme preference globally
+      try {
+        const root = document.documentElement;
+        if (darkMode) {
+          root.classList.add("dark");
+          localStorage.setItem("theme", "dark");
+        } else {
+          root.classList.remove("dark");
+          localStorage.setItem("theme", "light");
+        }
+      } catch {}
+      toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
+    } catch (e: any) {
+      toast({ title: "Failed to save", description: e.message || String(e), variant: "destructive" });
+    }
   };
 
   return (
-  <div className="space-y-6 p-3 md:p-6">
+  <div className="space-y-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
@@ -265,21 +340,21 @@ export default function Settings() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="timezone">Timezone</Label>
-                  <Select defaultValue="utc">
+                  <Select value={timezone} onValueChange={setTimezone}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="utc">UTC</SelectItem>
-                      <SelectItem value="est">Eastern Time</SelectItem>
-                      <SelectItem value="pst">Pacific Time</SelectItem>
-                      <SelectItem value="cst">Central Time</SelectItem>
+                      <SelectItem value="UTC">UTC</SelectItem>
+                      <SelectItem value="EST">Eastern Time</SelectItem>
+                      <SelectItem value="PST">Pacific Time</SelectItem>
+                      <SelectItem value="CST">Central Time</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="language">Language</Label>
-                  <Select defaultValue="en">
+                  <Select value={language} onValueChange={setLanguage}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -295,7 +370,7 @@ export default function Settings() {
 
               <div className="space-y-2">
                 <Label htmlFor="backup-frequency">Backup Frequency</Label>
-                <Select defaultValue="daily">
+                <Select value={backupFrequency} onValueChange={setBackupFrequency}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -315,7 +390,7 @@ export default function Settings() {
                     Automatically backup system data
                   </p>
                 </div>
-                <Switch defaultChecked />
+                <Switch checked={autoBackup} onCheckedChange={setAutoBackup} />
               </div>
 
               <Button onClick={handleSave} className="w-full md:w-auto">
