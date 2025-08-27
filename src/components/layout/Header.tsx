@@ -1,4 +1,4 @@
-import { Bell, Search, User, Moon, Sun } from "lucide-react";
+import { Bell, Search, User, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useMemo, useState } from "react";
-import { Menu } from "lucide-react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
 
@@ -26,7 +25,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [authUser, setAuthUser] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [authUser, setAuthUser] = useState<{ id: string; name: string; email: string; role?: string } | null>(null);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -187,27 +186,44 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>{authUser?.name || "User"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                Profile
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Bell className="mr-2 h-4 w-4" />
-                Preferences
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => {
-                  try {
-                    localStorage.removeItem("current_user_id");
-                    localStorage.removeItem("auth_user");
-                  } catch {}
-                  navigate("/login", { replace: true });
-                }}
-              >
-                Sign out
-              </DropdownMenuItem>
+              {(authUser?.role || "").toLowerCase() === 'admin' ? (
+                <>
+                  <DropdownMenuItem onClick={() => navigate('/users')}>
+                    <UsersIcon className="mr-2 h-4 w-4" />
+                    Users
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/settings')}>
+                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => {
+                      try {
+                        localStorage.removeItem('current_user_id');
+                        localStorage.removeItem('auth_user');
+                      } catch {}
+                      navigate('/login', { replace: true });
+                    }}
+                  >
+                    Sign out
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => {
+                    try {
+                      localStorage.removeItem('current_user_id');
+                      localStorage.removeItem('auth_user');
+                    } catch {}
+                    navigate('/login', { replace: true });
+                  }}
+                >
+                  Sign out
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
