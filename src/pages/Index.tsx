@@ -14,21 +14,21 @@ const Index = () => {
   };
 
   return (
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6 p-4 md:p-0">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Asset Management Dashboard</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">SAMS Dashboard</h1>
             <p className="text-muted-foreground">
-              Monitor and manage your organization's assets across all properties
+              Smart Asset Management System - Monitor and manage your organization's assets
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2 w-full sm:w-auto">
               <Plus className="h-4 w-4" />
               Add Asset
             </Button>
-            <Button onClick={() => handleQuickAction("Generate Report")} variant="outline" className="gap-2">
+            <Button onClick={() => handleQuickAction("Generate Report")} variant="outline" className="gap-2 w-full sm:w-auto">
               <FileText className="h-4 w-4" />
               Generate Report
             </Button>
@@ -115,11 +115,11 @@ const Index = () => {
         </div>
 
         {/* Charts and Activity */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <DashboardCharts />
           </div>
-          <div>
+          <div className="min-h-0">
             <RecentActivity />
           </div>
         </div>
@@ -133,7 +133,7 @@ const Index = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 p-4"

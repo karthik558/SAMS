@@ -52,24 +52,24 @@ const expiryData = [
 
 export function DashboardCharts() {
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid gap-4 md:gap-6 md:grid-cols-2">
       {/* Asset Distribution Pie Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle>Asset Distribution by Type</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Asset Distribution by Type</CardTitle>
+          <CardDescription className="text-sm">
             Current breakdown of assets across different categories
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie
                 data={assetsByType}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={120}
+                innerRadius={40}
+                outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
               >
@@ -80,14 +80,14 @@ export function DashboardCharts() {
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
             {assetsByType.map((item, index) => (
               <div key={index} className="flex items-center gap-2">
                 <div
-                  className="h-3 w-3 rounded-full"
+                  className="h-2 w-2 rounded-full shrink-0"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="text-muted-foreground">
+                <span className="text-muted-foreground truncate">
                   {item.name}: {item.value}
                 </span>
               </div>
@@ -98,34 +98,36 @@ export function DashboardCharts() {
 
       {/* Purchase Trend Line Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle>Purchase Trends</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Purchase Trends</CardTitle>
+          <CardDescription className="text-sm">
             Monthly asset purchases and their total value
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={purchaseTrend}>
+          <ResponsiveContainer width="100%" height={250}>
+            <AreaChart data={purchaseTrend} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 
                 dataKey="month" 
                 stroke="hsl(225, 10%, 50%)"
-                fontSize={12}
+                fontSize={11}
+                tick={{ fontSize: 11 }}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={12} />
+              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} tick={{ fontSize: 11 }} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(0, 0%, 100%)",
                   border: "1px solid hsl(220, 13%, 91%)",
                   borderRadius: "8px",
+                  fontSize: "12px"
                 }}
               />
               <Area
                 type="monotone"
                 dataKey="purchases"
-                stroke="hsl(217, 91%, 60%)"
-                fill="hsl(217, 91%, 60%)"
+                stroke="hsl(199, 89%, 48%)"
+                fill="hsl(199, 89%, 48%)"
                 fillOpacity={0.2}
               />
             </AreaChart>
@@ -135,36 +137,38 @@ export function DashboardCharts() {
 
       {/* Property Assets Bar Chart */}
       <Card>
-        <CardHeader>
-          <CardTitle>Assets by Property</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Assets by Property</CardTitle>
+          <CardDescription className="text-sm">
             Asset distribution across different properties
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={propertyAssets}>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={propertyAssets} margin={{ top: 5, right: 5, left: 5, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 
                 dataKey="property" 
                 stroke="hsl(225, 10%, 50%)"
-                fontSize={12}
+                fontSize={10}
                 angle={-45}
                 textAnchor="end"
-                height={80}
+                height={60}
+                interval={0}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={12} />
+              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(0, 0%, 100%)",
                   border: "1px solid hsl(220, 13%, 91%)",
                   borderRadius: "8px",
+                  fontSize: "12px"
                 }}
               />
               <Bar 
                 dataKey="assets" 
                 fill="hsl(142, 76%, 36%)"
-                radius={[4, 4, 0, 0]}
+                radius={[2, 2, 0, 0]}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -173,42 +177,43 @@ export function DashboardCharts() {
 
       {/* Expiry Tracking */}
       <Card>
-        <CardHeader>
-          <CardTitle>Asset Expiry Tracking</CardTitle>
-          <CardDescription>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Asset Expiry Tracking</CardTitle>
+          <CardDescription className="text-sm">
             Monthly view of expired and expiring assets
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={expiryData}>
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={expiryData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 
                 dataKey="month" 
                 stroke="hsl(225, 10%, 50%)"
-                fontSize={12}
+                fontSize={11}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={12} />
+              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "hsl(0, 0%, 100%)",
                   border: "1px solid hsl(220, 13%, 91%)",
                   borderRadius: "8px",
+                  fontSize: "12px"
                 }}
               />
               <Line
                 type="monotone"
                 dataKey="expired"
                 stroke="hsl(0, 72%, 51%)"
-                strokeWidth={3}
-                dot={{ fill: "hsl(0, 72%, 51%)", strokeWidth: 2, r: 4 }}
+                strokeWidth={2}
+                dot={{ fill: "hsl(0, 72%, 51%)", strokeWidth: 2, r: 3 }}
               />
               <Line
                 type="monotone"
                 dataKey="expiring"
                 stroke="hsl(38, 92%, 50%)"
-                strokeWidth={3}
-                dot={{ fill: "hsl(38, 92%, 50%)", strokeWidth: 2, r: 4 }}
+                strokeWidth={2}
+                dot={{ fill: "hsl(38, 92%, 50%)", strokeWidth: 2, r: 3 }}
               />
             </LineChart>
           </ResponsiveContainer>

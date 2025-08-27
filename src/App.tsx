@@ -9,6 +9,8 @@ import Assets from "./pages/Assets";
 import Properties from "./pages/Properties";
 import QRCodes from "./pages/QRCodes";
 import Reports from "./pages/Reports";
+import Users from "./pages/Users";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
             <Route path="/properties" element={<Properties />} />
             <Route path="/qr-codes" element={<QRCodes />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

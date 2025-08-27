@@ -46,7 +46,7 @@ export function Sidebar({ className }: SidebarProps) {
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <Package className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">AssetFlow</span>
+              <span className="text-xl font-bold text-foreground">SAMS</span>
             </div>
           )}
           <Button
