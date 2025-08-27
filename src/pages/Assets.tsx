@@ -107,6 +107,11 @@ export default function Assets() {
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [sortBy, setSortBy] = useState("newest");
+  const activePropertyIds = useMemo(() => {
+    const list = Object.values(propsById);
+    if (!list.length) return new Set<string>();
+    return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
+  }, [propsById]);
 
   // Open Add form if navigated with ?new=1
   useEffect(() => {
@@ -137,7 +142,8 @@ export default function Assets() {
             listItemTypes().catch(() => [] as any[]),
           ]);
           if (props?.length) {
-            setPropertyOptions(props.map((p: any) => p.id)); // use codes/ids
+            const active = props.filter((p: any) => (p.status || '').toLowerCase() !== 'disabled');
+            setPropertyOptions(active.map((p: any) => p.id)); // use codes/ids
             setPropsById(Object.fromEntries(props.map((p: any) => [p.id, p])));
             setPropsByName(Object.fromEntries(props.map((p: any) => [p.name, p])));
           }
@@ -153,7 +159,8 @@ export default function Assets() {
   useEffect(() => {
     if (!propertyOptions.length) {
       const props = Array.from(new Set(assets.map(a => a.property))).filter(Boolean) as string[];
-      if (props.length) setPropertyOptions(props);
+      const filtered = activePropertyIds.size ? props.filter(id => activePropertyIds.has(id)) : props;
+      if (filtered.length) setPropertyOptions(filtered);
     }
     if (!typeOptions.length) {
       const types = Array.from(new Set(assets.map(a => a.type))).filter(Boolean) as string[];
@@ -293,6 +300,8 @@ export default function Assets() {
   };
 
   const filteredAssets = assets.filter(asset => {
+    // hide assets tied to disabled properties if we know properties
+    if (activePropertyIds.size && asset.property && !activePropertyIds.has(asset.property)) return false;
     const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();

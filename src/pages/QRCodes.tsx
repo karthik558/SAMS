@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import JSZip from "jszip";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listQRCodes, createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
+import { addNotification } from "@/services/notifications";
 import { listProperties, type Property } from "@/services/properties";
 
 // Mock data for QR codes
@@ -70,6 +72,14 @@ export default function QRCodes() {
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [computedImages, setComputedImages] = useState<Record<string, string>>({});
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+
+  // Active property ids set (exclude disabled properties from UI everywhere)
+  const activePropertyIds = useMemo(() => {
+    const list = Object.values(propsById);
+    if (!list.length) return new Set<string>();
+    return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
+  }, [propsById]);
 
   // Load QR codes and properties (when Supabase is configured)
   useEffect(() => {
@@ -153,33 +163,22 @@ export default function QRCodes() {
 
   const handleDownloadAll = async () => {
     try {
-      // Lightweight client-side zip using JSZip (optional). If not installed, fallback to sequential downloads.
-      const JSZipModule: any = (window as any).JSZip;
-      if (JSZipModule) {
-        const zip = new JSZipModule();
-        for (const qr of filteredQRCodes) {
-          let dataUrl = qr.imageUrl;
-          if (!dataUrl) dataUrl = await generateQrPng(qr);
-          const base64 = (dataUrl as string).split(',')[1];
-          zip.file(`qr-${qr.assetId}.png`, base64, { base64: true });
-        }
-        const blob = await zip.generateAsync({ type: 'blob' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `qr-codes-${new Date().toISOString().slice(0,10)}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        // Fallback: sequential downloads
-        for (const qr of filteredQRCodes) {
-          let dataUrl = qr.imageUrl;
-          if (!dataUrl) dataUrl = await generateQrPng(qr);
-          downloadDataUrl(dataUrl, `qr-${qr.assetId}.png`);
-        }
+      const zip = new JSZip();
+      for (const qr of filteredQRCodes) {
+        let dataUrl = qr.imageUrl;
+        if (!dataUrl) dataUrl = await generateQrPng(qr);
+        const base64 = (dataUrl as string).split(',')[1];
+        zip.file(`qr-${qr.assetId}.png`, base64, { base64: true });
       }
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `qr-codes-${new Date().toISOString().slice(0,10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       toast.success("Downloading all QR codes");
       await logActivity("qr_download_all", `Downloaded ${filteredQRCodes.length} QR codes`);
     } catch (e) {
@@ -197,11 +196,28 @@ export default function QRCodes() {
     return <Badge variant="outline">{status}</Badge>;
   };
 
-  const filteredQRCodes = codes.filter(qr => {
+  // Deduplicate by assetId (pick most recent entry) then filter
+  const uniqueCodes = useMemo(() => {
+    // Keep first occurrence by assetId, assuming codes is already roughly newest-first
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const qr of codes) {
+      const key = (qr.assetId || '').toString();
+      if (!key) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(qr);
+    }
+    return out;
+  }, [codes]);
+
+  const filteredQRCodes = uniqueCodes.filter(qr => {
     const matchesSearch = qr.assetName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          qr.assetId.toLowerCase().includes(searchTerm.toLowerCase());
     const qrPropCode = propertyCodeOf(qr.property);
-    const matchesProperty = filterProperty === "all" || qrPropCode === filterProperty;
+    // Exclude disabled properties if we know properties
+    const isActiveProperty = activePropertyIds.size === 0 || activePropertyIds.has(qrPropCode);
+    const matchesProperty = (filterProperty === "all" || qrPropCode === filterProperty) && isActiveProperty;
     const matchesStatus = filterStatus === "all" || 
                          (filterStatus === "printed" && qr.printed) ||
                          (filterStatus === "ready" && !qr.printed);
@@ -219,6 +235,10 @@ export default function QRCodes() {
         try {
           const url = await generateQrPng(q);
           entries.push([q.id, url]);
+          // Persist to DB for consistency
+          if (hasSupabaseEnv) {
+            try { await updateQRCode(q.id, { imageUrl: url } as any); } catch {}
+          }
         } catch (e) {
           console.warn("Failed to generate QR preview for", q.id, e);
         }
@@ -230,11 +250,15 @@ export default function QRCodes() {
   }, [filteredQRCodes]);
 
   const propertyOptions = useMemo(() => {
-    if (properties.length) return properties.map(p => ({ value: p.id, label: p.name }));
+    if (properties.length) {
+      const active = properties.filter(p => (p.status || '').toLowerCase() !== 'disabled');
+      return active.map(p => ({ value: p.id, label: p.name }));
+    }
     // derive from codes list as last resort
-    const uniq = Array.from(new Set(codes.map(c => propertyCodeOf(c.property)).filter(Boolean)));
-    return uniq.map(v => ({ value: v as string, label: propertyLabel(v as string) }));
-  }, [properties, codes, propsById, propsByName]);
+    const uniq = Array.from(new Set(codes.map(c => propertyCodeOf(c.property)).filter(Boolean))) as string[];
+    const filtered = activePropertyIds.size ? uniq.filter(id => activePropertyIds.has(id)) : uniq;
+    return filtered.map(v => ({ value: v, label: propertyLabel(v) }));
+  }, [properties, codes, propsById, propsByName, activePropertyIds]);
 
   // Download helpers
   const downloadDataUrl = (dataUrl: string, filename: string) => {
@@ -276,6 +300,16 @@ export default function QRCodes() {
             propertyName={selectedAsset?.property}
             onGenerated={(qrCodeUrl) => {
               console.log("QR Code generated:", qrCodeUrl);
+              // Prevent duplicates: if QR for this asset already exists, do not create new
+              const existing = selectedAsset?.id ? codes.find(c => c.assetId === selectedAsset.id) : null;
+              if (existing) {
+                toast.info("QR already generated for this asset. Showing it now.");
+                setSearchTerm(selectedAsset.id);
+                setShowGenerator(false);
+                setHighlightId(existing.id);
+                setTimeout(() => setHighlightId(null), 4000);
+                return;
+              }
               toast.success("QR Code generated successfully!");
               if (hasSupabaseEnv && selectedAsset?.id) {
                 const id = `QR-${Math.floor(Math.random()*900+100)}`;
@@ -288,7 +322,7 @@ export default function QRCodes() {
                   printed: false,
                   imageUrl: qrCodeUrl,
                 } as any;
-                createQRCode(payload).then(async () => {
+        createQRCode(payload).then(async () => {
                   const data = await listQRCodes();
                   const mapped = data.map(d => ({
                     id: d.id,
@@ -298,9 +332,15 @@ export default function QRCodes() {
                     generatedDate: d.generatedDate,
                     status: d.status,
                     printed: d.printed,
+          imageUrl: d.imageUrl || null,
                   }));
                   setCodes(mapped.sort((a,b) => (a.generatedDate < b.generatedDate ? 1 : -1)));
                   await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
+                  await addNotification({
+                    title: "QR generated",
+                    message: `${selectedAsset.name} (${selectedAsset.id}) QR is ready`,
+                    type: "qr",
+                  });
                 }).catch((e) => console.error(e));
               } else {
                 setCodes(prev => [...prev, {
@@ -453,10 +493,22 @@ export default function QRCodes() {
           </CardContent>
         </Card>
 
+        {/* Quick hint when we auto-filter to an existing item */}
+        {highlightId && (
+          <Card className="border-primary/40 bg-primary/5">
+            <CardContent className="p-3 text-sm">
+              Already generated. Filter applied to locate this QR quickly.
+            </CardContent>
+          </Card>
+        )}
+
         {/* QR Codes Grid */}
   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredQRCodes.map((qrCode) => (
-            <Card key={qrCode.id} className="hover:shadow-medium transition-shadow">
+            <Card
+              key={qrCode.id}
+              className={`hover:shadow-medium transition-shadow ${highlightId === qrCode.id ? "ring-2 ring-primary" : ""}`}
+            >
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -521,6 +573,11 @@ export default function QRCodes() {
                         }
                         toast.success(`Downloaded QR for ${qrCode.assetName}`);
                         await logActivity("qr_download", `Downloaded QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                        await addNotification({
+                          title: "QR downloaded",
+                          message: `${qrCode.assetName} (${qrCode.assetId}) QR downloaded`,
+                          type: "qr",
+                        });
                       } catch (e) {
                         console.error(e);
                         toast.error("Failed to download QR");
@@ -542,6 +599,11 @@ export default function QRCodes() {
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
                         toast.success(`Printed QR for ${qrCode.assetName}`);
                         await logActivity("qr_printed", `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                        await addNotification({
+                          title: "QR printed",
+                          message: `${qrCode.assetName} (${qrCode.assetId}) QR sent to printer`,
+                          type: "qr",
+                        });
                       } catch (e) {
                         console.error(e);
                         toast.error("Failed to mark as printed");

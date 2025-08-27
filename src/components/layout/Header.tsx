@@ -11,8 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Menu } from "lucide-react";
+import { formatDistanceToNow, parseISO } from "date-fns";
+import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -20,6 +22,8 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -47,6 +51,24 @@ export function Header({ onMenuClick }: HeaderProps) {
       // no-op if storage unavailable
     }
   }, []);
+
+  // Notifications: load from service (Supabase or localStorage)
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await listNotifications(50);
+        setNotifications(data);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, []);
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter(n => !n.read).length;
+  }, [notifications]);
+
+  const badgeLabel = unreadCount > 9 ? "9+" : String(unreadCount || "");
 
   return (
     <header className="h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -86,42 +108,57 @@ export function Header({ onMenuClick }: HeaderProps) {
           </Button>
 
           {/* Notifications */}
-          <DropdownMenu>
+          <DropdownMenu onOpenChange={async (open) => {
+            setNotifOpen(open);
+            if (open) {
+              await markAllRead();
+              const data = await listNotifications(50);
+              setNotifications(data);
+            }
+          }}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
+              <Button aria-label="Open notifications" variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
                 <Bell className="h-4 w-4" />
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs bg-destructive">
-                  3
-                </Badge>
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-4 flex items-center justify-center"
+                  >
+                    {badgeLabel}
+                  </span>
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+              <DropdownMenuLabel className="flex items-center justify-between">
+                <span>Notifications</span>
+                {notifications.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      await clearAllNotifications();
+                      setNotifications([]);
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">5 assets expiring soon</p>
-                  <p className="text-xs text-muted-foreground">
-                    Review assets with upcoming expiry dates
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">New property added</p>
-                  <p className="text-xs text-muted-foreground">
-                    Downtown Office has been added to the system
-                  </p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <div className="flex flex-col gap-1">
-                  <p className="text-sm font-medium">QR codes generated</p>
-                  <p className="text-xs text-muted-foreground">
-                    15 new QR codes ready for printing
-                  </p>
-                </div>
-              </DropdownMenuItem>
+              {notifications.length === 0 ? (
+                <div className="p-3 text-sm text-muted-foreground">No notifications</div>
+              ) : (
+                notifications.slice(0, 12).map((n) => (
+                  <DropdownMenuItem key={n.id} className="py-3">
+                    <div className="flex flex-col gap-1">
+                      <p className="text-sm font-medium break-words">{n.title || n.type}</p>
+                      <p className="text-xs text-muted-foreground break-words">{n.message}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {n.type.replace(/_/g, " ")} • {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 

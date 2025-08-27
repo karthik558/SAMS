@@ -26,6 +26,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes } from "@/services/itemTypes";
 import { listReports, createReport, type Report } from "@/services/reports";
+import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 
 const reportTypes = [
@@ -132,6 +133,11 @@ export default function Reports() {
         } as any);
         const reports = await listReports();
         setRecentReports(reports);
+        await addNotification({
+          title: "Report generated",
+          message: `${reportTypes.find(r => r.id === selectedReportType)?.name} is ready for download`,
+          type: "report",
+        });
       }
       toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${hasSupabaseEnv ? "" : " (local)"}.`);
     } catch (e: any) {
