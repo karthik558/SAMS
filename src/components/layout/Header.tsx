@@ -26,6 +26,9 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [authUser, setAuthUser] = useState<{ id: string; name: string; email: string; role?: string } | null>(null);
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -79,6 +82,31 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const badgeLabel = unreadCount > 9 ? "9+" : String(unreadCount || "");
 
+  const roleLower = (authUser?.role || "").toLowerCase();
+  const navItems = [
+    { label: 'Dashboard', path: '/', keywords: ['home', 'index'], roles: ['admin','manager','user'] },
+    { label: 'Assets', path: '/assets', keywords: ['asset', 'items', 'qr'], roles: ['admin','manager','user'] },
+    { label: 'Properties', path: '/properties', keywords: ['property', 'sites', 'locations'], roles: ['admin','manager','user'] },
+    { label: 'QR Codes', path: '/qr-codes', keywords: ['qr', 'codes', 'scan'], roles: ['admin','manager','user'] },
+    { label: 'Reports', path: '/reports', keywords: ['report', 'analytics'], roles: ['admin','manager'] },
+    { label: 'Users', path: '/users', keywords: ['accounts', 'people', 'members'], roles: ['admin'] },
+    { label: 'Settings', path: '/settings', keywords: ['preferences', 'security'], roles: ['admin'] },
+  ].filter(i => i.roles.includes(roleLower as any) || roleLower === '');
+
+  const searchResults = search.trim()
+    ? navItems.filter(i => {
+        const q = search.trim().toLowerCase();
+        return i.label.toLowerCase().includes(q) || i.keywords.some(k => k.includes(q));
+      }).slice(0, 6)
+    : [];
+
+  const goTo = (path: string) => {
+    setSearch("");
+    setSearchOpen(false);
+    setHighlight(0);
+    navigate(path);
+  };
+
   return (
     <header className="h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-full items-center justify-between px-3 md:px-6 gap-3">
@@ -94,9 +122,34 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search assets, properties, or users..."
+              placeholder="Search pages (e.g., Properties, Assets, Users)"
               className="pl-10 bg-muted/50 h-9"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); setHighlight(0); }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+              onKeyDown={(e) => {
+                if (!searchResults.length) return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h+1, searchResults.length-1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h-1, 0)); }
+                else if (e.key === 'Enter') { e.preventDefault(); goTo(searchResults[highlight].path); }
+              }}
             />
+            {searchOpen && searchResults.length > 0 && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md overflow-hidden">
+                {searchResults.map((item, idx) => (
+                  <button
+                    key={item.path}
+                    className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${idx===highlight ? 'bg-accent/60' : ''}`}
+                    onMouseDown={(e) => { e.preventDefault(); goTo(item.path); }}
+                    onMouseEnter={() => setHighlight(idx)}
+                  >
+                    {item.label}
+                    <span className="ml-2 text-xs text-muted-foreground">{item.path}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
