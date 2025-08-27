@@ -52,7 +52,7 @@ const expiryData = [
 
 export function DashboardCharts() {
   return (
-    <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+    <div className="grid gap-4 sm:gap-5 md:gap-6 md:grid-cols-2">
       {/* Asset Distribution Pie Chart */}
       <Card>
         <CardHeader className="pb-2">
@@ -62,7 +62,7 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <PieChart>
               <Pie
                 data={assetsByType}
@@ -105,7 +105,7 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={purchaseTrend} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 
@@ -144,7 +144,7 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={240}>
             <BarChart data={propertyAssets} margin={{ top: 5, right: 5, left: 5, bottom: 40 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 
@@ -184,7 +184,7 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={220}>
             <LineChart data={expiryData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
               <XAxis 

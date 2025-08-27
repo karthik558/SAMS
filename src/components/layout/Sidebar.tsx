@@ -26,9 +26,11 @@ const navigation = [
 
 interface SidebarProps {
   className?: string;
+  isMobile?: boolean;
+  onNavigate?: () => void;
 }
 
-export function Sidebar({ className }: SidebarProps) {
+export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
 
@@ -36,19 +38,20 @@ export function Sidebar({ className }: SidebarProps) {
     <div
       className={cn(
         "bg-background border-r border-border h-full transition-all duration-300 ease-in-out",
-        collapsed ? "w-16" : "w-64",
+        isMobile ? "w-full" : collapsed ? "w-16" : "w-64",
         className
       )}
     >
       <div className="flex h-full flex-col">
         {/* Header */}
-        <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+        <div className="flex h-14 md:h-16 items-center justify-between px-4 border-b border-border">
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <Package className="h-8 w-8 text-primary" />
               <span className="text-xl font-bold text-foreground">SAMS</span>
             </div>
           )}
+          {!isMobile && (
           <Button
             variant="ghost"
             size="sm"
@@ -61,10 +64,11 @@ export function Sidebar({ className }: SidebarProps) {
               <ChevronLeft className="h-4 w-4" />
             )}
           </Button>
+          )}
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-2">
+  <nav className="flex-1 space-y-1 p-2">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             return (
@@ -77,9 +81,10 @@ export function Sidebar({ className }: SidebarProps) {
                     ? "bg-primary text-primary-foreground shadow-soft"
                     : "text-muted-foreground hover:text-foreground"
                 )}
+                onClick={onNavigate}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span>{item.name}</span>}
+    {!collapsed && <span className="truncate">{item.name}</span>}
               </NavLink>
             );
           })}

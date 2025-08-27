@@ -14,7 +14,7 @@ const Index = () => {
   };
 
   return (
-      <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+  <div className="space-y-4 md:space-y-6 p-3 md:p-0">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -36,7 +36,7 @@ const Index = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+  <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Assets"
             value="1,247"
@@ -67,7 +67,7 @@ const Index = () => {
         </div>
 
         {/* Value Overview */}
-        <div className="grid gap-4 md:grid-cols-3">
+  <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -115,7 +115,7 @@ const Index = () => {
         </div>
 
         {/* Charts and Activity */}
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
+  <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <DashboardCharts />
           </div>

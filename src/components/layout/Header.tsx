@@ -11,32 +11,66 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Menu } from "lucide-react";
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export function Header({ onMenuClick }: HeaderProps) {
   const [isDark, setIsDark] = useState(false);
 
   const toggleTheme = () => {
-    setIsDark(!isDark);
-    document.documentElement.classList.toggle("dark");
+    const next = !isDark;
+    setIsDark(next);
+    const root = document.documentElement;
+    if (next) {
+      root.classList.add("dark");
+      try { localStorage.setItem("theme", "dark"); } catch {}
+    } else {
+      root.classList.remove("dark");
+      try { localStorage.setItem("theme", "light"); } catch {}
+    }
   };
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const dark = stored ? stored === "dark" : prefersDark;
+      setIsDark(dark);
+      const root = document.documentElement;
+      if (dark) root.classList.add("dark");
+      else root.classList.remove("dark");
+    } catch {
+      // no-op if storage unavailable
+    }
+  }, []);
+
   return (
-    <header className="h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-full items-center justify-between px-6">
-        {/* Search */}
-        <div className="flex-1 max-w-md">
-          <div className="relative">
+    <header className="h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-full items-center justify-between px-3 md:px-6 gap-3">
+        {/* Left: menu + search */}
+        <div className="flex items-center gap-2 flex-1 max-w-md">
+          <button
+            aria-label="Open menu"
+            onClick={onMenuClick}
+            className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search assets, properties, or users..."
-              className="pl-10 bg-muted/50"
+              className="pl-10 bg-muted/50 h-9"
             />
           </div>
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* Theme Toggle */}
           <Button
             variant="ghost"

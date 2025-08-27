@@ -111,7 +111,7 @@ export default function Properties() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+  <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -168,7 +168,7 @@ export default function Properties() {
         </div>
 
         {/* Properties Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+  <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {mockProperties.map((property) => (
             <Card key={property.id} className="hover:shadow-medium transition-shadow">
               <CardHeader>
@@ -249,7 +249,7 @@ export default function Properties() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
               {["Office", "Storage", "Manufacturing", "Site Office"].map((type) => {
                 const propertiesOfType = mockProperties.filter(p => p.type === type);
                 const totalAssets = propertiesOfType.reduce((sum, p) => sum + p.assetCount, 0);

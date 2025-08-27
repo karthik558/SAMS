@@ -129,7 +129,7 @@ export default function QRCodes() {
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <QrCode className="h-8 w-8" />
@@ -152,7 +152,7 @@ export default function QRCodes() {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 md:grid-cols-4">
+  <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -261,7 +261,7 @@ export default function QRCodes() {
         </Card>
 
         {/* QR Codes Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredQRCodes.map((qrCode) => (
             <Card key={qrCode.id} className="hover:shadow-medium transition-shadow">
               <CardHeader>

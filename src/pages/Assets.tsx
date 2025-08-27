@@ -179,7 +179,7 @@ export default function Assets() {
   return (
     <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+  <div className="flex items-start gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Package className="h-8 w-8" />
@@ -302,19 +302,20 @@ export default function Assets() {
         </Card>
 
         {/* Assets Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+              <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Asset ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Property</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Purchase Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                    <TableHead className="whitespace-nowrap">Asset ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden sm:table-cell">Type</TableHead>
+                    <TableHead className="hidden md:table-cell">Property</TableHead>
+                    <TableHead className="hidden lg:table-cell">Quantity</TableHead>
+                    <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>
+                    <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -322,11 +323,11 @@ export default function Assets() {
                   <TableRow key={asset.id}>
                     <TableCell className="font-medium">{asset.id}</TableCell>
                     <TableCell>{asset.name}</TableCell>
-                    <TableCell>{asset.type}</TableCell>
-                    <TableCell>{asset.property}</TableCell>
-                    <TableCell>{asset.quantity}</TableCell>
-                    <TableCell>{asset.purchaseDate}</TableCell>
-                    <TableCell>{getStatusBadge(asset.status)}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>
+                      <TableCell className="hidden md:table-cell">{asset.property}</TableCell>
+                      <TableCell className="hidden lg:table-cell">{asset.quantity}</TableCell>
+                      <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>
+                      <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -359,6 +360,7 @@ export default function Assets() {
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
       </Card>
     </div>

@@ -70,7 +70,7 @@ export function RecentActivity() {
           {activities.map((activity) => (
             <div
               key={activity.id}
-              className="flex items-center gap-4 rounded-lg border border-border p-3 animate-slide-in"
+              className="flex items-center gap-3 rounded-lg border border-border p-3 animate-slide-in"
             >
               <Avatar className="h-8 w-8">
                 {activity.userAvatar ? (
@@ -86,7 +86,7 @@ export function RecentActivity() {
               </Avatar>
               
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">
+                <p className="text-sm font-medium text-foreground break-words">
                   {activity.message}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
