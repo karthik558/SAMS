@@ -82,3 +82,10 @@ export async function deleteAsset(id: string): Promise<void> {
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function getAssetById(id: string): Promise<Asset | null> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return data ? toCamel(data) : null;
+}
