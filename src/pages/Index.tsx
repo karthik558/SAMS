@@ -5,21 +5,28 @@ import { Package, Building2, Users, AlertTriangle, TrendingUp, QrCode } from "lu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Download, FileText } from "lucide-react";
+import { Plus, Download, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listAssets } from "@/services/assets";
 import { listProperties } from "@/services/properties";
 import { listUsers } from "@/services/users";
 import { listQRCodes } from "@/services/qrcodes";
+import { downloadAssetTemplate, importAssetsFromFile } from "@/services/bulkImport";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 const Index = () => {
   const navigate = useNavigate();
   const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
   const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0 });
   const [firstName, setFirstName] = useState<string>("");
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+  const [lastImportSummary, setLastImportSummary] = useState<string>("");
 
   useEffect(() => {
     if (!hasSupabaseEnv) return;
@@ -91,6 +98,9 @@ const Index = () => {
         break;
       case "User Management":
         navigate("/users");
+        break;
+      case "Bulk Import":
+        setBulkOpen(true);
         break;
       default:
         navigate("/");
@@ -255,6 +265,68 @@ const Index = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Bulk Import Dialog */}
+        <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Bulk Import Assets</DialogTitle>
+              <DialogDescription>
+                Download the Excel template, fill in asset rows, then upload to import. IDs are generated automatically based on Item Type + Property code.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button onClick={async () => { await downloadAssetTemplate(); }} className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Download Template
+                </Button>
+                <Button variant="outline" onClick={() => fileRef.current?.click()} className="gap-2">
+                  <Upload className="h-4 w-4" />
+                  Select File
+                </Button>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setImporting(true);
+                  try {
+                    const res = await importAssetsFromFile(file);
+                    setLastImportSummary(`Inserted: ${res.inserted}, Skipped: ${res.skipped}${res.errors.length ? `, Errors: ${res.errors.length}` : ''}`);
+                    if (res.errors.length) {
+                      console.warn("Import errors", res.errors);
+                    }
+                    toast.success(`Imported ${res.inserted} asset(s)`);
+                    // refresh counts & metrics quickly
+                    if (hasSupabaseEnv) {
+                      try {
+                        const assets = await listAssets();
+                        setCounts((c) => ({ ...c, assets: assets.length }));
+                        const totalQuantity = assets.reduce((sum: number, a: any) => sum + (Number(a.quantity) || 0), 0);
+                        setMetrics((m) => ({ ...m, totalQuantity }));
+                      } catch {}
+                    }
+                  } catch (err: any) {
+                    toast.error(err?.message || "Import failed");
+                  } finally {
+                    setImporting(false);
+                  }
+                }} />
+              </div>
+              {lastImportSummary && (
+                <p className="text-xs text-muted-foreground">Last import: {lastImportSummary}</p>
+              )}
+              {!hasSupabaseEnv && (
+                <p className="text-xs text-warning-foreground">Backend not connected. Import requires Supabase.</p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkOpen(false)}>Close</Button>
+              <Button disabled className="gap-2" variant="secondary">
+                {importing ? "Importing..." : "Ready"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Backend Connection Notice */}
         {!hasSupabaseEnv && (
