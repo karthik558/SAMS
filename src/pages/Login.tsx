@@ -84,31 +84,58 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-dvh flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm shadow-soft">
-        <CardHeader className="space-y-4 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <img src="/placeholder.svg" alt="Logo" className="h-8 w-8" />
-            <CardTitle className="text-xl">Sign in to SAMS</CardTitle>
-          </div>
-          <p className="text-sm text-muted-foreground">Use your work email to continue</p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
-              <Input id="email" type="email" placeholder="abc@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+    <div className="min-h-dvh flex flex-col bg-muted/30">
+      <main className="flex flex-1 items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-soft border-border">
+          <CardHeader className="space-y-3 text-center">
+            <div className="mx-auto flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
+                <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">Password</label>
-              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+            <div className="space-y-1">
+              <CardTitle className="text-2xl">Sign in to SAMS</CardTitle>
+              <p className="text-sm text-muted-foreground">Welcome back. Please enter your details.</p>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium">Email</label>
+                <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm font-medium">Password</label>
+                <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <label className="inline-flex items-center gap-2 select-none">
+                  <input type="checkbox" className="rounded border-border" />
+                  <span className="text-muted-foreground">Remember me</span>
+                </label>
+                <span className="text-muted-foreground opacity-70">Forgot password?</span>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+      <footer className="border-t border-border p-4 text-center text-xs text-muted-foreground">
+        <p>
+          © 2025{' '}
+          <a
+            href="https://karthiklal.in"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary hover:underline"
+          >
+            SAMS
+          </a>
+          . All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }
