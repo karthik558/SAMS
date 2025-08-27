@@ -21,8 +21,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listProperties, deleteProperty as sbDeleteProperty, createProperty as sbCreateProperty, updateProperty as sbUpdateProperty, type Property } from "@/services/properties";
+import { listAssets, type Asset } from "@/services/assets";
 import { logActivity } from "@/services/activity";
 
 const mockProperties = [
@@ -97,17 +98,49 @@ export default function Properties() {
     if (!isSupabase) return;
     (async () => {
       try {
-        const data = await listProperties();
-        const counts = Object.fromEntries(mockProperties.map(p => [p.id, { assetCount: p.assetCount, userCount: p.userCount }]));
-        const merged = data.map((p: Property) => ({
+        // Load properties, assets, and user-property access
+        const [props, assets, userAccess] = await Promise.all([
+          listProperties(),
+          listAssets().catch(() => [] as Asset[]),
+          supabase
+            .from("user_property_access")
+            .select("user_id, property_id")
+            .then(({ data, error }) => {
+              if (error) throw error;
+              return (data || []) as Array<{ user_id: string; property_id: string }>;
+            })
+            .catch(() => [] as Array<{ user_id: string; property_id: string }>),
+        ]);
+
+        // Build counts by property id/code
+        const assetCounts: Record<string, number> = {};
+        for (const a of assets) {
+          const key = (a.property_id || a.property || "").toString();
+          if (!key) continue;
+          assetCounts[key] = (assetCounts[key] || 0) + 1;
+        }
+
+        const userCounts: Record<string, number> = {};
+        // Count distinct users per property
+        const grouped = new Map<string, Set<string>>();
+        for (const ua of userAccess) {
+          if (!ua.property_id || !ua.user_id) continue;
+          if (!grouped.has(ua.property_id)) grouped.set(ua.property_id, new Set());
+          grouped.get(ua.property_id)!.add(ua.user_id);
+        }
+        for (const [propId, users] of grouped.entries()) {
+          userCounts[propId] = users.size;
+        }
+
+        const merged = props.map((p: Property) => ({
           id: p.id,
           name: p.name,
           address: p.address ?? "",
           type: p.type,
           status: p.status,
           manager: p.manager ?? "",
-          assetCount: counts[p.id]?.assetCount ?? 0,
-          userCount: counts[p.id]?.userCount ?? 0,
+          assetCount: assetCounts[p.id] ?? 0,
+          userCount: userCounts[p.id] ?? 0,
         }));
         setProperties(merged);
       } catch (e: any) {
