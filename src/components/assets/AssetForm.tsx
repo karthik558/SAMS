@@ -38,6 +38,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     property: initialData?.property || "",
     condition: initialData?.condition || "",
     serialNumber: initialData?.serialNumber || "",
+  location: initialData?.location || "",
   });
   const [properties, setProperties] = useState<Property[]>([]);
   const [itemTypes, setItemTypes] = useState<string[]>([]);
@@ -96,6 +97,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
         property: "",
         condition: "",
         serialNumber: "",
+  location: "",
       });
     }
   };
@@ -275,6 +277,17 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                 value={formData.serialNumber}
                 onChange={(e) => handleInputChange("serialNumber", e.target.value)}
                 placeholder="Asset serial number"
+              />
+            </div>
+
+            {/* Location */}
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => handleInputChange("location", e.target.value)}
+                placeholder="e.g., Floor 2, Room 203"
               />
             </div>
 

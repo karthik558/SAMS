@@ -213,6 +213,7 @@ export default function Assets() {
           poNumber: assetData.poNumber || null,
           condition: assetData.condition || null,
           status: selectedAsset?.status || 'Active',
+          location: assetData.location || null,
         } as any;
         if (selectedAsset) {
           const id = ids[0];
@@ -246,6 +247,7 @@ export default function Assets() {
             expiryDate: assetData.expiryDate || null,
             poNumber: assetData.poNumber || null,
             condition: assetData.condition || null,
+            location: assetData.location || null,
             status: 'Active',
           }))
         ]));
@@ -535,6 +537,7 @@ export default function Assets() {
                     <TableHead className="hidden sm:table-cell">Type</TableHead>
                     <TableHead className="hidden md:table-cell">Property</TableHead>
                     <TableHead className="hidden lg:table-cell">Quantity</TableHead>
+                    <TableHead className="hidden xl:table-cell">Location</TableHead>
                     <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>
                     <TableHead className="hidden sm:table-cell">Status</TableHead>
                     <TableHead>Actions</TableHead>
@@ -548,6 +551,7 @@ export default function Assets() {
                       <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>
           <TableCell className="hidden md:table-cell">{displayPropertyCode(asset.property)}</TableCell>
                       <TableCell className="hidden lg:table-cell">{asset.quantity}</TableCell>
+                      <TableCell className="hidden xl:table-cell">{asset.location || '-'}</TableCell>
                       <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>
                       <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>
                     <TableCell>

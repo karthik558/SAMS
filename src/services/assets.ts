@@ -12,6 +12,7 @@ export type Asset = {
   poNumber: string | null;
   condition: string | null;
   status: string;
+  location?: string | null;
   created_at?: string;
 };
 
@@ -31,6 +32,7 @@ function toCamel(row: any): Asset {
     poNumber: row.po_number ?? null,
     condition: row.condition ?? null,
     status: row.status,
+  location: row.location ?? null,
     created_at: row.created_at,
   };
 }
@@ -48,6 +50,7 @@ function toSnake(asset: Partial<Asset>) {
     po_number: asset.poNumber ?? null,
     condition: asset.condition ?? null,
     status: asset.status,
+  location: asset.location ?? null,
   };
 }
 
