@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { QrCode, Search, Download, Printer, Package, Building2 } from "lucide-react";
+import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,6 +23,7 @@ import { listProperties, type Property } from "@/services/properties";
 import { Calendar } from "@/components/ui/calendar";
 import { listAssets, type Asset } from "@/services/assets";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Mock data for QR codes
@@ -84,6 +85,10 @@ export default function QRCodes() {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{ assetId: string; assetName: string } | null>(null);
 
   // Active property ids set (exclude disabled properties from UI everywhere)
   const activePropertyIds = useMemo(() => {
@@ -161,8 +166,12 @@ export default function QRCodes() {
   setAssetPickerOpen(true);
   };
 
-  const handleGenerateForAsset = (asset: any) => {
-    setSelectedAsset(asset);
+  const handleGenerateForAsset = (item: any) => {
+    // Normalize: if a QR record is passed (has assetId), convert to an Asset-like object
+    const assetLike = item && typeof item === 'object' && 'assetId' in item
+      ? { id: item.assetId, name: item.assetName || item.assetId, property: item.property }
+      : item;
+    setSelectedAsset(assetLike);
     setShowGenerator(true);
   };
 
@@ -197,6 +206,19 @@ export default function QRCodes() {
     } catch (e) {
       console.error(e);
       toast.error("Failed to download all QR codes");
+    }
+  };
+
+  const openPreview = async (qr: any) => {
+    try {
+      let dataUrl = qr.imageUrl || computedImages[qr.id];
+      if (!dataUrl) dataUrl = await generateQrPng(qr);
+      setPreviewImg(dataUrl || null);
+      setPreviewMeta({ assetId: qr.assetId, assetName: qr.assetName });
+      setPreviewOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to open preview");
     }
   };
 
@@ -601,10 +623,32 @@ export default function QRCodes() {
         {/* Filters and Search */}
         <Card>
           <CardHeader>
-            <CardTitle>QR Code Inventory</CardTitle>
-            <CardDescription>
-              Search and filter your generated QR codes
-            </CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle>QR Code Inventory</CardTitle>
+                <CardDescription>
+                  Search and filter your generated QR codes
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2 self-start">
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setViewMode('grid')}
+                  aria-label="Grid view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'list' ? 'default' : 'outline'}
+                  size="icon"
+                  onClick={() => setViewMode('list')}
+                  aria-label="List view"
+                >
+                  <ListIcon className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -711,9 +755,10 @@ export default function QRCodes() {
           </Card>
         )}
 
-        {/* QR Codes Grid */}
-  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sortedQRCodes.map((qrCode) => (
+        {/* QR Codes Grid/List */}
+        {viewMode === 'grid' ? (
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {sortedQRCodes.map((qrCode) => (
             <Card
               key={qrCode.id}
               className={`hover:shadow-medium transition-shadow ${highlightId === qrCode.id ? "ring-2 ring-primary" : ""}`}
@@ -744,28 +789,31 @@ export default function QRCodes() {
                 </div>
 
                 {/* QR Code Preview */}
-                <div className="flex justify-center p-4 bg-muted/30 rounded-lg">
-                  <div className="w-28 h-28 bg-background border-2 border-border rounded flex items-center justify-center overflow-hidden">
-                    { (qrCode.imageUrl || computedImages[qrCode.id]) ? (
-                      <img
-                        src={qrCode.imageUrl || computedImages[qrCode.id]}
-                        alt={`QR ${qrCode.assetId}`}
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    ) : (
-                      <QrCode className="h-16 w-16 text-muted-foreground" />
-                    ) }
+                  <div className="flex justify-center p-4 bg-muted/30 rounded-lg relative z-0">
+                    <div
+                      className="group w-28 h-28 bg-background border-2 border-border rounded flex items-center justify-center overflow-hidden cursor-zoom-in"
+                      onClick={() => openPreview(qrCode)}
+                    >
+                      { (qrCode.imageUrl || computedImages[qrCode.id]) ? (
+                        <img
+                          src={qrCode.imageUrl || computedImages[qrCode.id]}
+                          alt={`QR ${qrCode.assetId}`}
+                          className="max-w-full max-h-full object-contain transition-transform duration-200 group-hover:scale-110"
+                        />
+                      ) : (
+                        <QrCode className="h-16 w-16 text-muted-foreground" />
+                      ) }
+                    </div>
                   </div>
-                </div>
 
                 {/* Actions */}
-                <div className="flex gap-2">
+          <div className="relative z-10 flex flex-wrap items-center gap-2">
                   {(role==='admin') && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleGenerateForAsset(qrCode)}
-                    className="flex-1 gap-2"
+            onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}
+            className="gap-2 w-full sm:w-auto"
                   >
                     <QrCode className="h-4 w-4" />
                     Regenerate
@@ -774,7 +822,7 @@ export default function QRCodes() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2"
+            className="gap-2 w-full sm:w-auto"
                     onClick={async () => {
                       try {
                         let dataUrl = qrCode.imageUrl;
@@ -801,7 +849,7 @@ export default function QRCodes() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="gap-2"
+            className="gap-2 w-full sm:w-auto"
                     onClick={async () => {
                       try {
                         if (hasSupabaseEnv) {
@@ -827,8 +875,65 @@ export default function QRCodes() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[180px]">Asset</TableHead>
+                  <TableHead>Asset ID</TableHead>
+                  <TableHead>Property</TableHead>
+                  <TableHead>Generated</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[220px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedQRCodes.map((qrCode) => (
+                  <TableRow key={qrCode.id}>
+                    <TableCell className="font-medium flex items-center gap-3">
+                      <div
+                        className="w-12 h-12 bg-muted/40 rounded border flex items-center justify-center cursor-zoom-in overflow-hidden"
+                        onClick={() => openPreview(qrCode)}
+                      >
+                        {(qrCode.imageUrl || computedImages[qrCode.id]) ? (
+                          <img src={qrCode.imageUrl || computedImages[qrCode.id]} alt="QR" className="w-full h-full object-contain" />
+                        ) : (
+                          <QrCode className="h-6 w-6 text-muted-foreground" />
+                        )}
+                      </div>
+                      {qrCode.assetName}
+                    </TableCell>
+                    <TableCell>{qrCode.assetId}</TableCell>
+                    <TableCell>{qrCode.property}</TableCell>
+                    <TableCell>{qrCode.generatedDate}</TableCell>
+                    <TableCell>{getStatusBadge(qrCode.status, qrCode.printed)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        {(role==='admin') && (
+                          <Button size="sm" variant="outline" onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}>
+                            Regenerate
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => openPreview(qrCode)}>Preview</Button>
+                        <Button size="sm" variant="outline" onClick={async () => {
+                          try {
+                            let dataUrl = qrCode.imageUrl;
+                            if (!dataUrl) dataUrl = await generateQrPng(qrCode);
+                            if (dataUrl) downloadDataUrl(dataUrl, `qr-${qrCode.assetId}.png`);
+                            toast.success(`Downloaded QR for ${qrCode.assetName}`);
+                          } catch { toast.error('Failed to download QR'); }
+                        }}>Download</Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
 
         {!hasSupabaseEnv && (
           <Card className="border-warning/50 bg-warning/5">
@@ -845,6 +950,31 @@ export default function QRCodes() {
             </CardContent>
           </Card>
         )}
+
+        {/* QR Preview Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Scan QR{previewMeta ? ` • ${previewMeta.assetName}` : ''}</DialogTitle>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-3">
+              {previewImg ? (
+                <img
+                  src={previewImg}
+                  alt={previewMeta ? `QR for ${previewMeta.assetId}` : 'QR'}
+                  className="w-72 h-72 object-contain border rounded-md bg-white"
+                />
+              ) : (
+                <div className="w-72 h-72 flex items-center justify-center border rounded-md bg-muted/30">
+                  <QrCode className="h-12 w-12 text-muted-foreground" />
+                </div>
+              )}
+              {previewMeta && (
+                <div className="text-xs text-muted-foreground">{previewMeta.assetId}</div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }
