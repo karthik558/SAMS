@@ -81,6 +81,7 @@ const mockProperties = [
 export default function Properties() {
   const [properties, setProperties] = useState<any[]>(mockProperties);
   const isSupabase = hasSupabaseEnv;
+  const [role, setRole] = useState<string>("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -115,6 +116,14 @@ export default function Properties() {
       }
     })();
   }, [isSupabase]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const r = raw ? (JSON.parse(raw).role || "") : "";
+      setRole((r || "").toLowerCase());
+    } catch {}
+  }, []);
 
   const handleAddProperty = () => {
     setEditingId(null);
@@ -246,7 +255,7 @@ export default function Properties() {
               Manage properties and assign users for asset tracking
             </p>
           </div>
-          <Button onClick={handleAddProperty} className="gap-2">
+          <Button onClick={handleAddProperty} className="gap-2" disabled={role !== 'admin'}>
             <Plus className="h-4 w-4" />
             Add New Property
           </Button>
@@ -357,26 +366,28 @@ export default function Properties() {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleEditProperty(property.id)}
-                    className="flex-1 gap-2"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleDeleteProperty(property.id)}
-                    className="gap-2 text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
-                </div>
+                {role === 'admin' && (
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleEditProperty(property.id)}
+                      className="flex-1 gap-2"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteProperty(property.id)}
+                      className="gap-2 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
@@ -429,7 +440,7 @@ export default function Properties() {
         )}
 
         {/* Add/Edit Property Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+  <Dialog open={isDialogOpen && role==='admin'} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Property" : "Add New Property"}</DialogTitle>

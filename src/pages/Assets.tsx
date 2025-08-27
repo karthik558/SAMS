@@ -109,6 +109,7 @@ export default function Assets() {
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [sortBy, setSortBy] = useState("newest");
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
+  const [role, setRole] = useState<string>("");
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -125,6 +126,14 @@ export default function Assets() {
       const ids = await getAccessiblePropertyIdsForCurrentUser();
       setAccessibleProps(ids);
     })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const r = raw ? (JSON.parse(raw).role || "") : "";
+      setRole((r || "").toLowerCase());
+    } catch {}
   }, []);
 
   // Load from Supabase when configured
@@ -204,6 +213,11 @@ export default function Assets() {
   };
 
   const handleAddAsset = async (assetData: any) => {
+    const canCreate = role === 'admin' || role === 'manager' || role === 'user';
+    if (!canCreate) {
+      toast.error("You don't have permission to create assets");
+      return;
+    }
     try {
   if (isSupabase) {
         const propertyCode = assetData.property; // Select provides property id/code
@@ -270,11 +284,13 @@ export default function Assets() {
   };
 
   const handleEditAsset = (asset: any) => {
+    if (role !== 'admin') return; // only admin can edit
     setSelectedAsset(asset);
     setShowAddForm(true);
   };
 
   const handleDeleteAsset = async (assetId: string) => {
+    if (role !== 'admin') return; // only admin can delete
     try {
       if (hasSupabaseEnv) {
         await sbDeleteAsset(assetId);
@@ -413,7 +429,7 @@ export default function Assets() {
               Track and manage all your organization's assets
             </p>
           </div>
-          <Button onClick={() => setShowAddForm(true)} className="gap-2">
+          <Button onClick={() => setShowAddForm(true)} className="gap-2" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
             <Plus className="h-4 w-4" />
             Add New Asset
           </Button>
@@ -567,6 +583,7 @@ export default function Assets() {
                       <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
+                        {role === 'admin' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -575,6 +592,7 @@ export default function Assets() {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -583,6 +601,7 @@ export default function Assets() {
                         >
                           <QrCode className="h-4 w-4" />
                         </Button>
+                        {role === 'admin' && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -591,6 +610,7 @@ export default function Assets() {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

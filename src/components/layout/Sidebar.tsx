@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+const baseNav = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Assets", href: "/assets", icon: Package },
   { name: "Properties", href: "/properties", icon: Building2 },
@@ -22,7 +22,7 @@ const navigation = [
   { name: "Reports", href: "/reports", icon: FileBarChart },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
-];
+] as const;
 
 interface SidebarProps {
   className?: string;
@@ -69,7 +69,23 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
 
         {/* Navigation */}
   <nav className="flex-1 space-y-1 p-2">
-          {navigation.map((item) => {
+          {(() => {
+            let role: string = "";
+            try {
+              const raw = localStorage.getItem("auth_user");
+              role = raw ? (JSON.parse(raw).role || "") : "";
+            } catch {}
+            const r = role.toLowerCase();
+            let nav: typeof baseNav extends ReadonlyArray<infer T> ? T[] : any[] = [...baseNav];
+            if (r === "admin") {
+              nav = [...baseNav];
+            } else if (r === "manager") {
+              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Reports","Settings"].includes(n.name));
+            } else {
+              // user
+              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Settings"].includes(n.name));
+            }
+            return nav.map((item) => {
             const isActive = location.pathname === item.href;
             return (
               <NavLink
@@ -87,7 +103,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     {!collapsed && <span className="truncate">{item.name}</span>}
               </NavLink>
             );
-          })}
+          }); })()}
         </nav>
 
         {/* Footer */}

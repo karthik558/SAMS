@@ -158,6 +158,7 @@ export default function Users() {
   const [mustChangePassword, setMustChangePassword] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
 
   // Edit form fields
@@ -200,6 +201,14 @@ export default function Users() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const r = raw ? (JSON.parse(raw).role || "") : "";
+      setAuthRole((r || "").toLowerCase());
+    } catch {}
   }, []);
 
   // Load properties for Property Access selection
@@ -437,9 +446,9 @@ export default function Users() {
           </p>
         </div>
         
-        <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+    <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
+      <Button className="w-full sm:w-auto" disabled={authRole !== 'admin'}>
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
@@ -698,17 +707,21 @@ export default function Users() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          {authRole === 'admin' && (
                           <DropdownMenuItem onClick={() => openEditUser(user)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteUser(user.id, user.name)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
+                          )}
+                          {authRole === 'admin' && (
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteUser(user.id, user.name)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

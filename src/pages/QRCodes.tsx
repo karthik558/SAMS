@@ -66,6 +66,7 @@ const mockQRCodes = [
 ];
 
 export default function QRCodes() {
+  const [role, setRole] = useState<string>("");
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showGenerator, setShowGenerator] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,6 +94,11 @@ export default function QRCodes() {
 
   // Load QR codes and properties (when Supabase is configured)
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      const r = raw ? (JSON.parse(raw).role || "") : "";
+      setRole((r || "").toLowerCase());
+    } catch {}
     (async () => {
       try {
         if (hasSupabaseEnv) {
@@ -528,11 +534,11 @@ export default function QRCodes() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleGenerateNew} className="gap-2">
+            <Button onClick={handleGenerateNew} className="gap-2" disabled={!(role==='admin' || role==='manager' || role==='user')}>
               <QrCode className="h-4 w-4" />
               Generate New QR Code
             </Button>
-            <Button onClick={handleBulkPrint} variant="outline" className="gap-2">
+            <Button onClick={handleBulkPrint} variant="outline" className="gap-2" disabled={!(role==='admin' || role==='manager' || role==='user')}>
               <Printer className="h-4 w-4" />
               Bulk Print
             </Button>
@@ -758,6 +764,7 @@ export default function QRCodes() {
 
                 {/* Actions */}
                 <div className="flex gap-2">
+                  {(role==='admin') && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -767,6 +774,7 @@ export default function QRCodes() {
                     <QrCode className="h-4 w-4" />
                     Regenerate
                   </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
