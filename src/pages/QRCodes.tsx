@@ -80,7 +80,7 @@ export default function QRCodes() {
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [computedImages, setComputedImages] = useState<Record<string, string>>({});
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [datePreset, setDatePreset] = useState<'none' | 'yesterday' | '7days' | 'custom'>("none");
+  const [datePreset, setDatePreset] = useState<'none' | 'today' | 'yesterday' | '7days' | 'custom'>("none");
   const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>();
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
@@ -334,7 +334,10 @@ export default function QRCodes() {
       const today = new Date();
       let start: Date | null = null;
       let end: Date | null = null;
-      if (datePreset === 'yesterday') {
+      if (datePreset === 'today') {
+        start = toStartOfDay(today);
+        end = toEndOfDay(today);
+      } else if (datePreset === 'yesterday') {
         const y = new Date(today);
         y.setDate(y.getDate() - 1);
         start = toStartOfDay(y);
@@ -703,6 +706,12 @@ export default function QRCodes() {
 
             {/* Quick date filters */}
             <div className="mt-3 flex gap-2 flex-wrap">
+              <Button
+                variant={datePreset === 'today' ? 'default' : 'outline'}
+                onClick={() => setDatePreset('today')}
+              >
+                Today
+              </Button>
               <Button
                 variant={datePreset === 'yesterday' ? 'default' : 'outline'}
                 onClick={() => setDatePreset('yesterday')}
