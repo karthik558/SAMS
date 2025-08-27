@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { listQRCodes, createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
+import { listQRCodes, createQRCode, updateQRCode, deleteAllQRCodes, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
 import { listProperties, type Property } from "@/services/properties";
@@ -85,6 +85,7 @@ export default function QRCodes() {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [purging, setPurging] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
@@ -181,6 +182,27 @@ export default function QRCodes() {
     (async () => {
       await logActivity("qr_bulk_print", `Bulk printed ${unprintedCodes.length} QR codes`);
     })();
+  };
+
+  const handleClearAll = async () => {
+    if (!(role==='admin')) return;
+    const ok = window.confirm("This will delete all stored QR history. Continue?");
+    if (!ok) return;
+    try {
+      setPurging(true);
+      if (hasSupabaseEnv) {
+        await deleteAllQRCodes();
+      }
+      setCodes([]);
+      setComputedImages({});
+      toast.success("All QR codes cleared. You can generate fresh codes now.");
+      await logActivity("qr_cleared_all", "All QR history cleared");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to clear QR codes");
+    } finally {
+      setPurging(false);
+    }
   };
 
   const handleDownloadAll = async () => {
@@ -563,6 +585,11 @@ export default function QRCodes() {
               <Printer className="h-4 w-4" />
               Bulk Print
             </Button>
+            {role==='admin' && (
+              <Button onClick={handleClearAll} variant="outline" className="gap-2" disabled={purging}>
+                {purging ? 'Clearing…' : 'Clear All'}
+              </Button>
+            )}
           </div>
         </div>
 

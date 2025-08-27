@@ -65,3 +65,9 @@ export async function updateQRCode(id: string, patch: Partial<QRCode>): Promise<
   if (error) throw error;
   return toCamel(data);
 }
+
+export async function deleteAllQRCodes(): Promise<void> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { error } = await supabase.from(table).delete().neq("id", "");
+  if (error) throw error;
+}
