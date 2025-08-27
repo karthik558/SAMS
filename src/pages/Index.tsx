@@ -1,4 +1,3 @@
-import { Layout } from "@/components/layout/Layout";
 import { StatCard } from "@/components/ui/stat-card";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
@@ -15,7 +14,6 @@ const Index = () => {
   };
 
   return (
-    <Layout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -195,7 +193,6 @@ const Index = () => {
           </CardContent>
         </Card>
       </div>
-    </Layout>
   );
 };
 

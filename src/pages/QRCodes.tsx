@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Layout } from "@/components/layout/Layout";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -107,8 +106,7 @@ export default function QRCodes() {
 
   if (showGenerator) {
     return (
-      <Layout>
-        <div className="space-y-6">
+      <div className="space-y-6">
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => setShowGenerator(false)}>
               ← Back to QR Codes
@@ -125,13 +123,11 @@ export default function QRCodes() {
             }}
           />
         </div>
-      </Layout>
     );
   }
 
   return (
-    <Layout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -347,8 +343,7 @@ export default function QRCodes() {
               </div>
             </div>
           </CardContent>
-        </Card>
-      </div>
-    </Layout>
+      </Card>
+    </div>
   );
 }
