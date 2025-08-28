@@ -84,3 +84,106 @@ function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: num
   ctx.quadraticCurveTo(x, y, x + radius, y);
   ctx.closePath();
 }
+
+// Compose a grid sheet image (single PNG) from a list of labeled QR images
+export async function composeQrGridSheet(images: string[], opts?: {
+  columns?: number;
+  cellWidth?: number;
+  cellHeight?: number;
+  gap?: number;
+  padding?: number;
+  backgroundColor?: string;
+}): Promise<string> {
+  const columns = opts?.columns ?? 3;
+  const cellWidth = opts?.cellWidth ?? 360;
+  const cellHeight = opts?.cellHeight ?? 360; // our labeled QR default height ~360
+  const gap = opts?.gap ?? 12;
+  const padding = opts?.padding ?? 16;
+  const backgroundColor = opts?.backgroundColor ?? '#FFFFFF';
+
+  if (!images.length) throw new Error('No images to compose');
+  const rows = Math.ceil(images.length / columns);
+  const width = padding * 2 + columns * cellWidth + (columns - 1) * gap;
+  const height = padding * 2 + rows * cellHeight + (rows - 1) * gap;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return images[0];
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+
+  const imgs = await Promise.all(images.map(src => loadImage(src)));
+  for (let i = 0; i < imgs.length; i++) {
+    const r = Math.floor(i / columns);
+    const c = i % columns;
+    const x = padding + c * (cellWidth + gap);
+    const y = padding + r * (cellHeight + gap);
+    ctx.drawImage(imgs[i], x, y, cellWidth, cellHeight);
+  }
+  return canvas.toDataURL('image/png');
+}
+
+export function mmToPx(mm: number, dpi = 96): number {
+  return Math.round((mm / 25.4) * dpi);
+}
+
+export function computeA4Layout(opts?: {
+  orientation?: 'portrait' | 'landscape';
+  columns?: number;
+  marginMm?: number;
+  gapMm?: number;
+  dpi?: number;
+}) {
+  const orientation = opts?.orientation ?? 'portrait';
+  const columns = Math.max(1, opts?.columns ?? 3);
+  const marginMm = opts?.marginMm ?? 10;
+  const gapMm = opts?.gapMm ?? 4;
+  const dpi = opts?.dpi ?? 96;
+
+  const pageWmm = orientation === 'portrait' ? 210 : 297;
+  const pageHmm = orientation === 'portrait' ? 297 : 210;
+  const width = mmToPx(pageWmm, dpi);
+  const height = mmToPx(pageHmm, dpi);
+  const marginPx = mmToPx(marginMm, dpi);
+  const gapPx = mmToPx(gapMm, dpi);
+  const cellWidth = Math.floor((width - marginPx * 2 - gapPx * (columns - 1)) / columns);
+  const cellHeight = cellWidth;
+  const rows = Math.floor((height - marginPx * 2 + gapPx) / (cellHeight + gapPx));
+  const capacity = Math.max(1, rows * columns);
+  return { width, height, marginPx, gapPx, cellWidth, cellHeight, rows, columns, capacity, dpi };
+}
+
+// Compose a single A4-sized PNG sheet. If more images than fit, extra are ignored.
+export async function composeQrA4Sheet(images: string[], opts?: {
+  orientation?: 'portrait' | 'landscape';
+  columns?: number;
+  marginMm?: number;
+  gapMm?: number;
+  dpi?: number; // canvas density; 96 works well for browsers
+}): Promise<{ dataUrl: string; capacity: number }>{
+  const dpi = opts?.dpi ?? 192; // higher DPI for sharper PNG
+  const { width, height, marginPx, gapPx, cellWidth, cellHeight, rows, columns, capacity } = computeA4Layout({ ...opts, dpi });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { dataUrl: images[0] || '', capacity };
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, width, height);
+
+  const slice = images.slice(0, capacity);
+  const imgs = await Promise.all(slice.map(src => loadImage(src)));
+  for (let i = 0; i < imgs.length; i++) {
+    const r = Math.floor(i / columns);
+    const c = i % columns;
+    const x = marginPx + c * (cellWidth + gapPx);
+    const y = marginPx + r * (cellHeight + gapPx);
+    ctx.drawImage(imgs[i], x, y, cellWidth, cellHeight);
+  }
+  return { dataUrl: canvas.toDataURL('image/png'), capacity };
+}

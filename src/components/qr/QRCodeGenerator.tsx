@@ -35,7 +35,7 @@ export function QRCodeGenerator({
   const qrLink = `${normalizedBase}/assets/${assetId}`;
 
   const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
-        width: 300,
+        width: 512,
         margin: 2,
         color: {
           dark: '#000000',

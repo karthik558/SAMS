@@ -40,6 +40,8 @@ import { listProperties, type Property } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
+import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet } from "@/lib/qr";
+import QRCode from "qrcode";
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId } from "@/services/permissions";
 import { canUserEdit } from "@/services/permissions";
@@ -113,6 +115,10 @@ export default function Assets() {
   const [sortBy, setSortBy] = useState("newest");
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   const [role, setRole] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportFmt, setExportFmt] = useState<'png' | 'pdf'>('png');
+  const [exportOrientation, setExportOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -580,6 +586,23 @@ export default function Assets() {
           </CardContent>
         </Card>
 
+        {/* Bulk actions bar (visible when any selected) */}
+  {selectedIds.size > 0 && (
+          <div className="flex items-center justify-between gap-2 p-3 bg-muted/50 border rounded-md">
+            <div className="text-sm">{selectedIds.size} selected</div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+    onClick={() => setExportOpen(true)}
+              >
+    Generate & Download QR Sheet
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+            </div>
+          </div>
+        )}
+
         {/* Assets Table */}
           <Card>
             <CardContent className="p-0">
@@ -587,6 +610,17 @@ export default function Assets() {
               <Table>
               <TableHeader>
                 <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        className="accent-current"
+                        checked={selectedIds.size > 0 && selectedIds.size === sortedAssets.length}
+                        onChange={(e) => {
+                          if (e.target.checked) setSelectedIds(new Set(sortedAssets.map(a => a.id)));
+                          else setSelectedIds(new Set());
+                        }}
+                      />
+                    </TableHead>
                     <TableHead className="whitespace-nowrap">Asset ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead className="hidden sm:table-cell">Type</TableHead>
@@ -601,6 +635,18 @@ export default function Assets() {
               <TableBody>
         {sortedAssets.map((asset) => (
                   <TableRow key={asset.id}>
+                    <TableCell className="w-10">
+                      <input
+                        type="checkbox"
+                        className="accent-current"
+                        checked={selectedIds.has(asset.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedIds);
+                          if (e.target.checked) next.add(asset.id); else next.delete(asset.id);
+                          setSelectedIds(next);
+                        }}
+                      />
+                    </TableCell>
                     <TableCell className="font-medium">{asset.id}</TableCell>
                     <TableCell>{asset.name}</TableCell>
                       <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>
@@ -648,6 +694,120 @@ export default function Assets() {
             </div>
           </CardContent>
       </Card>
+
+          {/* Export modal */}
+          {exportOpen && (
+            <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setExportOpen(false)}>
+              <div className="bg-background border rounded-lg w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-semibold mb-2">Export QR Sheet</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium">Format</label>
+          <div className="mt-1 flex gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="radio" name="fmt" checked={exportFmt==='png'} onChange={() => setExportFmt('png')} /> PNG
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm">
+            <input type="radio" name="fmt" checked={exportFmt==='pdf'} onChange={() => setExportFmt('pdf')} /> PDF
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Orientation</label>
+                    <div className="mt-1 flex gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="radio" name="orient" checked={exportOrientation==='portrait'} onChange={() => setExportOrientation('portrait')} /> Portrait
+                      </label>
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="radio" name="orient" checked={exportOrientation==='landscape'} onChange={() => setExportOrientation('landscape')} /> Landscape
+                      </label>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="ghost" onClick={() => setExportOpen(false)}>Cancel</Button>
+                    <Button
+                      onClick={async () => {
+                        try {
+                          const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                          const normalizedBase = (base || '').replace(/\/$/, '');
+                          const selected = assets.filter(a => selectedIds.has(a.id));
+                          const images: string[] = [];
+                          for (const a of selected) {
+                            const url = `${normalizedBase}/assets/${a.id}`;
+                            const raw = await QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: '#000', light: '#FFF' }, errorCorrectionLevel: 'M' });
+                            const labeled = await composeQrWithLabel(raw, { assetId: a.id, topText: a.name || 'Scan to view asset' });
+                            images.push(labeled);
+                          }
+                          if (exportFmt === 'png') {
+                            const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
+                            const aEl = document.createElement('a');
+                            aEl.href = dataUrl;
+                            aEl.download = `qr-selected-${new Date().toISOString().slice(0,10)}.png`;
+                            aEl.click();
+                          } else {
+                            // Print-to-PDF via hidden iframe to avoid popup blockers
+                            const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
+                            const pageCss = exportOrientation==='portrait' ? '@page { size: A4 portrait; margin: 0; }' : '@page { size: A4 landscape; margin: 0; }';
+                            const iframe = document.createElement('iframe');
+                            iframe.style.position = 'fixed';
+                            iframe.style.right = '0';
+                            iframe.style.bottom = '0';
+                            iframe.style.width = '0';
+                            iframe.style.height = '0';
+                            iframe.style.border = '0';
+                            document.body.appendChild(iframe);
+                            const doc = iframe.contentWindow?.document;
+                            doc?.open();
+                            const pageDims = exportOrientation==='portrait' ? 'width:210mm;height:297mm;' : 'width:297mm;height:210mm;';
+                            const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>QR Sheet</title>
+    <style>
+      ${pageCss}
+      html, body { margin: 0; padding: 0; }
+      .page { ${pageDims} margin: 0; display: flex; align-items: center; justify-content: center; }
+      .page img { width: 100%; height: 100%; object-fit: contain; display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    </style>
+  </head>
+  <body>
+    <div class="page"><img id="sheet" src="${dataUrl}" /></div>
+  </body>
+</html>`;
+                            doc?.write(html);
+                            doc?.close();
+                            const imgEl = doc?.getElementById('sheet') as HTMLImageElement | null;
+                            const triggerPrint = () => {
+                              try {
+                                iframe.contentWindow?.focus();
+                                // slight delay ensures layout sizes are applied before printing
+                                setTimeout(() => iframe.contentWindow?.print(), 50);
+                              } finally {
+                                // remove iframe after a short delay
+                                setTimeout(() => {
+                                  try { document.body.removeChild(iframe); } catch {}
+                                }, 1000);
+                              }
+                            };
+                            if (imgEl && !imgEl.complete) {
+                              imgEl.onload = () => setTimeout(triggerPrint, 50);
+                            } else {
+                              setTimeout(triggerPrint, 300);
+                            }
+                          }
+                        } finally {
+                          setExportOpen(false);
+                        }
+                      }}
+                    >
+                      Export
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
     </div>
   );
 }

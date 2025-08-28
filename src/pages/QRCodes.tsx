@@ -462,7 +462,7 @@ export default function QRCodes() {
   const normalizedBase = (base || '').replace(/\/$/, '');
   const url = `${normalizedBase}/assets/${qr.assetId}`;
   const raw = await QRCode.toDataURL(url, {
-      width: 300,
+      width: 512,
       margin: 2,
       color: { dark: '#000000', light: '#FFFFFF' },
       errorCorrectionLevel: 'M',
