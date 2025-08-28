@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AssetDetails from "./pages/AssetDetails";
+import Scan from "./pages/Scan";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
@@ -36,6 +37,8 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           {/* Public QR scan view: render asset details without auth or layout */}
           <Route path="/assets/:id" element={<AssetDetails />} />
+          {/* Public in-app QR scanner */}
+          <Route path="/scan" element={<Scan />} />
           <Route
             path="*"
             element={

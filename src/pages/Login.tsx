@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { QrCode } from "lucide-react";
 import { listUsers, type AppUser } from "@/services/users";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { verifyCredentials } from "@/services/auth";
@@ -119,6 +120,12 @@ export default function Login() {
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
+            <div className="mt-4">
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => navigate('/scan')}>
+                <QrCode className="h-4 w-4" />
+                Scan QR (No login)
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </main>
