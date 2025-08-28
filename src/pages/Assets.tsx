@@ -493,22 +493,7 @@ export default function Assets() {
             <Plus className="h-4 w-4" />
             Add New Asset
           </Button>
-          {role !== 'admin' && (
-            <Button
-              variant="outline"
-              onClick={() => {
-                const selectedId = selectedAsset?.id || (selectedIds.size === 1 ? Array.from(selectedIds)[0] : null);
-                if (!selectedId) { toast.info('Select exactly one asset first'); return; }
-                const target = assets.find(a => a.id === selectedId);
-                if (!target) { toast.error('Asset not found'); return; }
-                setRequestEditAsset(target);
-                setRequestEditOpen(true);
-              }}
-              disabled={!(selectedAsset || selectedIds.size === 1)}
-            >
-              Request Edit (with Approval)
-            </Button>
-          )}
+          {/* Request Edit button moved to bulk actions bar below */}
           </div>
         </div>
 
@@ -641,6 +626,23 @@ export default function Assets() {
               >
     Generate & Download QR Sheet
               </Button>
+              {role !== 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (selectedIds.size !== 1) { toast.info('Select exactly one asset'); return; }
+                    const id = Array.from(selectedIds)[0];
+                    const target = assets.find(a => a.id === id);
+                    if (!target) { toast.error('Asset not found'); return; }
+                    setRequestEditAsset(target);
+                    setRequestEditOpen(true);
+                  }}
+                  disabled={selectedIds.size !== 1}
+                >
+                  Request Edit (with Approval)
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
             </div>
           </div>
