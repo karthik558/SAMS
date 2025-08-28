@@ -4,8 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { QrCode, Camera, Image as ImageIcon, RotateCcw, ArrowLeft } from "lucide-react";
-import { BrowserMultiFormatReader, Result, NotFoundException } from "@zxing/library";
-import { BrowserQRCodeReader } from "@zxing/browser";
+import { BrowserMultiFormatReader, BrowserQRCodeReader } from "@zxing/browser";
+import type { Result } from "@zxing/library";
 
 export default function Scan() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -23,28 +23,39 @@ export default function Scan() {
     setError("");
     setLoading(true);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Camera API not available in this browser");
+      }
+
+      // Some browsers require HTTPS for camera access
+      const isSecure = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+      if (!isSecure) {
+        toast.info("Camera requires HTTPS. Open this site over https:// or localhost.");
+      }
+
       if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader();
 
-      // Prefer back camera
-      const devices = await readerRef.current.listVideoInputDevices();
-      let deviceId: string | undefined;
-      // Try to find a back-facing camera
-      const back = devices.find(d => /back|rear|environment/i.test(d.label));
-      deviceId = back?.deviceId || devices[0]?.deviceId;
-      if (!deviceId) throw new Error("No camera found");
-
-      await readerRef.current.decodeFromVideoDevice(deviceId, videoRef.current!, (result, err) => {
+      // Decode using facingMode to prefer back camera; lets the browser pick the best device
+      await readerRef.current.decodeFromConstraints(
+        { video: { facingMode: { ideal: 'environment' } } },
+        videoRef.current!,
+        (result, err) => {
         if (result) {
           handleResult(result);
-        } else if (err && !(err instanceof NotFoundException)) {
-          console.warn(err);
+        } else if (err) {
+          // NotFoundException just means no code in frame yet; ignore
+          // console.warn(err);
         }
-      });
+        }
+      );
       setActive(true);
     } catch (e: any) {
       console.error(e);
-      setError(e?.message || "Failed to start camera");
-      toast.error(e?.message || "Failed to start camera");
+      const msg = e?.name === 'NotAllowedError'
+        ? 'Camera permission denied. Please allow access in your browser settings.'
+        : (e?.name === 'NotFoundError' ? 'No camera found on this device.' : (e?.message || 'Failed to start camera'));
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -52,7 +63,7 @@ export default function Scan() {
 
   const stop = () => {
     try {
-      readerRef.current?.reset();
+  try { (readerRef.current as any)?.reset?.(); } catch {}
     } catch {}
     // stop any active stream
     if (videoRef.current && videoRef.current.srcObject) {
@@ -132,11 +143,11 @@ export default function Scan() {
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="gap-2" onClick={handleBack}><ArrowLeft className="h-4 w-4" /> Back</Button>
           </div>
-          <div className="relative aspect-video bg-black/80 rounded-lg overflow-hidden">
+          <div className="relative aspect-square md:aspect-video bg-black/80 rounded-lg overflow-hidden">
             <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
             {/* Overlay */}
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute inset-8 border-2 border-primary/60 rounded-lg" />
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] aspect-square border-2 border-primary/60 rounded-lg" />
             </div>
           </div>
           <div className="flex gap-2">
