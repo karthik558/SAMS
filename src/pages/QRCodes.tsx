@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import JSZip from "jszip";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
+import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,6 +68,7 @@ const mockQRCodes = [
 ];
 
 export default function QRCodes() {
+  const [loadingUI, setLoadingUI] = useState(true);
   const [role, setRole] = useState<string>("");
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showGenerator, setShowGenerator] = useState(false);
@@ -105,7 +107,7 @@ export default function QRCodes() {
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}
-    (async () => {
+  (async () => {
       try {
         if (hasSupabaseEnv) {
           const [data, props, allAssets] = await Promise.all([
@@ -142,9 +144,12 @@ export default function QRCodes() {
           setPropsById(Object.fromEntries(fallback.map(p => [p.id, p])));
           setPropsByName(Object.fromEntries(fallback.map(p => [p.name, p])));
         }
+    // Data load complete
+    setLoadingUI(false);
       } catch (e: any) {
         console.error(e);
         toast.error("Failed to load data; using local fallbacks");
+  setLoadingUI(false);
       }
     })();
   }, []);
@@ -528,6 +533,11 @@ export default function QRCodes() {
     );
   }
 
+  // Show skeleton while initial data loads (when Supabase is enabled)
+  if (loadingUI && hasSupabaseEnv) {
+    return <PageSkeleton />;
+  }
+
   return (
     <div className="space-y-6">
         {/* Asset Picker Dialog */}
@@ -591,8 +601,7 @@ export default function QRCodes() {
               </Button>
             )}
           </div>
-        </div>
-
+  </div>
         {/* Stats */}
   <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           <Card>

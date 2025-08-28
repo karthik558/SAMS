@@ -17,6 +17,7 @@ import { listQRCodes } from "@/services/qrcodes";
 import { downloadAssetTemplate, importAssetsFromFile } from "@/services/bulkImport";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -27,11 +28,13 @@ const Index = () => {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
+  const [loadingUI, setLoadingUI] = useState(true);
 
   useEffect(() => {
-    if (!hasSupabaseEnv) return;
+  if (!hasSupabaseEnv) { setLoadingUI(false); return; }
     (async () => {
       try {
+    const uiTimer = setTimeout(() => setLoadingUI(true), 100); // ensure skeleton visible if slow
         const [assets, properties, users, qrs] = await Promise.all([
           listAssets().catch(() => [] as any[]),
           listProperties().catch(() => [] as any[]),
@@ -61,8 +64,11 @@ const Index = () => {
         const codesTotal = (qrs as any[]).length;
         const codesReady = (qrs as any[]).filter((q: any) => !q.printed).length;
         setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady });
+  clearTimeout(uiTimer);
+  setLoadingUI(false);
       } catch (e) {
         console.error(e);
+  setLoadingUI(false);
       }
     })();
   }, []);
@@ -106,6 +112,10 @@ const Index = () => {
         navigate("/");
     }
   };
+
+  if (loadingUI) {
+    return <DashboardSkeleton />;
+  }
 
   return (
   <div className="space-y-4 md:space-y-6">

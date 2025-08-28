@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
@@ -136,6 +137,9 @@ export default function Assets() {
     } catch {}
   }, []);
 
+  // Simple UI loading flag
+  const [loadingUI, setLoadingUI] = useState(true);
+
   // Load from Supabase when configured
   useEffect(() => {
     if (!isSupabase) return;
@@ -143,9 +147,11 @@ export default function Assets() {
       try {
   const data = await listAssets();
   setAssets(data as any);
+  setLoadingUI(false);
       } catch (e: any) {
         console.error(e);
         toast.error("Failed to load assets from Supabase; using local data");
+        setLoadingUI(false);
       }
     })();
   }, [isSupabase]);
@@ -185,6 +191,10 @@ export default function Assets() {
       if (types.length) setTypeOptions(types);
     }
   }, [assets]);
+
+  if (loadingUI && isSupabase) {
+    return <PageSkeleton />;
+  }
 
   // Helpers for ID generation and display
   const typePrefix = (t: string) => {
