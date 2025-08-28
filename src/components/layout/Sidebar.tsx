@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getCurrentUserId, listUserPermissions, type PageKey } from "@/services/permissions";
 
 const baseNav = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -36,6 +37,17 @@ interface SidebarProps {
 export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const p = await listUserPermissions(uid);
+        setPerm(p as any);
+      } catch {}
+    })();
+  }, []);
 
   return (
     <div
@@ -85,9 +97,48 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             } else if (r === "manager") {
               nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Scan QR","Reports","Settings"].includes(n.name));
             } else {
-              // user
+              // user baseline
               nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Scan QR","Settings"].includes(n.name));
             }
+            // Apply per-user view permissions as an additional filter when available
+            const pageNameToKey: Record<string, PageKey | null> = {
+              Dashboard: null,
+              Assets: 'assets',
+              Properties: 'properties',
+              'QR Codes': 'qrcodes',
+              'Scan QR': null, // always visible per requirement
+              Reports: 'reports',
+              Users: 'users',
+              Settings: 'settings',
+            } as const;
+            // If overrides grant view, keep the item even if baseline hid it
+            const allByName: Record<string, PageKey | null> = {
+              Dashboard: null,
+              Assets: 'assets',
+              Properties: 'properties',
+              'QR Codes': 'qrcodes',
+              'Scan QR': null,
+              Reports: 'reports',
+              Users: 'users',
+              Settings: 'settings',
+            } as const;
+            // First, ensure any item not present due to baseline but has override view gets added
+            const elevated = baseNav.filter((item) => {
+              if (nav.find(n => n.name === item.name)) return false;
+              const key = allByName[item.name];
+              if (!key) return false;
+              const rule = perm?.[key];
+              return !!rule?.v;
+            });
+            nav = [...nav, ...elevated];
+
+            nav = nav.filter((item) => {
+              const key = pageNameToKey[item.name];
+              if (!key) return true; // non-guarded items
+              const rule = perm?.[key];
+              if (!rule) return true; // no overrides stored
+              return !!rule.v; // require view permission if overrides exist
+            });
             return nav.map((item) => {
             const isActive = location.pathname === item.href;
             return (

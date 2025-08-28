@@ -50,6 +50,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
+import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -160,6 +161,12 @@ export default function Users() {
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
+  // Per-page permissions
+  const allPages: PageKey[] = ['assets','properties','qrcodes','users','reports','settings'];
+  const [permView, setPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+  const [permEdit, setPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+  const [ePermView, setEPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+  const [ePermEdit, setEPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
 
   // Edit form fields
   const [eFirstName, setEFirstName] = useState("");
@@ -188,8 +195,8 @@ export default function Users() {
     (async () => {
       setLoading(true);
       try {
-        const data = await listUsers();
-        if (!cancelled) setUsers(data);
+  const data = await listUsers();
+  if (!cancelled) setUsers((data && data.length) ? data : seedLocalUsersIfEmpty());
       } catch (e: any) {
         // Fallback to localStorage when Supabase isn't configured
         const seeded = seedLocalUsersIfEmpty();
@@ -250,6 +257,14 @@ export default function Users() {
   setSelectedPropertyIds([]);
   };
 
+  // Pre-tick permission checkboxes for Add dialog based on selected role's defaults
+  useEffect(() => {
+    const defaults = roleDefaults(role);
+    setPermView(Object.fromEntries(allPages.map(p => [p, defaults[p].v])) as any);
+    setPermEdit(Object.fromEntries(allPages.map(p => [p, defaults[p].e])) as any);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role]);
+
   const toTitle = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");
   const mapRole = (v?: string) => (v ? toTitle(v) : "User");
   const mapDept = (v?: string) => {
@@ -290,6 +305,11 @@ export default function Users() {
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
       }
+      // Persist per-page permissions
+      try {
+        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
+        await setUserPermissions(created.id, payloadPerms);
+      } catch {}
       setUsers((prev) => [created, ...prev]);
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
@@ -318,10 +338,18 @@ export default function Users() {
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(local.id, selectedPropertyIds); } catch {}
       }
+      // Local per-page permissions fallback
+      try {
+        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
+        await setUserPermissions(local.id, payloadPerms);
+      } catch {}
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
     }
     setIsAddUserOpen(false);
     resetForm();
+    // Reset permission toggles
+    setPermView({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+    setPermEdit({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
   };
 
   const openEditUser = async (user: AppUser) => {
@@ -350,6 +378,15 @@ export default function Users() {
     } catch {
       setEditSelectedPropertyIds([]);
     }
+    // Load per-page permissions for this user and merge with role defaults for display
+    try {
+      const perms = await listUserPermissions(user.id);
+      const merged = mergeDefaultsWithOverrides((user.role || '').toString(), perms as any);
+      const v: any = Object.fromEntries(allPages.map(p => [p, merged[p]?.v || false]));
+      const e: any = Object.fromEntries(allPages.map(p => [p, merged[p]?.e || false]));
+      setEPermView(v);
+      setEPermEdit(e);
+    } catch {}
     setIsEditUserOpen(true);
   };
 
@@ -399,6 +436,11 @@ export default function Users() {
       }
       // Persist property access mapping
       try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
+      // Persist per-page permissions
+      try {
+        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!ePermView[p], e: !!ePermEdit[p] }])) as any;
+        await setUserPermissions(editingUser.id, payloadPerms);
+      } catch {}
       toast({ title: "User updated", description: `${name} has been saved.` });
       setIsEditUserOpen(false);
       setEditingUser(null);
@@ -455,15 +497,15 @@ export default function Users() {
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="w-[96vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
                 Create a new user account for the system
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1 no-scrollbar">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
           <Label htmlFor="firstName">First Name</Label>
           <Input id="firstName" placeholder="Abc" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
@@ -481,12 +523,12 @@ export default function Users() {
                 <Label htmlFor="phone">Phone</Label>
                 <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="password">{mustChangePassword ? "Temporary Password" : "Password"}</Label>
                   <Input id="password" type="password" placeholder={mustChangePassword ? "Set a temporary password" : "Set a password"} value={password} onChange={(e) => setPassword(e.target.value)} />
                   <p className="text-xs text-muted-foreground">{mustChangePassword ? "User will be asked to change this on first login." : "This will be the user's password."}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Select value={role} onValueChange={setRole}>
@@ -500,20 +542,42 @@ export default function Users() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <Select value={department} onValueChange={setDepartment}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select dept" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="it">IT</SelectItem>
-                      <SelectItem value="hr">HR</SelectItem>
-                      <SelectItem value="finance">Finance</SelectItem>
-                      <SelectItem value="operations">Operations</SelectItem>
-                    </SelectContent>
-                  </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Select value={department} onValueChange={setDepartment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select dept" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="it">IT</SelectItem>
+                    <SelectItem value="hr">HR</SelectItem>
+                    <SelectItem value="finance">Finance</SelectItem>
+                    <SelectItem value="operations">Operations</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* Page Permissions */}
+              <div className="space-y-2">
+                <Label>Page Permissions</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(['assets','properties','qrcodes','users','reports','settings'] as PageKey[]).map((p) => (
+                    <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
+                      <div className="text-sm font-medium capitalize">{p}</div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs">
+                          <Checkbox checked={!!permView[p]} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
+                          View
+                        </label>
+                        <label className="flex items-center gap-2 text-xs">
+                          <Checkbox checked={!!permEdit[p]} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
+                          Edit
+                        </label>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                <p className="text-xs text-muted-foreground">Role provides baseline; these are additional per-user overrides.</p>
               </div>
               {/* Property Access - Dropdown multi-select */}
               <div className="space-y-2">
@@ -744,13 +808,13 @@ export default function Users() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[96vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>Update user details and access</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-4 flex-1 overflow-y-auto pr-1 no-scrollbar">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="efirstName">First Name</Label>
                 <Input id="efirstName" placeholder="Abc" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
@@ -768,7 +832,7 @@ export default function Users() {
               <Label htmlFor="ephone">Phone</Label>
               <Input id="ephone" type="tel" placeholder="+1 (555) 123-4567" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="erole">Role</Label>
                 <Select value={eRole} onValueChange={setERole}>
@@ -808,6 +872,28 @@ export default function Users() {
                   <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            {/* Page Permissions (edit) */}
+            <div className="space-y-2">
+              <Label>Page Permissions</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {(['assets','properties','qrcodes','users','reports','settings'] as PageKey[]).map((p) => (
+                  <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
+                    <div className="text-sm font-medium capitalize">{p}</div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs">
+                        <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
+                        View
+                      </label>
+                      <label className="flex items-center gap-2 text-xs">
+                        <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
+                        Edit
+                      </label>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Overrides apply on top of role defaults.</p>
             </div>
             {/* Property Access - Dropdown multi-select (edit) */}
             <div className="space-y-2">

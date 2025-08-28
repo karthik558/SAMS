@@ -26,6 +26,7 @@ import { listAssets, type Asset } from "@/services/assets";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 
 // Mock data for QR codes
 const mockQRCodes = [
@@ -92,6 +93,7 @@ export default function QRCodes() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ assetId: string; assetName: string } | null>(null);
+  const [canEditPage, setCanEditPage] = useState<boolean>(true);
 
   // Active property ids set (exclude disabled properties from UI everywhere)
   const activePropertyIds = useMemo(() => {
@@ -107,6 +109,14 @@ export default function QRCodes() {
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}
+    (async () => {
+      try {
+  const uid = getCurrentUserId();
+  const allowed = uid ? await canUserEdit(uid, 'qrcodes') : null;
+  const baseline = true; // all roles can generate by default per prior logic
+  setCanEditPage(allowed === null ? baseline : allowed);
+      } catch { setCanEditPage(true); }
+    })();
   (async () => {
       try {
         if (hasSupabaseEnv) {
@@ -587,11 +597,11 @@ export default function QRCodes() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={handleGenerateNew} className="gap-2" disabled={!(role==='admin' || role==='manager' || role==='user')}>
+            <Button onClick={handleGenerateNew} className="gap-2" disabled={!canEditPage}>
               <QrCode className="h-4 w-4" />
               Generate New QR Code
             </Button>
-            <Button onClick={handleBulkPrint} variant="outline" className="gap-2" disabled={!(role==='admin' || role==='manager' || role==='user')}>
+            <Button onClick={handleBulkPrint} variant="outline" className="gap-2" disabled={!canEditPage}>
               <Printer className="h-4 w-4" />
               Bulk Print
             </Button>

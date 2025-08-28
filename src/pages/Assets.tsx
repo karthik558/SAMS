@@ -41,6 +41,8 @@ import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
+import { getCurrentUserId } from "@/services/permissions";
+import { canUserEdit } from "@/services/permissions";
 
 // Mock data fallback
 const mockAssets = [
@@ -137,6 +139,20 @@ export default function Assets() {
     } catch {}
   }, []);
 
+  const [canEditPage, setCanEditPage] = useState<boolean>(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = getCurrentUserId();
+        if (!uid) { setCanEditPage(role === 'admin' || role === 'manager' || role === 'user'); return; }
+  const allowed = await canUserEdit(uid, 'assets');
+  // Baseline: role can create/edit; if override exists (true/false), respect it; if null, keep baseline
+  const baseline = role === 'admin' || role === 'manager' || role === 'user';
+  setCanEditPage(allowed === null ? baseline : allowed);
+      } catch { setCanEditPage(true); }
+    })();
+  }, [role]);
+
   // Simple UI loading flag
   const [loadingUI, setLoadingUI] = useState(true);
 
@@ -223,7 +239,7 @@ export default function Assets() {
   };
 
   const handleAddAsset = async (assetData: any) => {
-    const canCreate = role === 'admin' || role === 'manager' || role === 'user';
+  const canCreate = canEditPage;
     if (!canCreate) {
       toast.error("You don't have permission to create assets");
       return;

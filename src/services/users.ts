@@ -17,10 +17,17 @@ export type AppUser = {
 const table = "app_users";
 
 export async function listUsers(): Promise<AppUser[]> {
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").order("name");
-  if (error) throw error;
-  return data ?? [];
+  if (!hasSupabaseEnv) {
+    // Defer to UI fallback; return empty to trigger seeding
+    return [];
+  }
+  try {
+    const { data, error } = await supabase.from(table).select("*").order("name");
+    if (error) throw error;
+    return data ?? [];
+  } catch {
+    return [];
+  }
 }
 
 // Optionally accept a password for local fallback; DB uses auth for real password handling

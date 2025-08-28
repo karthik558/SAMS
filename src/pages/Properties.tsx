@@ -25,6 +25,7 @@ import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listProperties, deleteProperty as sbDeleteProperty, createProperty as sbCreateProperty, updateProperty as sbUpdateProperty, type Property } from "@/services/properties";
 import { listAssets, type Asset } from "@/services/assets";
 import { logActivity } from "@/services/activity";
+import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 
 const mockProperties = [
   {
@@ -93,6 +94,17 @@ export default function Properties() {
     status: "Active",
     manager: "",
   });
+  const [canEditPage, setCanEditPage] = useState<boolean>(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = getCurrentUserId();
+  const allowed = uid ? await canUserEdit(uid, 'properties') : null;
+  const baseline = role === 'admin';
+  setCanEditPage(allowed === null ? baseline : allowed);
+      } catch { setCanEditPage(role === 'admin'); }
+    })();
+  }, [role]);
 
   useEffect(() => {
     if (!isSupabase) return;
@@ -289,7 +301,7 @@ export default function Properties() {
               Manage properties and assign users for asset tracking
             </p>
           </div>
-          <Button onClick={handleAddProperty} className="gap-2" disabled={role !== 'admin'}>
+          <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
             <Plus className="h-4 w-4" />
             Add New Property
           </Button>
@@ -400,7 +412,7 @@ export default function Properties() {
                 </div>
 
                 {/* Actions */}
-                {role === 'admin' && (
+                {canEditPage && (
                   <div className="flex gap-2 pt-2">
                     <Button
                       size="sm"
@@ -474,7 +486,7 @@ export default function Properties() {
         )}
 
         {/* Add/Edit Property Dialog */}
-  <Dialog open={isDialogOpen && role==='admin'} onOpenChange={setIsDialogOpen}>
+  <Dialog open={isDialogOpen && canEditPage} onOpenChange={setIsDialogOpen}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Property" : "Add New Property"}</DialogTitle>
