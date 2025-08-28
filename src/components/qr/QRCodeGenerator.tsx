@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import QRCode from "qrcode";
+import { composeQrWithLabel } from "@/lib/qr";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,7 +34,7 @@ export function QRCodeGenerator({
   const normalizedBase = (base || '').replace(/\/$/, '');
   const qrLink = `${normalizedBase}/assets/${assetId}`;
 
-  const qrCodeDataUrl = await QRCode.toDataURL(qrLink, {
+  const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
         width: 300,
         margin: 2,
         color: {
@@ -42,9 +43,12 @@ export function QRCodeGenerator({
         },
         errorCorrectionLevel: 'M'
       });
-
-      setQrCodeUrl(qrCodeDataUrl);
-      onGenerated?.(qrCodeDataUrl);
+      const composed = await composeQrWithLabel(rawQrDataUrl, {
+        assetId,
+        topText: customText || 'Scan to view asset',
+      });
+      setQrCodeUrl(composed);
+      onGenerated?.(composed);
       toast.success("QR code generated successfully!");
     } catch (error) {
       console.error("Error generating QR code:", error);
@@ -103,9 +107,9 @@ export function QRCodeGenerator({
           <body>
             <div class="qr-container">
               <h2>Asset QR Code</h2>
-              <div class="qr-code">
-                <img src="${qrCodeUrl}" alt="QR Code" style="max-width: 100%;" />
-              </div>
+                <div class="qr-code">
+                  <img src="${qrCodeUrl}" alt="QR Code" style="max-width: 100%;" />
+                </div>
               <div class="details">
                 <strong>Asset:</strong> ${assetName}<br/>
                 <strong>Property:</strong> ${propertyName}<br/>

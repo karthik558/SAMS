@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { composeQrWithLabel } from "@/lib/qr";
 import JSZip from "jszip";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
@@ -460,12 +461,13 @@ export default function QRCodes() {
   const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
   const normalizedBase = (base || '').replace(/\/$/, '');
   const url = `${normalizedBase}/assets/${qr.assetId}`;
-  return await QRCode.toDataURL(url, {
+  const raw = await QRCode.toDataURL(url, {
       width: 300,
       margin: 2,
       color: { dark: '#000000', light: '#FFFFFF' },
       errorCorrectionLevel: 'M',
     });
+  return await composeQrWithLabel(raw, { assetId: qr.assetId, topText: 'Scan to view asset' });
   };
 
   if (showGenerator) {
