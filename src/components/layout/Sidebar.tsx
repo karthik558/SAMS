@@ -83,10 +83,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             if (r === "admin") {
               nav = [...baseNav];
             } else if (r === "manager") {
-              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Reports","Settings"].includes(n.name));
+              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Scan QR","Reports","Settings"].includes(n.name));
             } else {
               // user
-              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Settings"].includes(n.name));
+              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Scan QR","Settings"].includes(n.name));
             }
             return nav.map((item) => {
             const isActive = location.pathname === item.href;
