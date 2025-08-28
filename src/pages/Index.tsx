@@ -241,14 +241,6 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 p-4"
-                onClick={() => navigate('/scan')}
-              >
-                <QrCode className="h-6 w-6" />
-                <span className="text-sm">Scan QR</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-auto flex-col gap-2 p-4"
                 onClick={() => handleQuickAction("Generate QR Codes")}
               >
                 <Package className="h-6 w-6" />

@@ -10,6 +10,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  ScanLine,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,8 @@ const baseNav = [
   { name: "Assets", href: "/assets", icon: Package },
   { name: "Properties", href: "/properties", icon: Building2 },
   { name: "QR Codes", href: "/qr-codes", icon: QrCode },
+  // Insert Scan QR roughly in the middle for quick access
+  { name: "Scan QR", href: "/scan", icon: QrCode },
   { name: "Reports", href: "/reports", icon: FileBarChart },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
