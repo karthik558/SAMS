@@ -181,11 +181,11 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
   };
   if (hasSupabaseEnv) {
     try {
-      const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
+  const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
       if (error) throw error;
       const created = toCamel(data);
-      // log submitted event
-      try { await supabase.from('approval_events').insert({ approval_id: created.id, event_type: 'submitted', author: created.requestedBy, message: created.action }); } catch {}
+  // log submitted event
+  try { await supabase.from('approval_events').insert({ approval_id: created.id, event_type: 'submitted', author: created.requestedBy, message: created.notes || created.action }); } catch {}
       return created;
     } catch (e) {
       console.warn("approvals insert failed, using localStorage", e);
@@ -203,7 +203,7 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
       const { data, error } = await supabase.from(TABLE).update(toSnake(patch)).eq("id", id).select("*").single();
       if (error) throw error;
       const updated = toCamel(data);
-      try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'forwarded', author: manager, message: 'Forwarded to admin' }); } catch {}
+  try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'forwarded', author: manager, message: notes || 'Forwarded to admin' }); } catch {}
       return updated;
     } catch (e) {
       console.warn("approvals update failed, using localStorage", e);
@@ -323,17 +323,17 @@ function toCamel(row: any): ApprovalRequest {
 }
 
 function toSnake(input: Partial<ApprovalRequest>) {
-  return {
-    id: input.id,
-    asset_id: input.assetId,
-    action: input.action,
-    status: input.status,
-    requested_by: input.requestedBy,
-    requested_at: input.requestedAt,
-    reviewed_by: input.reviewedBy ?? null,
-    reviewed_at: input.reviewedAt ?? null,
-    notes: input.notes ?? null,
-    patch: input.patch ?? null,
-  department: input.department ?? null,
-  };
+  const row: any = {};
+  if ("id" in input) row.id = input.id;
+  if ("assetId" in input) row.asset_id = input.assetId;
+  if ("action" in input) row.action = input.action;
+  if ("status" in input) row.status = input.status;
+  if ("requestedBy" in input) row.requested_by = input.requestedBy;
+  if ("requestedAt" in input) row.requested_at = input.requestedAt;
+  if ("reviewedBy" in input) row.reviewed_by = input.reviewedBy ?? null;
+  if ("reviewedAt" in input) row.reviewed_at = input.reviewedAt ?? null;
+  if ("notes" in input) row.notes = input.notes ?? null;
+  if ("patch" in input) row.patch = input.patch ?? null;
+  if ("department" in input) row.department = input.department ?? null;
+  return row;
 }

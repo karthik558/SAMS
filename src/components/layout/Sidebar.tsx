@@ -54,20 +54,29 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     })();
   }, []);
 
-  // Load current user's department and pending approvals count (dept-scoped)
+  // Load current user's pending approvals count
   useEffect(() => {
     (async () => {
       try {
         const raw = localStorage.getItem('auth_user');
         let dept: string | null = null;
-        if (raw) { const u = JSON.parse(raw); dept = u?.department || null; }
+        let role: string = '';
+        if (raw) { const u = JSON.parse(raw); dept = u?.department || null; role = (u?.role || '').toLowerCase(); }
         setUserDept((dept || '').toLowerCase());
-        if (dept && String(dept).trim().length) {
-          const list = await listApprovals(undefined, dept);
-          const count = list.filter(a => a.status === 'pending_manager' || a.status === 'pending_admin').length;
-          setPendingApprovals(count);
+        if (role === 'admin') {
+          // Admin sees all pending_admin approvals
+          const list = await listApprovals();
+          setPendingApprovals(list.filter(a => a.status === 'pending_admin').length);
+        } else if (role === 'manager') {
+          // Manager sees pending_manager for their department
+          if (dept && String(dept).trim().length) {
+            const list = await listApprovals(undefined, dept);
+            setPendingApprovals(list.filter(a => a.status === 'pending_manager').length);
+          } else {
+            setPendingApprovals(0);
+          }
         } else {
-          // No department -> no cross-department visibility
+          // Users: no global badge
           setPendingApprovals(0);
         }
       } catch {}

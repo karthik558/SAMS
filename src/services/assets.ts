@@ -38,20 +38,20 @@ function toCamel(row: any): Asset {
 }
 
 function toSnake(asset: Partial<Asset>) {
-  return {
-    id: asset.id,
-    name: asset.name,
-    type: asset.type,
-    property: asset.property,
-  property_id: asset.property_id ?? null,
-    quantity: asset.quantity,
-    purchase_date: asset.purchaseDate ?? null,
-    expiry_date: asset.expiryDate ?? null,
-    po_number: asset.poNumber ?? null,
-    condition: asset.condition ?? null,
-    status: asset.status,
-  location: asset.location ?? null,
-  };
+  const row: any = {};
+  if ("id" in asset) row.id = asset.id;
+  if ("name" in asset) row.name = asset.name;
+  if ("type" in asset) row.type = asset.type;
+  if ("property" in asset) row.property = asset.property;
+  if ("property_id" in asset) row.property_id = asset.property_id ?? null;
+  if ("quantity" in asset) row.quantity = asset.quantity;
+  if ("purchaseDate" in asset) row.purchase_date = asset.purchaseDate ?? null;
+  if ("expiryDate" in asset) row.expiry_date = asset.expiryDate ?? null;
+  if ("poNumber" in asset) row.po_number = asset.poNumber ?? null;
+  if ("condition" in asset) row.condition = asset.condition ?? null;
+  if ("status" in asset) row.status = asset.status;
+  if ("location" in asset) row.location = asset.location ?? null;
+  return row;
 }
 
 export async function listAssets(): Promise<Asset[]> {

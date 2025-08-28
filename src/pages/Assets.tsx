@@ -42,6 +42,7 @@ import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { submitApproval, listApprovals, type ApprovalRequest } from "@/services/approvals";
+import RequestEditModal from "@/components/assets/RequestEditModal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet } from "@/lib/qr";
 import QRCode from "qrcode";
@@ -124,6 +125,8 @@ export default function Assets() {
   const [exportFmt, setExportFmt] = useState<'png' | 'pdf'>('png');
   const [exportOrientation, setExportOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [approvalsByAsset, setApprovalsByAsset] = useState<Record<string, ApprovalRequest | undefined>>({});
+  const [requestEditOpen, setRequestEditOpen] = useState(false);
+  const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -491,36 +494,20 @@ export default function Assets() {
             Add New Asset
           </Button>
           {role !== 'admin' && (
-          <Button
-            variant="outline"
-            onClick={async () => {
-              // Allow either an explicitly selectedAsset or a single row selection
-              const selectedId = selectedAsset?.id || (selectedIds.size === 1 ? Array.from(selectedIds)[0] : null);
-              if (!selectedId) { toast.info('Select exactly one asset first'); return; }
-              const target = assets.find(a => a.id === selectedId);
-              const raw = localStorage.getItem('auth_user');
-              let me = 'user';
-              try { const u = raw ? JSON.parse(raw) : null; me = u?.email || u?.id || 'user'; } catch {}
-              await submitApproval({ assetId: selectedId, action: 'edit', requestedBy: me, notes: 'Edit with approval', patch: {} });
-              toast.success('Edit request submitted for manager approval');
-              // refresh approval indicators
-              try {
-                // Refresh only for current user's department if available
-                let dept: string | undefined;
-                try { const au = raw ? JSON.parse(raw) : null; dept = au?.department || undefined; } catch {}
-                const list = await listApprovals(undefined, dept || undefined);
-                const pending = list
-                  .filter(a => a.status === 'pending_manager' || a.status === 'pending_admin')
-                  .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
-                const map: Record<string, ApprovalRequest> = {} as any;
-                for (const a of pending) { if (!map[a.assetId]) map[a.assetId] = a; }
-                setApprovalsByAsset(map);
-              } catch {}
-            }}
-            disabled={!(selectedAsset || selectedIds.size === 1)}
-          >
-            Request Edit (with Approval)
-          </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const selectedId = selectedAsset?.id || (selectedIds.size === 1 ? Array.from(selectedIds)[0] : null);
+                if (!selectedId) { toast.info('Select exactly one asset first'); return; }
+                const target = assets.find(a => a.id === selectedId);
+                if (!target) { toast.error('Asset not found'); return; }
+                setRequestEditAsset(target);
+                setRequestEditOpen(true);
+              }}
+              disabled={!(selectedAsset || selectedIds.size === 1)}
+            >
+              Request Edit (with Approval)
+            </Button>
           )}
           </div>
         </div>
@@ -882,6 +869,37 @@ export default function Assets() {
               </div>
             </div>
           )}
+    <RequestEditModal
+      open={requestEditOpen}
+      asset={requestEditAsset}
+      onClose={() => setRequestEditOpen(false)}
+      onSubmitted={async ({ patch, notes }) => {
+        try {
+          const raw = localStorage.getItem('auth_user');
+          let me = 'user';
+          try { const u = raw ? JSON.parse(raw) : null; me = u?.email || u?.id || 'user'; } catch {}
+          if (!requestEditAsset) { toast.error('No asset selected'); return; }
+          await submitApproval({ assetId: requestEditAsset.id, action: 'edit', requestedBy: me, notes, patch });
+          toast.success('Edit request submitted for manager approval');
+          setRequestEditOpen(false);
+          // refresh approval indicators
+          try {
+            let dept: string | undefined;
+            try { const au = raw ? JSON.parse(raw) : null; dept = au?.department || undefined; } catch {}
+            const list = await listApprovals(undefined, dept || undefined);
+            const pending = list
+              .filter(a => a.status === 'pending_manager' || a.status === 'pending_admin')
+              .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+            const map: Record<string, ApprovalRequest> = {} as any;
+            for (const a of pending) { if (!map[a.assetId]) map[a.assetId] = a; }
+            setApprovalsByAsset(map);
+          } catch {}
+        } catch (e:any) {
+          console.error(e);
+          toast.error(e?.message || 'Failed to submit edit request');
+        }
+      }}
+    />
     </div>
   );
 }

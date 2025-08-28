@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, updateApprovalPatch, listApprovalEvents, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
+import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
+import { getAssetById, type Asset } from "@/services/assets";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
 
 export default function Approvals() {
   const navigate = useNavigate();
@@ -15,9 +17,10 @@ export default function Approvals() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [events, setEvents] = useState<ApprovalEvent[]>([]);
-  const [managerPatch, setManagerPatch] = useState<string>("")
   const [managerNotes, setManagerNotes] = useState<string>("");
   const [adminNotes, setAdminNotes] = useState<string>("");
+  const [selectedApproval, setSelectedApproval] = useState<ApprovalRequest | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const fmt = (v?: string | null) => {
     try {
       if (!v) return "-";
@@ -75,17 +78,24 @@ export default function Approvals() {
 
   useEffect(() => {
     (async () => {
-      if (!selectedId) { setEvents([]); return; }
+      if (!selectedId) { setEvents([]); setSelectedApproval(null); setSelectedAsset(null); return; }
+      const ap = items.find(i => i.id === selectedId) || null;
+      setSelectedApproval(ap || null);
       try { setEvents(await listApprovalEvents(selectedId)); } catch {}
+      // Try to get current asset for before/after diff
+      try {
+        if (ap && hasSupabaseEnv) {
+          const a = await getAssetById(ap.assetId);
+          setSelectedAsset(a);
+        } else {
+          setSelectedAsset(null);
+        }
+      } catch { setSelectedAsset(null); }
     })();
   }, [selectedId]);
 
   const onForward = async (id: string) => {
     try {
-      if (managerPatch.trim()) {
-        try { JSON.parse(managerPatch); } catch { toast.error('Patch must be valid JSON'); return; }
-        await updateApprovalPatch(id, 'manager', JSON.parse(managerPatch));
-      }
       const res = await forwardApprovalToAdmin(id, 'manager', managerNotes);
       if (res) setItems(s => s.map(i => i.id === id ? res : i));
       toast.success('Forwarded to admin');
@@ -167,12 +177,32 @@ export default function Approvals() {
                     </div>
                   </div>
 
-                  {/* Right: actions per role/stage */}
+                  {/* Right: diff preview and actions per role/stage */}
                   <div className="space-y-2">
+                    {/* Diff preview */}
+                    {selectedApproval?.patch && Object.keys(selectedApproval.patch || {}).length ? (
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Changes</div>
+                        <div className="rounded border bg-muted/30 p-2 text-xs max-h-48 overflow-auto">
+                          {Object.entries(selectedApproval.patch || {}).map(([k, after]) => {
+                            const before = (selectedAsset as any)?.[k];
+                            const beforeStr = before == null ? '-' : String(before);
+                            const afterStr = after == null ? '-' : String(after as any);
+                            return (
+                              <div key={k} className="flex items-start gap-2 py-1">
+                                <div className="font-medium min-w-[120px]">{k}</div>
+                                <div className="text-muted-foreground line-through break-all">{beforeStr}</div>
+                                <div className="break-all">{afterStr}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">No changes provided</div>
+                    )}
                     {role === 'manager' && a.status === 'pending_manager' && (
                       <div className="space-y-2">
-                        <div className="text-sm font-medium">Stage edits (JSON patch)</div>
-                        <Textarea rows={6} value={managerPatch} onChange={e => setManagerPatch(e.target.value)} placeholder='{"name":"New name"}' />
                         <Input placeholder="Notes to admin (optional)" value={managerNotes} onChange={e => setManagerNotes(e.target.value)} />
                         <div className="flex gap-2">
                           <Button size="sm" onClick={() => onForward(a.id)}>Forward to Admin</Button>
