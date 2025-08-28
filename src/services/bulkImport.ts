@@ -1,4 +1,3 @@
-import { utils, writeFile, read, WorkBook } from "xlsx";
 import ExcelJS from "exceljs";
 import type { Asset } from "./assets";
 import { createAsset, listAssets } from "./assets";
@@ -126,9 +125,49 @@ export type ImportResult = {
 
 export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const buf = await file.arrayBuffer();
-  const wb = read(buf);
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = utils.sheet_to_json<Record<string, any>>(ws, { defval: "" });
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+  const ws = wb.worksheets[0];
+  if (!ws) {
+    return { inserted: 0, skipped: 0, errors: [{ row: 1, message: "No worksheet found" }] };
+  }
+
+  // Read header from first row
+  const headerRow = ws.getRow(1);
+  const headers: string[] = [];
+  const maxCol = ws.columnCount || headerRow.cellCount || 0;
+  for (let c = 1; c <= maxCol; c++) {
+    const v = headerRow.getCell(c).value;
+    headers[c - 1] = (typeof v === 'string' ? v : (v as any)?.toString?.() || '').trim();
+  }
+
+  // Helper to normalize cell values
+  const toPlain = (v: any): any => {
+    if (v == null) return "";
+    if (v instanceof Date) return v.toISOString().slice(0, 10);
+    if (typeof v === 'object') {
+      if ('text' in v && typeof (v as any).text === 'string') return (v as any).text;
+      if ('result' in v && (v as any).result != null) return (v as any).result;
+      if ('richText' in v && Array.isArray((v as any).richText)) return (v as any).richText.map((r: any) => r.text).join('');
+      return String(v);
+    }
+    return typeof v === 'string' ? v : v;
+  };
+
+  const rows: Record<string, any>[] = [];
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const row = ws.getRow(r);
+    // Skip empty rows
+    const isEmpty = row.values === undefined || (Array.isArray(row.values) && row.values.slice(1).every((x) => x == null || x === ''));
+    if (isEmpty) continue;
+    const rec: Record<string, any> = {};
+    for (let c = 1; c <= maxCol; c++) {
+      const key = headers[c - 1];
+      if (!key) continue;
+      rec[key] = toPlain(row.getCell(c).value);
+    }
+    rows.push(rec);
+  }
 
   // Build property code/name -> id map (best effort if backend connected)
   let propCodeToId: Record<string, string> = {};
@@ -181,11 +220,11 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const rowNum = i + 2; // considering header at row 1
-    const name = String(r["name"]).trim();
-    const type = String(r["type"]).trim();
-  const property = String(r["property"]).trim();
-    const quantity = Number(r["quantity"]);
-    const status = String(r["status"]).trim() || "Active";
+  const name = String(r["name"] ?? "").trim();
+  const type = String(r["type"] ?? "").trim();
+  const property = String(r["property"] ?? "").trim();
+  const quantity = Number(r["quantity"] ?? NaN);
+  const status = String(r["status"] ?? "").trim() || "Active";
 
     if (!name || !type || !property || !Number.isFinite(quantity)) {
       skipped++;
@@ -197,7 +236,7 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const propertyCode = propCodeToId[property] ?? propNameToId[property] ?? property;
 
   // Prefer provided id if present, else auto-generate
-    const providedId = String(r["id"] || "").trim();
+  const providedId = String(r["id"] || "").trim();
   const id = providedId || nextId(type, propertyCode);
 
     const asset: Asset = {
@@ -207,8 +246,8 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   property: propertyCode,
   property_id: propertyCode,
       quantity,
-      purchaseDate: r["purchaseDate"] ? String(r["purchaseDate"]).slice(0, 10) : null,
-      expiryDate: r["expiryDate"] ? String(r["expiryDate"]).slice(0, 10) : null,
+  purchaseDate: r["purchaseDate"] ? String(r["purchaseDate"]).slice(0, 10) : null,
+  expiryDate: r["expiryDate"] ? String(r["expiryDate"]).slice(0, 10) : null,
       poNumber: r["poNumber"] ? String(r["poNumber"]).trim() : null,
       condition: r["condition"] ? String(r["condition"]).trim() : null,
       status,
