@@ -16,7 +16,8 @@ import {
   QrCode,
   Calendar,
   Building2,
-  AlertTriangle
+  AlertTriangle,
+  ShieldCheck
 } from "lucide-react";
 import {
   Table,
@@ -40,11 +41,14 @@ import { listProperties, type Property } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
+import { submitApproval, listApprovals, type ApprovalRequest } from "@/services/approvals";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet } from "@/lib/qr";
 import QRCode from "qrcode";
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId } from "@/services/permissions";
 import { canUserEdit } from "@/services/permissions";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Mock data fallback
 const mockAssets = [
@@ -119,6 +123,7 @@ export default function Assets() {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportFmt, setExportFmt] = useState<'png' | 'pdf'>('png');
   const [exportOrientation, setExportOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [approvalsByAsset, setApprovalsByAsset] = useState<Record<string, ApprovalRequest | undefined>>({});
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -213,6 +218,23 @@ export default function Assets() {
       if (types.length) setTypeOptions(types);
     }
   }, [assets]);
+
+  // Load pending approvals per asset for indicator
+  useEffect(() => {
+    (async () => {
+      try {
+        const list = await listApprovals();
+        const pending = list
+          .filter(a => a.status === 'pending_manager' || a.status === 'pending_admin')
+          .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+        const map: Record<string, ApprovalRequest> = {} as any;
+        for (const a of pending) { if (!map[a.assetId]) map[a.assetId] = a; }
+        setApprovalsByAsset(map);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [assets.length]);
 
   if (loadingUI && isSupabase) {
     return <PageSkeleton />;
@@ -463,10 +485,44 @@ export default function Assets() {
               Track and manage all your organization's assets
             </p>
           </div>
+          <div className="flex gap-2">
           <Button onClick={() => setShowAddForm(true)} className="gap-2" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
             <Plus className="h-4 w-4" />
             Add New Asset
           </Button>
+          {role !== 'admin' && (
+          <Button
+            variant="outline"
+            onClick={async () => {
+              // Allow either an explicitly selectedAsset or a single row selection
+              const selectedId = selectedAsset?.id || (selectedIds.size === 1 ? Array.from(selectedIds)[0] : null);
+              if (!selectedId) { toast.info('Select exactly one asset first'); return; }
+              const target = assets.find(a => a.id === selectedId);
+              const raw = localStorage.getItem('auth_user');
+              let me = 'user';
+              try { const u = raw ? JSON.parse(raw) : null; me = u?.email || u?.id || 'user'; } catch {}
+              await submitApproval({ assetId: selectedId, action: 'edit', requestedBy: me, notes: 'Edit with approval', patch: {} });
+              toast.success('Edit request submitted for manager approval');
+              // refresh approval indicators
+              try {
+                // Refresh only for current user's department if available
+                let dept: string | undefined;
+                try { const au = raw ? JSON.parse(raw) : null; dept = au?.department || undefined; } catch {}
+                const list = await listApprovals(undefined, dept || undefined);
+                const pending = list
+                  .filter(a => a.status === 'pending_manager' || a.status === 'pending_admin')
+                  .sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime());
+                const map: Record<string, ApprovalRequest> = {} as any;
+                for (const a of pending) { if (!map[a.assetId]) map[a.assetId] = a; }
+                setApprovalsByAsset(map);
+              } catch {}
+            }}
+            disabled={!(selectedAsset || selectedIds.size === 1)}
+          >
+            Request Edit (with Approval)
+          </Button>
+          )}
+          </div>
         </div>
 
         {/* Stats Cards (derived from current assets state) */}
@@ -611,12 +667,11 @@ export default function Assets() {
               <TableHeader>
                 <TableRow>
                     <TableHead className="w-10">
-                      <input
-                        type="checkbox"
-                        className="accent-current"
+                      <Checkbox
+                        aria-label="Select all"
                         checked={selectedIds.size > 0 && selectedIds.size === sortedAssets.length}
-                        onChange={(e) => {
-                          if (e.target.checked) setSelectedIds(new Set(sortedAssets.map(a => a.id)));
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedIds(new Set(sortedAssets.map(a => a.id)));
                           else setSelectedIds(new Set());
                         }}
                       />
@@ -629,6 +684,7 @@ export default function Assets() {
                     <TableHead className="hidden xl:table-cell">Location</TableHead>
                     <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>
                     <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead className="hidden xl:table-cell">Approval</TableHead>
                     <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -636,13 +692,12 @@ export default function Assets() {
         {sortedAssets.map((asset) => (
                   <TableRow key={asset.id}>
                     <TableCell className="w-10">
-                      <input
-                        type="checkbox"
-                        className="accent-current"
+                      <Checkbox
+                        aria-label={`Select ${asset.id}`}
                         checked={selectedIds.has(asset.id)}
-                        onChange={(e) => {
+                        onCheckedChange={(checked) => {
                           const next = new Set(selectedIds);
-                          if (e.target.checked) next.add(asset.id); else next.delete(asset.id);
+                          if (checked) next.add(asset.id); else next.delete(asset.id);
                           setSelectedIds(next);
                         }}
                       />
@@ -655,6 +710,25 @@ export default function Assets() {
                       <TableCell className="hidden xl:table-cell">{asset.location || '-'}</TableCell>
                       <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>
                       <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>
+                      <TableCell className="hidden xl:table-cell">
+                        {approvalsByAsset[asset.id] ? (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-flex items-center gap-1 text-primary">
+                                  <ShieldCheck className="h-4 w-4" />
+                                  <span className="text-xs">{approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Mgr' : 'Admin'}</span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Pending {approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Manager' : 'Admin'} approval
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         {role === 'admin' && (

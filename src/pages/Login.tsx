@@ -55,7 +55,7 @@ export default function Login() {
         }
         try {
           localStorage.setItem(CURRENT_USER_KEY, u.id);
-          localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role }));
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
         } catch {}
         toast({ title: "Welcome", description: u.name });
       } else {
@@ -74,7 +74,7 @@ export default function Login() {
         }
         try {
           localStorage.setItem(CURRENT_USER_KEY, user.id);
-          localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: user.id, name: user.name, email: user.email, role: user.role }));
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: user.id, name: user.name, email: user.email, role: user.role, department: user.department || null }));
         } catch {}
         toast({ title: "Welcome", description: user.name });
       }

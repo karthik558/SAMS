@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Shield, Save } from "lucide-react";
+import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { listUsers } from "@/services/users";
 import { verifyCredentials, setUserPassword } from "@/services/auth";
+import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -28,6 +29,11 @@ export default function Settings() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // Departments state
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptCode, setNewDeptCode] = useState("");
+  const [role, setRole] = useState<string>("");
 
   // Load settings
   useEffect(() => {
@@ -57,6 +63,27 @@ export default function Settings() {
           setNotifications(local.notifications ?? true);
           setEmailNotifications(local.email_notifications ?? true);
           setDarkMode(local.dark_mode ?? false);
+        }
+      } catch {}
+
+      // role
+      try {
+        const authRaw = localStorage.getItem("auth_user");
+        if (authRaw) {
+          const au = JSON.parse(authRaw) as { role?: string };
+          setRole((au.role || "").toLowerCase());
+        }
+      } catch {}
+
+      // load departments
+      try {
+        // Only admins can manage/view Departments tab
+        const authRaw = localStorage.getItem("auth_user");
+        const au = authRaw ? JSON.parse(authRaw) as { role?: string } : ({} as any);
+        const r = (au.role || "").toLowerCase();
+        if (r === 'admin') {
+          const deps = await listDepartments();
+          setDepartments(deps);
         }
       } catch {}
     })();
@@ -149,7 +176,7 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="security" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
@@ -158,6 +185,12 @@ export default function Settings() {
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
+          {role === 'admin' && (
+            <TabsTrigger value="departments" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Departments</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="notifications" className="space-y-6">
@@ -256,6 +289,62 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
+  {role === 'admin' && (
+  <TabsContent value="departments" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Departments</CardTitle>
+              <CardDescription>Manage departments used for routing approvals and user assignments</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <Input placeholder="Name (e.g., IT)" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
+                <Input placeholder="Code (optional)" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} />
+                <Button onClick={async () => {
+                  const name = newDeptName.trim();
+                  if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
+                  try {
+                    const created = await createDepartment({ name, code: newDeptCode.trim() || null });
+                    setDepartments((s) => [created, ...s]);
+                    setNewDeptName(""); setNewDeptCode("");
+                    toast({ title: "Department added" });
+                  } catch (e: any) {
+                    toast({ title: "Add failed", description: e?.message || String(e), variant: "destructive" });
+                  }
+                }}>
+                  <Plus className="h-4 w-4 mr-2" /> Add
+                </Button>
+              </div>
+              <div className="border rounded divide-y">
+                {departments.length ? departments.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between p-3">
+                    <div>
+                      <div className="font-medium">{d.name}</div>
+                      <div className="text-xs text-muted-foreground">Code: {d.code || '-'} • {d.is_active ? 'Active' : 'Inactive'}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={async () => {
+                        try {
+                          const updated = await updateDepartment(d.id, { is_active: !d.is_active });
+                          setDepartments((s) => s.map(x => x.id === d.id ? updated : x));
+                        } catch {}
+                      }}>
+                        {d.is_active ? <ToggleRight className="h-4 w-4 mr-2" /> : <ToggleLeft className="h-4 w-4 mr-2" />} {d.is_active ? 'Active' : 'Inactive'}
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={async () => {
+                        if (!confirm(`Delete ${d.name}?`)) return;
+                        try { await deleteDepartment(d.id); setDepartments((s) => s.filter(x => x.id !== d.id)); } catch {}
+                      }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )) : <div className="p-3 text-sm text-muted-foreground">No departments</div>}
+              </div>
+            </CardContent>
+          </Card>
+  </TabsContent>
+  )}
       </Tabs>
     </div>
   );

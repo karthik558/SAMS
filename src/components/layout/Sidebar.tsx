@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { listApprovals } from "@/services/approvals";
 import { getCurrentUserId, listUserPermissions, type PageKey } from "@/services/permissions";
 
 const baseNav = [
@@ -21,8 +22,10 @@ const baseNav = [
   { name: "Assets", href: "/assets", icon: Package },
   { name: "Properties", href: "/properties", icon: Building2 },
   { name: "QR Codes", href: "/qr-codes", icon: QrCode },
+  { name: "Approvals", href: "/approvals", icon: FileBarChart },
   // Insert Scan QR roughly in the middle for quick access
   { name: "Scan QR", href: "/scan", icon: QrCode },
+  { name: "Tickets", href: "/tickets", icon: FileBarChart },
   { name: "Reports", href: "/reports", icon: FileBarChart },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -38,6 +41,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
+  const [pendingApprovals, setPendingApprovals] = useState<number>(0);
+  const [userDept, setUserDept] = useState<string>("");
   useEffect(() => {
     (async () => {
       try {
@@ -48,6 +53,26 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       } catch {}
     })();
   }, []);
+
+  // Load current user's department and pending approvals count (dept-scoped)
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = localStorage.getItem('auth_user');
+        let dept: string | null = null;
+        if (raw) { const u = JSON.parse(raw); dept = u?.department || null; }
+        setUserDept((dept || '').toLowerCase());
+        if (dept && String(dept).trim().length) {
+          const list = await listApprovals(undefined, dept);
+          const count = list.filter(a => a.status === 'pending_manager' || a.status === 'pending_admin').length;
+          setPendingApprovals(count);
+        } else {
+          // No department -> no cross-department visibility
+          setPendingApprovals(0);
+        }
+      } catch {}
+    })();
+  }, [location.pathname]);
 
   return (
     <div
@@ -95,10 +120,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             if (r === "admin") {
               nav = [...baseNav];
             } else if (r === "manager") {
-              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Scan QR","Reports","Settings"].includes(n.name));
+              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Approvals","Scan QR","Tickets","Reports","Settings"].includes(n.name));
             } else {
-              // user baseline
-              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Scan QR","Settings"].includes(n.name));
+              // user baseline: Tickets visible for all users
+              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Scan QR","Tickets","Settings"].includes(n.name));
             }
             // Apply per-user view permissions as an additional filter when available
             const pageNameToKey: Record<string, PageKey | null> = {
@@ -106,7 +131,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               Assets: 'assets',
               Properties: 'properties',
               'QR Codes': 'qrcodes',
+              'Approvals': null,
               'Scan QR': null, // always visible per requirement
+              'Tickets': null,
               Reports: 'reports',
               Users: 'users',
               Settings: 'settings',
@@ -117,7 +144,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               Assets: 'assets',
               Properties: 'properties',
               'QR Codes': 'qrcodes',
+              'Approvals': 'reports',
               'Scan QR': null,
+              'Tickets': null,
               Reports: 'reports',
               Users: 'users',
               Settings: 'settings',
@@ -154,7 +183,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 onClick={onNavigate}
               >
                 <item.icon className="h-4 w-4 shrink-0" />
-    {!collapsed && <span className="truncate">{item.name}</span>}
+    {!collapsed && (
+      <span className="truncate flex items-center gap-2">
+        {item.name}
+        {item.name === 'Approvals' && pendingApprovals > 0 && (
+          <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+            {pendingApprovals}
+          </span>
+        )}
+      </span>
+    )}
               </NavLink>
             );
           }); })()}

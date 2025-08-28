@@ -46,6 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
+import { listDepartments, createDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
@@ -161,6 +162,10 @@ export default function Users() {
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
+  const [deptOptions, setDeptOptions] = useState<Department[]>([]);
+  const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
+  const [newDeptName, setNewDeptName] = useState("");
+  const [newDeptCode, setNewDeptCode] = useState("");
   // Per-page permissions
   const allPages: PageKey[] = ['assets','properties','qrcodes','users','reports','settings'];
   const [permView, setPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
@@ -208,6 +213,18 @@ export default function Users() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Load departments for selectors
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const deps = await listDepartments();
+        if (!cancelled) setDeptOptions(deps.filter(d => d.is_active));
+      } catch {}
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -267,10 +284,13 @@ export default function Users() {
 
   const toTitle = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");
   const mapRole = (v?: string) => (v ? toTitle(v) : "User");
-  const mapDept = (v?: string) => {
+  // Normalize department against options list to avoid duplicates like FinanceFINANCE
+  const normalizeDeptInput = (v?: string): string | null => {
     if (!v) return null;
-    if (v.toLowerCase() === "it") return "IT";
-    if (v.toLowerCase() === "hr") return "HR";
+    const key = v.toLowerCase();
+    const found = deptOptions.find(d => (d.name || '').toLowerCase() === key || (d.code || '').toLowerCase() === key);
+    if (found) return found.name;
+    // Fallback to title-cased name
     return toTitle(v);
   };
 
@@ -283,8 +303,8 @@ export default function Users() {
     const payload = {
       name,
       email: email.trim(),
-      role: mapRole(role),
-      department: mapDept(department),
+  role: mapRole(role),
+  department: normalizeDeptInput(department),
       phone: phone || null,
       last_login: null,
       status: "Active",
@@ -321,7 +341,7 @@ export default function Users() {
         name: payload.name,
         email: payload.email,
         role: payload.role,
-        department: payload.department,
+  department: payload.department,
         phone: payload.phone,
         last_login: payload.last_login,
         status: payload.status,
@@ -361,7 +381,7 @@ export default function Users() {
     setEEmail(user.email || "");
     setEPhone(user.phone || "");
     setERole((user.role || "").toLowerCase());
-    setEDepartment((user.department || "")?.toString().toLowerCase());
+  setEDepartment((user.department || "")?.toString().toLowerCase());
     setEStatus((user.status || "Active").toLowerCase());
     setEMustChange(!!user.must_change_password);
     // Determine if current user is admin
@@ -401,8 +421,8 @@ export default function Users() {
       name,
       email: eEmail.trim(),
       phone: ePhone || null,
-      role: mapRole(eRole),
-      department: mapDept(eDepartment),
+  role: mapRole(eRole),
+  department: normalizeDeptInput(eDepartment),
       status: eStatus === "inactive" ? "Inactive" : "Active",
       must_change_password: eMustChange,
     };
@@ -545,17 +565,53 @@ export default function Users() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="department">Department</Label>
-                <Select value={department} onValueChange={setDepartment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select dept" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="it">IT</SelectItem>
-                    <SelectItem value="hr">HR</SelectItem>
-                    <SelectItem value="finance">Finance</SelectItem>
-                    <SelectItem value="operations">Operations</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select value={department} onValueChange={setDepartment}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select dept" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {deptOptions.map(d => (
+                          <SelectItem key={d.id} value={(d.name || '').toLowerCase()}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Dialog open={newDeptModalOpen} onOpenChange={setNewDeptModalOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" type="button">New</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Department</DialogTitle>
+                        <DialogDescription>Create a new department</DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-2">
+                        <Label>Name</Label>
+                        <Input placeholder="e.g., IT" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
+                        <Label>Code</Label>
+                        <Input placeholder="e.g., IT" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setNewDeptModalOpen(false)}>Cancel</Button>
+                        <Button onClick={async () => {
+                          const name = newDeptName.trim();
+                          if (!name) return;
+                          try {
+                            const created = await createDepartment({ name, code: (newDeptCode.trim() || null) });
+                            setDeptOptions((opts) => [created, ...opts]);
+                            setDepartment((created.name || '').toLowerCase());
+                            setNewDeptName(""); setNewDeptCode(""); setNewDeptModalOpen(false);
+                          } catch (e) {
+                            console.error(e);
+                            alert('Failed to create department. Check backend policies or connection.');
+                          }
+                        }}>Add</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
               {/* Page Permissions */}
               <div className="space-y-2">
@@ -853,10 +909,9 @@ export default function Users() {
                     <SelectValue placeholder="Select dept" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="it">IT</SelectItem>
-                    <SelectItem value="hr">HR</SelectItem>
-                    <SelectItem value="finance">Finance</SelectItem>
-                    <SelectItem value="operations">Operations</SelectItem>
+                    {deptOptions.map(d => (
+                      <SelectItem key={d.id} value={(d.name || '').toLowerCase()}>{d.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

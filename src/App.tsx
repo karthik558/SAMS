@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import Assets from "./pages/Assets";
 import Properties from "./pages/Properties";
 import QRCodes from "./pages/QRCodes";
+import Approvals from "./pages/Approvals";
+import Tickets from "./pages/Tickets";
 import Reports from "./pages/Reports";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
@@ -22,6 +24,19 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     authed = Boolean(localStorage.getItem("current_user_id"));
   } catch {}
   if (!authed) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function RoleGate({ roles, children }: { roles: string[]; children: React.ReactNode }) {
+  let role = "";
+  try {
+    const raw = localStorage.getItem("auth_user");
+    role = raw ? (JSON.parse(raw).role || "") : "";
+  } catch {}
+  const r = (role || "").toLowerCase();
+  if (!roles.map(s => s.toLowerCase()).includes(r)) {
+    return <Navigate to="/" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -49,6 +64,8 @@ const App = () => (
                     <Route path="/assets" element={<Assets />} />
                     <Route path="/properties" element={<Properties />} />
                     <Route path="/qr-codes" element={<QRCodes />} />
+                    <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
+                    <Route path="/tickets" element={<Tickets />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/settings" element={<Settings />} />
