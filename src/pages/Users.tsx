@@ -101,7 +101,7 @@ const seedLocalUsersIfEmpty = () => {
       phone: "+1 (555) 123-4567",
       last_login: "2024-01-15",
       status: "Active",
-      avatar_url: "/placeholder.svg",
+  avatar_url: null,
     },
     {
       id: crypto?.randomUUID?.() || String(Date.now() + 1),
@@ -112,7 +112,7 @@ const seedLocalUsersIfEmpty = () => {
       phone: "+1 (555) 234-5678",
       last_login: "2024-01-14",
       status: "Active",
-      avatar_url: "/placeholder.svg",
+  avatar_url: null,
     },
     {
       id: crypto?.randomUUID?.() || String(Date.now() + 2),
@@ -123,7 +123,7 @@ const seedLocalUsersIfEmpty = () => {
       phone: "+1 (555) 345-6789",
       last_login: "2024-01-10",
       status: "Inactive",
-      avatar_url: "/placeholder.svg",
+  avatar_url: null,
     },
     {
       id: crypto?.randomUUID?.() || String(Date.now() + 3),
@@ -134,7 +134,7 @@ const seedLocalUsersIfEmpty = () => {
       phone: "+1 (555) 456-7890",
       last_login: "2024-01-15",
       status: "Active",
-      avatar_url: "/placeholder.svg",
+  avatar_url: null,
     },
   ];
   writeLocalUsers(seeded);
@@ -309,7 +309,7 @@ export default function Users() {
       phone: phone || null,
       last_login: null,
       status: "Active",
-      avatar_url: "/placeholder.svg",
+  avatar_url: null,
       must_change_password: mustChangePassword,
       password_changed_at: null,
       // password is used only for local fallback or future auth integration
@@ -794,7 +794,9 @@ export default function Users() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url || undefined} alt={user.name} />
+                          {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
+                            <AvatarImage src={user.avatar_url} alt={user.name} />
+                          )}
                           <AvatarFallback className="bg-muted text-foreground font-medium">
                             {getInitials(user.name)}
                           </AvatarFallback>
