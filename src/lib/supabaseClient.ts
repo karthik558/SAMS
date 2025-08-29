@@ -6,7 +6,13 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | und
 export const hasSupabaseEnv = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
 export const supabase = hasSupabaseEnv
-  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!)
+  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   : (null as any);
 
 export const supabaseConfigStatus = {

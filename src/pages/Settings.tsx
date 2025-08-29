@@ -9,11 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus } from "lucide-react";
+import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { listUsers } from "@/services/users";
-import { verifyCredentials, setUserPassword } from "@/services/auth";
+import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
+import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp } from "@/services/auth";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -34,6 +36,14 @@ export default function Settings() {
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
   const [role, setRole] = useState<string>("");
+
+  // MFA state
+  const [mfaEnrolled, setMfaEnrolled] = useState<boolean>(false);
+  const [mfaEnrollUrl, setMfaEnrollUrl] = useState<string>("");
+  const [mfaQrDataUrl, setMfaQrDataUrl] = useState<string>("");
+  const [mfaFactorId, setMfaFactorId] = useState<string>("");
+  const [mfaCode, setMfaCode] = useState<string>("");
+  const [mfaLoading, setMfaLoading] = useState(false);
 
   // Load settings
   useEffect(() => {
@@ -86,6 +96,14 @@ export default function Settings() {
           setDepartments(deps);
         }
       } catch {}
+
+      // check MFA enrollment status
+      try {
+        if (hasSupabaseEnv) {
+          const f = await listMfaFactors();
+          setMfaEnrolled((f.totp?.length || 0) > 0);
+        }
+      } catch {}
     })();
   }, [currentUserId]);
 
@@ -131,7 +149,7 @@ export default function Settings() {
           toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
           return;
         }
-        const valid = await verifyCredentials(currentUserEmail, currentPassword);
+  const valid = await loginWithPassword(currentUserEmail, currentPassword);
         if (!valid) {
           toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
           return;
@@ -165,6 +183,58 @@ export default function Settings() {
       toast({ title: "Update failed", description: e?.message || String(e), variant: "destructive" });
     }
   };
+
+  async function startTotpEnrollment() {
+    try {
+      setMfaLoading(true);
+      const { factorId, otpauthUrl } = await mfaEnrollTotp();
+      setMfaFactorId(factorId);
+      // Rewrite otpauth URI to use a friendly issuer/label for authenticator apps
+      const issuer = 'SAMS';
+      const email = currentUserEmail || 'user';
+      let friendly = otpauthUrl;
+      try {
+        const prefix = 'otpauth://totp/';
+        if (otpauthUrl.startsWith(prefix)) {
+          const rest = otpauthUrl.slice(prefix.length);
+          const qIndex = rest.indexOf('?');
+          const rawLabel = qIndex >= 0 ? rest.slice(0, qIndex) : rest;
+          const query = qIndex >= 0 ? rest.slice(qIndex + 1) : '';
+          const newLabel = encodeURIComponent(`${issuer}:${email}`);
+          const params = new URLSearchParams(query);
+          params.set('issuer', issuer);
+          friendly = `${prefix}${newLabel}?${params.toString()}`;
+        }
+      } catch {}
+      setMfaEnrollUrl(friendly);
+      try {
+        const dataUrl = await QRCode.toDataURL(friendly, { width: 192, margin: 1 });
+        setMfaQrDataUrl(dataUrl);
+      } catch {}
+    } catch (e: any) {
+      toast({ title: "Enrollment failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
+  async function activateTotp() {
+    if (!mfaFactorId || !mfaCode) return;
+    try {
+      setMfaLoading(true);
+      await mfaActivateTotp(mfaFactorId, mfaCode);
+      setMfaEnrolled(true);
+      setMfaEnrollUrl("");
+  setMfaQrDataUrl("");
+      setMfaFactorId("");
+      setMfaCode("");
+      toast({ title: "MFA enabled", description: "Authenticator app configured." });
+    } catch (e: any) {
+      toast({ title: "Verification failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setMfaLoading(false);
+    }
+  }
 
   return (
   <div className="space-y-6">
@@ -285,6 +355,46 @@ export default function Settings() {
                   <Save className="h-4 w-4 mr-2" />
                   Update Password
                 </Button>
+              </div>
+
+              <Separator />
+
+              <div>
+                <Label className="font-medium">Multi-Factor Authentication</Label>
+                <p className="text-sm text-muted-foreground">
+                  Add an extra layer of security to your account
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <Badge variant={mfaEnrolled ? "default" : "outline"} className="font-medium">
+                    {mfaEnrolled ? "Enabled" : "Not Enrolled"}
+                  </Badge>
+                  {!mfaEnrolled && (
+                    <Button onClick={startTotpEnrollment} disabled={mfaLoading} className="whitespace-nowrap">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Enable MFA
+                    </Button>
+                  )}
+                </div>
+
+                {(!mfaEnrolled && (mfaEnrollUrl || mfaQrDataUrl)) && (
+                  <div className="mt-4">
+                    <Label className="font-medium">Authenticator App</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Scan the QR code below with your authenticator app
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <img src={mfaQrDataUrl || mfaEnrollUrl} alt="QR Code" className="w-24 h-24" />
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input placeholder="Enter code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
+                          <Button onClick={activateTotp} disabled={mfaLoading || mfaCode.trim().length !== 6}>
+                            Verify & Enable
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

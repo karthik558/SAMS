@@ -17,6 +17,7 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
+import { SingleDeviceGuard } from "@/components/session/SingleDeviceGuard";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
@@ -47,6 +48,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+  <SingleDeviceGuard />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

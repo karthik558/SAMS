@@ -12,6 +12,7 @@ export type AppUser = {
   avatar_url: string | null;
   must_change_password?: boolean;
   password_changed_at?: string | null;
+  active_session_id?: string | null;
 };
 
 const table = "app_users";
