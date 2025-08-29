@@ -325,9 +325,15 @@ export default function QRCodes() {
 
   const getStatusBadge = (status: string, printed: boolean) => {
     if (status === "Generated") {
-      return <StatusChip status={printed ? "Printed" : "Ready to Print"} />;
+      return (
+        <StatusChip
+          status={printed ? "Printed" : "Ready"}
+          size="sm"
+          className="px-2"
+        />
+      );
     }
-    return <StatusChip status={status} />;
+    return <StatusChip status={status} size="sm" className="px-2" />;
   };
 
   // Deduplicate by assetId (pick most recent entry) then filter
@@ -459,8 +465,8 @@ export default function QRCodes() {
           </DialogContent>
         </Dialog>
 
-        {/* Header */}
-  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    {/* Header */}
+  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <QrCode className="h-8 w-8" />
@@ -470,24 +476,24 @@ export default function QRCodes() {
               Generate, manage, and print QR codes for asset tracking
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handleGenerateNew} className="gap-2" disabled={!canEditPage}>
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
               <QrCode className="h-4 w-4" />
               Generate New QR Code
             </Button>
-            <Button onClick={handleBulkPrint} variant="outline" className="gap-2" disabled={!canEditPage}>
+            <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
               <Printer className="h-4 w-4" />
               Bulk Print
             </Button>
             {role==='admin' && (
-              <Button onClick={handleClearAll} variant="outline" className="gap-2" disabled={purging}>
+              <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
                 {purging ? 'Clearing…' : 'Clear All'}
               </Button>
             )}
           </div>
   </div>
-        {/* Stats */}
-  <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
+    {/* Stats */}
+  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -574,7 +580,7 @@ export default function QRCodes() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:flex-wrap">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -618,9 +624,9 @@ export default function QRCodes() {
                 </SelectContent>
               </Select>
 
-              <DateRangePicker value={range} onChange={setRange} />
+              <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
 
-              <Button onClick={handleDownloadAll} variant="outline" className="gap-2">
+              <Button onClick={handleDownloadAll} variant="outline" className="gap-2 w-full sm:w-auto">
                 <Download className="h-4 w-4" />
                 Download All
               </Button>
@@ -639,17 +645,17 @@ export default function QRCodes() {
 
         {/* QR Codes Grid/List */}
         {viewMode === 'grid' ? (
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {sortedQRCodes.map((qrCode) => (
             <Card
               key={qrCode.id}
               className={`hover:shadow-medium transition-shadow ${highlightId === qrCode.id ? "ring-2 ring-primary" : ""}`}
             >
-              <CardHeader>
+      <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg">{qrCode.assetName}</CardTitle>
-                    <CardDescription>{qrCode.assetId}</CardDescription>
+        <CardTitle className="text-sm sm:text-base">{qrCode.assetName}</CardTitle>
+        <CardDescription className="text-[11px] sm:text-xs">{qrCode.assetId}</CardDescription>
                   </div>
                   <QrCode className="h-6 w-6 text-muted-foreground" />
                 </div>
@@ -657,23 +663,23 @@ export default function QRCodes() {
               
               <CardContent className="space-y-4">
                 {/* Property and Status */}
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm text-muted-foreground">{qrCode.property}</span>
                   </div>
-                  {getStatusBadge(qrCode.status, qrCode.printed)}
+                  <div className="shrink-0">{getStatusBadge(qrCode.status, qrCode.printed)}</div>
                 </div>
 
                 {/* Generated Date */}
-                <div className="text-sm text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   Generated: {qrCode.generatedDate}
                 </div>
 
                 {/* QR Code Preview */}
-                  <div className="flex justify-center p-4 bg-muted/30 rounded-lg relative z-0">
+          <div className="flex justify-center p-4 bg-muted/30 rounded-lg relative z-0">
                     <div
-                      className="group w-28 h-28 bg-background border-2 border-border rounded flex items-center justify-center overflow-hidden cursor-zoom-in"
+            className="group w-32 h-32 bg-background border-2 border-border rounded flex items-center justify-center overflow-hidden cursor-zoom-in"
                       onClick={() => openPreview(qrCode)}
                     >
                       { (qrCode.imageUrl || computedImages[qrCode.id]) ? (
@@ -689,22 +695,22 @@ export default function QRCodes() {
                   </div>
 
                 {/* Actions */}
-          <div className="relative z-10 flex flex-wrap items-center gap-2">
+          <div className="relative z-10 mt-1 grid grid-cols-1 sm:grid-cols-2 items-stretch gap-2 lg:flex lg:flex-wrap">
                   {(role==='admin') && (
-                  <Button
+         <Button
                     size="sm"
                     variant="outline"
-            onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}
-            className="gap-2 w-full sm:w-auto"
+       onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}
+       className="gap-2 w-full md:w-full lg:w-auto"
                   >
                     <QrCode className="h-4 w-4" />
                     Regenerate
                   </Button>
                   )}
-                  <Button
+         <Button
                     size="sm"
                     variant="outline"
-            className="gap-2 w-full sm:w-auto"
+       className="gap-2 w-full md:w-full lg:w-auto"
                     onClick={async () => {
                       try {
                         let dataUrl = qrCode.imageUrl;
@@ -728,10 +734,10 @@ export default function QRCodes() {
                     <Download className="h-4 w-4" />
                     Download
                   </Button>
-                  <Button
+         <Button
                     size="sm"
                     variant="outline"
-            className="gap-2 w-full sm:w-auto"
+       className="gap-2 w-full md:w-full lg:w-auto"
                     onClick={async () => {
                       try {
                         if (hasSupabaseEnv) {
@@ -760,16 +766,16 @@ export default function QRCodes() {
             ))}
           </div>
         ) : (
-          <div className="rounded-md border">
+    <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[180px]">Asset</TableHead>
+      <TableHead className="min-w-[160px]">Asset</TableHead>
                   <TableHead>Asset ID</TableHead>
                   <TableHead>Property</TableHead>
                   <TableHead>Generated</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-[220px]">Actions</TableHead>
+      <TableHead className="min-w-[220px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -793,14 +799,14 @@ export default function QRCodes() {
                     <TableCell>{qrCode.generatedDate}</TableCell>
                     <TableCell>{getStatusBadge(qrCode.status, qrCode.printed)}</TableCell>
                     <TableCell>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {(role==='admin') && (
-                          <Button size="sm" variant="outline" onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}>
+                          <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}>
                             Regenerate
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => openPreview(qrCode)}>Preview</Button>
-                        <Button size="sm" variant="outline" onClick={async () => {
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openPreview(qrCode)}>Preview</Button>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={async () => {
                           try {
                             let dataUrl = qrCode.imageUrl;
                             if (!dataUrl) dataUrl = await generateQrPng(qrCode);

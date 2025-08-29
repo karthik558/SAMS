@@ -504,8 +504,8 @@ export default function Assets() {
           </div>
         </div>
 
-        {/* Stats Cards (derived from current assets state) */}
-        <div className="grid gap-4 md:grid-cols-4">
+  {/* Stats Cards (derived from current assets state) */}
+  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -570,7 +570,7 @@ export default function Assets() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:flex-wrap">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -618,7 +618,7 @@ export default function Assets() {
                 </SelectContent>
               </Select>
 
-              <DateRangePicker value={range} onChange={setRange} />
+              <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
             </div>
           </CardContent>
         </Card>
