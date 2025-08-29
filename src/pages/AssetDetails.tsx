@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
-import { Calendar, MapPin, Package, Building2, ChevronLeft } from "lucide-react";
+import { Calendar, MapPin, Package, Building2, ChevronLeft, Home } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAssetById, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 import { toast } from "sonner";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 
 export default function AssetDetails() {
   const { id } = useParams<{ id: string }>();
@@ -75,10 +76,26 @@ export default function AssetDetails() {
   return (
     <div className="min-h-screen w-full bg-background flex items-start justify-center p-3 sm:p-4">
       <div className="w-full max-w-2xl">
-        <div className="mb-3 sm:mb-4 flex items-center gap-2">
-          <Button variant="ghost" onClick={() => history.back()} className="gap-2">
-            <ChevronLeft className="h-4 w-4" /> Back
-          </Button>
+        <div className="mb-2 sm:mb-3">
+          <Breadcrumb>
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                    <Home className="h-3.5 w-3.5" /> Dashboard
+                  </span>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/assets">Assets</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{asset?.id || "Asset"}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </div>
         <Card className="shadow-soft">
         <CardHeader>
