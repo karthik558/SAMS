@@ -5,12 +5,14 @@ import {
   Package,
   Building2,
   FileBarChart,
+  ClipboardCheck,
   QrCode,
   Settings,
   Users,
   ChevronLeft,
   ChevronRight,
   ScanLine,
+  Ticket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,11 +24,11 @@ const baseNav = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Properties", href: "/properties", icon: Building2 },
   { name: "Assets", href: "/assets", icon: Package },
-  { name: "Approvals", href: "/approvals", icon: FileBarChart },
+  { name: "Approvals", href: "/approvals", icon: ClipboardCheck },
   { name: "QR Codes", href: "/qr-codes", icon: QrCode },
   { name: "Scan QR", href: "/scan", icon: ScanLine }, // distinct icon from QR Codes
   { name: "Reports", href: "/reports", icon: FileBarChart },
-  { name: "Tickets", href: "/tickets", icon: FileBarChart },
+  { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ] as const;
