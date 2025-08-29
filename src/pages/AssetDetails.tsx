@@ -128,6 +128,7 @@ export default function AssetDetails() {
               <Badge variant="outline" className="text-xs">PO: {asset.poNumber}</Badge>
             )}
           </div>
+          <Separator className="my-1" />
           <div className="pt-1">
             <Button asChild className="w-full gap-2 rounded-full">
               <a href="/scan">
