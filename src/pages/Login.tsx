@@ -72,13 +72,7 @@ export default function Login() {
         }
         const u = res.user;
         if (!u) {
-          // At this point password sign-in likely succeeded but app profile is missing
-          // (e.g., Auth user exists but no row in app_users). Provide a clear message.
-          toast({
-            title: "Account not set up",
-            description: "Your Auth account exists but your SAMS profile is missing. Ask an admin to add you in Users.",
-            variant: "destructive",
-          });
+          toast({ title: "Invalid credentials", description: "Email or password is incorrect.", variant: "destructive" });
           setAttempts(a => a + 1);
           return;
         }
@@ -122,16 +116,6 @@ export default function Login() {
         } catch {}
       }
       navigate("/", { replace: true });
-    } catch (e: any) {
-      // Handle Supabase errors (e.g., invalid credentials, network issues)
-      const msg = e?.message || String(e);
-      const isInvalid = /invalid/i.test(msg) || /credential/i.test(msg);
-      toast({
-        title: isInvalid ? "Invalid credentials" : "Sign-in failed",
-        description: isInvalid ? "Email or password is incorrect." : msg,
-        variant: "destructive",
-      });
-      setAttempts(a => a + 1);
     } finally {
   setLoading(false);
   // Clear sensitive in-memory state
