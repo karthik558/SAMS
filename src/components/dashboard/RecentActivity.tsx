@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDistanceToNow, parseISO } from "date-fns";
+import { formatDistanceToNow, parseISO, isToday } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listActivity, logActivity, subscribeActivity, type Activity } from "@/services/activity";
@@ -20,7 +20,8 @@ export function RecentActivity() {
     (async () => {
       if (hasSupabaseEnv) {
         try {
-          const data = await listActivity(25);
+          // fetch a bigger window, then filter to today client-side
+          const data = await listActivity(100);
           setItems(data);
           unsub = subscribeActivity((a) => {
             setItems((prev) => [a, ...prev].slice(0, 25));
@@ -39,10 +40,19 @@ export function RecentActivity() {
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   }, [items]);
+  const todays = useMemo(() => {
+    return sorted.filter((a) => {
+      try {
+        return isToday(parseISO(a.created_at));
+      } catch {
+        return false;
+      }
+    });
+  }, [sorted]);
   const rows = useMemo(() => {
-    if (showAll) return sorted;
-    return sorted.slice(0, 8);
-  }, [sorted, showAll]);
+    if (showAll) return todays;
+    return todays.slice(0, 8);
+  }, [todays, showAll]);
 
   return (
     <Card>
@@ -53,7 +63,7 @@ export function RecentActivity() {
             Latest updates and changes in your asset management system
           </CardDescription>
         </div>
-        {sorted.length > 8 && (
+        {todays.length > 8 && (
           <Button
             variant="ghost"
             size="sm"
@@ -67,6 +77,9 @@ export function RecentActivity() {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {rows.length === 0 && (
+            <p className="text-sm text-muted-foreground">No activity today yet.</p>
+          )}
           {rows.map((activity) => (
             <div
               key={activity.id}
