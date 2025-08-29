@@ -323,6 +323,16 @@ export async function listApprovalEvents(approvalId: string): Promise<ApprovalEv
   return [];
 }
 
+// Add a comment event on an approval (used for per-field diff notes)
+export async function addApprovalComment(approvalId: string, author: string, field: string, message: string): Promise<void> {
+  if (!hasSupabaseEnv) {
+    throw new Error('Supabase not configured; comments are unavailable.');
+  }
+  const msg = `${field}: ${message}`;
+  const { error } = await supabase.from('approval_events').insert({ approval_id: approvalId, event_type: 'comment', author, message: msg });
+  if (error) throw error;
+}
+
 function toCamel(row: any): ApprovalRequest {
   return {
     id: row.id,

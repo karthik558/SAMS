@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
+import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, addApprovalComment, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +45,8 @@ export default function Approvals() {
   const [initializedDefault, setInitializedDefault] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideNotes, setOverrideNotes] = useState("");
+  // Inline diff comment state (field -> pending text)
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     // Load departments for admin filter dynamically
@@ -131,6 +133,7 @@ export default function Approvals() {
 
   // Derived filtered list (date range + client-side status where necessary)
   const visibleItems = useMemo(() => {
+    // For pending, ignore date filters entirely and show all relevant items
     const df = (statusFilter === 'pending') ? null : (dateFrom ? new Date(dateFrom) : null);
     const dt = (statusFilter === 'pending') ? null : (dateTo ? new Date(dateTo) : null);
     const norm = (arr: ApprovalRequest[]) => arr.filter(a => {
@@ -272,16 +275,59 @@ export default function Approvals() {
                     {selectedApproval?.patch && Object.keys(selectedApproval.patch || {}).length ? (
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Changes</div>
-                        <div className="rounded border bg-muted/30 p-2 text-xs max-h-48 overflow-auto">
+                        <div className="rounded border bg-muted/30 p-2 text-xs max-h-64 overflow-auto">
                           {Object.entries(selectedApproval.patch || {}).map(([k, after]) => {
                             const before = (selectedAsset as any)?.[k];
                             const beforeStr = before == null ? '-' : String(before);
                             const afterStr = after == null ? '-' : String(after as any);
                             return (
-                              <div key={k} className="flex items-start gap-2 py-1">
-                                <div className="font-medium min-w-[120px]">{k}</div>
-                                <div className="text-muted-foreground line-through break-all">{beforeStr}</div>
-                                <div className="break-all">{afterStr}</div>
+                              <div key={k} className="flex flex-col gap-1 py-1">
+                                <div className="flex items-start gap-2">
+                                  <div className="font-medium min-w-[120px]">{k}</div>
+                                  <div className="text-muted-foreground line-through break-all">{beforeStr}</div>
+                                  <div className="break-all">{afterStr}</div>
+                                </div>
+                                {(role === 'manager' || role === 'admin') && (
+                                  <div className="flex items-center gap-2 pl-[120px]">
+                                    <Input
+                                      placeholder="Add a note…"
+                                      value={commentDrafts[k] || ""}
+                                      onChange={(e) => setCommentDrafts(s => ({ ...s, [k]: e.target.value }))}
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={async () => {
+                                        const msg = (commentDrafts[k] || '').trim();
+                                        if (!selectedApproval || !msg) return;
+                                        try {
+                                          const author = (auth?.email || auth?.id || role || 'user');
+                                          await addApprovalComment(selectedApproval.id, author, k, msg);
+                                          setCommentDrafts(s => ({ ...s, [k]: "" }));
+                                          toast.success('Comment added');
+                                          // refresh events to show the new comment
+                                          try { setEvents(await listApprovalEvents(selectedApproval.id)); } catch {}
+                                        } catch { toast.error('Failed to add comment'); }
+                                      }}
+                                    >
+                                      Comment
+                                    </Button>
+                                  </div>
+                                )}
+                                {/* Existing comments for this field */}
+                                {events.filter(ev => ev.eventType === 'comment' && (ev.message || '').startsWith(`${k}:`)).length > 0 && (
+                                  <div className="space-y-1 pl-[120px]">
+                                    {events.filter(ev => ev.eventType === 'comment' && (ev.message || '').startsWith(`${k}:`)).map(ev => {
+                                      const msg = (ev.message || '').slice(`${k}:`.length).trim();
+                                      return (
+                                        <div key={ev.id} className="text-[11px] text-muted-foreground">
+                                          <span className="font-medium">{ev.author || 'someone'}:</span> {msg}
+                                          <span className="ml-2 opacity-70">{fmt(ev.createdAt)}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
