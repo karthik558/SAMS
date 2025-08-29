@@ -14,6 +14,7 @@ import {
   Line,
   Area,
   AreaChart,
+  LabelList,
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
@@ -65,13 +66,21 @@ export function DashboardCharts() {
   const chartAssetsByType = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of assets) {
-      // Exclude assets tied to disabled properties (when known)
       if (activePropertyIds.size && a.property && !activePropertyIds.has(a.property)) continue;
       const key = a.type || "Other";
       map.set(key, (map.get(key) || 0) + 1);
     }
-    const entries = Array.from(map.entries());
-    return entries.map(([name, value], idx) => ({ name, value, color: palette[idx % palette.length] }));
+    const entries = Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+    const TOP = 6;
+    let list = entries;
+    if (entries.length > TOP) {
+      const top = entries.slice(0, TOP);
+      const other = entries.slice(TOP).reduce((sum, e) => sum + e.value, 0);
+      list = [...top, { name: 'Other', value: other }];
+    }
+    return list.map((item, idx) => ({ ...item, color: palette[idx % palette.length] }));
   }, [assets, activePropertyIds]);
 
   // Purchase Trends (last 6 months purchases count)
@@ -99,7 +108,15 @@ export function DashboardCharts() {
       const key = a.property || "Unknown";
       map.set(key, (map.get(key) || 0) + 1);
     }
-    return Array.from(map.entries()).map(([pid, count]) => ({ property: propsById[pid]?.name || pid, assets: count }));
+    // Sort by count desc and take top N, grouping the rest as "Other"
+    const entries = Array.from(map.entries())
+      .map(([pid, count]) => ({ pid, name: propsById[pid]?.name || pid, assets: count }))
+      .sort((a, b) => b.assets - a.assets);
+    const TOP = 8;
+    if (entries.length <= TOP) return entries;
+    const top = entries.slice(0, TOP);
+    const otherTotal = entries.slice(TOP).reduce((sum, e) => sum + e.assets, 0);
+    return [...top, { pid: "__OTHER__", name: "Other", assets: otherTotal }];
   }, [assets, activePropertyIds, propsById]);
 
   // Asset Expiry Tracking (last 6 months: expired vs expiring counts per month)
@@ -139,36 +156,65 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie
-                data={hasData ? chartAssetsByType : []}
-                cx="50%"
-                cy="50%"
-                innerRadius={40}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="value"
-              >
-                {(hasData ? chartAssetsByType : []).map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
-            {(hasData ? chartAssetsByType : []).map((item, index) => (
-              <div key={index} className="flex items-center gap-2">
-                <div
-                  className="h-2 w-2 rounded-full shrink-0"
-                  style={{ backgroundColor: item.color }}
+          <div className="relative">
+            <ResponsiveContainer width="100%" height={240}>
+              <PieChart>
+                <Pie
+                  data={hasData ? chartAssetsByType : []}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={90}
+                  startAngle={90}
+                  endAngle={-270}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {(hasData ? chartAssetsByType : []).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(var(--background))" strokeWidth={1} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  wrapperStyle={{ zIndex: 1000 }}
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: 8,
+                    color: 'hsl(var(--popover-foreground))',
+                    fontSize: 12,
+                  }}
+                  labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                  formatter={(value: any, name: any) => [value, name]}
                 />
-                <span className="text-muted-foreground truncate">
-                  {item.name}: {item.value}
-                </span>
+              </PieChart>
+            </ResponsiveContainer>
+            {/* Center total */}
+            {hasData && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-foreground">
+                    {chartAssetsByType.reduce((sum, it) => sum + (it.value || 0), 0)}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Total assets</div>
+                </div>
               </div>
-            ))}
+            )}
+          </div>
+          {/* Legend */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+            {(hasData ? chartAssetsByType : []).map((item, index, arr) => {
+              const total = arr.reduce((s, x) => s + (x.value || 0), 0) || 1;
+              const pct = Math.round(((item.value || 0) / total) * 100);
+              return (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                  <span className="text-muted-foreground truncate">
+                    {item.name}: {item.value} ({pct}%)
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -183,36 +229,53 @@ export function DashboardCharts() {
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={hasData ? chartPurchaseTrend : []} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
-              <XAxis 
-                dataKey="month" 
-                stroke="hsl(225, 10%, 50%)"
-                fontSize={11}
-                tick={{ fontSize: 11 }}
+            <AreaChart data={hasData ? chartPurchaseTrend : []} margin={{ top: 8, right: 12, left: 12, bottom: 8 }}>
+              <defs>
+                <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.06} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+              <XAxis
+                dataKey="month"
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} tick={{ fontSize: 11 }} />
+              <YAxis
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+                allowDecimals={false}
+              />
               <Tooltip
+                wrapperStyle={{ zIndex: 1000 }}
                 contentStyle={{
-                  backgroundColor: "hsl(0, 0%, 100%)",
-                  border: "1px solid hsl(220, 13%, 91%)",
-                  borderRadius: "8px",
-                  fontSize: "12px"
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                  color: 'hsl(var(--popover-foreground))',
+                  fontSize: 12,
                 }}
+                labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                formatter={(value: any) => [value, 'Purchases']}
               />
               <Area
                 type="monotone"
                 dataKey="purchases"
                 stroke="hsl(199, 89%, 48%)"
-                fill="hsl(199, 89%, 48%)"
-                fillOpacity={0.2}
+                fill="url(#purchaseGrad)"
               />
             </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Property Assets Bar Chart */}
+      {/* Property Assets Bar Chart (horizontal, top-N with gradient) */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">Assets by Property</CardTitle>
@@ -221,38 +284,54 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={hasData ? chartPropertyAssets : []} margin={{ top: 5, right: 5, left: 5, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
-              <XAxis 
-                dataKey="property" 
-                stroke="hsl(225, 10%, 50%)"
-                fontSize={10}
-                angle={-45}
-                textAnchor="end"
-                height={60}
-                interval={0}
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart
+              data={hasData ? chartPropertyAssets.map(x => ({ property: x.name, assets: x.assets })) : []}
+              layout="vertical"
+              margin={{ top: 10, right: 12, left: 12, bottom: 10 }}
+            >
+              <defs>
+                <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.2} />
+                  <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.9} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+              <XAxis
+                type="number"
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} />
+              <YAxis
+                type="category"
+                dataKey="property"
+                width={120}
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+              />
               <Tooltip
+                formatter={(v: any) => [v, 'Assets']}
                 contentStyle={{
-                  backgroundColor: "hsl(0, 0%, 100%)",
-                  border: "1px solid hsl(220, 13%, 91%)",
-                  borderRadius: "8px",
-                  fontSize: "12px"
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                  color: 'hsl(var(--popover-foreground))',
+                  fontSize: 12,
                 }}
               />
-              <Bar 
-                dataKey="assets" 
-                fill="hsl(142, 76%, 36%)"
-                radius={[2, 2, 0, 0]}
-              />
+              <Bar dataKey="assets" fill="url(#barGradient)" radius={[4, 4, 4, 4]} maxBarSize={18}>
+                <LabelList dataKey="assets" position="right" className="text-[10px] fill-foreground" />
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Expiry Tracking */}
+      {/* Expiry Tracking (stacked area with gradients) */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-lg">Asset Expiry Tracking</CardTitle>
@@ -261,38 +340,46 @@ export function DashboardCharts() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={hasData ? chartExpiryData : []} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(220, 13%, 91%)" />
-              <XAxis 
-                dataKey="month" 
-                stroke="hsl(225, 10%, 50%)"
-                fontSize={11}
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={hasData ? chartExpiryData : []} margin={{ top: 10, right: 12, left: 12, bottom: 10 }}>
+              <defs>
+                <linearGradient id="expiringGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="expiredGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.45} />
+                  <stop offset="100%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+              <XAxis
+                dataKey="month"
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
               />
-              <YAxis stroke="hsl(225, 10%, 50%)" fontSize={11} />
+              <YAxis
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+                allowDecimals={false}
+              />
               <Tooltip
+                formatter={(value: any, name: any) => [value, name === 'expiring' ? 'Expiring' : 'Expired']}
                 contentStyle={{
-                  backgroundColor: "hsl(0, 0%, 100%)",
-                  border: "1px solid hsl(220, 13%, 91%)",
-                  borderRadius: "8px",
-                  fontSize: "12px"
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: 8,
+                  color: 'hsl(var(--popover-foreground))',
+                  fontSize: 12,
                 }}
               />
-              <Line
-                type="monotone"
-                dataKey="expired"
-                stroke="hsl(0, 72%, 51%)"
-                strokeWidth={2}
-                dot={{ fill: "hsl(0, 72%, 51%)", strokeWidth: 2, r: 3 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="expiring"
-                stroke="hsl(38, 92%, 50%)"
-                strokeWidth={2}
-                dot={{ fill: "hsl(38, 92%, 50%)", strokeWidth: 2, r: 3 }}
-              />
-            </LineChart>
+              <Area type="monotone" dataKey="expiring" stackId="1" stroke="hsl(38, 92%, 50%)" fill="url(#expiringGrad)" />
+              <Area type="monotone" dataKey="expired" stackId="1" stroke="hsl(0, 72%, 51%)" fill="url(#expiredGrad)" />
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
