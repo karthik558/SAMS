@@ -184,12 +184,12 @@ export default function Approvals() {
       <h1 className="text-2xl font-bold">Approvals</h1>
   <Card>
         <CardHeader>
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <CardTitle>Requests</CardTitle>
-              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <div className="w-40">
                 <Select value={statusFilter} onValueChange={(v: any) => onChangeStatus(v)}>
-                  <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="h-8"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
@@ -201,7 +201,7 @@ export default function Approvals() {
               {role === 'admin' && (
                 <div className="w-48">
                   <Select value={adminDeptFilter} onValueChange={setAdminDeptFilter}>
-                    <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+          <SelectTrigger className="h-8"><SelectValue placeholder="All departments" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All departments</SelectItem>
                       {departments.map(d => (
@@ -211,11 +211,11 @@ export default function Approvals() {
                   </Select>
                 </div>
               )}
-              <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
                 <DateRangePicker
                   value={{ from: dateFrom, to: dateTo }}
                   onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
-                  className="min-w-[16rem]"
+          className="min-w-[16rem] h-8"
                 />
               </div>
             </div>

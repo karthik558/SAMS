@@ -342,7 +342,7 @@ export default function Reports() {
               <FileBarChart className="h-8 w-8" />
               Reports & Analytics
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Generate comprehensive reports for audit and analysis
             </p>
           </div>
@@ -350,7 +350,8 @@ export default function Reports() {
             {(role === 'admin' || role === 'manager') && (
               <Button
                 className="gap-2 w-full sm:w-auto"
-                variant="secondary"
+                variant="outline"
+                size="sm"
                 onClick={() => {
                   setShowApprovalsLog((v) => !v);
                   setTimeout(() => {
@@ -362,7 +363,7 @@ export default function Reports() {
                 <FileText className="h-4 w-4" /> Approvals Log
               </Button>
             )}
-            <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto">
+            <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto" size="sm">
               <Download className="h-4 w-4" />
               Generate Report
             </Button>
@@ -373,24 +374,25 @@ export default function Reports() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {reportTypes.map((report) => (
             <Card key={report.id} className="hover:shadow-medium transition-shadow cursor-pointer">
-              <CardHeader>
+        <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
                       <report.icon className="h-5 w-5" />
                       {report.name}
                     </CardTitle>
-                    <CardDescription className="mt-2">
+            <CardDescription className="mt-1 text-xs">
                       {report.description}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+          <CardContent className="pt-0">
                 <Button
                   onClick={() => handleQuickReport(report.id)}
-                  variant="outline"
-                  className="w-full gap-2"
+            variant="secondary"
+            size="sm"
+            className="w-full gap-2"
                 >
                   <Download className="h-4 w-4" />
                   Quick Generate
