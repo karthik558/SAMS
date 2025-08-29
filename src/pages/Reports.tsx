@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -429,9 +430,12 @@ export default function Reports() {
             </div>
 
             {/* Date Range */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Date Range</Label>
-              <DateRangePicker value={{ from: dateFrom, to: dateTo }} onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }} />
+              <DateRangePicker
+                value={{ from: dateFrom, to: dateTo }}
+                onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
+              />
             </div>
 
             {/* Filters */}
@@ -486,17 +490,15 @@ export default function Reports() {
 
               <div className="space-y-2">
                 <Label>Delivery Options</Label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
+                <div className="flex items-center gap-2">
+                  <Checkbox
                     id="email-report"
                     checked={emailReport}
-                    onChange={(e) => setEmailReport(e.target.checked)}
-                    className="rounded border-border"
+                    onCheckedChange={(v) => setEmailReport(Boolean(v))}
                   />
-                  <label htmlFor="email-report" className="text-sm">
+                  <Label htmlFor="email-report" className="text-sm font-normal">
                     Email report to administrators
-                  </label>
+                  </Label>
                 </div>
               </div>
             </div>
@@ -589,7 +591,10 @@ export default function Reports() {
                   myDept ? <div className="text-sm text-muted-foreground">Department: <span className="font-medium text-foreground">{myDept}</span></div> : null
                 )}
                 <div className="flex items-center gap-3 flex-wrap">
-                  <DateRangePicker value={{ from: apDateFrom, to: apDateTo }} onChange={(r) => { setApDateFrom(r.from); setApDateTo(r.to); }} />
+                  <DateRangePicker
+                    value={{ from: apDateFrom, to: apDateTo }}
+                    onChange={(r) => { setApDateFrom(r.from); setApDateTo(r.to); }}
+                  />
                 </div>
                 <Button variant="outline" size="sm" onClick={exportApprovalsCsv} disabled={!approvalsFiltered.length}>
                   <Download className="h-4 w-4 mr-2" /> Export CSV

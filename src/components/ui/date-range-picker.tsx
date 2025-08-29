@@ -35,8 +35,16 @@ export function DateRangePicker({ value, onChange, placeholder = "Pick a date ra
     <div className="inline-flex items-center gap-1">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className={cn("justify-start gap-2 font-normal", (!from && !to) && "text-muted-foreground", className)}>
-            <CalendarIcon className="h-4 w-4" /> {label}
+          <Button
+            variant="outline"
+            className={cn(
+              "justify-start items-center gap-2 font-normal",
+              (!from && !to) && "text-muted-foreground",
+              className
+            )}
+          >
+            <CalendarIcon className="h-4 w-4" />
+            <span className="leading-none truncate min-w-[10ch] text-left">{label}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-3" align={align}>
