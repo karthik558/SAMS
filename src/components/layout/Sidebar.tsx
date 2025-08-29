@@ -18,15 +18,15 @@ import { listApprovals } from "@/services/approvals";
 import { getCurrentUserId, listUserPermissions, type PageKey } from "@/services/permissions";
 
 const baseNav = [
+  // Requested order
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Assets", href: "/assets", icon: Package },
   { name: "Properties", href: "/properties", icon: Building2 },
-  { name: "QR Codes", href: "/qr-codes", icon: QrCode },
+  { name: "Assets", href: "/assets", icon: Package },
   { name: "Approvals", href: "/approvals", icon: FileBarChart },
-  // Insert Scan QR roughly in the middle for quick access
-  { name: "Scan QR", href: "/scan", icon: QrCode },
-  { name: "Tickets", href: "/tickets", icon: FileBarChart },
+  { name: "QR Codes", href: "/qr-codes", icon: QrCode },
+  { name: "Scan QR", href: "/scan", icon: ScanLine }, // distinct icon from QR Codes
   { name: "Reports", href: "/reports", icon: FileBarChart },
+  { name: "Tickets", href: "/tickets", icon: FileBarChart },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
 ] as const;
@@ -129,10 +129,26 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             if (r === "admin") {
               nav = [...baseNav];
             } else if (r === "manager") {
-              nav = baseNav.filter(n => ["Dashboard","Assets","Properties","QR Codes","Approvals","Scan QR","Tickets","Reports","Settings"].includes(n.name));
+              nav = baseNav.filter(n => [
+                "Dashboard",
+                "Properties",
+                "Assets",
+                "Approvals",
+                "QR Codes",
+                "Scan QR",
+                "Reports",
+                "Tickets",
+                "Settings",
+              ].includes(n.name));
             } else {
-              // user baseline: Tickets visible for all users
-              nav = baseNav.filter(n => ["Dashboard","Assets","QR Codes","Scan QR","Tickets","Settings"].includes(n.name));
+              // user baseline: can access scanning and tickets
+              nav = baseNav.filter(n => [
+                "Dashboard",
+                "QR Codes",
+                "Scan QR",
+                "Tickets",
+                "Settings",
+              ].includes(n.name));
             }
             // Apply per-user view permissions as an additional filter when available
             const pageNameToKey: Record<string, PageKey | null> = {
