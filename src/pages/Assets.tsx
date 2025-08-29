@@ -51,6 +51,7 @@ import { logActivity } from "@/services/activity";
 import { getCurrentUserId } from "@/services/permissions";
 import { canUserEdit } from "@/services/permissions";
 import { Checkbox } from "@/components/ui/checkbox";
+import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 
 // Mock data fallback
 const mockAssets = [
@@ -128,6 +129,7 @@ export default function Assets() {
   const [approvalsByAsset, setApprovalsByAsset] = useState<Record<string, ApprovalRequest | undefined>>({});
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
+  const [range, setRange] = useState<DateRange>();
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -384,8 +386,23 @@ export default function Assets() {
                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();
     const matchesProperty = filterProperty === "all" || (asset.property || "").toLowerCase() === filterProperty.toLowerCase();
+    // Date range filter: use purchaseDate when available, else fallback to created_at
+    const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+    let matchesDate = true;
+    if (range?.from) {
+      const start = toStartOfDay(range.from);
+      const end = toEndOfDay(range.to ?? range.from);
+      const dateStr: string | undefined = (asset.purchaseDate as any) || (asset.created_at as any);
+      if (dateStr) {
+        const t = new Date(dateStr).getTime();
+        matchesDate = t >= start.getTime() && t <= end.getTime();
+      } else {
+        matchesDate = false;
+      }
+    }
     
-    return matchesSearch && matchesType && matchesProperty;
+    return matchesSearch && matchesType && matchesProperty && matchesDate;
   });
 
   const sortedAssets = [...filteredAssets].sort((a, b) => {
@@ -600,6 +617,8 @@ export default function Assets() {
                   <SelectItem value="qty">Quantity</SelectItem>
                 </SelectContent>
               </Select>
+
+              <DateRangePicker value={range} onChange={setRange} />
             </div>
           </CardContent>
         </Card>

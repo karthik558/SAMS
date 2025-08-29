@@ -32,36 +32,49 @@ export function DateRangePicker({ value, onChange, placeholder = "Pick a date ra
   const label = from && to ? `${format(from, "PP")} – ${format(to, "PP")}` : (from ? `${format(from, "PP")} – …` : placeholder);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" className={cn("justify-start gap-2 font-normal", (!from && !to) && "text-muted-foreground", className)}>
-          <CalendarIcon className="h-4 w-4" /> {label}
+    <div className="inline-flex items-center gap-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className={cn("justify-start gap-2 font-normal", (!from && !to) && "text-muted-foreground", className)}>
+            <CalendarIcon className="h-4 w-4" /> {label}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-3" align={align}>
+          <div className="flex gap-3">
+            <div className="flex flex-col gap-2">
+              {presets.map(p => (
+                <Button key={p.label} variant="ghost" className="justify-start" onClick={() => onChange?.(p.range())}>{p.label}</Button>
+              ))}
+              <Button variant="outline" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
+            </div>
+            <div>
+              <Calendar
+                mode="range"
+                selected={{ from: from, to: to } as any}
+                onSelect={(r: any) => {
+                  const next: DateRange = { from: r?.from, to: r?.to };
+                  onChange?.(next);
+                }}
+                numberOfMonths={2}
+                defaultMonth={from || new Date()}
+                initialFocus
+              />
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+      {(from || to) && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-muted-foreground"
+          onClick={() => onChange?.({ from: undefined, to: undefined })}
+          aria-label="Clear date range"
+        >
+          Clear
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-3" align={align}>
-        <div className="flex gap-3">
-          <div className="flex flex-col gap-2">
-            {presets.map(p => (
-              <Button key={p.label} variant="ghost" className="justify-start" onClick={() => onChange?.(p.range())}>{p.label}</Button>
-            ))}
-            <Button variant="outline" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
-          </div>
-          <div>
-            <Calendar
-              mode="range"
-              selected={{ from: from, to: to } as any}
-              onSelect={(r: any) => {
-                const next: DateRange = { from: r?.from, to: r?.to };
-                onChange?.(next);
-              }}
-              numberOfMonths={2}
-              defaultMonth={from || new Date()}
-              initialFocus
-            />
-          </div>
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }
 

@@ -1,3 +1,4 @@
+import QRCode from 'qrcode';
 export async function composeQrWithLabel(qrDataUrl: string, opts: {
   assetId: string;
   topText?: string;
@@ -68,6 +69,45 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     img.onerror = reject;
     img.src = src;
   });
+}
+
+// Create a labeled QR PNG for an asset. Accepts optional topText override.
+export async function generateQrPng(opts: {
+  assetId: string;
+  assetName?: string;
+  property?: string;
+  topText?: string;
+  urlBase?: string; // optional override for base URL
+}): Promise<string> {
+  const base = opts.urlBase ?? (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  const normalizedBase = (base || '').replace(/\/$/, '');
+  const qrLink = `${normalizedBase}/assets/${opts.assetId}`;
+
+  const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
+    width: 512,
+    margin: 2,
+    color: { dark: '#000000', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
+  });
+
+  const topText = (opts.topText
+    ?? (opts.assetName && opts.property ? `${opts.assetName} - ${opts.property}` : opts.assetName)
+    ?? 'Scan to view asset');
+
+  return composeQrWithLabel(rawQrDataUrl, {
+    assetId: opts.assetId,
+    topText,
+  });
+}
+
+// Download a data URL as a file
+export function downloadDataUrl(dataUrl: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

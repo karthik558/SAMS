@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createTicket, listTickets, updateTicket, listTicketEvents, type Ticket } from "@/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 
 export default function Tickets() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -14,6 +15,7 @@ export default function Tickets() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [targetRole, setTargetRole] = useState<'admin' | 'manager'>('admin');
+  const [range, setRange] = useState<DateRange>();
 
   useEffect(() => {
     (async () => {
@@ -69,6 +71,17 @@ export default function Tickets() {
     }
   };
 
+  const filteredItems = useMemo(() => {
+    if (!range?.from) return items;
+    const start = new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate()).getTime();
+    const to = range.to ?? range.from;
+    const end = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999).getTime();
+    return items.filter(t => {
+      const ts = t?.createdAt ? new Date(t.createdAt).getTime() : NaN;
+      return !isNaN(ts) && ts >= start && ts <= end;
+    });
+  }, [items, range]);
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Maintenance Tickets</h1>
@@ -88,9 +101,14 @@ export default function Tickets() {
         </CardContent>
       </Card>
       <Card>
-  <CardHeader><CardTitle>All Tickets</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardTitle>All Tickets</CardTitle>
+            <DateRangePicker value={range} onChange={setRange} />
+          </div>
+        </CardHeader>
         <CardContent className="space-y-3">
-          {items.map(t => (
+          {filteredItems.map(t => (
             <div key={t.id} className="border rounded p-3 bg-background">
               <div className="flex items-center justify-between">
                 <div>

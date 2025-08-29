@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { composeQrWithLabel } from "@/lib/qr";
+import { composeQrWithLabel, generateQrPng, downloadDataUrl } from "@/lib/qr";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
@@ -27,35 +27,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
-
-// Local helpers
-async function generateQrPng(qr: { assetId: string; assetName?: string; property?: string }): Promise<string> {
-  // Build a direct link URL for the QR payload (so scanners open the page directly)
-  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-  const normalizedBase = (base || '').replace(/\/$/, '');
-  const qrLink = `${normalizedBase}/assets/${qr.assetId}`;
-
-  const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
-    width: 512,
-    margin: 2,
-    color: { dark: '#000000', light: '#FFFFFF' },
-    errorCorrectionLevel: 'M',
-  });
-  const composed = await composeQrWithLabel(rawQrDataUrl, {
-    assetId: qr.assetId,
-    topText: qr.assetName && qr.property ? `${qr.assetName} - ${qr.property}` : (qr.assetName || 'Scan to view asset'),
-  });
-  return composed;
-}
-
-function downloadDataUrl(dataUrl: string, filename: string) {
-  const a = document.createElement('a');
-  a.href = dataUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
 
 // Mock data for QR codes
 const mockQRCodes = [
