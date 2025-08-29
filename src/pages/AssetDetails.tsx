@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
-import { Calendar, MapPin, Package, Building2, ChevronLeft, Home } from "lucide-react";
+import { Calendar, MapPin, Package, Building2, ShieldCheck, AlertCircle, Copy, ScanLine } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAssetById, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 import { toast } from "sonner";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
 
 export default function AssetDetails() {
   const { id } = useParams<{ id: string }>();
@@ -74,68 +74,81 @@ export default function AssetDetails() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background flex items-start justify-center p-3 sm:p-4">
-      <div className="w-full max-w-2xl">
-        <div className="mb-2 sm:mb-3">
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/">
-                  <span className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
-                    <Home className="h-3.5 w-3.5" /> Dashboard
-                  </span>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbLink href="/assets">Assets</BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{asset?.id || "Asset"}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        </div>
-        <Card className="shadow-soft">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl flex items-center gap-2">
-                <Package className="h-6 w-6" /> {asset?.name || "Asset Details"}
-              </CardTitle>
-              <CardDescription>Scanned from QR • {new Date().toLocaleString()}</CardDescription>
-            </div>
-            {asset?.status && <StatusChip status={asset.status} />}
+    <div className="min-h-screen w-full bg-gradient-to-b from-background to-muted/40 flex items-center justify-center px-4 py-6 pb-24">
+      <Card className="w-full max-w-md md:max-w-lg shadow-medium border-border/60">
+        <CardHeader className="pb-2 items-center text-center">
+          <div className="mx-auto mb-2 inline-flex items-center justify-center rounded-full bg-primary/10 text-primary p-3">
+            <Package className="h-6 w-6" />
+          </div>
+          <CardTitle className="text-xl md:text-2xl font-semibold leading-tight">
+            {asset?.name || "Asset Details"}
+          </CardTitle>
+          <CardDescription>Scanned • {new Date().toLocaleString()}</CardDescription>
+          <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+            {hasSupabaseEnv && asset ? (
+              <Badge className="h-7 rounded-full px-3 text-xs inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                <ShieldCheck className="h-3.5 w-3.5" /> Verified
+              </Badge>
+            ) : (
+              <Badge className="h-7 rounded-full px-3 text-xs inline-flex items-center gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                <AlertCircle className="h-3.5 w-3.5" /> Offline preview
+              </Badge>
+            )}
+            {asset?.status && (
+              <div className="inline-flex items-center">
+                <StatusChip status={asset.status} />
+              </div>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-3">
-            <DetailRow label="Asset ID" value={asset?.id} />
-            <DetailRow label="Asset Name" value={asset?.name} />
-            <DetailRow label="Property" value={asset?.property_id ? propertyLabel(asset.property_id) : propertyLabel(asset?.property || "")} icon={<Building2 className="h-4 w-4 text-muted-foreground" />} />
-            <DetailRow label="Location" value={asset?.location || "-"} icon={<MapPin className="h-4 w-4 text-muted-foreground" />} />
-            <DetailRow label="Purchase Date" value={asset?.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : "-"} icon={<Calendar className="h-4 w-4 text-muted-foreground" />} />
-          </div>
-
-          {asset?.poNumber && (
-            <div className="pt-2 text-xs text-muted-foreground">PO: {asset.poNumber}</div>
+  <CardContent className="space-y-4">
+          {asset?.id && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center justify-between">
+              <div>
+                <div className="text-xs text-muted-foreground">Asset ID</div>
+                <div className="font-mono text-sm font-semibold">{asset.id}</div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={async () => {
+                  try { await navigator.clipboard.writeText(asset.id!); toast.success('Asset ID copied'); } catch { toast.error('Copy failed'); }
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" /> Copy
+              </Button>
+            </div>
           )}
+          <MetaChip icon={<Building2 className="h-4 w-4" />} label="Property" value={asset?.property_id ? propertyLabel(asset.property_id) : propertyLabel(asset?.property || "")} />
+          <MetaChip icon={<MapPin className="h-4 w-4" />} label="Location" value={asset?.location || "-"} />
+          <MetaChip icon={<Calendar className="h-4 w-4" />} label="Purchase Date" value={asset?.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : "-"} />
+          <div className="pt-1 flex flex-wrap items-center justify-center gap-2">
+            {asset?.poNumber && (
+              <Badge variant="outline" className="text-xs">PO: {asset.poNumber}</Badge>
+            )}
+          </div>
+          <div className="pt-1">
+            <Button asChild className="w-full gap-2 rounded-full">
+              <a href="/scan">
+                <ScanLine className="h-4 w-4" /> Scan Another
+              </a>
+            </Button>
+          </div>
         </CardContent>
-        </Card>
-      </div>
+      </Card>
     </div>
   );
 }
 
-function DetailRow({ label, value, icon }: { label: string; value?: string | number | null; icon?: React.ReactNode }) {
+function MetaChip({ icon, label, value }: { icon?: React.ReactNode; label: string; value?: string | number | null }) {
   return (
-    <div className="flex items-start gap-3 rounded-md border border-border p-3 bg-muted/30">
-      {icon}
-      <div>
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="text-sm font-medium text-foreground break-all">{value ?? "-"}</div>
+    <div className="rounded-md border border-border bg-muted/30 p-3">
+      <div className="text-xs text-muted-foreground mb-1 flex items-center gap-1.5">
+        {icon}
+        <span>{label}</span>
       </div>
+      <div className="text-sm font-medium text-foreground break-all">{value ?? '-'}</div>
     </div>
   );
 }
