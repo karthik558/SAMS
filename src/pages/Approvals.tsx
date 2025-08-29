@@ -10,12 +10,9 @@ import { listDepartments, type Department } from "@/services/departments";
 import { getAssetById, type Asset } from "@/services/assets";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { Separator } from "@/components/ui/separator";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import DateRangePicker from "@/components/ui/date-range-picker";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import StatusChip from "@/components/ui/status-chip";
 
 export default function Approvals() {
   const [items, setItems] = useState<ApprovalRequest[]>([]);
@@ -212,34 +209,11 @@ export default function Approvals() {
                 </div>
               )}
               <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 min-w-[12rem]">
-                  <span className="text-xs text-muted-foreground w-10 text-right">From</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !dateFrom && "text-muted-foreground")}> 
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateFrom ? format(dateFrom, "PP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom as any} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex items-center gap-2 min-w-[12rem]">
-                  <span className="text-xs text-muted-foreground w-10 text-right">To</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !dateTo && "text-muted-foreground")}> 
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateTo ? format(dateTo, "PP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={dateTo} onSelect={setDateTo as any} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
+                <DateRangePicker
+                  value={{ from: dateFrom, to: dateTo }}
+                  onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
+                  className="min-w-[16rem]"
+                />
               </div>
             </div>
           </div>
@@ -256,7 +230,7 @@ export default function Approvals() {
                 <div>
                   <div className="font-medium">{actionLabel} • Asset {assetLabel}</div>
                   <div className="text-xs text-muted-foreground">Requested by {requestedBy} on {fmt(a?.requestedAt)}</div>
-                  <div className="text-xs mt-1">Status: <span className="font-medium">{statusLabel}</span></div>
+                  <div className="text-xs mt-1 flex items-center gap-2">Status: <StatusChip status={statusLabel} /></div>
                 </div>
                 <div className="flex gap-2">
                   {a.status === 'pending_manager' && role === 'manager' && (

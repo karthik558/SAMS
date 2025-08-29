@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { composeQrWithLabel } from "@/lib/qr";
 import JSZip from "jszip";
-import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import StatusChip from "@/components/ui/status-chip";
 import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon } from "lucide-react";
 import {
   Select,
@@ -22,12 +21,41 @@ import { listQRCodes, createQRCode, updateQRCode, deleteAllQRCodes, type QRCode 
 import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
 import { listProperties, type Property } from "@/services/properties";
-import { Calendar } from "@/components/ui/calendar";
 import { listAssets, type Asset } from "@/services/assets";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
+import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
+
+// Local helpers
+async function generateQrPng(qr: { assetId: string; assetName?: string; property?: string }): Promise<string> {
+  // Build a direct link URL for the QR payload (so scanners open the page directly)
+  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  const normalizedBase = (base || '').replace(/\/$/, '');
+  const qrLink = `${normalizedBase}/assets/${qr.assetId}`;
+
+  const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
+    width: 512,
+    margin: 2,
+    color: { dark: '#000000', light: '#FFFFFF' },
+    errorCorrectionLevel: 'M',
+  });
+  const composed = await composeQrWithLabel(rawQrDataUrl, {
+    assetId: qr.assetId,
+    topText: qr.assetName && qr.property ? `${qr.assetName} - ${qr.property}` : (qr.assetName || 'Scan to view asset'),
+  });
+  return composed;
+}
+
+function downloadDataUrl(dataUrl: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
 // Mock data for QR codes
 const mockQRCodes = [
@@ -84,8 +112,7 @@ export default function QRCodes() {
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [computedImages, setComputedImages] = useState<Record<string, string>>({});
   const [highlightId, setHighlightId] = useState<string | null>(null);
-  const [datePreset, setDatePreset] = useState<'none' | 'today' | 'yesterday' | '7days' | 'custom'>("none");
-  const [customRange, setCustomRange] = useState<{ from?: Date; to?: Date }>();
+  const [range, setRange] = useState<DateRange>();
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -280,13 +307,8 @@ export default function QRCodes() {
         toast.info("QR already exists for this asset");
         return;
       }
-      const today = new Date().toISOString().slice(0,10);
-      const png = await generateQrPng({
-        assetId: asset.id,
-        assetName: asset.name,
-        property: asset.property,
-        generatedDate: today,
-      });
+  const today = new Date().toISOString().slice(0,10);
+  const png = await generateQrPng({ assetId: asset.id, assetName: asset.name, property: asset.property });
       const id = `QR-${Math.floor(Math.random()*900+100)}`;
       if (hasSupabaseEnv) {
         const payload: SbQRCode = {
@@ -332,11 +354,9 @@ export default function QRCodes() {
 
   const getStatusBadge = (status: string, printed: boolean) => {
     if (status === "Generated") {
-      return printed ? 
-        <Badge variant="secondary">Printed</Badge> : 
-        <Badge variant="outline">Ready to Print</Badge>;
+      return <StatusChip status={printed ? "Printed" : "Ready to Print"} />;
     }
-    return <Badge variant="outline">{status}</Badge>;
+    return <StatusChip status={status} />;
   };
 
   // Deduplicate by assetId (pick most recent entry) then filter
@@ -364,38 +384,15 @@ export default function QRCodes() {
     const matchesStatus = filterStatus === "all" || 
                          (filterStatus === "printed" && qr.printed) ||
                          (filterStatus === "ready" && !qr.printed);
-    // Date filter
+    // Date filter via unified DateRangePicker
     const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
     let matchesDate = true;
-    if (datePreset !== 'none') {
-      const today = new Date();
-      let start: Date | null = null;
-      let end: Date | null = null;
-      if (datePreset === 'today') {
-        start = toStartOfDay(today);
-        end = toEndOfDay(today);
-      } else if (datePreset === 'yesterday') {
-        const y = new Date(today);
-        y.setDate(y.getDate() - 1);
-        start = toStartOfDay(y);
-        end = toEndOfDay(y);
-      } else if (datePreset === '7days') {
-        const y = new Date(today);
-        const s = new Date(today);
-        s.setDate(y.getDate() - 6); // include today
-        start = toStartOfDay(s);
-        end = toEndOfDay(y);
-      } else if (datePreset === 'custom') {
-        if (customRange?.from) {
-          start = toStartOfDay(customRange.from);
-          end = toEndOfDay(customRange.to ?? customRange.from);
-        }
-      }
-      if (start && end) {
-        const t = new Date(qr.generatedDate).getTime();
-        matchesDate = t >= start.getTime() && t <= end.getTime();
-      }
+    if (range?.from) {
+      const start = toStartOfDay(range.from);
+      const end = toEndOfDay(range.to ?? range.from);
+      const t = new Date(qr.generatedDate).getTime();
+      matchesDate = t >= start.getTime() && t <= end.getTime();
     }
     
     return matchesSearch && matchesProperty && matchesStatus && matchesDate;
@@ -447,103 +444,7 @@ export default function QRCodes() {
     const filtered = activePropertyIds.size ? uniq.filter(id => activePropertyIds.has(id)) : uniq;
     return filtered.map(v => ({ value: v, label: propertyLabel(v) }));
   }, [properties, codes, propsById, propsByName, activePropertyIds]);
-
-  // Download helpers
-  const downloadDataUrl = (dataUrl: string, filename: string) => {
-    const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-  const generateQrPng = async (qr: any) => {
-  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-  const normalizedBase = (base || '').replace(/\/$/, '');
-  const url = `${normalizedBase}/assets/${qr.assetId}`;
-  const raw = await QRCode.toDataURL(url, {
-      width: 512,
-      margin: 2,
-      color: { dark: '#000000', light: '#FFFFFF' },
-      errorCorrectionLevel: 'M',
-    });
-  return await composeQrWithLabel(raw, { assetId: qr.assetId, topText: 'Scan to view asset' });
-  };
-
-  if (showGenerator) {
-    return (
-      <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => setShowGenerator(false)}>
-              ← Back to QR Codes
-            </Button>
-            <h1 className="text-3xl font-bold">Generate QR Code</h1>
-          </div>
-          <QRCodeGenerator
-            assetId={selectedAsset?.id}
-            assetName={selectedAsset?.name}
-            propertyName={selectedAsset?.property}
-            onGenerated={(qrCodeUrl) => {
-              console.log("QR Code generated:", qrCodeUrl);
-              // Prevent duplicates: if QR for this asset already exists, do not create new
-              const existing = selectedAsset?.id ? codes.find(c => c.assetId === selectedAsset.id) : null;
-              if (existing) {
-                toast.info("QR already generated for this asset. Showing it now.");
-                setSearchTerm(selectedAsset.id);
-                setShowGenerator(false);
-                setHighlightId(existing.id);
-                setTimeout(() => setHighlightId(null), 4000);
-                return;
-              }
-              toast.success("QR Code generated successfully!");
-              if (hasSupabaseEnv && selectedAsset?.id) {
-                const id = `QR-${Math.floor(Math.random()*900+100)}`;
-                const payload: SbQRCode = {
-                  id,
-                  assetId: selectedAsset.id,
-                  property: selectedAsset.property,
-                  generatedDate: new Date().toISOString().slice(0,10),
-                  status: "Generated",
-                  printed: false,
-                  imageUrl: qrCodeUrl,
-                } as any;
-        createQRCode(payload).then(async () => {
-                  const data = await listQRCodes();
-                  const mapped = data.map(d => ({
-                    id: d.id,
-                    assetId: d.assetId,
-                    assetName: d.assetName || d.assetId,
-                    property: d.property || "",
-                    generatedDate: d.generatedDate,
-                    status: d.status,
-                    printed: d.printed,
-          imageUrl: d.imageUrl || null,
-                  }));
-                  setCodes(mapped.sort((a,b) => (a.generatedDate < b.generatedDate ? 1 : -1)));
-                  await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
-                  await addNotification({
-                    title: "QR generated",
-                    message: `${selectedAsset.name} (${selectedAsset.id}) QR is ready`,
-                    type: "qr",
-                  });
-                }).catch((e) => console.error(e));
-              } else {
-                setCodes(prev => [...prev, {
-                  id: `QR-${Math.floor(Math.random()*900+100)}`,
-                  assetId: selectedAsset?.id,
-                  assetName: selectedAsset?.name,
-                  property: selectedAsset?.property,
-                  generatedDate: new Date().toISOString().slice(0,10),
-                  status: "Generated",
-                  printed: false,
-                }]);
-                (async ()=>{ await logActivity("qr_generated", `QR generated for ${selectedAsset?.name} (${selectedAsset?.id}) (local)`, "Local"); })();
-              }
-            }}
-          />
-        </div>
-    );
-  }
+ 
 
   // Show skeleton while initial data loads (when Supabase is enabled)
   if (loadingUI && hasSupabaseEnv) {
@@ -746,60 +647,13 @@ export default function QRCodes() {
                 </SelectContent>
               </Select>
 
+              <DateRangePicker value={range} onChange={setRange} />
+
               <Button onClick={handleDownloadAll} variant="outline" className="gap-2">
                 <Download className="h-4 w-4" />
                 Download All
               </Button>
             </div>
-
-            {/* Quick date filters */}
-            <div className="mt-3 flex gap-2 flex-wrap">
-              <Button
-                variant={datePreset === 'today' ? 'default' : 'outline'}
-                onClick={() => setDatePreset('today')}
-              >
-                Today
-              </Button>
-              <Button
-                variant={datePreset === 'yesterday' ? 'default' : 'outline'}
-                onClick={() => setDatePreset('yesterday')}
-              >
-                Yesterday
-              </Button>
-              <Button
-                variant={datePreset === '7days' ? 'default' : 'outline'}
-                onClick={() => setDatePreset('7days')}
-              >
-                Last 7 days
-              </Button>
-              <Button
-                variant={datePreset === 'custom' ? 'default' : 'outline'}
-                onClick={() => setDatePreset('custom')}
-              >
-                Custom date
-              </Button>
-              {datePreset !== 'none' && (
-                <Button variant="ghost" onClick={() => { setDatePreset('none'); setCustomRange(undefined); }}>
-                  Clear
-                </Button>
-              )}
-            </div>
-
-            {datePreset === 'custom' && (
-              <div className="mt-3 border rounded-md p-3 bg-muted/30">
-                <Calendar
-                  mode="range"
-                  selected={customRange as any}
-                  onSelect={setCustomRange as any}
-                  numberOfMonths={2}
-                />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  {customRange?.from
-                    ? `Selected: ${customRange.from.toLocaleDateString()}${customRange?.to ? ` – ${customRange.to.toLocaleDateString()}` : ''}`
-                    : 'Pick a date or range'}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 

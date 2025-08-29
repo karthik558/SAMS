@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import StatusChip from "@/components/ui/status-chip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Table, 
@@ -499,7 +500,7 @@ export default function Users() {
 
   const getStatusBadgeVariant = (status: string) => {
     return status.toLowerCase() === "active" ? "default" : "secondary";
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -817,9 +818,7 @@ export default function Users() {
                       {user.department ?? "-"}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <Badge variant={getStatusBadgeVariant(user.status)}>
-                        {user.status}
-                      </Badge>
+                      <StatusChip status={user.status} />
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
                       {user.last_login ? (() => { try { return format(new Date(user.last_login), 'PP p'); } catch { return '-'; } })() : '-'}

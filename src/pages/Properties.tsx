@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import StatusChip from "@/components/ui/status-chip";
 import { Building2, Plus, Users, Package, MapPin, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
@@ -267,11 +268,7 @@ export default function Properties() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    return status === "Active" ? 
-      <Badge variant="secondary">Active</Badge> : 
-      <Badge variant="outline">Inactive</Badge>;
-  };
+  const getStatusBadge = (status: string) => <StatusChip status={status} />;
 
   const getTypeColor = (type: string) => {
     switch (type) {

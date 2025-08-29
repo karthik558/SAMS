@@ -9,8 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   FileBarChart, 
   Download, 
@@ -19,8 +17,9 @@ import {
   BarChart3,
   FileText
 } from "lucide-react";
-import { format } from "date-fns";
+// format no longer needed after centralizing date range picker
 import { cn } from "@/lib/utils";
+import DateRangePicker from "@/components/ui/date-range-picker";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
@@ -38,6 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import StatusChip from "@/components/ui/status-chip";
 
 const reportTypes = [
   {
@@ -427,58 +427,9 @@ export default function Reports() {
             </div>
 
             {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>From Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dateFrom && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFrom ? format(dateFrom, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="space-y-2">
-                <Label>To Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !dateTo && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateTo ? format(dateTo, "PPP") : "Pick a date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <DateRangePicker value={{ from: dateFrom, to: dateTo }} onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }} />
             </div>
 
             {/* Filters */}
@@ -636,34 +587,7 @@ export default function Reports() {
                   myDept ? <div className="text-sm text-muted-foreground">Department: <span className="font-medium text-foreground">{myDept}</span></div> : null
                 )}
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-[12rem]">
-                    <span className="text-xs text-muted-foreground w-10 text-right">From</span>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !apDateFrom && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {apDateFrom ? format(apDateFrom, "PP") : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={apDateFrom} onSelect={setApDateFrom} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="flex items-center gap-2 min-w-[12rem]">
-                    <span className="text-xs text-muted-foreground w-10 text-right">To</span>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !apDateTo && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {apDateTo ? format(apDateTo, "PP") : "Pick a date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={apDateTo} onSelect={setApDateTo} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                  <DateRangePicker value={{ from: apDateFrom, to: apDateTo }} onChange={(r) => { setApDateFrom(r.from); setApDateTo(r.to); }} />
                 </div>
                 <Button variant="outline" size="sm" onClick={exportApprovalsCsv} disabled={!approvalsFiltered.length}>
                   <Download className="h-4 w-4 mr-2" /> Export CSV
@@ -691,7 +615,7 @@ export default function Reports() {
                         <TableCell className="font-mono text-xs">{a.id}</TableCell>
                         <TableCell className="font-mono text-xs">{a.assetId}</TableCell>
                         <TableCell className="capitalize">{a.action}</TableCell>
-                        <TableCell className="capitalize">{a.status.replace('pending_', 'pending ')}</TableCell>
+                        <TableCell className="capitalize"><StatusChip status={a.status} /></TableCell>
                         <TableCell>{a.department || '-'}</TableCell>
                         <TableCell>{a.requestedBy}</TableCell>
                         <TableCell>{a.requestedAt?.slice(0,19).replace('T',' ')}</TableCell>

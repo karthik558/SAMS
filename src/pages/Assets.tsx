@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import StatusChip from "@/components/ui/status-chip";
 import { 
   Package, 
   Search, 
@@ -372,18 +373,7 @@ export default function Assets() {
     setShowQRGenerator(true);
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "Active":
-        return <Badge variant="secondary">Active</Badge>;
-      case "Expiring Soon":
-        return <Badge variant="destructive">Expiring Soon</Badge>;
-      case "Expired":
-        return <Badge variant="outline">Expired</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
+  const getStatusBadge = (status: string) => <StatusChip status={status} />;
 
   const filteredAssets = assets.filter(asset => {
     // hide assets tied to disabled properties if we know properties

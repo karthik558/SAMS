@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import StatusChip from "@/components/ui/status-chip";
 import { Calendar, MapPin, Package, Building2, ChevronLeft } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAssetById, type Asset } from "@/services/assets";
@@ -88,7 +89,7 @@ export default function AssetDetails() {
               </CardTitle>
               <CardDescription>Scanned from QR • {new Date().toLocaleString()}</CardDescription>
             </div>
-            {asset?.status && <Badge variant="outline">{asset.status}</Badge>}
+            {asset?.status && <StatusChip status={asset.status} />}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
