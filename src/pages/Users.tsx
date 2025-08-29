@@ -48,7 +48,6 @@ import {
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
 import { listDepartments, createDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
@@ -157,7 +156,7 @@ export default function Users() {
   const [role, setRole] = useState<string | undefined>(undefined);
   const [department, setDepartment] = useState<string | undefined>(undefined);
   const [password, setPassword] = useState("");
-  const [mustChangePassword, setMustChangePassword] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
@@ -270,7 +269,7 @@ export default function Users() {
     setRole(undefined);
     setDepartment(undefined);
   setPassword("");
-  setMustChangePassword(true);
+  setMustChangePassword(false);
   setSelectedPropertyIds([]);
   };
 
@@ -300,6 +299,10 @@ export default function Users() {
       toast({ title: "Missing info", description: "Name and email are required.", variant: "destructive" });
       return;
     }
+    if (!password.trim()) {
+      toast({ title: "Password required", description: "Please set a password for the new user.", variant: "destructive" });
+      return;
+    }
     const payload = {
       name,
       email: email.trim(),
@@ -311,16 +314,12 @@ export default function Users() {
       avatar_url: "/placeholder.svg",
       must_change_password: mustChangePassword,
       password_changed_at: null,
-      // password is used only for local fallback or future auth integration
-      password: password || undefined,
+  // password used for Auth provisioning
+  password: password,
     } as Omit<AppUser, "id"> & { password?: string };
 
     try {
-      const created = await createUser(payload);
-      // If Supabase is configured and a password is provided, set hash via RPC
-      if (hasSupabaseEnv && password) {
-        try { await setUserPassword(created.id, password); } catch (e) { console.error(e); }
-      }
+  const created = await createUser(payload);
       // Persist property access mapping
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
@@ -333,37 +332,36 @@ export default function Users() {
       setUsers((prev) => [created, ...prev]);
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
-      // Fallback: persist to localStorage
-      // Store a simple hash for local fallback (not secure; demo only)
-      const hash = password ? btoa(unescape(encodeURIComponent(password))).slice(0, 32) : undefined;
+      if (hasSupabaseEnv) {
+        const msg = e?.message || 'Auth provisioning failed';
+        toast({ title: 'User creation failed', description: `${msg}. Ensure the provisioning endpoint is deployed and you are an admin/manager.`, variant: 'destructive' });
+        return;
+      }
+      // Local-only mode
       const local: AppUser = {
         id: crypto?.randomUUID?.() || String(Date.now()),
         name: payload.name,
         email: payload.email,
         role: payload.role,
-  department: payload.department,
+        department: payload.department,
         phone: payload.phone,
         last_login: payload.last_login,
         status: payload.status,
         avatar_url: payload.avatar_url,
         must_change_password: payload.must_change_password,
         password_changed_at: payload.password_changed_at,
-        // @ts-ignore
-        password_hash: hash,
       } as AppUser as any;
       const next = [local, ...users];
       setUsers(next);
       writeLocalUsers(next);
-      // Local mapping fallback
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(local.id, selectedPropertyIds); } catch {}
       }
-      // Local per-page permissions fallback
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
         await setUserPermissions(local.id, payloadPerms);
       } catch {}
-      toast({ title: "User added (local)", description: `${local.name} stored locally.` });
+      toast({ title: 'User added (local)', description: `${local.name} stored locally.` });
     }
     setIsAddUserOpen(false);
     resetForm();
@@ -439,9 +437,7 @@ export default function Users() {
       }
       // If admin set a new password, apply via Supabase RPC or local fallback
       if (ePassword.trim()) {
-        if (hasSupabaseEnv) {
-          try { await setUserPassword(editingUser.id, ePassword.trim()); } catch (e) { console.error(e); }
-        } else {
+        if (!hasSupabaseEnv) {
           const rawUsers = localStorage.getItem(LS_KEY);
           const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
           const idx = list.findIndex(u => u.id === editingUser.id);
