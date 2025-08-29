@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
+import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function Approvals() {
   const [items, setItems] = useState<ApprovalRequest[]>([]);
@@ -45,6 +46,8 @@ export default function Approvals() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [initializedDefault, setInitializedDefault] = useState(false);
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideNotes, setOverrideNotes] = useState("");
 
   useEffect(() => {
     // Load departments for admin filter dynamically
@@ -72,9 +75,18 @@ export default function Approvals() {
           }
         } else if (role === 'admin') {
           const dept = (adminDeptFilter && adminDeptFilter !== 'ALL') ? adminDeptFilter : undefined;
-          const status = statusFilter === 'pending' ? 'pending_admin' : (statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined));
-          const data = await listApprovals(status as any, dept);
-          setItems(Array.isArray(data) ? data : []);
+          if (statusFilter === 'pending') {
+            // Admin sees both manager and admin pending for override or normal flow
+            const [mgr, adm] = await Promise.all([
+              listApprovals('pending_manager' as any, dept),
+              listApprovals('pending_admin' as any, dept),
+            ]);
+            setItems([...(mgr || []), ...(adm || [])]);
+          } else {
+            const status = statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined);
+            const data = await listApprovals(status as any, dept);
+            setItems(Array.isArray(data) ? data : []);
+          }
         } else {
           // Users: fetch all own approvals; filter client-side below
           const data = await listApprovals(undefined, undefined, myIdentity || undefined);
@@ -253,6 +265,9 @@ export default function Approvals() {
                   {a.status === 'pending_admin' && role === 'admin' && (
                     <Button size="sm" onClick={() => setSelectedId(a.id)}>Open</Button>
                   )}
+                  {a.status === 'pending_manager' && role === 'admin' && (
+                    <Button size="sm" variant="secondary" onClick={() => { setSelectedId(a.id); setOverrideOpen(true); }}>Admin Override</Button>
+                  )}
                   {role === 'user' && a.requestedBy?.toLowerCase() === myIdentity && (
                     <Button size="sm" variant="secondary" onClick={() => setSelectedId(a.id)}>View</Button>
                   )}
@@ -333,6 +348,42 @@ export default function Approvals() {
           )}
         </CardContent>
       </Card>
+      {/* Admin Override Dialog */}
+      <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Approve without Level 1</DialogTitle>
+            <DialogDescription>
+              This will approve the request immediately and log: "admin approved it without level 1 approval".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Input
+              placeholder="Optional note (defaults to the message above)"
+              value={overrideNotes}
+              onChange={(e) => setOverrideNotes(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOverrideOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              if (!selectedId) { setOverrideOpen(false); return; }
+              try {
+                const res = await adminOverrideApprove(selectedId, 'admin', overrideNotes);
+                if (res) {
+                  setItems((s) => s.map(i => i.id === selectedId ? res : i));
+                  toast.success('Approved by admin');
+                }
+              } catch (e: any) {
+                toast.error(e?.message || 'Override failed');
+              } finally {
+                setOverrideOpen(false);
+                setOverrideNotes("");
+              }
+            }}>Approve</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

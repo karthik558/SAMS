@@ -256,6 +256,23 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
   return null;
 }
 
+// Admin overrides approval without level 1 (manager) step
+export async function adminOverrideApprove(id: string, admin: string, notes?: string): Promise<ApprovalRequest | null> {
+  const msg = notes && notes.trim().length ? notes : "admin approved it without level 1 approval";
+  const res = await decideApprovalFinal(id, 'approved', admin, msg);
+  if (res && hasSupabaseEnv) {
+    try {
+      await supabase.from('approval_events').insert({
+        approval_id: id,
+        event_type: 'admin_override_approved',
+        author: admin,
+        message: msg,
+      });
+    } catch {}
+  }
+  return res;
+}
+
 export async function updateApprovalPatch(id: string, manager: string, patchData: Record<string, any>): Promise<ApprovalRequest | null> {
   const patch = { patch: patchData } as Partial<ApprovalRequest>;
   if (hasSupabaseEnv) {
