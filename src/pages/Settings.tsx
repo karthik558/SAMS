@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus } from "lucide-react";
+import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus, Settings as SettingsIcon } from "lucide-react";
 import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
@@ -239,7 +239,10 @@ export default function Settings() {
   return (
   <div className="space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <SettingsIcon className="h-8 w-8" />
+          Settings
+        </h1>
         <p className="text-muted-foreground">
           Manage your SAMS preferences and system configuration
         </p>

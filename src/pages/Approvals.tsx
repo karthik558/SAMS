@@ -3,6 +3,7 @@ import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprova
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -181,7 +182,12 @@ export default function Approvals() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Approvals</h1>
+      <div>
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <ClipboardCheck className="h-8 w-8" />
+          Approvals
+        </h1>
+      </div>
   <Card>
         <CardHeader>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">

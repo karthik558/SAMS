@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Ticket as TicketIcon } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 
@@ -84,7 +85,12 @@ export default function Tickets() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Maintenance Tickets</h1>
+      <div>
+        <h1 className="text-3xl font-bold flex items-center gap-2">
+          <TicketIcon className="h-8 w-8" />
+          Maintenance Tickets
+        </h1>
+      </div>
       <Card>
         <CardHeader><CardTitle>New Ticket</CardTitle></CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-4">
