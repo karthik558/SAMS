@@ -93,10 +93,10 @@ export function RecentActivity() {
               </Avatar>
               
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground break-words">
+                <p className="text-sm font-medium text-foreground truncate" title={activity.message}>
                   {activity.message}
                 </p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <p className="text-xs text-muted-foreground">
                     by {activity.user_name || "System"}
                   </p>
@@ -107,7 +107,7 @@ export function RecentActivity() {
                 </div>
               </div>
               
-              <Badge variant="secondary" className="text-xs">
+              <Badge variant="secondary" className="text-xs shrink-0">
                 {activity.type.replace(/_/g, " ")}
               </Badge>
             </div>
