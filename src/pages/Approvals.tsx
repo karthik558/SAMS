@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
-import { useNavigate } from "react-router-dom";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +9,14 @@ import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
 import { getAssetById, type Asset } from "@/services/assets";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default function Approvals() {
-  const navigate = useNavigate();
   const [items, setItems] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -36,6 +40,11 @@ export default function Approvals() {
   const myIdentity = (auth?.email || auth?.id || '').toLowerCase();
   const [adminDeptFilter, setAdminDeptFilter] = useState<string>("ALL");
   const [departments, setDepartments] = useState<Department[]>([]);
+  // Filters
+  const [statusFilter, setStatusFilter] = useState<'pending'|'approved'|'rejected'|'all'>("pending");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [initializedDefault, setInitializedDefault] = useState(false);
 
   useEffect(() => {
     // Load departments for admin filter dynamically
@@ -54,16 +63,20 @@ export default function Approvals() {
       try {
         if (role === 'manager') {
           if (myDept && String(myDept).trim().length) {
-            const data = await listApprovals(undefined, myDept);
+            const status = statusFilter === 'pending' ? 'pending_manager' : (statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined));
+            const data = await listApprovals(status as any, myDept);
             setItems(Array.isArray(data) ? data : []);
           } else {
             // Manager has no department assigned; do not show cross-department approvals
             setItems([]);
           }
         } else if (role === 'admin') {
-          const data = await listApprovals(undefined, (adminDeptFilter && adminDeptFilter !== 'ALL') ? adminDeptFilter : undefined);
+          const dept = (adminDeptFilter && adminDeptFilter !== 'ALL') ? adminDeptFilter : undefined;
+          const status = statusFilter === 'pending' ? 'pending_admin' : (statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined));
+          const data = await listApprovals(status as any, dept);
           setItems(Array.isArray(data) ? data : []);
         } else {
+          // Users: fetch all own approvals; filter client-side below
           const data = await listApprovals(undefined, undefined, myIdentity || undefined);
           setItems(Array.isArray(data) ? data : []);
         }
@@ -74,7 +87,7 @@ export default function Approvals() {
         setLoading(false);
       }
     })();
-  }, [role, myDept, adminDeptFilter, myIdentity]);
+  }, [role, myDept, adminDeptFilter, myIdentity, statusFilter]);
 
   useEffect(() => {
     (async () => {
@@ -107,33 +120,120 @@ export default function Approvals() {
     if (res) setItems((s) => s.map(i => i.id === id ? res : i));
   };
 
+  // Derived filtered list (date range + client-side status where necessary)
+  const visibleItems = useMemo(() => {
+    const df = (statusFilter === 'pending') ? null : (dateFrom ? new Date(dateFrom) : null);
+    const dt = (statusFilter === 'pending') ? null : (dateTo ? new Date(dateTo) : null);
+    const norm = (arr: ApprovalRequest[]) => arr.filter(a => {
+      const when = a?.requestedAt ? new Date(a.requestedAt) : null;
+      if (df && (!when || when < new Date(df.setHours(0,0,0,0)))) return false;
+      if (dt && (!when || when > new Date(dt.setHours(23,59,59,999)))) return false;
+      // For user role, apply status filter here
+      if (role === 'user') {
+        if (statusFilter === 'pending') return a.status === 'pending_manager' || a.status === 'pending_admin';
+        if (statusFilter === 'approved') return a.status === 'approved';
+        if (statusFilter === 'rejected') return a.status === 'rejected';
+      }
+      return true;
+    }).sort((a,b) => {
+      const da = a?.requestedAt ? new Date(a.requestedAt).getTime() : 0;
+      const db = b?.requestedAt ? new Date(b.requestedAt).getTime() : 0;
+      return db - da; // newest first
+    });
+    return norm(items);
+  }, [items, dateFrom, dateTo, role, statusFilter]);
+
+  // Always default to pending; if switching away from pending, default date range to today when not set.
+  useEffect(() => {
+    if (!initializedDefault) {
+      setStatusFilter('pending');
+      setInitializedDefault(true);
+    }
+  }, [initializedDefault]);
+
+  const onChangeStatus = (v: 'pending'|'approved'|'rejected'|'all') => {
+    setStatusFilter(v);
+    if (v === 'pending') {
+      // Show all pending regardless of date
+      setDateFrom(undefined);
+      setDateTo(undefined);
+    } else {
+      // Default to today if not already set
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      if (!dateFrom) setDateFrom(new Date(today));
+      const end = new Date(today);
+      if (!dateTo) setDateTo(new Date(end));
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">Approvals</h1>
   <Card>
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Back</Button>
-              <CardTitle>Requests</CardTitle>
-            </div>
-            {role === 'admin' && (
-              <div className="w-48">
-        <Select value={adminDeptFilter} onValueChange={setAdminDeptFilter}>
-                  <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <CardTitle>Requests</CardTitle>
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
+              <div className="w-40">
+                <Select value={statusFilter} onValueChange={(v: any) => onChangeStatus(v)}>
+                  <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
-          <SelectItem value="ALL">All departments</SelectItem>
-                    {departments.map(d => (
-                      <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-                    ))}
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
+              {role === 'admin' && (
+                <div className="w-48">
+                  <Select value={adminDeptFilter} onValueChange={setAdminDeptFilter}>
+                    <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All departments</SelectItem>
+                      {departments.map(d => (
+                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2 min-w-[12rem]">
+                  <span className="text-xs text-muted-foreground w-10 text-right">From</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !dateFrom && "text-muted-foreground")}> 
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateFrom ? format(dateFrom, "PP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom as any} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex items-center gap-2 min-w-[12rem]">
+                  <span className="text-xs text-muted-foreground w-10 text-right">To</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !dateTo && "text-muted-foreground")}> 
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dateTo ? format(dateTo, "PP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dateTo} onSelect={setDateTo as any} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading ? <div>Loading…</div> : (Array.isArray(items) && items.length) ? items.map(a => {
+          {loading ? <div>Loading…</div> : (Array.isArray(visibleItems) && visibleItems.length) ? visibleItems.map(a => {
             const actionLabel = (a?.action ? String(a.action).toUpperCase() : 'REQUEST');
             const assetLabel = a?.assetId || '-';
             const requestedBy = a?.requestedBy || '-';
@@ -226,7 +326,11 @@ export default function Approvals() {
               )}
             </div>
           );
-          }) : <div className="text-sm text-muted-foreground">No approvals</div>}
+          }) : (
+            <div className="text-sm text-muted-foreground">
+              No approvals for the selected filters.
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

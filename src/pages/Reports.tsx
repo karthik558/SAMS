@@ -28,6 +28,16 @@ import { listItemTypes } from "@/services/itemTypes";
 import { listReports, createReport, type Report } from "@/services/reports";
 import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
+import { listApprovals, type ApprovalRequest } from "@/services/approvals";
+import { listDepartments, type Department } from "@/services/departments";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const reportTypes = [
   {
@@ -63,6 +73,18 @@ export default function Reports() {
   const [recentReports, setRecentReports] = useState<Report[] | null>(null);
   const [assetsCache, setAssetsCache] = useState<Asset[] | null>(null);
 
+  // Approvals Log state (admin/manager only)
+  const [approvalsAll, setApprovalsAll] = useState<ApprovalRequest[] | null>(null);
+  const [apStatus, setApStatus] = useState<'all'|'pending'|'approved'|'rejected'>('all');
+  const [apDateFrom, setApDateFrom] = useState<Date | undefined>();
+  const [apDateTo, setApDateTo] = useState<Date | undefined>();
+  const [apDepartments, setApDepartments] = useState<Department[]>([]);
+  const [apDeptFilter, setApDeptFilter] = useState<string>('ALL');
+  const [showApprovalsLog, setShowApprovalsLog] = useState<boolean>(false);
+  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('auth_user') || '{}'); } catch { return {}; } })() as any;
+  const role: string = (currentUser?.role || '').toLowerCase();
+  const myDept: string | null = currentUser?.department ?? null;
+
   // Load properties, item types, and recent reports
   // When Supabase is enabled, pull live data; else use light fallbacks
   useEffect(() => {
@@ -80,6 +102,10 @@ export default function Reports() {
             const assets = await listAssets();
             setAssetsCache(assets as Asset[]);
           } catch { /* ignore */ }
+          // Load departments for admin Approvals Log filter
+          if (role === 'admin') {
+            try { setApDepartments(await listDepartments() as Department[]); } catch { /* ignore */ }
+          }
         } else {
           setProperties([
             { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: null, manager: null } as any,
@@ -103,6 +129,20 @@ export default function Reports() {
       }
     })();
   }, []);
+
+  // Load approvals for the Approvals Log whenever department filter or role changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const dept = role === 'admin' ? (apDeptFilter === 'ALL' ? null : apDeptFilter) : (role === 'manager' ? (myDept || null) : null);
+        const list = await listApprovals(undefined, dept as any, undefined);
+        setApprovalsAll(list);
+      } catch (e) {
+        console.error(e);
+        setApprovalsAll([]);
+      }
+    })();
+  }, [role, myDept, apDeptFilter]);
 
   const handleGenerateReport = async () => {
     if (!selectedReportType) {
@@ -238,6 +278,61 @@ export default function Reports() {
     }
   };
 
+  // Derived approvals filtered dataset for the Approvals Log
+  const approvalsFiltered = (() => {
+    const list = approvalsAll ?? [];
+    const from = apDateFrom ? new Date(apDateFrom.setHours(0,0,0,0)) : null;
+    const to = apDateTo ? new Date(apDateTo.setHours(23,59,59,999)) : null;
+    return list.filter(a => {
+      const when = a?.requestedAt ? new Date(a.requestedAt) : null;
+      if (from && (!when || when < from)) return false;
+      if (to && (!when || when > to)) return false;
+      if (apStatus === 'approved') return a.status === 'approved';
+      if (apStatus === 'rejected') return a.status === 'rejected';
+      if (apStatus === 'pending') return a.status === 'pending_manager' || a.status === 'pending_admin';
+      return true; // all
+    }).sort((a,b) => (new Date(b.requestedAt).getTime()) - (new Date(a.requestedAt).getTime()));
+  })();
+
+  const exportApprovalsCsv = () => {
+    try {
+      const rows = approvalsFiltered.map(a => ({
+        id: a.id,
+        assetId: a.assetId,
+        action: a.action,
+        status: a.status,
+        department: a.department ?? '',
+        requestedBy: a.requestedBy,
+        requestedAt: a.requestedAt,
+        reviewedBy: a.reviewedBy ?? '',
+        reviewedAt: a.reviewedAt ?? '',
+  notes: (a.notes ?? '').toString().replace(/\n/g,' '),
+      }));
+      const toCsv = (data: any[]) => {
+        if (!data.length) return '';
+        const cols = Object.keys(data[0]);
+        const header = cols.join(',');
+        const lines = data.map(r => cols.map(c => {
+          const v = (r[c] ?? '').toString().replace(/"/g, '""');
+          return /[",\n]/.test(v) ? `"${v}"` : v;
+        }).join(','));
+        return [header, ...lines].join('\n');
+      };
+      const csv = toCsv(rows);
+      if (!csv) { toast.info('No approvals to export'); return; }
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `approvals_log_${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Approvals log downloaded');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export approvals');
+    }
+  };
+
   return (
     <div className="space-y-6">
         {/* Header */}
@@ -251,10 +346,27 @@ export default function Reports() {
               Generate comprehensive reports for audit and analysis
             </p>
           </div>
-          <Button onClick={handleGenerateReport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Generate Report
-          </Button>
+          <div className="flex gap-2 flex-col sm:flex-row w-full sm:w-auto">
+            {(role === 'admin' || role === 'manager') && (
+              <Button
+                className="gap-2 w-full sm:w-auto"
+                variant="secondary"
+                onClick={() => {
+                  setShowApprovalsLog((v) => !v);
+                  setTimeout(() => {
+                    const el = document.getElementById('approvals-log');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 0);
+                }}
+              >
+                <FileText className="h-4 w-4" /> Approvals Log
+              </Button>
+            )}
+            <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto">
+              <Download className="h-4 w-4" />
+              Generate Report
+            </Button>
+          </div>
         </div>
 
         {/* Quick Report Cards */}
@@ -487,6 +599,117 @@ export default function Reports() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Approvals Log (restricted to admin/manager) */}
+        {(role === 'admin' || role === 'manager') && showApprovalsLog && (
+          <Card id="approvals-log">
+            <CardHeader>
+              <CardTitle>Approvals Log</CardTitle>
+              <CardDescription>Department-scoped approvals with status and date filters</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-40">
+                  <Select value={apStatus} onValueChange={(v: any) => setApStatus(v)}>
+                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="approved">Approved</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {role === 'admin' ? (
+                  <div className="w-48">
+                    <Select value={apDeptFilter} onValueChange={setApDeptFilter}>
+                      <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All departments</SelectItem>
+                        {apDepartments.map(d => (
+                          <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  myDept ? <div className="text-sm text-muted-foreground">Department: <span className="font-medium text-foreground">{myDept}</span></div> : null
+                )}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-[12rem]">
+                    <span className="text-xs text-muted-foreground w-10 text-right">From</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !apDateFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {apDateFrom ? format(apDateFrom, "PP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={apDateFrom} onSelect={setApDateFrom} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="flex items-center gap-2 min-w-[12rem]">
+                    <span className="text-xs text-muted-foreground w-10 text-right">To</span>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full sm:w-44 justify-start truncate", !apDateTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {apDateTo ? format(apDateTo, "PP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={apDateTo} onSelect={setApDateTo} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={exportApprovalsCsv} disabled={!approvalsFiltered.length}>
+                  <Download className="h-4 w-4 mr-2" /> Export CSV
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Asset</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Requested By</TableHead>
+                      <TableHead>Requested At</TableHead>
+                      <TableHead>Reviewed By</TableHead>
+                      <TableHead>Reviewed At</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {approvalsFiltered.map(a => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                        <TableCell className="font-mono text-xs">{a.assetId}</TableCell>
+                        <TableCell className="capitalize">{a.action}</TableCell>
+                        <TableCell className="capitalize">{a.status.replace('pending_', 'pending ')}</TableCell>
+                        <TableCell>{a.department || '-'}</TableCell>
+                        <TableCell>{a.requestedBy}</TableCell>
+                        <TableCell>{a.requestedAt?.slice(0,19).replace('T',' ')}</TableCell>
+                        <TableCell>{a.reviewedBy || '-'}</TableCell>
+                        <TableCell>{a.reviewedAt ? a.reviewedAt.slice(0,19).replace('T',' ') : '-'}</TableCell>
+                      </TableRow>
+                    ))}
+                    {!approvalsFiltered.length && (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">No approvals found for the selected filters</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {(!hasSupabaseEnv) && (
           <Card className="border-warning/50 bg-warning/5">
