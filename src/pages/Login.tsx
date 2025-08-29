@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QrCode, Eye, EyeOff } from "lucide-react";
 import { listUsers, type AppUser } from "@/services/users";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { initiatePasswordSignIn, mfaChallenge, mfaVerify, ensureSingleActiveSession, generateSessionTag, getLocalSessionTag, setLocalSessionTag, loginWithPassword, requestPasswordReset } from "@/services/auth";
+import { initiatePasswordSignIn, mfaChallenge, mfaVerify, ensureSingleActiveSession, generateSessionTag, getLocalSessionTag, setLocalSessionTag, loginWithPassword, requestPasswordReset, clearLocalSessionTag } from "@/services/auth";
 
 const LS_USERS_KEY = "app_users_fallback";
 const CURRENT_USER_KEY = "current_user_id";
@@ -77,7 +77,9 @@ export default function Login() {
           return;
         }
         // Single-device enforcement
-        const tag = generateSessionTag();
+  // Clear any stale local tag before creating a new one
+  try { clearLocalSessionTag(); } catch {}
+  const tag = generateSessionTag();
         const single = await ensureSingleActiveSession(u.email, tag, false);
         if ((single as any).conflict) {
           const overwrite = window.confirm("You are signed in elsewhere. Sign out other sessions?");
@@ -130,12 +132,13 @@ export default function Login() {
       const u = await mfaVerify(factorId, challengeId, otp, email.trim());
       if (!u) { toast({ title: "MFA failed", variant: "destructive" }); return; }
       // Single-device enforcement
-      const tag = generateSessionTag();
+  try { clearLocalSessionTag(); } catch {}
+  const tag = generateSessionTag();
       const single = await ensureSingleActiveSession(u.email, tag, false);
       if ((single as any).conflict) {
         const overwrite = window.confirm("You are signed in elsewhere. Sign out other sessions?");
         if (!overwrite) return;
-        const newTag = generateSessionTag();
+  const newTag = generateSessionTag();
         const force = await ensureSingleActiveSession(u.email, newTag, true);
         if ((force as any).ok) {
           try { setLocalSessionTag(newTag); } catch {}

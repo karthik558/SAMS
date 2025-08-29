@@ -7,6 +7,7 @@ export function SingleDeviceGuard() {
     let unsub: (() => void) | null = null;
     let timer: any;
     let mounted = true;
+  let authUnsub: any;
 
     const authUserEmail = (() => {
       try { return (JSON.parse(localStorage.getItem("auth_user") || "{}") as any)?.email || null; } catch { return null; }
@@ -31,7 +32,7 @@ export function SingleDeviceGuard() {
       }
     }
 
-    if (hasSupabaseEnv) {
+  if (hasSupabaseEnv) {
       // Realtime listener (best-effort): requires Realtime enabled for app_users
       try {
         const email = authUserEmail;
@@ -49,12 +50,24 @@ export function SingleDeviceGuard() {
       // Poll every 15s as a backup
       timer = setInterval(checkOnce, 15000);
       checkOnce();
+
+      // Also subscribe to auth state changes to re-check immediately
+      try {
+        authUnsub = (supabase as any).auth.onAuthStateChange?.(() => {
+          checkOnce();
+        });
+      } catch {}
     }
 
     return () => {
       mounted = false;
       if (unsub) try { unsub(); } catch {}
       if (timer) clearInterval(timer);
+      try {
+        if (authUnsub && typeof authUnsub?.data?.subscription?.unsubscribe === 'function') {
+          authUnsub.data.subscription.unsubscribe();
+        }
+      } catch {}
     };
   }, []);
 

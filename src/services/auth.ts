@@ -105,6 +105,15 @@ export async function mfaActivateTotp(factorId: string, code: string): Promise<v
 
 export async function logout(): Promise<void> {
   if (!hasSupabaseEnv) return;
+  try {
+    const { data: userRes } = await supabase.auth.getUser();
+    const email = (userRes?.user?.email || '').toLowerCase();
+    if (email) {
+      // Best-effort: clear server tag before signing out so next login doesn't prompt
+      await supabase.from('app_users').update({ active_session_id: null }).eq('email', email);
+    }
+  } catch {}
+  try { localStorage.removeItem(SESSION_TAG_KEY); } catch {}
   await supabase.auth.signOut();
 }
 
@@ -119,6 +128,9 @@ export function getLocalSessionTag(): string | null {
 }
 export function setLocalSessionTag(tag: string) {
   try { localStorage.setItem(SESSION_TAG_KEY, tag); } catch {}
+}
+export function clearLocalSessionTag() {
+  try { localStorage.removeItem(SESSION_TAG_KEY); } catch {}
 }
 
 export async function ensureSingleActiveSession(email: string, tag: string, overwrite = false): Promise<{ ok: true } | { conflict: true }> {
