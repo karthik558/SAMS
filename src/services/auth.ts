@@ -109,8 +109,8 @@ export async function logout(): Promise<void> {
     const { data: userRes } = await supabase.auth.getUser();
     const email = (userRes?.user?.email || '').toLowerCase();
     if (email) {
-      // Best-effort: clear server tag before signing out so next login doesn't prompt
-      await supabase.from('app_users').update({ active_session_id: null }).eq('email', email);
+  // Clear server tag only on explicit sign-out
+  await supabase.from('app_users').update({ active_session_id: null }).eq('email', email);
     }
   } catch {}
   try { localStorage.removeItem(SESSION_TAG_KEY); } catch {}
@@ -159,6 +159,17 @@ export async function setUserPassword(userId: string, password: string): Promise
   if (!hasSupabaseEnv) return; // noop in local mode
   const { error } = await supabase.rpc("set_user_password", { uid: userId, raw_password: password });
   if (error) throw error;
+}
+
+// Update last_login timestamp on successful authentication
+export async function updateLastLogin(email: string): Promise<void> {
+  if (!hasSupabaseEnv) return;
+  try {
+    const now = new Date().toISOString();
+    await supabase.from('app_users').update({ last_login: now }).eq('email', email.toLowerCase());
+  } catch {
+    // best-effort
+  }
 }
 
 export async function requestPasswordReset(email: string, redirectTo: string): Promise<void> {

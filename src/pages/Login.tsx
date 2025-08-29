@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QrCode, Eye, EyeOff } from "lucide-react";
 import { listUsers, type AppUser } from "@/services/users";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { initiatePasswordSignIn, mfaChallenge, mfaVerify, ensureSingleActiveSession, generateSessionTag, getLocalSessionTag, setLocalSessionTag, loginWithPassword, requestPasswordReset, clearLocalSessionTag } from "@/services/auth";
+import { initiatePasswordSignIn, mfaChallenge, mfaVerify, ensureSingleActiveSession, generateSessionTag, getLocalSessionTag, setLocalSessionTag, loginWithPassword, requestPasswordReset, clearLocalSessionTag, updateLastLogin } from "@/services/auth";
 
 const LS_USERS_KEY = "app_users_fallback";
 const CURRENT_USER_KEY = "current_user_id";
@@ -82,7 +82,7 @@ export default function Login() {
   const tag = generateSessionTag();
         const single = await ensureSingleActiveSession(u.email, tag, false);
         if ((single as any).conflict) {
-          const overwrite = window.confirm("You are signed in elsewhere. Sign out other sessions?");
+          const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
           if (!overwrite) return;
           const newTag = generateSessionTag();
           const force = await ensureSingleActiveSession(u.email, newTag, true);
@@ -96,6 +96,7 @@ export default function Login() {
           localStorage.setItem(CURRENT_USER_KEY, u.id);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
         } catch {}
+        try { await updateLastLogin(u.email); } catch {}
       } else {
         // Local fallback: check local users and simple hash
         const users = readLocalUsers();
@@ -136,7 +137,7 @@ export default function Login() {
   const tag = generateSessionTag();
       const single = await ensureSingleActiveSession(u.email, tag, false);
       if ((single as any).conflict) {
-        const overwrite = window.confirm("You are signed in elsewhere. Sign out other sessions?");
+        const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
         if (!overwrite) return;
   const newTag = generateSessionTag();
         const force = await ensureSingleActiveSession(u.email, newTag, true);
@@ -148,6 +149,7 @@ export default function Login() {
       try { setLocalSessionTag(tag); } catch {}
       localStorage.setItem(CURRENT_USER_KEY, u.id);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
+      try { await updateLastLogin(u.email); } catch {}
   // No welcome toast
       navigate("/", { replace: true });
     } catch (e:any) {

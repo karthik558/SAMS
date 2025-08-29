@@ -39,6 +39,7 @@ import {
   Calendar,
   Filter
 } from "lucide-react";
+import { format } from "date-fns";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -157,7 +158,7 @@ export default function Users() {
   const [role, setRole] = useState<string | undefined>(undefined);
   const [department, setDepartment] = useState<string | undefined>(undefined);
   const [password, setPassword] = useState("");
-  const [mustChangePassword, setMustChangePassword] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
@@ -270,7 +271,7 @@ export default function Users() {
     setRole(undefined);
     setDepartment(undefined);
   setPassword("");
-  setMustChangePassword(true);
+  setMustChangePassword(false);
   setSelectedPropertyIds([]);
   };
 
@@ -819,7 +820,7 @@ export default function Users() {
                       </Badge>
                     </TableCell>
                     <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                      {user.last_login ? new Date(user.last_login).toLocaleDateString() : "-"}
+                      {user.last_login ? (() => { try { return format(new Date(user.last_login), 'PP p'); } catch { return '-'; } })() : '-'}
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
