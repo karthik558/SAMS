@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -29,6 +30,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
+  const [globalResults, setGlobalResults] = useState<{ nav: any[]; assets: any[]; properties: any[]; users: any[]; qrcodes: any[]; tickets: any[] }>({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+  const [searching, setSearching] = useState(false);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -84,21 +87,40 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   const roleLower = (authUser?.role || "").toLowerCase();
   const navItems = [
-    { label: 'Dashboard', path: '/', keywords: ['home', 'index'], roles: ['admin','manager','user'] },
-    { label: 'Assets', path: '/assets', keywords: ['asset', 'items', 'qr'], roles: ['admin','manager','user'] },
-    { label: 'Properties', path: '/properties', keywords: ['property', 'sites', 'locations'], roles: ['admin','manager','user'] },
-    { label: 'QR Codes', path: '/qr-codes', keywords: ['qr', 'codes', 'scan'], roles: ['admin','manager','user'] },
-    { label: 'Reports', path: '/reports', keywords: ['report', 'analytics'], roles: ['admin','manager'] },
-    { label: 'Users', path: '/users', keywords: ['accounts', 'people', 'members'], roles: ['admin'] },
-    { label: 'Settings', path: '/settings', keywords: ['preferences', 'security'], roles: ['admin'] },
+    { label: 'Dashboard', path: '/', roles: ['admin','manager','user'] },
+    { label: 'Assets', path: '/assets', roles: ['admin','manager','user'] },
+    { label: 'Properties', path: '/properties', roles: ['admin','manager','user'] },
+    { label: 'QR Codes', path: '/qr-codes', roles: ['admin','manager','user'] },
+    { label: 'Reports', path: '/reports', roles: ['admin','manager'] },
+    { label: 'Users', path: '/users', roles: ['admin'] },
+    { label: 'Settings', path: '/settings', roles: ['admin'] },
   ].filter(i => i.roles.includes(roleLower as any) || roleLower === '');
 
-  const searchResults = search.trim()
-    ? navItems.filter(i => {
-        const q = search.trim().toLowerCase();
-        return i.label.toLowerCase().includes(q) || i.keywords.some(k => k.includes(q));
-      }).slice(0, 6)
-    : [];
+  // Build unified list for keyboard navigation
+  const unifiedResults = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const out: Array<{ key: string; label: string; sub?: string; path: string; group: string }> = [];
+    // Nav: auto-match label and path (no manual keywords)
+    const nav = q
+      ? navItems.filter(i => i.label.toLowerCase().includes(q) || i.path.toLowerCase().includes(q))
+      : [];
+    out.push(
+      ...nav.slice(0, 6).map(i => ({ key: `nav:${i.path}` , label: i.label, sub: i.path, path: i.path, group: 'Pages' }))
+    );
+    // Entities (supabase only)
+    const add = (arr: any[], group: string, toItem: (x:any)=>{label:string; sub?:string; path:string; key?:string}) => {
+      for (const x of arr.slice(0, 5)) {
+        const t = toItem(x);
+        out.push({ key: t.key || `${group}:${t.path}:${t.label}`, label: t.label, sub: t.sub, path: t.path, group });
+      }
+    };
+    add(globalResults.assets, 'Assets', (a:any) => ({ label: `${a.id} — ${a.name || ''}`.trim(), sub: `${a.type || ''} @ ${a.property || ''}`.trim(), path: `/assets/${a.id}` }));
+    add(globalResults.properties, 'Properties', (p:any) => ({ label: `${p.id} — ${p.name}`.trim(), sub: `${p.type || ''} · ${p.status || ''}`.trim(), path: `/properties` }));
+    add(globalResults.users, 'Users', (u:any) => ({ label: u.name || u.email, sub: `${u.email} · ${u.role}${u.department ? ' · ' + u.department : ''}`, path: `/users` }));
+    add(globalResults.qrcodes, 'QR Codes', (q:any) => ({ label: q.id, sub: `${q.asset_id || q.assetId || ''} · ${q.property || ''}`, path: `/qr-codes` }));
+    add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}`, path: `/tickets` }));
+    return out;
+  }, [search, navItems, globalResults]);
 
   const goTo = (path: string) => {
     setSearch("");
@@ -106,6 +128,44 @@ export function Header({ onMenuClick }: HeaderProps) {
     setHighlight(0);
     navigate(path);
   };
+
+  // Debounced global search for entities (Supabase only)
+  useEffect(() => {
+    const q = search.trim();
+    if (!hasSupabaseEnv || q.length < 2) {
+      setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const like = `%${q}%`;
+        const [assets, properties, users, qrcodes, tickets] = await Promise.all([
+          supabase.from('assets').select('id,name,type,property').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},property.ilike.${like}`).limit(5),
+          supabase.from('properties').select('id,name,type,status').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},status.ilike.${like}`).limit(5),
+          supabase.from('app_users').select('name,email,role,department').or(`name.ilike.${like},email.ilike.${like},role.ilike.${like},department.ilike.${like}`).limit(5),
+          supabase.from('qr_codes').select('id,asset_id,property,generated_date').or(`id.ilike.${like},asset_id.ilike.${like},property.ilike.${like}`).limit(5),
+          supabase.from('tickets').select('id,title,status').or(`id.ilike.${like},title.ilike.${like},status.ilike.${like}`).limit(5),
+        ]);
+        setGlobalResults({
+          nav: [],
+          assets: assets.data || [],
+          properties: properties.data || [],
+          users: users.data || [],
+          qrcodes: qrcodes.data || [],
+          tickets: tickets.data || [],
+        });
+      } catch (e) {
+        // ignore errors silently; keep nav-only
+        setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [search]);
 
   return (
     <header className="h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -122,32 +182,52 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search pages (e.g., Properties, Assets, Users)"
+              placeholder="Search pages, assets, properties, users..."
               className="pl-10 bg-muted/50 h-9"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); setHighlight(0); }}
               onFocus={() => setSearchOpen(true)}
               onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
               onKeyDown={(e) => {
-                if (!searchResults.length) return;
-                if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h+1, searchResults.length-1)); }
+                if (!unifiedResults.length) return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h+1, unifiedResults.length-1)); }
                 else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h-1, 0)); }
-                else if (e.key === 'Enter') { e.preventDefault(); goTo(searchResults[highlight].path); }
+                else if (e.key === 'Enter') { e.preventDefault(); goTo(unifiedResults[highlight].path); }
               }}
             />
-            {searchOpen && searchResults.length > 0 && (
+            {searchOpen && unifiedResults.length > 0 && (
               <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md overflow-hidden">
-                {searchResults.map((item, idx) => (
-                  <button
-                    key={item.path}
-                    className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${idx===highlight ? 'bg-accent/60' : ''}`}
-                    onMouseDown={(e) => { e.preventDefault(); goTo(item.path); }}
-                    onMouseEnter={() => setHighlight(idx)}
-                  >
-                    {item.label}
-                    <span className="ml-2 text-xs text-muted-foreground">{item.path}</span>
-                  </button>
-                ))}
+                {/* Grouped results */}
+                {(() => {
+                  const groups: Record<string, Array<typeof unifiedResults[number]>> = {};
+                  for (const r of unifiedResults) {
+                    if (!groups[r.group]) groups[r.group] = [];
+                    groups[r.group].push(r);
+                  }
+                  const order = ['Pages','Assets','Properties','Users','QR Codes','Tickets'];
+                  return order.filter(g => groups[g]?.length).map((g) => (
+                    <div key={g}>
+                      <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">{g}</div>
+                      {groups[g].map((item, idx0) => {
+                        const idx = unifiedResults.findIndex(x => x.key === item.key);
+                        return (
+                          <button
+                            key={item.key}
+                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${idx===highlight ? 'bg-accent/60' : ''}`}
+                            onMouseDown={(e) => { e.preventDefault(); goTo(item.path); }}
+                            onMouseEnter={() => setHighlight(idx)}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate">{item.label}</span>
+                              <span className="ml-2 text-[10px] text-muted-foreground">{item.path}</span>
+                            </div>
+                            {item.sub && <div className="text-xs text-muted-foreground truncate">{item.sub}</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </div>
