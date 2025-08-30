@@ -25,6 +25,7 @@ const Index = () => {
   const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0, assetTypes: 0 });
   const [firstName, setFirstName] = useState<string>("");
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [role, setRole] = useState<string>("");
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
@@ -88,9 +89,10 @@ const Index = () => {
     try {
       const raw = localStorage.getItem("auth_user");
       if (raw) {
-        const u = JSON.parse(raw) as { name?: string };
+        const u = JSON.parse(raw) as { name?: string; role?: string };
         const fn = String(u?.name || "").trim().split(/\s+/)[0] || "";
         setFirstName(fn);
+        setRole(String(u?.role || "").toLowerCase());
       }
     } catch {
       // ignore
@@ -148,8 +150,8 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Stats Grid */}
-  <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+    {/* Stats Grid: auto-fit so hidden cards don't leave gaps */}
+  <div className="grid gap-3 sm:gap-4 grid-cols-[repeat(auto-fit,minmax(16rem,1fr))]">
           <StatCard
             title="Total Assets"
             value={String(counts.assets)}
@@ -240,7 +242,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Quick Actions */}
+    {/* Quick Actions: auto-fit so hidden actions reflow without blank space */}
         <Card>
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
@@ -249,7 +251,7 @@ const Index = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
               <Button 
                 variant="outline" 
                 className="h-auto flex-col gap-2 p-4"
@@ -274,14 +276,16 @@ const Index = () => {
                 <Building2 className="h-6 w-6" />
                 <span className="text-sm">Property Reports</span>
               </Button>
-              <Button 
-                variant="outline" 
-                className="h-auto flex-col gap-2 p-4"
-                onClick={() => handleQuickAction("User Management")}
-              >
-                <Users className="h-6 w-6" />
-                <span className="text-sm">Manage Users</span>
-              </Button>
+              {role === 'admin' && (
+                <Button 
+                  variant="outline" 
+                  className="h-auto flex-col gap-2 p-4"
+                  onClick={() => handleQuickAction("User Management")}
+                >
+                  <Users className="h-6 w-6" />
+                  <span className="text-sm">Manage Users</span>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
