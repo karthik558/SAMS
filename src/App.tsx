@@ -19,6 +19,7 @@ import DemoLogin from "./pages/demo/DemoLogin";
 import DemoAppRouter from "./pages/demo/DemoApp";
 import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
+import Website from "./pages/Website";
 import { SingleDeviceGuard } from "@/components/session/SingleDeviceGuard";
 import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
@@ -58,6 +59,8 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Public minimal marketing website */}
+          <Route path="/site" element={<Website />} />
           {/* Demo isolated routes */}
           <Route path="/demo/login" element={<DemoLogin />} />
           <Route path="/demo/*" element={<DemoAppRouter />} />
