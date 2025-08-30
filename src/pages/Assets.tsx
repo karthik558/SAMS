@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
@@ -154,14 +154,22 @@ export default function Assets() {
     { key: "approval", label: "Approval" },
     { key: "actions", label: "Actions", always: true },
   ];
+  // Always-on columns set (cannot be hidden)
+  const ALWAYS_COLS = useMemo(() => new Set(columnDefs.filter(c => c.always).map(c => c.key)), []);
+  const isVisible = useCallback((key: string) => ALWAYS_COLS.has(key) || prefs.visibleCols.includes(key), [ALWAYS_COLS, prefs.visibleCols]);
   // initialize defaults for visible columns once
   useEffect(() => {
     // Only set defaults if nothing was loaded from storage
     if (!prefs.visibleCols.length) {
-      const saved = localStorage.getItem('table:assets');
-      if (!saved) {
-        prefs.setVisibleCols(columnDefs.filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key)).map(c => c.key));
-      }
+      const defaults = columnDefs
+        .filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key))
+        .map(c => c.key);
+      // Merge with ALWAYS_COLS to be safe
+      const merged = Array.from(new Set([...
+        Array.from(ALWAYS_COLS),
+        ...defaults,
+      ]));
+      prefs.setVisibleCols(merged);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -838,7 +846,7 @@ export default function Assets() {
               <Table dense={prefs.dense} stickyHeader stickyFirstCol>
               <TableHeader>
                 <TableRow>
-                    {prefs.visibleCols.includes('select') && (
+                    {isVisible('select') && (
                     <TableHead className="w-10">
                       <Checkbox
                         aria-label="Select all"
@@ -849,7 +857,7 @@ export default function Assets() {
                         }}
                       />
                     </TableHead>)}
-                    {prefs.visibleCols.includes('id') && (
+                    {isVisible('id') && (
                       <TableHead className="whitespace-nowrap">
                         <button
                           type="button"
@@ -869,21 +877,21 @@ export default function Assets() {
                         </button>
                       </TableHead>
                     )}
-                    {prefs.visibleCols.includes('name') && <TableHead>Name</TableHead>}
-                    {prefs.visibleCols.includes('type') && <TableHead>Type</TableHead>}
-                    {prefs.visibleCols.includes('property') && <TableHead>Property</TableHead>}
-                    {prefs.visibleCols.includes('qty') && <TableHead>Quantity</TableHead>}
-                    {prefs.visibleCols.includes('location') && <TableHead>Location</TableHead>}
-                    {prefs.visibleCols.includes('purchaseDate') && <TableHead>Purchase Date</TableHead>}
-                    {prefs.visibleCols.includes('status') && <TableHead>Status</TableHead>}
-                    {prefs.visibleCols.includes('approval') && <TableHead>Approval</TableHead>}
-                    {prefs.visibleCols.includes('actions') && <TableHead>Actions</TableHead>}
+                    {isVisible('name') && <TableHead>Name</TableHead>}
+                    {isVisible('type') && <TableHead>Type</TableHead>}
+                    {isVisible('property') && <TableHead>Property</TableHead>}
+                    {isVisible('qty') && <TableHead>Quantity</TableHead>}
+                    {isVisible('location') && <TableHead>Location</TableHead>}
+                    {isVisible('purchaseDate') && <TableHead>Purchase Date</TableHead>}
+                    {isVisible('status') && <TableHead>Status</TableHead>}
+                    {isVisible('approval') && <TableHead>Approval</TableHead>}
+                    {isVisible('actions') && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
         {sortedAssets.map((asset) => (
                   <TableRow key={asset.id}>
-                    {prefs.visibleCols.includes('select') && (
+                    {isVisible('select') && (
                     <TableCell className="w-10">
                       <Checkbox
                         aria-label={`Select ${asset.id}`}
@@ -895,15 +903,15 @@ export default function Assets() {
                         }}
                       />
                     </TableCell>)}
-                    {prefs.visibleCols.includes('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
-                    {prefs.visibleCols.includes('name') && <TableCell>{asset.name}</TableCell>}
-                    {prefs.visibleCols.includes('type') && <TableCell>{asset.type}</TableCell>}
-                    {prefs.visibleCols.includes('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
-                    {prefs.visibleCols.includes('qty') && <TableCell>{asset.quantity}</TableCell>}
-                    {prefs.visibleCols.includes('location') && <TableCell>{asset.location || '-'}</TableCell>}
-                    {prefs.visibleCols.includes('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}
-                    {prefs.visibleCols.includes('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
-                    {prefs.visibleCols.includes('approval') && (
+                    {isVisible('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
+                    {isVisible('name') && <TableCell>{asset.name}</TableCell>}
+                    {isVisible('type') && <TableCell>{asset.type}</TableCell>}
+                    {isVisible('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
+                    {isVisible('qty') && <TableCell>{asset.quantity}</TableCell>}
+                    {isVisible('location') && <TableCell>{asset.location || '-'}</TableCell>}
+                    {isVisible('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}
+                    {isVisible('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
+                    {isVisible('approval') && (
                       <TableCell>
                         {approvalsByAsset[asset.id] ? (
                           <TooltipProvider>
@@ -924,7 +932,7 @@ export default function Assets() {
                         )}
                       </TableCell>
                     )}
-                    {prefs.visibleCols.includes('actions') && (
+                    {isVisible('actions') && (
                     <TableCell>
                       <div className="flex gap-2">
                         {role === 'admin' && (
