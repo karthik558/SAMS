@@ -18,6 +18,7 @@ import Login from "./pages/Login";
 import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
 import { SingleDeviceGuard } from "@/components/session/SingleDeviceGuard";
+import RequireView from "@/components/session/RequireView";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
@@ -63,14 +64,14 @@ const App = () => (
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Index />} />
-                    <Route path="/assets" element={<Assets />} />
-                    <Route path="/properties" element={<Properties />} />
-                    <Route path="/qr-codes" element={<QRCodes />} />
+                    <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
+                    <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
+                    <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />
                     <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
                     <Route path="/tickets" element={<Tickets />} />
-                    <Route path="/reports" element={<Reports />} />
-                    <Route path="/users" element={<Users />} />
-                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/reports" element={<RequireView page="reports"><Reports /></RequireView>} />
+                    <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
+                    <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Layout>
