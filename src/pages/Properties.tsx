@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
-import { Building2, Plus, Users, Package, MapPin, Edit, Trash2 } from "lucide-react";
+import { Building2, Plus, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,8 @@ import { logActivity } from "@/services/activity";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, PieChart, Pie, Cell } from "recharts";
+// removed dropdown actions; showing buttons inline for better visibility
 
 const mockProperties = [
   {
@@ -270,7 +272,7 @@ export default function Properties() {
     }
   };
 
-  const getStatusBadge = (status: string) => <StatusChip status={status} />;
+  const getStatusBadge = (status: string) => <StatusChip status={status} size="sm" className="px-2" />;
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -287,13 +289,57 @@ export default function Properties() {
     }
   };
 
+  // Derived helpers for UI rendering
+  const maxAssets = Math.max(1, ...properties.map((p: any) => Number(p.assetCount) || 0));
+  const inactiveCount = properties.filter(p => (p.status || "").toLowerCase() === "inactive").length;
+  const typeCounts = (() => {
+    const map = new Map<string, number>();
+    for (const p of properties) {
+      const t = p.type || "Other";
+      map.set(t, (map.get(t) || 0) + 1);
+    }
+    // Use site color tokens only
+    const paletteTypes = [
+      "hsl(var(--primary))",
+      "hsl(var(--secondary))",
+      "hsl(var(--accent))",
+      "hsl(var(--success))",
+      "hsl(var(--warning))",
+      "hsl(var(--destructive))",
+    ];
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], i) => ({ name, value, fill: paletteTypes[i % paletteTypes.length] }));
+  })();
+
+  const assetsByType = (() => {
+    const map = new Map<string, number>();
+    for (const p of properties) {
+      const t = p.type || "Other";
+      const count = Number(p.assetCount) || 0;
+      map.set(t, (map.get(t) || 0) + count);
+    }
+    // Use site color tokens only; order offset so palettes differ across the two charts
+    const paletteAssets = [
+      "hsl(var(--accent))",
+      "hsl(var(--success))",
+      "hsl(var(--warning))",
+      "hsl(var(--primary))",
+      "hsl(var(--secondary))",
+      "hsl(var(--destructive))",
+    ];
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, assets], i) => ({ name, assets, fill: paletteAssets[i % paletteAssets.length] }));
+  })();
+
   return (
     <div className="space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
         <PageHeader
           icon={Building2}
           title="Property Management"
-          description="Manage properties and assign users for asset tracking"
+          description="Manage properties and related assets"
           actions={
             <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
               <Plus className="h-4 w-4" />
@@ -303,7 +349,7 @@ export default function Properties() {
         />
 
     {/* Stats */}
-  <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
+  <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -344,124 +390,157 @@ export default function Properties() {
             </CardContent>
           </Card>
           
+          {/* New: Inactive Properties */}
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                  <p className="text-2xl font-bold">
-                    {properties.reduce((sum, prop) => sum + prop.userCount, 0)}
-                  </p>
+                  <p className="text-sm font-medium text-muted-foreground">Inactive Properties</p>
+                  <p className="text-2xl font-bold text-destructive">{inactiveCount}</p>
                 </div>
-                <Users className="h-8 w-8 text-muted-foreground" />
+                <AlertTriangle className="h-8 w-8 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
+
+          
         </div>
 
         {/* Properties Grid */}
   <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {properties.map((property) => (
-            <Card key={property.id} className="hover:shadow-medium transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
+          {properties.map((property) => {
+            const pct = Math.max(0, Math.min(100, Math.round((Number(property.assetCount) || 0) / maxAssets * 100)));
+            return (
+              <Card key={property.id} className="hover:shadow-sm transition-colors border-border/70">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="text-base md:text-[1.05rem] truncate">{property.name}</CardTitle>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
+                        <Badge variant="outline" className="px-2 py-0.5 text-[11px]">{property.type}</Badge>
+                        {getStatusBadge(property.status)}
+                      </div>
+                    </div>
+          {/* Actions moved below for a clean header */}
+                  </div>
+                </CardHeader>
+        <CardContent className="space-y-3">
+                  {/* Address */}
+                  <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/80" />
+                    <span className="truncate">{property.address}</span>
+                  </p>
+
+                  {/* Asset meter minimal */}
                   <div>
-                    <CardTitle className="text-lg">{property.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
-                      <span className={`font-medium ${getTypeColor(property.type)}`}>
-                        {property.type}
-                      </span>
-                      • {getStatusBadge(property.status)}
-                    </CardDescription>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[11px] text-muted-foreground">Assets</span>
+                      <span className="text-[11px] font-medium text-foreground">{property.assetCount}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                    </div>
                   </div>
-                  <Building2 className="h-6 w-6 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                {/* Address */}
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                  <p className="text-sm text-muted-foreground">{property.address}</p>
-                </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <p className="text-2xl font-bold text-primary">{property.assetCount}</p>
-                    <p className="text-xs text-muted-foreground">Assets</p>
+                  {/* Users count minimal */}
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Users className="h-3.5 w-3.5" />
+                    <span>{Number(property.userCount) || 0} users</span>
                   </div>
-                  <div className="text-center p-3 bg-muted/50 rounded-lg">
-                    <p className="text-2xl font-bold text-success">{property.userCount}</p>
-                    <p className="text-xs text-muted-foreground">Users</p>
-                  </div>
-                </div>
 
-                {/* Manager */}
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    <span className="text-muted-foreground">Manager:</span>{" "}
-                    <span className="font-medium">{property.manager}</span>
-                  </span>
-                </div>
+                  {/* Manager (muted, minimal) */}
+                  {property.manager ? (
+                    <p className="text-[11px] text-muted-foreground">Manager: <span className="text-foreground/90 font-medium">{property.manager}</span></p>
+                  ) : null}
 
-                {/* Actions */}
-                {canEditPage && (
-                  <div className="flex gap-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditProperty(property.id)}
-                      className="flex-1 gap-2"
-                    >
-                      <Edit className="h-4 w-4" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteProperty(property.id)}
-                      className="gap-2 text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  {/* Visible action buttons */}
+                  {canEditPage && (
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" variant="outline" onClick={() => handleEditProperty(property.id)} className="gap-2">
+                        <Edit className="h-4 w-4" /> Edit
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeleteProperty(property.id)} className="gap-2 text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
-        {/* Property Types Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Property Types Distribution</CardTitle>
-            <CardDescription>
-              Overview of your properties by type and their asset distribution
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {["Office", "Storage", "Manufacturing", "Site Office"].map((type) => {
-                const propertiesOfType = properties.filter(p => p.type === type);
-                const totalAssets = propertiesOfType.reduce((sum, p) => sum + p.assetCount, 0);
-                
-                return (
-                  <div key={type} className="text-center p-4 border border-border rounded-lg">
-                    <h3 className={`font-semibold ${getTypeColor(type)}`}>{type}</h3>
-                    <p className="text-2xl font-bold mt-2">{propertiesOfType.length}</p>
-                    <p className="text-xs text-muted-foreground">Properties</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {totalAssets} assets total
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Property Types & Assets by Type (compact two-chart grid) */}
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Property Types Distribution</CardTitle>
+              <CardDescription>Breakdown of properties by type</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <RechartsTooltip formatter={(v: any, n: any) => [v, n]} />
+                    <Pie
+                      dataKey="value"
+                      data={typeCounts}
+                      innerRadius={46}
+                      outerRadius={70}
+                      paddingAngle={2}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="hsl(var(--background))"
+                      strokeWidth={1}
+                    >
+                      {typeCounts.map((d) => (
+                        <Cell key={d.name} fill={d.fill} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Compact legend pills */}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {typeCounts.map((t) => (
+                  <span key={t.name} className="inline-flex items-center gap-2 rounded-full border px-2 py-0.5 text-[11px]">
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: t.fill }} />
+                    <span className="text-muted-foreground">{t.name}</span>
+                    <span className="font-medium text-foreground">{t.value}</span>
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Assets by Property Type</CardTitle>
+              <CardDescription>Total assets grouped by property type</CardDescription>
+            </CardHeader>
+            <CardContent>
+      <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={assetsByType.sort((a, b) => b.assets - a.assets)}
+                    layout="vertical"
+        margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
+                  >
+        <XAxis type="number" hide />
+        <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip formatter={(v: any) => [v, 'Assets']} />
+        <Bar dataKey="assets" radius={[4, 4, 4, 4]}>
+                      {assetsByType.map((d) => (
+                        <Cell key={d.name} fill={d.fill} />
+                      ))}
+                      <LabelList dataKey="assets" position="right" className="text-[10px] fill-foreground" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Backend Connection Notice */}
         {!isSupabase && (
