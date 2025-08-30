@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { listApprovals } from "@/services/approvals";
-import { getCurrentUserId, listUserPermissions, type PageKey } from "@/services/permissions";
+import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 
 const baseNav = [
   // Requested order
@@ -127,73 +127,30 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               role = raw ? (JSON.parse(raw).role || "") : "";
             } catch {}
             const r = role.toLowerCase();
-            let nav: typeof baseNav extends ReadonlyArray<infer T> ? T[] : any[] = [...baseNav];
-            if (r === "admin") {
-              nav = [...baseNav];
-            } else if (r === "manager") {
-              nav = baseNav.filter(n => [
-                "Dashboard",
-                "Properties",
-                "Assets",
-                "Approvals",
-                "QR Codes",
-                "Scan QR",
-                "Reports",
-                "Tickets",
-                "Settings",
-              ].includes(n.name));
-            } else {
-              // user baseline: can access scanning and tickets
-              nav = baseNav.filter(n => [
-                "Dashboard",
-                "QR Codes",
-                "Scan QR",
-                "Tickets",
-                "Settings",
-              ].includes(n.name));
-            }
-            // Apply per-user view permissions as an additional filter when available
+            // Merge role defaults with any stored overrides for this user
+            const effective = mergeDefaultsWithOverrides(r, (perm || {}) as any);
             const pageNameToKey: Record<string, PageKey | null> = {
               Dashboard: null,
               Assets: 'assets',
               Properties: 'properties',
               'QR Codes': 'qrcodes',
-              'Approvals': null,
+              'Approvals': null, // gated by role below
               'Scan QR': null, // always visible per requirement
-              'Tickets': null,
+              'Tickets': null, // visible to all roles
               Reports: 'reports',
               Users: 'users',
               Settings: 'settings',
             } as const;
-            // If overrides grant view, keep the item even if baseline hid it
-            const allByName: Record<string, PageKey | null> = {
-              Dashboard: null,
-              Assets: 'assets',
-              Properties: 'properties',
-              'QR Codes': 'qrcodes',
-              'Approvals': 'reports',
-              'Scan QR': null,
-              'Tickets': null,
-              Reports: 'reports',
-              Users: 'users',
-              Settings: 'settings',
-            } as const;
-            // First, ensure any item not present due to baseline but has override view gets added
-            const elevated = baseNav.filter((item) => {
-              if (nav.find(n => n.name === item.name)) return false;
-              const key = allByName[item.name];
-              if (!key) return false;
-              const rule = perm?.[key];
-              return !!rule?.v;
-            });
-            nav = [...nav, ...elevated];
-
-            nav = nav.filter((item) => {
+            const nav = baseNav.filter((item) => {
+              // Always visible
+              if (item.name === 'Dashboard' || item.name === 'Scan QR' || item.name === 'Tickets') return true;
+              // Approvals visible only to admin/manager
+              if (item.name === 'Approvals') return r === 'admin' || r === 'manager';
+              // Items governed by permissions
               const key = pageNameToKey[item.name];
-              if (!key) return true; // non-guarded items
-              const rule = perm?.[key];
-              if (!rule) return true; // no overrides stored
-              return !!rule.v; // require view permission if overrides exist
+              if (!key) return true;
+              const rule = effective[key];
+              return !!rule?.v;
             });
             return nav.map((item) => {
             const isActive = location.pathname === item.href;
