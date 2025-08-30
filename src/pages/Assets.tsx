@@ -150,8 +150,12 @@ export default function Assets() {
   ];
   // initialize defaults for visible columns once
   useEffect(() => {
+    // Only set defaults if nothing was loaded from storage
     if (!prefs.visibleCols.length) {
-      prefs.setVisibleCols(columnDefs.filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key)).map(c => c.key));
+      const saved = localStorage.getItem('table:assets');
+      if (!saved) {
+        prefs.setVisibleCols(columnDefs.filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key)).map(c => c.key));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -706,13 +710,13 @@ export default function Assets() {
                     </TableHead>)}
                     {prefs.visibleCols.includes('id') && <TableHead className="whitespace-nowrap">Asset ID</TableHead>}
                     {prefs.visibleCols.includes('name') && <TableHead>Name</TableHead>}
-                    {prefs.visibleCols.includes('type') && <TableHead className="hidden sm:table-cell">Type</TableHead>}
-                    {prefs.visibleCols.includes('property') && <TableHead className="hidden md:table-cell">Property</TableHead>}
-                    {prefs.visibleCols.includes('qty') && <TableHead className="hidden lg:table-cell">Quantity</TableHead>}
-                    {prefs.visibleCols.includes('location') && <TableHead className="hidden xl:table-cell">Location</TableHead>}
-                    {prefs.visibleCols.includes('purchaseDate') && <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>}
-                    {prefs.visibleCols.includes('status') && <TableHead className="hidden sm:table-cell">Status</TableHead>}
-                    {prefs.visibleCols.includes('approval') && <TableHead className="hidden xl:table-cell">Approval</TableHead>}
+                    {prefs.visibleCols.includes('type') && <TableHead>Type</TableHead>}
+                    {prefs.visibleCols.includes('property') && <TableHead>Property</TableHead>}
+                    {prefs.visibleCols.includes('qty') && <TableHead>Quantity</TableHead>}
+                    {prefs.visibleCols.includes('location') && <TableHead>Location</TableHead>}
+                    {prefs.visibleCols.includes('purchaseDate') && <TableHead>Purchase Date</TableHead>}
+                    {prefs.visibleCols.includes('status') && <TableHead>Status</TableHead>}
+                    {prefs.visibleCols.includes('approval') && <TableHead>Approval</TableHead>}
                     {prefs.visibleCols.includes('actions') && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -733,14 +737,14 @@ export default function Assets() {
                     </TableCell>)}
                     {prefs.visibleCols.includes('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
                     {prefs.visibleCols.includes('name') && <TableCell>{asset.name}</TableCell>}
-                    {prefs.visibleCols.includes('type') && <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>}
-                    {prefs.visibleCols.includes('property') && <TableCell className="hidden md:table-cell">{displayPropertyCode(asset.property)}</TableCell>}
-                    {prefs.visibleCols.includes('qty') && <TableCell className="hidden lg:table-cell">{asset.quantity}</TableCell>}
-                    {prefs.visibleCols.includes('location') && <TableCell className="hidden xl:table-cell">{asset.location || '-'}</TableCell>}
-                    {prefs.visibleCols.includes('purchaseDate') && <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>}
-                    {prefs.visibleCols.includes('status') && <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>}
+                    {prefs.visibleCols.includes('type') && <TableCell>{asset.type}</TableCell>}
+                    {prefs.visibleCols.includes('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
+                    {prefs.visibleCols.includes('qty') && <TableCell>{asset.quantity}</TableCell>}
+                    {prefs.visibleCols.includes('location') && <TableCell>{asset.location || '-'}</TableCell>}
+                    {prefs.visibleCols.includes('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}
+                    {prefs.visibleCols.includes('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
                     {prefs.visibleCols.includes('approval') && (
-                      <TableCell className="hidden xl:table-cell">
+                      <TableCell>
                         {approvalsByAsset[asset.id] ? (
                           <TooltipProvider>
                             <Tooltip>

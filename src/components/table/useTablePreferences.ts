@@ -1,18 +1,27 @@
 import { useEffect, useState } from "react";
 
 export function useTablePreferences(key: string) {
-  const [dense, setDense] = useState(false);
-  const [visibleCols, setVisibleCols] = useState<string[]>([]);
-
-  useEffect(() => {
+  // Initialize from localStorage synchronously to avoid race with defaults
+  const [dense, setDense] = useState<boolean>(() => {
     try {
       const raw = localStorage.getItem(`table:${key}`);
-      if (!raw) return;
+      if (!raw) return false;
       const parsed = JSON.parse(raw);
-      if (typeof parsed?.dense === 'boolean') setDense(parsed.dense);
-      if (Array.isArray(parsed?.visibleCols)) setVisibleCols(parsed.visibleCols);
-    } catch {}
-  }, [key]);
+      return typeof parsed?.dense === 'boolean' ? parsed.dense : false;
+    } catch {
+      return false;
+    }
+  });
+  const [visibleCols, setVisibleCols] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(`table:${key}`);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed?.visibleCols) ? parsed.visibleCols : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     try {
