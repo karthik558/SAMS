@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { listQRCodes, createQRCode, updateQRCode, deleteAllQRCodes, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
@@ -109,7 +110,7 @@ export default function QRCodes() {
     return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
   }, [propsById]);
 
-  // Load QR codes and properties (when Supabase is configured)
+  // Load QR codes and properties
   useEffect(() => {
     try {
       const raw = localStorage.getItem("auth_user");
@@ -126,7 +127,7 @@ export default function QRCodes() {
     })();
   (async () => {
       try {
-        if (hasSupabaseEnv) {
+        if (isDemoMode() || hasSupabaseEnv) {
           const [data, props, allAssets] = await Promise.all([
             listQRCodes(),
             listProperties().catch(() => [] as Property[]),
@@ -212,7 +213,9 @@ export default function QRCodes() {
     if (!ok) return;
     try {
       setPurging(true);
-      if (hasSupabaseEnv) {
+      if (isDemoMode()) {
+        await deleteAllQRCodes();
+      } else if (hasSupabaseEnv) {
         await deleteAllQRCodes();
       }
       setCodes([]);
@@ -334,7 +337,7 @@ export default function QRCodes() {
   const today = new Date().toISOString().slice(0,10);
   const png = await generateQrPng({ assetId: asset.id, assetName: asset.name, property: asset.property });
       const id = `QR-${Math.floor(Math.random()*900+100)}`;
-      if (hasSupabaseEnv) {
+      if (isDemoMode() || hasSupabaseEnv) {
         const payload: SbQRCode = {
           id,
           assetId: asset.id,
@@ -458,7 +461,7 @@ export default function QRCodes() {
           const url = await generateQrPng(q);
           entries.push([q.id, url]);
           // Persist to DB for consistency
-          if (hasSupabaseEnv) {
+          if (isDemoMode() || hasSupabaseEnv) {
             try { await updateQRCode(q.id, { imageUrl: url } as any); } catch {}
           }
         } catch (e) {

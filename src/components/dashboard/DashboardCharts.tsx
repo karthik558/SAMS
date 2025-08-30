@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode, getDemoAssets, getDemoProperties } from "@/lib/demo";
 import { listAssets, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 
@@ -40,6 +41,11 @@ export function DashboardCharts() {
   const [properties, setProperties] = useState<Property[]>([]);
 
   useEffect(() => {
+    if (isDemoMode()) {
+      setAssets(getDemoAssets());
+      setProperties(getDemoProperties());
+      return;
+    }
     if (!hasSupabaseEnv) return;
     (async () => {
       try {

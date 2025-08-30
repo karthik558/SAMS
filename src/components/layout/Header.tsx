@@ -1,5 +1,6 @@
 import { Bell, Search, User, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,10 +68,22 @@ export function Header({ onMenuClick }: HeaderProps) {
     } catch {}
   }, []);
 
-  // Notifications: load from service (Supabase or localStorage)
+  // Notifications: load from service (Supabase or localStorage). In demo, seed fake ones each load.
   useEffect(() => {
     (async () => {
       try {
+        // In demo, show a fixed set on every load
+        if (isDemoMode()) {
+          // If user cleared them, keep empty just for this session; after hard reload we re-seed.
+          const cleared = sessionStorage.getItem('demo_notifs_cleared') === '1';
+          if (!cleared) {
+            // Seed 3 notifications; store to local service storage
+            await clearAllNotifications();
+            await addNotification({ title: 'Welcome to the SAMS Demo', message: 'Explore the app with sample data. Changes are not saved.', type: 'system' });
+            await addNotification({ title: 'QR generated', message: 'QR for AST-005 is ready to download.', type: 'qr' });
+            await addNotification({ title: 'Report ready', message: 'Monthly Asset Report has been generated.', type: 'report' });
+          }
+        }
         const data = await listNotifications(50);
         setNotifications(data);
       } catch (e) {
@@ -86,14 +99,15 @@ export function Header({ onMenuClick }: HeaderProps) {
   const badgeLabel = unreadCount > 9 ? "9+" : String(unreadCount || "");
 
   const roleLower = (authUser?.role || "").toLowerCase();
+  const prefix = isDemoMode() ? '/demo' : '';
   const navItems = [
-    { label: 'Dashboard', path: '/', roles: ['admin','manager','user'] },
-    { label: 'Assets', path: '/assets', roles: ['admin','manager','user'] },
-    { label: 'Properties', path: '/properties', roles: ['admin','manager','user'] },
-    { label: 'QR Codes', path: '/qr-codes', roles: ['admin','manager','user'] },
-    { label: 'Reports', path: '/reports', roles: ['admin','manager'] },
-    { label: 'Users', path: '/users', roles: ['admin'] },
-    { label: 'Settings', path: '/settings', roles: ['admin'] },
+    { label: 'Dashboard', path: `${prefix}/` === '/demo/' ? '/demo' : '/', roles: ['admin','manager','user'] },
+    { label: 'Assets', path: `${prefix}/assets`, roles: ['admin','manager','user'] },
+    { label: 'Properties', path: `${prefix}/properties`, roles: ['admin','manager','user'] },
+    { label: 'QR Codes', path: `${prefix}/qr-codes`, roles: ['admin','manager','user'] },
+    { label: 'Reports', path: `${prefix}/reports`, roles: ['admin','manager'] },
+    { label: 'Users', path: `${prefix}/users`, roles: ['admin'] },
+    { label: 'Settings', path: `${prefix}/settings`, roles: ['admin'] },
   ].filter(i => i.roles.includes(roleLower as any) || roleLower === '');
 
   // Build unified list for keyboard navigation
@@ -114,11 +128,11 @@ export function Header({ onMenuClick }: HeaderProps) {
         out.push({ key: t.key || `${group}:${t.path}:${t.label}`, label: t.label, sub: t.sub, path: t.path, group });
       }
     };
-    add(globalResults.assets, 'Assets', (a:any) => ({ label: `${a.id} — ${a.name || ''}`.trim(), sub: `${a.type || ''} @ ${a.property || ''}`.trim(), path: `/assets/${a.id}` }));
-    add(globalResults.properties, 'Properties', (p:any) => ({ label: `${p.id} — ${p.name}`.trim(), sub: `${p.type || ''} · ${p.status || ''}`.trim(), path: `/properties` }));
-    add(globalResults.users, 'Users', (u:any) => ({ label: u.name || u.email, sub: `${u.email} · ${u.role}${u.department ? ' · ' + u.department : ''}`, path: `/users` }));
-    add(globalResults.qrcodes, 'QR Codes', (q:any) => ({ label: q.id, sub: `${q.asset_id || q.assetId || ''} · ${q.property || ''}`, path: `/qr-codes` }));
-    add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}`, path: `/tickets` }));
+  add(globalResults.assets, 'Assets', (a:any) => ({ label: `${a.id} — ${a.name || ''}`.trim(), sub: `${a.type || ''} @ ${a.property || ''}`.trim(), path: `${prefix}/assets/${a.id}` }));
+  add(globalResults.properties, 'Properties', (p:any) => ({ label: `${p.id} — ${p.name}`.trim(), sub: `${p.type || ''} · ${p.status || ''}`.trim(), path: `${prefix}/properties` }));
+  add(globalResults.users, 'Users', (u:any) => ({ label: u.name || u.email, sub: `${u.email} · ${u.role}${u.department ? ' · ' + u.department : ''}`, path: `${prefix}/users` }));
+  add(globalResults.qrcodes, 'QR Codes', (q:any) => ({ label: q.id, sub: `${q.asset_id || q.assetId || ''} · ${q.property || ''}`, path: `${prefix}/qr-codes` }));
+  add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}`, path: `${prefix}/tickets` }));
     return out;
   }, [search, navItems, globalResults]);
 
@@ -126,7 +140,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     setSearch("");
     setSearchOpen(false);
     setHighlight(0);
-    navigate(path);
+  navigate(path);
   };
 
   // Debounced global search for entities (Supabase only)
@@ -278,6 +292,9 @@ export function Header({ onMenuClick }: HeaderProps) {
                     onClick={async () => {
                       await clearAllNotifications();
                       setNotifications([]);
+                      if (isDemoMode()) {
+                        try { sessionStorage.setItem('demo_notifs_cleared', '1'); } catch {}
+                      }
                     }}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
@@ -336,8 +353,12 @@ export function Header({ onMenuClick }: HeaderProps) {
                       try {
                         localStorage.removeItem('current_user_id');
                         localStorage.removeItem('auth_user');
+                        if (isDemoMode()) {
+                          localStorage.removeItem('demo_current_user_id');
+                          localStorage.removeItem('demo_auth_user');
+                        }
                       } catch {}
-                      navigate('/login', { replace: true });
+                      navigate(isDemoMode() ? '/demo/login' : '/login', { replace: true });
                     }}
                   >
                     Sign out
@@ -350,8 +371,12 @@ export function Header({ onMenuClick }: HeaderProps) {
                     try {
                       localStorage.removeItem('current_user_id');
                       localStorage.removeItem('auth_user');
+                      if (isDemoMode()) {
+                        localStorage.removeItem('demo_current_user_id');
+                        localStorage.removeItem('demo_auth_user');
+                      }
                     } catch {}
-                    navigate('/login', { replace: true });
+                    navigate(isDemoMode() ? '/demo/login' : '/login', { replace: true });
                   }}
                 >
                   Sign out

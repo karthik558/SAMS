@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 
 export type Notification = {
   id: string;
@@ -26,7 +27,7 @@ function saveLocal(list: Notification[]) {
 }
 
 export async function listNotifications(limit = 50): Promise<Notification[]> {
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { data, error } = await supabase
         .from(table)
@@ -51,7 +52,7 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
     read: input.read ?? false,
     created_at: new Date().toISOString(),
   };
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { data, error } = await supabase
         .from(table)
@@ -78,7 +79,7 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
 }
 
 export async function markAllRead(): Promise<void> {
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { error } = await supabase.from(table).update({ read: true }).neq("read", true);
       if (error) throw error;
@@ -92,7 +93,7 @@ export async function markAllRead(): Promise<void> {
 }
 
 export async function clearAllNotifications(): Promise<void> {
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { error } = await supabase.from(table).delete().neq("id", "");
       if (error) throw error;

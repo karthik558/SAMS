@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow, parseISO, isToday } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { listActivity, logActivity, subscribeActivity, type Activity } from "@/services/activity";
 
 const mockActivities = [
@@ -18,7 +19,15 @@ export function RecentActivity() {
   useEffect(() => {
     let unsub = () => {};
     (async () => {
-      if (hasSupabaseEnv) {
+      if (isDemoMode()) {
+        try {
+          const data = await listActivity(100);
+          setItems(data);
+        } catch (e) {
+          console.error(e);
+          setItems(mockActivities as any);
+        }
+      } else if (hasSupabaseEnv) {
         try {
           // fetch a bigger window, then filter to today client-side
           const data = await listActivity(100);

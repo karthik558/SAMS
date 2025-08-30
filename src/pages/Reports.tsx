@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes } from "@/services/itemTypes";
 import { listReports, createReport, type Report } from "@/services/reports";
@@ -93,7 +94,7 @@ export default function Reports() {
   useEffect(() => {
     (async () => {
       try {
-        if (hasSupabaseEnv) {
+    if (hasSupabaseEnv || isDemoMode()) {
           const [props, types] = await Promise.all([
             listProperties().catch(() => []),
             listItemTypes().catch(() => []),
@@ -102,7 +103,7 @@ export default function Reports() {
           setItemTypes((types as any[]).map(t => t.name));
           // Preload assets for downloads/export
           try {
-            const assets = await listAssets();
+      const assets = await listAssets();
             setAssetsCache(assets as Asset[]);
           } catch { /* ignore */ }
           // Load departments for admin Approvals Log filter
@@ -121,7 +122,7 @@ export default function Reports() {
         console.error(e);
       }
       try {
-        if (hasSupabaseEnv) {
+  if (hasSupabaseEnv || isDemoMode()) {
           const reports = await listReports();
           setRecentReports(reports);
         } else {
@@ -164,7 +165,7 @@ export default function Reports() {
     };
 
     try {
-      if (hasSupabaseEnv) {
+  if (hasSupabaseEnv || isDemoMode()) {
         await createReport({
           name: `${reportTypes.find(r => r.id === selectedReportType)?.name} - ${new Date().toISOString().slice(0,10)}`,
           type: selectedReportType,

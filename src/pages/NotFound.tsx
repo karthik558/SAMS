@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { isDemoMode } from "@/lib/demo";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Home, ArrowLeft } from "lucide-react";
@@ -32,7 +33,7 @@ const NotFound = () => {
               <ArrowLeft className="h-4 w-4" />
               Go back
             </Button>
-            <Button onClick={() => navigate("/")} className="gap-2">
+            <Button onClick={() => navigate(isDemoMode() ? "/demo" : "/")} className="gap-2">
               <Home className="h-4 w-4" />
               Dashboard
             </Button>

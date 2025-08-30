@@ -9,6 +9,7 @@ import { Plus, Download, FileText, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode, demoStats } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
 import { listAssets } from "@/services/assets";
 import { listProperties } from "@/services/properties";
@@ -32,6 +33,13 @@ const Index = () => {
   const [loadingUI, setLoadingUI] = useState(true);
 
   useEffect(() => {
+  if (isDemoMode()) {
+    const s = demoStats();
+    setCounts(s.counts as any);
+    setMetrics(s.metrics as any);
+    setLoadingUI(false);
+    return;
+  }
   if (!hasSupabaseEnv) { setLoadingUI(false); return; }
     (async () => {
       try {
@@ -102,26 +110,26 @@ const Index = () => {
   const handleQuickAction = (action: string) => {
     switch (action) {
       case "Add Asset":
-        navigate("/assets?new=1");
+  navigate(isDemoMode() ? "/demo/assets?new=1" : "/assets?new=1");
         break;
       case "Generate QR Codes":
-        navigate("/qr-codes");
+  navigate(isDemoMode() ? "/demo/qr-codes" : "/qr-codes");
         break;
       case "Property Report":
       case "Generate Report":
-        navigate("/reports");
+  navigate(isDemoMode() ? "/demo/reports" : "/reports");
         if (!hasSupabaseEnv) {
           toast.info("Reports may be limited without Supabase configured");
         }
         break;
       case "User Management":
-        navigate("/users");
+  navigate(isDemoMode() ? "/demo/users" : "/users");
         break;
       case "Bulk Import":
         setBulkOpen(true);
         break;
       default:
-        navigate("/");
+  navigate(isDemoMode() ? "/demo" : "/");
     }
   };
 

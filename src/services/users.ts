@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode, getDemoUsers } from "@/lib/demo";
 
 export type AppUser = {
   id: string;
@@ -18,10 +19,8 @@ export type AppUser = {
 const table = "app_users";
 
 export async function listUsers(): Promise<AppUser[]> {
-  if (!hasSupabaseEnv) {
-    // Defer to UI fallback; return empty to trigger seeding
-    return [];
-  }
+  if (isDemoMode()) return getDemoUsers() as any;
+  if (!hasSupabaseEnv) { return []; }
   try {
     const { data, error } = await supabase.from(table).select("*").order("name");
     if (error) throw error;
@@ -33,6 +32,7 @@ export async function listUsers(): Promise<AppUser[]> {
 
 // Optionally accept a password for local fallback; DB uses auth for real password handling
 export async function createUser(payload: Omit<AppUser, "id"> & { password?: string }): Promise<AppUser> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { password, ...dbPayload } = payload as any;
   const { data, error } = await supabase.from(table).insert(dbPayload).select().single();
@@ -41,6 +41,7 @@ export async function createUser(payload: Omit<AppUser, "id"> & { password?: str
 }
 
 export async function updateUser(id: string, patch: Partial<AppUser>): Promise<AppUser> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).update(patch).eq("id", id).select().single();
   if (error) throw error;
@@ -48,6 +49,7 @@ export async function updateUser(id: string, patch: Partial<AppUser>): Promise<A
 }
 
 export async function deleteUser(id: string): Promise<void> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;

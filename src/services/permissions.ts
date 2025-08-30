@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 
 export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings';
 
@@ -17,14 +18,23 @@ const CURRENT_USER_KEY = 'current_user_id';
 type LocalPermMap = Record<string, Record<PageKey, { v: boolean; e: boolean }>>;
 
 function readLocal(): LocalPermMap {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+  try {
+    const key = isDemoMode() ? 'demo_user_permissions' : LS_KEY;
+    return JSON.parse(localStorage.getItem(key) || '{}');
+  } catch { return {}; }
 }
 function writeLocal(data: LocalPermMap) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
+  try {
+    const key = isDemoMode() ? 'demo_user_permissions' : LS_KEY;
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch {}
 }
 
 export function getCurrentUserId(): string | null {
-  try { return localStorage.getItem(CURRENT_USER_KEY); } catch { return null; }
+  try {
+    const key = isDemoMode() ? 'demo_current_user_id' : CURRENT_USER_KEY;
+    return localStorage.getItem(key);
+  } catch { return null; }
 }
 
 export async function listUserPermissions(userId: string): Promise<Record<PageKey, { v: boolean; e: boolean }>> {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import NotFound from "@/pages/NotFound";
+import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, roleDefaults, type PageKey } from "@/services/permissions";
 
 type Props = {
@@ -14,6 +15,7 @@ export function RequireView({ page, children }: Props) {
     let cancelled = false;
     (async () => {
       try {
+  if (isDemoMode()) { if (!cancelled) setAllowed(true); return; }
         let role = "";
         try {
           const raw = localStorage.getItem("auth_user");

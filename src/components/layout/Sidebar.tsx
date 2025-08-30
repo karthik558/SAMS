@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isDemoMode } from "@/lib/demo";
 import { listApprovals } from "@/services/approvals";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 
@@ -99,7 +100,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <Package className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">SAMS</span>
+              <span className="text-xl font-bold text-foreground">SAMS{isDemoMode() ? ' • Demo' : ''}</span>
             </div>
           )}
           {!isMobile && (
@@ -119,67 +120,75 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-  <nav className="flex-1 space-y-1 p-2">
+        <nav className="flex-1 space-y-1 p-2">
           {(() => {
             let role: string = "";
             try {
               const raw = localStorage.getItem("auth_user");
               role = raw ? (JSON.parse(raw).role || "") : "";
             } catch {}
-            const r = role.toLowerCase();
+            const r = isDemoMode() ? "admin" : role.toLowerCase();
             // Merge role defaults with any stored overrides for this user
             const effective = mergeDefaultsWithOverrides(r, (perm || {}) as any);
             const pageNameToKey: Record<string, PageKey | null> = {
               Dashboard: null,
-              Assets: 'assets',
-              Properties: 'properties',
-              'QR Codes': 'qrcodes',
-              'Approvals': null, // gated by role below
-              'Scan QR': null, // always visible per requirement
-              'Tickets': null, // visible to all roles
-              Reports: 'reports',
-              Users: 'users',
-              Settings: 'settings',
+              Assets: "assets",
+              Properties: "properties",
+              "QR Codes": "qrcodes",
+              Approvals: null, // gated by role below
+              "Scan QR": null, // always visible per requirement
+              Tickets: null, // visible to all roles
+              Reports: "reports",
+              Users: "users",
+              Settings: "settings",
             } as const;
             const nav = baseNav.filter((item) => {
               // Always visible
-              if (item.name === 'Dashboard' || item.name === 'Scan QR' || item.name === 'Tickets') return true;
+              if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
               // Approvals visible only to admin/manager
-              if (item.name === 'Approvals') return r === 'admin' || r === 'manager';
+              if (item.name === "Approvals") return r === "admin" || r === "manager";
               // Items governed by permissions
               const key = pageNameToKey[item.name];
               if (!key) return true;
-              const rule = effective[key];
+              const rule = (effective as any)[key as PageKey];
               return !!rule?.v;
             });
             return nav.map((item) => {
-            const isActive = location.pathname === item.href;
-            return (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
-                )}
-                onClick={onNavigate}
-              >
-                <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-    {!collapsed && (
-      <span className="truncate flex items-center gap-2">
-        {item.name}
-        {item.name === 'Approvals' && pendingApprovals > 0 && (
-          <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-            {pendingApprovals}
-          </span>
-        )}
-      </span>
-    )}
-              </NavLink>
-            );
-          }); })()}
+              const href = (() => {
+                if (!isDemoMode()) return item.href;
+                if (item.href === "/") return "/demo";
+                // Keep Scan QR as public route
+                if (item.href === "/scan") return "/scan";
+                return `/demo${item.href}`;
+              })();
+              const isActive = location.pathname === href || location.pathname.startsWith(href + "/");
+              return (
+                <NavLink
+                  key={item.name}
+                  to={href}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                  )}
+                  onClick={onNavigate}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+                  {!collapsed && (
+                    <span className="truncate flex items-center gap-2">
+                      {item.name}
+                      {item.name === "Approvals" && pendingApprovals > 0 && (
+                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                          {pendingApprovals}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </NavLink>
+              );
+            });
+          })()}
         </nav>
 
         {/* Footer */}

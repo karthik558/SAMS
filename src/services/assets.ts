@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode, getDemoAssets } from "@/lib/demo";
 
 export type Asset = {
   id: string; // e.g., AST-001
@@ -55,6 +56,7 @@ function toSnake(asset: Partial<Asset>) {
 }
 
 export async function listAssets(): Promise<Asset[]> {
+  if (isDemoMode()) return getDemoAssets();
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).select("*").order("id");
   if (error) throw error;
@@ -62,6 +64,7 @@ export async function listAssets(): Promise<Asset[]> {
 }
 
 export async function createAsset(asset: Asset): Promise<Asset> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const payload = toSnake(asset);
   const { data, error } = await supabase.from(table).insert(payload).select().single();
@@ -70,6 +73,7 @@ export async function createAsset(asset: Asset): Promise<Asset> {
 }
 
 export async function updateAsset(id: string, patch: Partial<Asset>): Promise<Asset> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const payload = toSnake(patch);
   const { data, error } = await supabase.from(table).update(payload).eq("id", id).select().single();
@@ -78,12 +82,17 @@ export async function updateAsset(id: string, patch: Partial<Asset>): Promise<As
 }
 
 export async function deleteAsset(id: string): Promise<void> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
 }
 
 export async function getAssetById(id: string): Promise<Asset | null> {
+  if (isDemoMode()) {
+    const list = getDemoAssets();
+    return list.find(a => a.id === id) || null;
+  }
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
   if (error) throw error;

@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { addNotification } from "@/services/notifications";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
@@ -20,12 +21,24 @@ export type Ticket = {
 const TABLE = "tickets";
 const LS_KEY = "tickets";
 const LS_EVENTS_KEY = "ticket_events";
+const DEMO_TICKETS_KEY = "demo_tickets";
+const DEMO_TICKET_EVENTS_KEY = "demo_ticket_events";
 
 function loadLocal(): Ticket[] {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]") as Ticket[]; } catch { return []; }
 }
 function saveLocal(list: Ticket[]) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {}
+}
+
+function loadDemoTickets(): Ticket[] {
+  try {
+    const raw = localStorage.getItem(DEMO_TICKETS_KEY);
+    return raw ? (JSON.parse(raw) as Ticket[]) : [];
+  } catch { return []; }
+}
+function saveDemoTickets(list: Ticket[]) {
+  try { localStorage.setItem(DEMO_TICKETS_KEY, JSON.stringify(list)); } catch {}
 }
 
 export type TicketEvent = {
@@ -44,7 +57,82 @@ function saveLocalEvents(list: TicketEvent[]) {
   try { localStorage.setItem(LS_EVENTS_KEY, JSON.stringify(list)); } catch {}
 }
 
+function loadDemoEvents(): TicketEvent[] {
+  try { return JSON.parse(localStorage.getItem(DEMO_TICKET_EVENTS_KEY) || "[]") as TicketEvent[]; } catch { return []; }
+}
+function saveDemoEvents(list: TicketEvent[]) {
+  try { localStorage.setItem(DEMO_TICKET_EVENTS_KEY, JSON.stringify(list)); } catch {}
+}
+
+let demoSeeded = false;
+function seedDemoTicketsOnce() {
+  if (demoSeeded) return;
+  demoSeeded = true;
+  try {
+    const existing = loadDemoTickets();
+    if (existing.length > 0) return;
+  } catch {}
+  const now = new Date();
+  const mkDate = (daysAgo: number, hours: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - daysAgo);
+    d.setHours(hours, (hours * 7) % 60, 0, 0);
+    return d.toISOString();
+  };
+  const roles: Array<'admin'|'manager'> = ['admin','manager'];
+  const statuses: TicketStatus[] = ['open','in_progress','resolved','closed'];
+  const titles = [
+    'Printer not working in Floor 2',
+    'Air conditioning maintenance - Warehouse',
+    'Laptop battery replacement request',
+    'Network switch reboot required',
+    'Office chairs inspection',
+    'Security camera offline - Loading Bay',
+  ];
+  const descs = [
+    'Observed intermittent errors while printing. Please check toner and rollers.',
+    'Temperature fluctuations during the afternoon. Request preventative maintenance.',
+    'Battery health below 70%. Requesting scheduled replacement.',
+    'Periodic reboot to restore connectivity for several desks.',
+    'Please assess wear and tear; some chairs wobble.',
+    'Camera #3 is offline since this morning; verify power and network.',
+  ];
+  const seed: Ticket[] = Array.from({ length: 8 }, (_, i) => ({
+    id: `TCK-${100100 + i}`,
+    title: titles[i % titles.length],
+    description: descs[i % descs.length],
+    targetRole: roles[i % roles.length],
+    status: statuses[i % statuses.length],
+    assignee: i % 3 === 0 ? 'admin@sams.demo' : i % 3 === 1 ? 'manager@sams.demo' : null,
+    priority: (['low','medium','high','urgent'] as const)[i % 4],
+    slaDueAt: i % 2 === 0 ? mkDate(-(i%3), 18) : null,
+    createdBy: i % 2 === 0 ? 'demo.user1@example.com' : 'demo.user2@example.com',
+    createdAt: mkDate((i % 5), 9 + (i % 4)),
+    updatedAt: mkDate((i % 4), 12 + (i % 6)),
+  }));
+  saveDemoTickets(seed);
+  const events: TicketEvent[] = seed.flatMap(t => ([(
+    { id: `EV-${t.id}-1`, ticketId: t.id, eventType: 'created' as const, author: t.createdBy, message: t.title, createdAt: t.createdAt }
+  ), (
+    t.status !== 'open'
+      ? { id: `EV-${t.id}-2`, ticketId: t.id, eventType: t.status === 'closed' ? 'closed' : 'status_change' as const, author: t.assignee || t.createdBy, message: `Status -> ${t.status}`, createdAt: t.updatedAt || t.createdAt }
+      : null
+  )].filter(Boolean) as TicketEvent[]));
+  saveDemoEvents(events);
+}
+
 export async function listTickets(filter?: Partial<Pick<Ticket, "status" | "assignee" | "targetRole" | "createdBy">>): Promise<Ticket[]> {
+  if (isDemoMode()) {
+    seedDemoTicketsOnce();
+    const list = loadDemoTickets();
+    const out = list.filter(t => (
+      (!filter?.status || t.status === filter.status) &&
+      (!filter?.assignee || t.assignee === filter.assignee) &&
+      (!filter?.targetRole || t.targetRole === filter.targetRole) &&
+      (!filter?.createdBy || t.createdBy === filter.createdBy)
+    ));
+    return out.sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
+  }
   if (hasSupabaseEnv) {
     try {
       let query = supabase.from(TABLE).select("*").order("created_at", { ascending: false });
@@ -94,6 +182,16 @@ export async function createTicket(input: {
   // leave updatedAt undefined so DB default/trigger can set it
   updatedAt: undefined,
   };
+  if (isDemoMode()) {
+    seedDemoTicketsOnce();
+    const list = loadDemoTickets();
+    saveDemoTickets([payload, ...list]);
+    const events = loadDemoEvents();
+    const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
+    saveDemoEvents([ev, ...events]);
+    await addNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` });
+    return payload;
+  }
   if (hasSupabaseEnv) {
     try {
       const { data, error } = await supabase.from(TABLE).insert(toSnake(payload)).select("*").single();
@@ -141,7 +239,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
       return 'system';
     }
   };
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { data, error } = await supabase.from(TABLE).update(toSnake(toUpdate)).eq("id", id).select("*").single();
       if (error) throw error;
@@ -162,6 +260,24 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
       console.warn("tickets update failed, using localStorage", e);
     }
   }
+  if (isDemoMode()) {
+    const list = loadDemoTickets();
+    const idx = list.findIndex(t => t.id === id);
+    if (idx >= 0) {
+      const updated = { ...list[idx], ...patch, updatedAt: new Date().toISOString() } as Ticket;
+      const next = [...list];
+      next[idx] = updated;
+      saveDemoTickets(next);
+      if (patch.status) {
+        const events = loadDemoEvents();
+        const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: id, eventType: patch.status === 'closed' ? 'closed' : 'status_change', author: patch.assignee || getActor(), message: `Status -> ${patch.status}`, createdAt: new Date().toISOString() };
+        saveDemoEvents([ev, ...events]);
+        await addNotification({ title: `Ticket ${id} ${patch.status}`, message: `Status changed to ${patch.status}`, type: `ticket-status` });
+      }
+      return updated;
+    }
+    return null;
+  }
   const list = loadLocal();
   const idx = list.findIndex(t => t.id === id);
   if (idx >= 0) {
@@ -181,7 +297,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
 }
 
 export async function listTicketEvents(ticketId: string): Promise<TicketEvent[]> {
-  if (hasSupabaseEnv) {
+  if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { data, error } = await supabase
         .from('ticket_events')
@@ -193,6 +309,9 @@ export async function listTicketEvents(ticketId: string): Promise<TicketEvent[]>
     } catch (e) {
       console.warn('ticket_events unavailable, using localStorage', e);
     }
+  }
+  if (isDemoMode()) {
+    return loadDemoEvents().filter(e => e.ticketId === ticketId).sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
   }
   return loadLocalEvents().filter(e => e.ticketId === ticketId).sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
 }

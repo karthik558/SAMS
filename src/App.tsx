@@ -15,17 +15,22 @@ import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import DemoLogin from "./pages/demo/DemoLogin";
+import DemoAppRouter from "./pages/demo/DemoApp";
 import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
 import { SingleDeviceGuard } from "@/components/session/SingleDeviceGuard";
+import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
   try {
-    authed = Boolean(localStorage.getItem("current_user_id"));
+    authed = isDemoMode()
+      ? Boolean(localStorage.getItem("demo_current_user_id"))
+      : Boolean(localStorage.getItem("current_user_id"));
   } catch {}
-  if (!authed) return <Navigate to="/login" replace />;
+  if (!authed) return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;
   return <>{children}</>;
 }
 
@@ -53,6 +58,9 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Demo isolated routes */}
+          <Route path="/demo/login" element={<DemoLogin />} />
+          <Route path="/demo/*" element={<DemoAppRouter />} />
           {/* Public QR scan view: render asset details without auth or layout */}
           <Route path="/assets/:id" element={<AssetDetails />} />
           {/* Public in-app QR scanner */}
