@@ -409,7 +409,14 @@ export default function QRCodes() {
                          qr.assetId.toLowerCase().includes(searchTerm.toLowerCase());
     const qrPropCode = propertyCodeOf(qr.property);
     // Exclude disabled properties if we know properties
-    const isActiveProperty = activePropertyIds.size === 0 || activePropertyIds.has(qrPropCode);
+    // Only exclude when we definitively know the property is disabled.
+    // If property is missing or unknown, keep it visible.
+    const isActiveProperty = (
+      activePropertyIds.size === 0 ||
+      !qrPropCode ||
+      !propsById[qrPropCode] ||
+      activePropertyIds.has(qrPropCode)
+    );
     const matchesProperty = (filterProperty === "all" || qrPropCode === filterProperty) && isActiveProperty;
     const matchesStatus = filterStatus === "all" || 
                          (filterStatus === "printed" && qr.printed) ||
@@ -548,7 +555,7 @@ export default function QRCodes() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total QR Codes</p>
-                  <p className="text-2xl font-bold">{codes.length}</p>
+                  <p className="text-2xl font-bold">{filteredQRCodes.length}</p>
                 </div>
                 <QrCode className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -693,7 +700,11 @@ export default function QRCodes() {
         )}
 
         {/* QR Codes Grid/List */}
-        {viewMode === 'grid' ? (
+        {filteredQRCodes.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center text-sm text-muted-foreground">No QR codes match your filters. Clear filters or generate new codes.</CardContent>
+          </Card>
+        ) : viewMode === 'grid' ? (
           <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {sortedQRCodes.map((qrCode) => (
             <Card
