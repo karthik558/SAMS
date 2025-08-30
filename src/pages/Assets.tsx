@@ -42,11 +42,11 @@ import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, typ
 import { listProperties, type Property } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
-import { createQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
+import { createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { submitApproval, listApprovals, type ApprovalRequest } from "@/services/approvals";
 import RequestEditModal from "@/components/assets/RequestEditModal";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet } from "@/lib/qr";
+import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet, LABEL_PRESETS, printImagesAsLabels } from "@/lib/qr";
 import QRCode from "qrcode";
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId } from "@/services/permissions";
@@ -129,8 +129,13 @@ export default function Assets() {
   const [role, setRole] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportOpen, setExportOpen] = useState(false);
-  const [exportFmt, setExportFmt] = useState<'png' | 'pdf'>('png');
+  const [exportFmt, setExportFmt] = useState<'png' | 'pdf' | 'label'>('png');
   const [exportOrientation, setExportOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [labelPresetId, setLabelPresetId] = useState<string>('4x6in');
+  const [labelUseCustom, setLabelUseCustom] = useState<boolean>(false);
+  const [labelCustomWidth, setLabelCustomWidth] = useState<string>('4');
+  const [labelCustomHeight, setLabelCustomHeight] = useState<string>('6');
+  const [labelUnits, setLabelUnits] = useState<'in' | 'mm'>('in');
   const [approvalsByAsset, setApprovalsByAsset] = useState<Record<string, ApprovalRequest | undefined>>({});
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
@@ -976,8 +981,12 @@ export default function Assets() {
                       <label className="inline-flex items-center gap-2 text-sm">
             <input type="radio" name="fmt" checked={exportFmt==='pdf'} onChange={() => setExportFmt('pdf')} /> PDF
                       </label>
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="radio" name="fmt" checked={exportFmt==='label'} onChange={() => setExportFmt('label')} /> Label (roll printer)
+                      </label>
                     </div>
                   </div>
+                  {exportFmt !== 'label' && (
                   <div>
                     <label className="text-sm font-medium">Orientation</label>
                     <div className="mt-1 flex gap-3">
@@ -989,6 +998,56 @@ export default function Assets() {
                       </label>
                     </div>
                   </div>
+                  )}
+                  {exportFmt === 'label' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Label size</label>
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2 items-center">
+                        <label className="inline-flex items-center gap-1 text-sm">
+                          <input type="radio" name="labelMode" checked={!labelUseCustom} onChange={() => setLabelUseCustom(false)} /> Preset
+                        </label>
+                        <label className="inline-flex items-center gap-1 text-sm">
+                          <input type="radio" name="labelMode" checked={labelUseCustom} onChange={() => setLabelUseCustom(true)} /> Custom
+                        </label>
+                      </div>
+                      {!labelUseCustom ? (
+                        <Select value={labelPresetId} onValueChange={(v) => { setLabelPresetId(v); }}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select label size" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {LABEL_PRESETS.map(lp => (
+                              <SelectItem key={lp.id} value={lp.id}>{lp.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Width</label>
+                            <Input value={labelCustomWidth} onChange={(e) => setLabelCustomWidth(e.target.value)} placeholder={labelUnits==='in'?'inches':'mm'} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Height</label>
+                            <Input value={labelCustomHeight} onChange={(e) => setLabelCustomHeight(e.target.value)} placeholder={labelUnits==='in'?'inches':'mm'} />
+                          </div>
+                          <div className="flex items-end">
+                            <div className="flex gap-3">
+                              <label className="inline-flex items-center gap-1 text-sm">
+                                <input type="radio" name="labelUnits" checked={labelUnits==='in'} onChange={() => setLabelUnits('in')} /> in
+                              </label>
+                              <label className="inline-flex items-center gap-1 text-sm">
+                                <input type="radio" name="labelUnits" checked={labelUnits==='mm'} onChange={() => setLabelUnits('mm')} /> mm
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">Prints one label per page sized exactly to your label. Use your printer options for material and density.</p>
+                  </div>
+                  )}
                   <div className="flex justify-end gap-2 pt-2">
                     <Button variant="ghost" onClick={() => setExportOpen(false)}>Cancel</Button>
                     <Button
@@ -1048,7 +1107,7 @@ export default function Assets() {
                             aEl.href = dataUrl;
                             aEl.download = `qr-selected-${new Date().toISOString().slice(0,10)}.png`;
                             aEl.click();
-                          } else {
+                          } else if (exportFmt === 'pdf') {
                             // Print-to-PDF via hidden iframe to avoid popup blockers
                             const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
                             const pageCss = exportOrientation==='portrait' ? '@page { size: A4 portrait; margin: 0; }' : '@page { size: A4 landscape; margin: 0; }';
@@ -1099,6 +1158,29 @@ export default function Assets() {
                             } else {
                               setTimeout(triggerPrint, 300);
                             }
+                            // Mark printed in history for PDF path
+                            try {
+                              if (hasSupabaseEnv && createdIds.length) {
+                                await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
+                              }
+                            } catch {}
+                          } else if (exportFmt === 'label') {
+                            let widthIn = 4, heightIn = 6;
+                            if (!labelUseCustom) {
+                              const preset = LABEL_PRESETS.find(p => p.id === labelPresetId) || LABEL_PRESETS[0];
+                              widthIn = preset.widthIn; heightIn = preset.heightIn;
+                            } else {
+                              const w = parseFloat(labelCustomWidth) || 1;
+                              const h = parseFloat(labelCustomHeight) || 1;
+                              if (labelUnits === 'mm') { widthIn = w / 25.4; heightIn = h / 25.4; } else { widthIn = w; heightIn = h; }
+                            }
+                            await printImagesAsLabels(images, { widthIn, heightIn, orientation: 'portrait', fit: 'contain' });
+                            // Mark printed in history for Label path
+                            try {
+                              if (hasSupabaseEnv && createdIds.length) {
+                                await Promise.all(createdIds.map(id => updateQRCode(id, { printed: true, status: 'Printed' } as any)));
+                              }
+                            } catch {}
                           }
                         } finally {
                           setExportOpen(false);

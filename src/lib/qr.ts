@@ -227,3 +227,70 @@ export async function composeQrA4Sheet(images: string[], opts?: {
   }
   return { dataUrl: canvas.toDataURL('image/png'), capacity };
 }
+
+// Common label size presets for roll printers (Dymo, Brother QL, Zebra, etc.)
+export type LabelPreset = { id: string; name: string; widthIn: number; heightIn: number };
+export const LABEL_PRESETS: LabelPreset[] = [
+  { id: '2x1in', name: '2" x 1" (Dymo/Brother)', widthIn: 2, heightIn: 1 },
+  { id: '3x1in', name: '3" x 1"', widthIn: 3, heightIn: 1 },
+  { id: '3x2in', name: '3" x 2"', widthIn: 3, heightIn: 2 },
+  { id: '4x3in', name: '4" x 3"', widthIn: 4, heightIn: 3 },
+  { id: '4x6in', name: '4" x 6" (Shipping/Zebra)', widthIn: 4, heightIn: 6 },
+  { id: '62x29mm', name: '62mm x 29mm (Brother DK-22205)', widthIn: 62/25.4, heightIn: 29/25.4 },
+  { id: '62x100mm', name: '62mm x 100mm', widthIn: 62/25.4, heightIn: 100/25.4 },
+];
+
+// Print given images as one label per page with a specific page size (inches).
+// This works with most label printer drivers via the browser Print dialog.
+export async function printImagesAsLabels(images: string[], opts: {
+  widthIn: number;
+  heightIn: number;
+  orientation?: 'portrait' | 'landscape';
+  fit?: 'contain' | 'cover';
+}) {
+  const { widthIn, heightIn, orientation = 'portrait', fit = 'contain' } = opts;
+  if (!images.length) return;
+  const pageCss = `@page { size: ${widthIn}in ${heightIn}in ${orientation}; margin: 0; }`;
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow?.document;
+  doc?.open();
+  const pages = images.map((src, i) => (
+    `<div class="page"><img src="${src}" alt="label-${i}" /></div>`
+  )).join('');
+  const html = `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Labels</title>
+    <style>
+      ${pageCss}
+      html, body { margin: 0; padding: 0; }
+      .page { width: ${widthIn}in; height: ${heightIn}in; display: flex; align-items: center; justify-content: center; break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page img { width: 100%; height: 100%; object-fit: ${fit}; display: block; }
+    </style>
+  </head>
+  <body>
+    ${pages}
+  </body>
+</html>`;
+  doc?.write(html);
+  doc?.close();
+  const trigger = () => {
+    try {
+      iframe.contentWindow?.focus();
+      setTimeout(() => iframe.contentWindow?.print(), 50);
+    } finally {
+      setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1000);
+    }
+  };
+  // Ensure first image is loaded before printing
+  const firstImg = doc?.querySelector('img') as HTMLImageElement | null;
+  if (firstImg && !firstImg.complete) firstImg.onload = () => setTimeout(trigger, 50); else setTimeout(trigger, 300);
+}
