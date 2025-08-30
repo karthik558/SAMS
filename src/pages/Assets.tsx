@@ -1012,12 +1012,36 @@ export default function Assets() {
                               expanded.push(a);
                             }
                           }
-                          for (const a of expanded) {
+                          let createdCount = 0;
+                          const createdIds: string[] = [];
+                          for (let i = 0; i < expanded.length; i++) {
+                            const a = expanded[i];
                             const url = `${normalizedBase}/assets/${a.id}`;
                             const raw = await QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: '#000', light: '#FFF' }, errorCorrectionLevel: 'M' });
                             const labeled = await composeQrWithLabel(raw, { assetId: a.id, topText: a.name || 'Scan to view asset' });
                             images.push(labeled);
+                            // Persist QR record so it appears in QR Codes page
+                            try {
+                              if (hasSupabaseEnv) {
+                                const payload: SbQRCode = {
+                                  id: `QR-${a.id}-${Date.now()}-${i}`,
+                                  assetId: a.id,
+                                  property: a.property ?? null,
+                                  generatedDate: new Date().toISOString().slice(0,10),
+                                  status: 'Generated',
+                                  printed: false,
+                                  imageUrl: labeled,
+                                } as any;
+                                await createQRCode(payload);
+                                createdIds.push(payload.id);
+                                createdCount++;
+                              }
+                            } catch (e) {
+                              console.error('Failed to create QR record for', a.id, e);
+                            }
                           }
+                          // Log bulk activity summary
+                          try { await logActivity('qr_bulk_generated', `Generated ${expanded.length} QR code(s) for export`); } catch {}
                           if (exportFmt === 'png') {
                             const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
                             const aEl = document.createElement('a');
