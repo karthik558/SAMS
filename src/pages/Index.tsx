@@ -1,7 +1,7 @@
 import { StatCard } from "@/components/ui/stat-card";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
-import { Package, Building2, Users, AlertTriangle, TrendingUp, QrCode } from "lucide-react";
+import { Package, Building2, Users, AlertTriangle, TrendingUp, QrCode, Shapes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 const Index = () => {
   const navigate = useNavigate();
   const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
-  const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0 });
+  const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0, assetTypes: 0 });
   const [firstName, setFirstName] = useState<string>("");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -52,6 +52,16 @@ const Index = () => {
 
         // Derived metrics
         const totalQuantity = (assets as any[]).reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
+        const assetTypes = (() => {
+          try {
+            const set = new Set<string>();
+            (assets as any[]).forEach((a) => {
+              const t = String((a as any).type ?? "").trim();
+              if (t) set.add(t);
+            });
+            return set.size;
+          } catch { return 0; }
+        })();
         const now = new Date();
         const year = now.getFullYear();
         const month = now.getMonth();
@@ -63,7 +73,7 @@ const Index = () => {
         const monthlyPurchasesPrev = (assets as any[]).filter(a => a.purchaseDate && new Date(a.purchaseDate) >= startPrevMonth && new Date(a.purchaseDate) < endPrevMonth).length;
         const codesTotal = (qrs as any[]).length;
         const codesReady = (qrs as any[]).filter((q: any) => !q.printed).length;
-        setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady });
+  setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady, assetTypes });
   clearTimeout(uiTimer);
   setLoadingUI(false);
       } catch (e) {
@@ -155,10 +165,10 @@ const Index = () => {
             trend={{ value: 2, isPositive: true }}
           />
           <StatCard
-            title="Users"
-            value={String(counts.users)}
-            description="Active users"
-            icon={Users}
+            title="Asset Types"
+            value={String(metrics.assetTypes)}
+            description="Distinct categories"
+            icon={Shapes}
           />
           <StatCard
             title="Expiring Soon"
