@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   ShieldCheck
 } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -301,6 +302,9 @@ export default function Assets() {
     return p ? p.id : val;
   };
 
+  // Sanitize a code by removing non-alphanumeric and uppercasing
+  const sanitizeCode = (s: string) => (s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
   const handleAddAsset = async (assetData: any) => {
   const canCreate = canEditPage;
     if (!canCreate) {
@@ -309,16 +313,16 @@ export default function Assets() {
     }
     try {
   if (isSupabase) {
-        const propertyCode = assetData.property; // Select provides property id/code
-        const prefix = typePrefix(assetData.itemType) + propertyCode;
+  const propertyCodeRaw = assetData.property; // Select provides property id/code
+  const prefix = typePrefix(assetData.itemType) + sanitizeCode(propertyCodeRaw);
         const quantity = Math.max(1, Number(assetData.quantity) || 1);
         const baseSeq = nextSequence(assets, prefix);
         const ids = selectedAsset ? [selectedAsset.id] : Array.from({ length: quantity }, (_, i) => `${prefix}${String(baseSeq + i).padStart(4,'0')}`);
         const common: Omit<SbAsset,'id'> = {
           name: assetData.itemName,
           type: assetData.itemType,
-          property: propertyCode,
-          property_id: propertyCode as any,
+          property: propertyCodeRaw,
+          property_id: propertyCodeRaw as any,
           quantity: selectedAsset ? Number(assetData.quantity || 1) : 1,
           purchaseDate: assetData.purchaseDate ? new Date(assetData.purchaseDate).toISOString().slice(0,10) : null,
           expiryDate: assetData.expiryDate ? new Date(assetData.expiryDate).toISOString().slice(0,10) : null,
@@ -330,7 +334,7 @@ export default function Assets() {
         if (selectedAsset) {
           const id = ids[0];
           await updateAsset(id, { ...common, id } as any);
-          await logActivity("asset_updated", `Asset ${id} (${common.name}) updated at ${propertyCode}`);
+          await logActivity("asset_updated", `Asset ${id} (${common.name}) updated at ${propertyCodeRaw}`);
         } else {
           for (const id of ids) {
             await createAsset({ ...common, id } as any);
@@ -342,8 +346,8 @@ export default function Assets() {
         toast.success(selectedAsset ? "Asset updated" : `Asset(s) saved: ${ids.slice(0,3).join(", ")}${ids.length>3?"...":""}`);
   } else {
         toast.info("Supabase not configured; using local data only");
-        const propertyCode = assetData.property;
-        const prefix = typePrefix(assetData.itemType) + propertyCode;
+  const propertyCode = sanitizeCode(assetData.property);
+  const prefix = typePrefix(assetData.itemType) + propertyCode;
         const quantity = Math.max(1, Number(assetData.quantity) || 1);
         const baseSeq = nextSequence(assets, prefix);
         const ids = Array.from({ length: quantity }, (_, i) => `${prefix}${String(baseSeq + i).padStart(4,'0')}`);
@@ -400,11 +404,126 @@ export default function Assets() {
   };
 
   const handleGenerateQR = (asset: any) => {
+    // If quantity > 1, offer to split into unique asset IDs first
+    const qty = Number(asset.quantity) || 1;
+    if (qty > 1) {
+      const ok = window.confirm(`This asset has quantity ${qty}. To generate unique QR codes, we'll split it into ${qty} separate asset IDs (one per unit). Continue?`);
+      if (!ok) return;
+      (async () => {
+        try {
+          const splitList = await splitAssetIntoUnits(asset);
+          const first = splitList.find(a => a.id === asset.id) || splitList[0] || null;
+          if (first) {
+            setSelectedAsset(first);
+            setShowQRGenerator(true);
+          }
+        } catch (e:any) {
+          console.error(e);
+          toast.error(e?.message || 'Failed to split asset into units');
+        }
+      })();
+      return;
+    }
     setSelectedAsset(asset);
     setShowQRGenerator(true);
   };
+  // Utility to parse prefix + numeric suffix from an asset id (e.g., AST-001 -> prefix 'AST-', num 1, width 3)
+  const parseId = (id: string): { prefix: string; num: number; width: number } | null => {
+    const m = String(id).match(/^(.*?)(\d+)$/);
+    if (!m) return null;
+    return { prefix: m[1], num: Number(m[2]), width: m[2].length };
+  };
+
+  const pad = (n: number, width: number) => String(n).padStart(width, '0');
+
+  // Split an asset with quantity>1 into N separate asset rows with distinct IDs (DB or local)
+  const splitAssetIntoUnits = async (asset: any): Promise<any[]> => {
+    const qty = Number(asset.quantity) || 1;
+    if (qty <= 1) return [asset];
+    const currentIds = new Set<string>(assets.map(a => String(a.id)));
+    const parsed = parseId(asset.id);
+    const created: any[] = [];
+    const baseList: { id: string; copyOf: any }[] = [];
+    // Keep existing id as unit #1
+    baseList.push({ id: asset.id, copyOf: asset });
+    // Determine additional ids
+    if (parsed) {
+      let n = parsed.num;
+      for (let i = 1; i < qty; i++) {
+        // find next available numeric id
+        do { n += 1; } while (currentIds.has(parsed.prefix + pad(n, parsed.width)));
+        baseList.push({ id: parsed.prefix + pad(n, parsed.width), copyOf: asset });
+        currentIds.add(parsed.prefix + pad(n, parsed.width));
+      }
+    } else {
+      // Fallback to type+property based prefix
+  const propertyCode = sanitizeCode(String(asset.property || ''));
+  const prefix = typePrefix(asset.type || '') + propertyCode;
+      let start = nextSequence(assets, prefix);
+      for (let i = 1; i < qty; i++) {
+        const id = `${prefix}${String(start++).padStart(4,'0')}`;
+        if (currentIds.has(id)) { i--; continue; }
+        baseList.push({ id, copyOf: asset });
+        currentIds.add(id);
+      }
+    }
+
+  if (hasSupabaseEnv) {
+      // Update existing asset to quantity=1
+      try { await updateAsset(asset.id, { quantity: 1 } as any); } catch {}
+      // Create remaining units (skip the first which is existing id)
+      for (let i = 1; i < baseList.length; i++) {
+        const id = baseList[i].id;
+        const copy = baseList[i].copyOf;
+        await createAsset({
+          id,
+          name: copy.name,
+          type: copy.type,
+          property: copy.property,
+          property_id: copy.property_id ?? (copy.property as any),
+          quantity: 1,
+          purchaseDate: copy.purchaseDate ?? null,
+          expiryDate: copy.expiryDate ?? null,
+          poNumber: copy.poNumber ?? null,
+          condition: copy.condition ?? null,
+          status: copy.status || 'Active',
+          location: copy.location ?? null,
+        } as any);
+      }
+  // Refresh list from DB and return only the unit assets we created/updated
+  const unitIds = baseList.map(b => b.id);
+  const fresh = await listAssets().catch(() => [] as any[]);
+  setAssets(fresh as any[]);
+  try { setSortBy('id-asc'); } catch {}
+  return (fresh as any[]).filter((a: any) => unitIds.includes(String(a.id)));
+    } else {
+      // Local only: mutate state
+  setAssets(prev => {
+        const updated = prev.map(a => a.id === asset.id ? { ...a, quantity: 1 } : a);
+        for (let i = 1; i < baseList.length; i++) {
+          const id = baseList[i].id;
+          updated.push({ ...asset, id, quantity: 1 });
+        }
+        return updated;
+      });
+  try { setSortBy('id-asc'); } catch {}
+      return baseList.map(b => ({ ...asset, id: b.id, quantity: 1 }));
+    }
+  };
 
   const getStatusBadge = (status: string) => <StatusChip status={status} />;
+
+  // Natural ID comparator to keep IDs like AST-001, AST-002 adjacent
+  const compareById = (a: any, b: any) => {
+    const pa = parseId(String(a.id));
+    const pb = parseId(String(b.id));
+    if (pa && pb) {
+      const prefCmp = pa.prefix.localeCompare(pb.prefix);
+      if (prefCmp !== 0) return prefCmp;
+      return pa.num - pb.num;
+    }
+    return String(a.id).localeCompare(String(b.id));
+  };
 
   const filteredAssets = assets.filter(asset => {
     // hide assets tied to disabled properties if we know properties
@@ -436,15 +555,18 @@ export default function Assets() {
 
   const sortedAssets = [...filteredAssets].sort((a, b) => {
     switch (sortBy) {
-      case "id-asc": return a.id.localeCompare(b.id);
-      case "id-desc": return b.id.localeCompare(a.id);
+      case "id-asc": return compareById(a, b);
+      case "id-desc": return -compareById(a, b);
       case "name": return (a.name || "").localeCompare(b.name || "");
       case "qty": return (b.quantity || 0) - (a.quantity || 0);
       case "newest":
       default: {
         const at = a.created_at ? new Date(a.created_at).getTime() : 0;
         const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return bt - at;
+        const dt = bt - at;
+        if (dt !== 0) return dt;
+        // tie-break by natural id to keep units close when created_at is equal/empty
+        return compareById(a, b);
       }
     }
   });
@@ -651,6 +773,20 @@ export default function Assets() {
                 </SelectContent>
               </Select>
 
+              {/* Quick toggle for sorting by Asset ID */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSortBy((s) => (s === 'id-asc' ? 'id-desc' : 'id-asc'))}
+                className="shrink-0"
+                aria-label="Toggle sort by Asset ID"
+                title="Sort by Asset ID"
+              >
+                <span className="mr-2">Asset ID</span>
+                {sortBy === 'id-asc' ? <ArrowUp className="h-4 w-4" /> : sortBy === 'id-desc' ? <ArrowDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4" />}
+              </Button>
+
               <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
             </div>
           </CardContent>
@@ -708,7 +844,26 @@ export default function Assets() {
                         }}
                       />
                     </TableHead>)}
-                    {prefs.visibleCols.includes('id') && <TableHead className="whitespace-nowrap">Asset ID</TableHead>}
+                    {prefs.visibleCols.includes('id') && (
+                      <TableHead className="whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setSortBy((s) => (s === 'id-asc' ? 'id-desc' : 'id-asc'))}
+                          className="inline-flex items-center gap-1 hover:text-foreground/80"
+                          aria-label="Sort by Asset ID"
+                          title="Sort by Asset ID"
+                        >
+                          Asset ID
+                          {sortBy === 'id-asc' ? (
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          ) : sortBy === 'id-desc' ? (
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowUpDown className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </TableHead>
+                    )}
                     {prefs.visibleCols.includes('name') && <TableHead>Name</TableHead>}
                     {prefs.visibleCols.includes('type') && <TableHead>Type</TableHead>}
                     {prefs.visibleCols.includes('property') && <TableHead>Property</TableHead>}
@@ -843,7 +998,21 @@ export default function Assets() {
                           const normalizedBase = (base || '').replace(/\/$/, '');
                           const selected = assets.filter(a => selectedIds.has(a.id));
                           const images: string[] = [];
+                          // Expand assets with quantity>1 by splitting first (DB/local as configured)
+                          const expanded: any[] = [];
                           for (const a of selected) {
+                            if ((Number(a.quantity)||1) > 1) {
+                              try {
+                                const units = await splitAssetIntoUnits(a);
+                                expanded.push(...units);
+                              } catch {
+                                expanded.push(a);
+                              }
+                            } else {
+                              expanded.push(a);
+                            }
+                          }
+                          for (const a of expanded) {
                             const url = `${normalizedBase}/assets/${a.id}`;
                             const raw = await QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: '#000', light: '#FFF' }, errorCorrectionLevel: 'M' });
                             const labeled = await composeQrWithLabel(raw, { assetId: a.id, topText: a.name || 'Scan to view asset' });
