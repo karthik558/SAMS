@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Boxes, BadgeCheck, Users as UsersIcon, Printer, Mail, KeyRound, Copy, Check } from "lucide-react";
+import { Sparkles, Boxes, BadgeCheck, Users as UsersIcon, Printer, Mail, KeyRound, Copy, Check, ShieldCheck, WifiOff, MonitorSmartphone, GitBranch, HelpCircle, Wrench, ScrollText, BookText } from "lucide-react";
 import { useState } from "react";
 import { SiteLayout } from "@/components/site/SiteLayout";
 
@@ -70,12 +70,14 @@ export default function Website() {
       </header>
 
       {/* Sections from README */}
-      <section id="capabilities" className="container pb-10 space-y-8 scroll-mt-20">
+      <section className="container pb-10 space-y-8">
         <div className="grid md:grid-cols-2 gap-6">
-          <Card className="bg-card/60 backdrop-blur">
+          <Card id="capabilities" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
+                <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                  <Sparkles className="h-4 w-4" />
+                </span>
                 <span>Key Capabilities</span>
               </CardTitle>
             </CardHeader>
@@ -90,10 +92,12 @@ export default function Website() {
               </ul>
             </CardContent>
           </Card>
-          <Card id="modules" className="scroll-mt-20 bg-card/60 backdrop-blur">
+          <Card id="modules" className="scroll-mt-20 bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Boxes className="h-5 w-5 text-primary" />
+                <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                  <Boxes className="h-4 w-4" />
+                </span>
                 <span>Modules</span>
               </CardTitle>
             </CardHeader>
@@ -108,10 +112,12 @@ export default function Website() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <Card id="benefits" className="scroll-mt-20 bg-card/60 backdrop-blur">
+          <Card id="benefits" className="scroll-mt-20 bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <BadgeCheck className="h-5 w-5 text-primary" />
+                <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                  <BadgeCheck className="h-4 w-4" />
+                </span>
                 <span>Benefits</span>
               </CardTitle>
             </CardHeader>
@@ -124,10 +130,12 @@ export default function Website() {
             </CardContent>
           </Card>
 
-          <Card id="audience" className="scroll-mt-20 bg-card/60 backdrop-blur">
+          <Card id="audience" className="scroll-mt-20 bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <UsersIcon className="h-5 w-5 text-primary" />
+                <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                  <UsersIcon className="h-4 w-4" />
+                </span>
                 <span>Who It’s For</span>
               </CardTitle>
             </CardHeader>
@@ -141,10 +149,12 @@ export default function Website() {
             </CardContent>
           </Card>
 
-          <Card id="printing-offline" className="scroll-mt-20 bg-card/60 backdrop-blur">
+          <Card id="printing-offline" className="scroll-mt-20 bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Printer className="h-5 w-5 text-primary" />
+                <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                  <Printer className="h-4 w-4" />
+                </span>
                 <span>Printing & Offline</span>
               </CardTitle>
             </CardHeader>
@@ -156,6 +166,170 @@ export default function Website() {
               </ul>
             </CardContent>
           </Card>
+        </div>
+      </section>
+
+      {/* Security and Access */}
+      <section className="container pb-10 space-y-4">
+        <Card id="security-access" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+              <span>Security and Access</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Role-aware navigation and gated actions</li>
+              <li>Sensitive elements hidden for non-privileged users</li>
+              <li>Visibility aligned with property access rules</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Printing and Labels */}
+      <section className="container pb-10 space-y-4">
+        <Card id="printing-labels" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <Printer className="h-4 w-4" />
+              </span>
+              <span>Printing and Labels</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>One-click print dialog for A4 sheets</li>
+              <li>Label flows with exact page sizing and presets</li>
+              <li>Custom width/height options</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Reliability and Offline */}
+      <section className="container pb-10 space-y-4">
+        <Card id="reliability-offline" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <WifiOff className="h-4 w-4" />
+              </span>
+              <span>Reliability and Offline</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Installable on desktop and mobile</li>
+              <li>Asset list caching by property for offline reference</li>
+              <li>Auto-update mechanism</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+  {/* Live Demo and Request a Demo sections removed per request */}
+
+      {/* Browser and Device Support */}
+      <section className="container pb-10 space-y-4">
+        <Card id="support" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <MonitorSmartphone className="h-4 w-4" />
+              </span>
+              <span>Browser and Device Support</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Current desktop browsers and mobile webviews</li>
+              <li>Responsive layouts for phones, tablets, and desktops</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Versioning and Releases */}
+      <section className="container pb-10 space-y-4">
+        <Card id="versioning" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <GitBranch className="h-4 w-4" />
+              </span>
+              <span>Versioning and Releases</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Semantic versioning</li>
+              <li>Release notes summarize notable changes</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* FAQ */}
+      <section className="container pb-10 space-y-4">
+        <Card id="faq" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <HelpCircle className="h-4 w-4" />
+              </span>
+              <span>FAQ</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Import assets via bulk template</li>
+              <li>Offline mode caches lists per property</li>
+              <li>Roles gate navigation and actions</li>
+              <li>Printing via QR Codes page with presets</li>
+              <li>Reports support export; QR history retains print status</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Troubleshooting */}
+      <section className="container pb-10 space-y-4">
+        <Card id="troubleshooting" className="bg-card/60 backdrop-blur rounded-xl border border-border/60 shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 hover:-translate-y-0.5 scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span className="inline-flex items-center justify-center rounded-md bg-primary/10 text-primary p-1.5">
+                <Wrench className="h-4 w-4" />
+              </span>
+              <span>Troubleshooting</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="mt-2 space-y-2 text-sm text-muted-foreground list-disc pl-5">
+              <li>Dashboard cards depend on role permissions</li>
+              <li>QR image download issues: try print-to-PDF or clear cache</li>
+              <li>No assets visible: check filters, access, and columns</li>
+            </ul>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Legal */}
+      <section id="license" className="container pb-4 space-y-2 scroll-mt-20">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <ScrollText className="h-4 w-4 text-primary" />
+          <span>License: This project is open source under a permissive license.</span>
+        </div>
+      </section>
+
+      <section id="code-of-conduct" className="container pb-12 space-y-2 scroll-mt-20">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <BookText className="h-4 w-4 text-primary" />
+          <span>Code of Conduct: Contributors uphold a professional, respectful environment.</span>
         </div>
       </section>
     </SiteLayout>

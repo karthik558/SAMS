@@ -27,15 +27,7 @@ export function SiteLayout({ children }: SiteLayoutProps) {
     if (typeof window !== "undefined" && window.location.hash) {
       const id = window.location.hash.replace(/^#/, "");
       const target = document.getElementById(id);
-      const container = mainRef.current;
-      if (target && container) {
-        const rect = target.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
-        container.scrollTo({
-          top: container.scrollTop + (rect.top - containerRect.top) - 12,
-          behavior: "smooth",
-        });
-      } else if (target) {
+      if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
@@ -44,20 +36,16 @@ export function SiteLayout({ children }: SiteLayoutProps) {
   const onNavigate = (href: string) => {
     const id = href.replace(/^#/, "");
     const target = document.getElementById(id);
-    const container = mainRef.current;
-    if (target && container) {
-      const rect = target.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      container.scrollTo({
-        top: container.scrollTop + (rect.top - containerRect.top) - 12,
-        behavior: "smooth",
-      });
-      // Also update URL hash for accessibility/back/forward
-      if (window.location.hash !== `#${id}`) {
-        history.replaceState(null, "", `#${id}`);
-      }
-    } else if (target) {
+    if (target) {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Nudge to account for small sticky offset if any
+      const container = mainRef.current;
+      if (container) {
+        requestAnimationFrame(() => {
+          container.scrollTo({ top: container.scrollTop - 12, behavior: "instant" as any });
+        });
+      }
+      // Update hash for back/forward and deep-link
       if (window.location.hash !== `#${id}`) {
         history.replaceState(null, "", `#${id}`);
       }
