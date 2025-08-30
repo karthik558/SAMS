@@ -2,14 +2,20 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+type TableProps = React.HTMLAttributes<HTMLTableElement> & {
+  dense?: boolean;
+  stickyHeader?: boolean;
+  stickyFirstCol?: boolean;
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
-  React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
+  TableProps
+>(({ className, dense, stickyHeader, stickyFirstCol, ...props }, ref) => (
+  <div className={cn("relative w-full overflow-auto", stickyHeader && "[&>table>thead_th]:sticky [&>table>thead_th]:top-0 [&>table>thead_th]:bg-background/95 [&>table>thead_th]:backdrop-blur supports-[backdrop-filter]:bg-background/70", stickyFirstCol && "[&>table_*:is(th,td):first-child]:sticky [&>table_*:is(th,td):first-child]:left-0 [&>table_*:is(th,td):first-child]:bg-background/95 [&>table_*:is(th,td):first-child]:backdrop-blur supports-[backdrop-filter]:bg-background/70")}>
     <table
       ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
+      className={cn("w-full caption-bottom", dense ? "text-xs" : "text-sm", className)}
       {...props}
     />
   </div>

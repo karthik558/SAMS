@@ -27,6 +27,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 // Mock data for QR codes
 const mockQRCodes = [
@@ -465,33 +467,29 @@ export default function QRCodes() {
           </DialogContent>
         </Dialog>
 
-    {/* Header */}
-  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <QrCode className="h-8 w-8" />
-              QR Code Management
-            </h1>
-            <p className="text-muted-foreground">
-              Generate, manage, and print QR codes for asset tracking
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-              <QrCode className="h-4 w-4" />
-              Generate New QR Code
+    <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "QR Codes" }]} />
+    <PageHeader
+      icon={QrCode}
+      title="QR Code Management"
+      description="Generate, manage, and print QR codes for asset tracking"
+      actions={
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+            <QrCode className="h-4 w-4" />
+            Generate New QR Code
+          </Button>
+          <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+            <Printer className="h-4 w-4" />
+            Bulk Print
+          </Button>
+          {role==='admin' && (
+            <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
+              {purging ? 'Clearing…' : 'Clear All'}
             </Button>
-            <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-              <Printer className="h-4 w-4" />
-              Bulk Print
-            </Button>
-            {role==='admin' && (
-              <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
-                {purging ? 'Clearing…' : 'Clear All'}
-              </Button>
-            )}
-          </div>
-  </div>
+          )}
+        </div>
+      }
+    />
     {/* Stats */}
   <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
           <Card>

@@ -54,6 +54,8 @@ import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -504,18 +506,13 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <User className="h-8 w-8" />
-            User Management
-          </h1>
-          <p className="text-muted-foreground">
-            Manage user accounts, roles, and permissions
-          </p>
-        </div>
-        
-    <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
+      <PageHeader
+        icon={User}
+        title="User Management"
+        description="Manage user accounts, roles, and permissions"
+        actions={
+          <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
       <Button className="w-full sm:w-auto" disabled={authRole !== 'admin'}>
               <Plus className="h-4 w-4 mr-2" />
@@ -726,8 +723,9 @@ export default function Users() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-      </div>
+  </Dialog>
+        }
+      />
 
       <Card>
         <CardHeader className="space-y-4">

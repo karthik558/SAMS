@@ -27,6 +27,8 @@ import { listProperties, deleteProperty as sbDeleteProperty, createProperty as s
 import { listAssets, type Asset } from "@/services/assets";
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 const mockProperties = [
   {
@@ -287,22 +289,18 @@ export default function Properties() {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Building2 className="h-8 w-8" />
-              Property Management
-            </h1>
-            <p className="text-muted-foreground">
-              Manage properties and assign users for asset tracking
-            </p>
-          </div>
-          <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
-            <Plus className="h-4 w-4" />
-            Add New Property
-          </Button>
-        </div>
+        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
+        <PageHeader
+          icon={Building2}
+          title="Property Management"
+          description="Manage properties and assign users for asset tracking"
+          actions={
+            <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
+              <Plus className="h-4 w-4" />
+              Add New Property
+            </Button>
+          }
+        />
 
     {/* Stats */}
   <div className="grid gap-3 sm:gap-4 md:grid-cols-4">

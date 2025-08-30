@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { Ticket as TicketIcon } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 export default function Tickets() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -84,13 +86,9 @@ export default function Tickets() {
   }, [items, range]);
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <TicketIcon className="h-8 w-8" />
-          Maintenance Tickets
-        </h1>
-      </div>
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Tickets" }]} />
+      <PageHeader icon={TicketIcon} title="Maintenance Tickets" />
       <Card>
         <CardHeader><CardTitle>New Ticket</CardTitle></CardHeader>
         <CardContent className="grid gap-2 md:grid-cols-4">

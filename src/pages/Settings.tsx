@@ -16,6 +16,8 @@ import { listUsers } from "@/services/users";
 import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp } from "@/services/auth";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -238,15 +240,12 @@ export default function Settings() {
 
   return (
   <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <SettingsIcon className="h-8 w-8" />
-          Settings
-        </h1>
-        <p className="text-muted-foreground">
-          Manage your SAMS preferences and system configuration
-        </p>
-      </div>
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
+      <PageHeader
+        icon={SettingsIcon}
+        title="Settings"
+        description="Manage your SAMS preferences and system configuration"
+      />
 
       <Tabs defaultValue="security" className="space-y-6">
         <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>

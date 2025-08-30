@@ -12,6 +12,8 @@ import { getAssetById, type Asset } from "@/services/assets";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { Separator } from "@/components/ui/separator";
 import DateRangePicker from "@/components/ui/date-range-picker";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusChip from "@/components/ui/status-chip";
 
@@ -181,13 +183,9 @@ export default function Approvals() {
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <ClipboardCheck className="h-8 w-8" />
-          Approvals
-        </h1>
-      </div>
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Approvals" }]} />
+      <PageHeader icon={ClipboardCheck} title="Approvals" />
   <Card>
         <CardHeader>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">

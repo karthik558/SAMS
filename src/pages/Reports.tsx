@@ -39,6 +39,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import StatusChip from "@/components/ui/status-chip";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 const reportTypes = [
   {
@@ -336,40 +338,36 @@ export default function Reports() {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <FileBarChart className="h-8 w-8" />
-              Reports & Analytics
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Generate comprehensive reports for audit and analysis
-            </p>
-          </div>
-          <div className="flex gap-2 flex-col sm:flex-row w-full sm:w-auto">
-            {(role === 'admin' || role === 'manager') && (
-              <Button
-                className="gap-2 w-full sm:w-auto"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setShowApprovalsLog((v) => !v);
-                  setTimeout(() => {
-                    const el = document.getElementById('approvals-log');
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }, 0);
-                }}
-              >
-                <FileText className="h-4 w-4" /> Approvals Log
+        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Reports" }]} />
+        <PageHeader
+          icon={FileBarChart}
+          title="Reports & Analytics"
+          description="Generate comprehensive reports for audit and analysis"
+          actions={
+            <div className="flex gap-2 flex-col sm:flex-row w-full sm:w-auto">
+              {(role === 'admin' || role === 'manager') && (
+                <Button
+                  className="gap-2 w-full sm:w-auto"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowApprovalsLog((v) => !v);
+                    setTimeout(() => {
+                      const el = document.getElementById('approvals-log');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 0);
+                  }}
+                >
+                  <FileText className="h-4 w-4" /> Approvals Log
+                </Button>
+              )}
+              <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto" size="sm">
+                <Download className="h-4 w-4" />
+                Generate Report
               </Button>
-            )}
-            <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto" size="sm">
-              <Download className="h-4 w-4" />
-              Generate Report
-            </Button>
-          </div>
-        </div>
+            </div>
+          }
+        />
 
         {/* Quick Report Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

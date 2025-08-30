@@ -52,6 +52,10 @@ import { getCurrentUserId } from "@/services/permissions";
 import { canUserEdit } from "@/services/permissions";
 import { Checkbox } from "@/components/ui/checkbox";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
+import PageHeader from "@/components/layout/PageHeader";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { useTablePreferences } from "@/components/table/useTablePreferences";
+import ColumnChooser, { type ColumnDef } from "@/components/table/ColumnChooser";
 
 // Mock data fallback
 const mockAssets = [
@@ -130,6 +134,27 @@ export default function Assets() {
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const [range, setRange] = useState<DateRange>();
+  const prefs = useTablePreferences("assets");
+  const columnDefs: ColumnDef[] = [
+    { key: "select", label: "Select", always: true },
+    { key: "id", label: "Asset ID", always: true },
+    { key: "name", label: "Name", always: true },
+    { key: "type", label: "Type" },
+    { key: "property", label: "Property" },
+    { key: "qty", label: "Quantity" },
+    { key: "location", label: "Location" },
+    { key: "purchaseDate", label: "Purchase Date" },
+    { key: "status", label: "Status" },
+    { key: "approval", label: "Approval" },
+    { key: "actions", label: "Actions", always: true },
+  ];
+  // initialize defaults for visible columns once
+  useEffect(() => {
+    if (!prefs.visibleCols.length) {
+      prefs.setVisibleCols(columnDefs.filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key)).map(c => c.key));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
@@ -484,25 +509,29 @@ export default function Assets() {
 
   return (
     <div className="space-y-6">
-        {/* Header */}
-  <div className="flex items-start gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Package className="h-8 w-8" />
-              Asset Management
-            </h1>
-            <p className="text-muted-foreground">
-              Track and manage all your organization's assets
-            </p>
-          </div>
-          <div className="flex gap-2">
-          <Button onClick={() => setShowAddForm(true)} className="gap-2" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
-            <Plus className="h-4 w-4" />
-            Add New Asset
-          </Button>
-          {/* Request Edit button moved to bulk actions bar below */}
-          </div>
-        </div>
+        {/* Header with breadcrumbs */}
+        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
+        <PageHeader
+          icon={Package}
+          title="Asset Management"
+          description="Track and manage all your organization's assets"
+          actions={
+            <div className="flex gap-2">
+              <Button variant={prefs.dense ? "secondary" : "outline"} size="sm" onClick={() => prefs.setDense(d => !d)}>
+                {prefs.dense ? "Comfortable" : "Compact"}
+              </Button>
+              <ColumnChooser
+                columns={columnDefs}
+                visible={prefs.visibleCols}
+                onChange={prefs.setVisibleCols}
+              />
+              <Button onClick={() => setShowAddForm(true)} className="gap-2" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+                <Plus className="h-4 w-4" />
+                Add Asset
+              </Button>
+            </div>
+          }
+        />
 
   {/* Stats Cards (derived from current assets state) */}
   <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
@@ -661,9 +690,10 @@ export default function Assets() {
           <Card>
             <CardContent className="p-0">
               <div className="overflow-x-auto">
-              <Table>
+              <Table dense={prefs.dense} stickyHeader stickyFirstCol>
               <TableHeader>
                 <TableRow>
+                    {prefs.visibleCols.includes('select') && (
                     <TableHead className="w-10">
                       <Checkbox
                         aria-label="Select all"
@@ -673,22 +703,23 @@ export default function Assets() {
                           else setSelectedIds(new Set());
                         }}
                       />
-                    </TableHead>
-                    <TableHead className="whitespace-nowrap">Asset ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Type</TableHead>
-                    <TableHead className="hidden md:table-cell">Property</TableHead>
-                    <TableHead className="hidden lg:table-cell">Quantity</TableHead>
-                    <TableHead className="hidden xl:table-cell">Location</TableHead>
-                    <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>
-                    <TableHead className="hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="hidden xl:table-cell">Approval</TableHead>
-                    <TableHead>Actions</TableHead>
+                    </TableHead>)}
+                    {prefs.visibleCols.includes('id') && <TableHead className="whitespace-nowrap">Asset ID</TableHead>}
+                    {prefs.visibleCols.includes('name') && <TableHead>Name</TableHead>}
+                    {prefs.visibleCols.includes('type') && <TableHead className="hidden sm:table-cell">Type</TableHead>}
+                    {prefs.visibleCols.includes('property') && <TableHead className="hidden md:table-cell">Property</TableHead>}
+                    {prefs.visibleCols.includes('qty') && <TableHead className="hidden lg:table-cell">Quantity</TableHead>}
+                    {prefs.visibleCols.includes('location') && <TableHead className="hidden xl:table-cell">Location</TableHead>}
+                    {prefs.visibleCols.includes('purchaseDate') && <TableHead className="hidden xl:table-cell">Purchase Date</TableHead>}
+                    {prefs.visibleCols.includes('status') && <TableHead className="hidden sm:table-cell">Status</TableHead>}
+                    {prefs.visibleCols.includes('approval') && <TableHead className="hidden xl:table-cell">Approval</TableHead>}
+                    {prefs.visibleCols.includes('actions') && <TableHead>Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
         {sortedAssets.map((asset) => (
                   <TableRow key={asset.id}>
+                    {prefs.visibleCols.includes('select') && (
                     <TableCell className="w-10">
                       <Checkbox
                         aria-label={`Select ${asset.id}`}
@@ -699,15 +730,16 @@ export default function Assets() {
                           setSelectedIds(next);
                         }}
                       />
-                    </TableCell>
-                    <TableCell className="font-medium">{asset.id}</TableCell>
-                    <TableCell>{asset.name}</TableCell>
-                      <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>
-          <TableCell className="hidden md:table-cell">{displayPropertyCode(asset.property)}</TableCell>
-                      <TableCell className="hidden lg:table-cell">{asset.quantity}</TableCell>
-                      <TableCell className="hidden xl:table-cell">{asset.location || '-'}</TableCell>
-                      <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>
-                      <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>
+                    </TableCell>)}
+                    {prefs.visibleCols.includes('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
+                    {prefs.visibleCols.includes('name') && <TableCell>{asset.name}</TableCell>}
+                    {prefs.visibleCols.includes('type') && <TableCell className="hidden sm:table-cell">{asset.type}</TableCell>}
+                    {prefs.visibleCols.includes('property') && <TableCell className="hidden md:table-cell">{displayPropertyCode(asset.property)}</TableCell>}
+                    {prefs.visibleCols.includes('qty') && <TableCell className="hidden lg:table-cell">{asset.quantity}</TableCell>}
+                    {prefs.visibleCols.includes('location') && <TableCell className="hidden xl:table-cell">{asset.location || '-'}</TableCell>}
+                    {prefs.visibleCols.includes('purchaseDate') && <TableCell className="hidden xl:table-cell">{asset.purchaseDate}</TableCell>}
+                    {prefs.visibleCols.includes('status') && <TableCell className="hidden sm:table-cell">{getStatusBadge(asset.status)}</TableCell>}
+                    {prefs.visibleCols.includes('approval') && (
                       <TableCell className="hidden xl:table-cell">
                         {approvalsByAsset[asset.id] ? (
                           <TooltipProvider>
@@ -727,6 +759,8 @@ export default function Assets() {
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </TableCell>
+                    )}
+                    {prefs.visibleCols.includes('actions') && (
                     <TableCell>
                       <div className="flex gap-2">
                         {role === 'admin' && (
@@ -759,6 +793,7 @@ export default function Assets() {
                         )}
                       </div>
                     </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
