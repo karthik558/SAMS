@@ -4,7 +4,7 @@
 	<h1>Smart Asset Management System</h1>
 	<p>Centralized asset lifecycle, tracking, and auditing for modern operations</p>
 	<p>
-		<a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+		<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
 			<img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
 		</a>
 		&nbsp;
@@ -117,11 +117,13 @@ SAMS streamlines the full lifecycle of physical assets across properties and dep
 ## Live Demo
 
 <div align="center">
-	<a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+	<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
 		<img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
 	</a>
 	<br />
 	<b>Experience SAMS instantly in your browser.</b>
+	<br />
+	<b>Demo credentials</b>: Username <code>demo@demo.com</code> • Password <code>demo@123</code>
 	<br />
 	Want a demo for your company? Contact <a href="mailto:dev@karthiklal.in">dev@karthiklal.in</a>.
 </div>
