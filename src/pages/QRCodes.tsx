@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { composeQrWithLabel, generateQrPng, downloadDataUrl } from "@/lib/qr";
+import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels } from "@/lib/qr";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
@@ -95,6 +95,12 @@ export default function QRCodes() {
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ assetId: string; assetName: string } | null>(null);
   const [canEditPage, setCanEditPage] = useState<boolean>(true);
+  // Download selection state
+  const [dlSingleOpen, setDlSingleOpen] = useState(false);
+  const [dlSingleTarget, setDlSingleTarget] = useState<any | null>(null);
+  const [dlSingleFmt, setDlSingleFmt] = useState<'png' | 'pdf'>('png');
+  const [dlAllOpen, setDlAllOpen] = useState(false);
+  const [dlAllFmt, setDlAllFmt] = useState<'zip' | 'pdf'>('zip');
 
   // Active property ids set (exclude disabled properties from UI everywhere)
   const activePropertyIds = useMemo(() => {
@@ -221,29 +227,74 @@ export default function QRCodes() {
     }
   };
 
-  const handleDownloadAll = async () => {
+  const handleDownloadAll = () => setDlAllOpen(true);
+
+  const confirmSingleDownload = async () => {
+    if (!dlSingleTarget) return;
     try {
-      const zip = new JSZip();
-  for (const qr of sortedQRCodes) {
-        let dataUrl = qr.imageUrl;
-        if (!dataUrl) dataUrl = await generateQrPng(qr);
-        const base64 = (dataUrl as string).split(',')[1];
-        zip.file(`qr-${qr.assetId}.png`, base64, { base64: true });
+      let dataUrl = dlSingleTarget.imageUrl;
+      if (!dataUrl) dataUrl = await generateQrPng(dlSingleTarget);
+      if (!dataUrl) throw new Error('No image');
+      if (dlSingleFmt === 'png') {
+        downloadDataUrl(dataUrl, `qr-${dlSingleTarget.assetId}.png`);
+        toast.success(`Downloaded QR for ${dlSingleTarget.assetName}`);
+        await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
+      } else {
+        // PDF via print dialog on A4 page
+        await printImagesAsLabels([dataUrl], { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
+        toast.success(`Opened PDF print for ${dlSingleTarget.assetName}`);
+        await logActivity('qr_download_pdf', `Prepared PDF for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
       }
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `qr-codes-${new Date().toISOString().slice(0,10)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("Downloading all QR codes");
-  await logActivity("qr_download_all", `Downloaded ${sortedQRCodes.length} QR codes`);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to download all QR codes");
+      toast.error('Failed to download');
+    } finally {
+      setDlSingleOpen(false);
+      setDlSingleTarget(null);
+      setDlSingleFmt('png');
+    }
+  };
+
+  const confirmDownloadAll = async () => {
+    try {
+      const images: string[] = [];
+      for (const qr of sortedQRCodes) {
+        let dataUrl = qr.imageUrl;
+        if (!dataUrl) dataUrl = await generateQrPng(qr);
+        if (dataUrl) images.push(dataUrl);
+      }
+      if (!images.length) throw new Error('No images');
+      if (dlAllFmt === 'zip') {
+        const zip = new JSZip();
+        for (let i = 0; i < sortedQRCodes.length; i++) {
+          const qr = sortedQRCodes[i];
+          const dataUrl = images[i];
+          const base64 = (dataUrl as string).split(',')[1];
+          zip.file(`qr-${qr.assetId}.png`, base64, { base64: true });
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `qr-codes-${new Date().toISOString().slice(0,10)}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success('Downloading all QR codes (PNG)');
+        await logActivity('qr_download_all', `Downloaded ${sortedQRCodes.length} QR codes (PNG zip)`);
+      } else {
+        // PDF via print dialog: one QR per A4 page
+        await printImagesAsLabels(images, { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
+        toast.success('Opened PDF print for all');
+        await logActivity('qr_download_all_pdf', `Prepared PDF for ${sortedQRCodes.length} QR codes`);
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to process download all');
+    } finally {
+      setDlAllOpen(false);
+      setDlAllFmt('zip');
     }
   };
 
@@ -705,7 +756,16 @@ export default function QRCodes() {
                     Regenerate
                   </Button>
                   )}
-         <Button
+                        <Button
+                    size="sm"
+                    variant="outline"
+       className="gap-2 w-full md:w-full lg:w-auto"
+                    onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}
+                  >
+                    <Download className="h-4 w-4" />
+                    Download
+                  </Button>
+        <Button
                     size="sm"
                     variant="outline"
        className="gap-2 w-full md:w-full lg:w-auto"
@@ -713,45 +773,17 @@ export default function QRCodes() {
                       try {
                         let dataUrl = qrCode.imageUrl;
                         if (!dataUrl) dataUrl = await generateQrPng(qrCode);
-                        if (dataUrl) {
-                          downloadDataUrl(dataUrl, `qr-${qrCode.assetId}.png`);
-                        }
-                        toast.success(`Downloaded QR for ${qrCode.assetName}`);
-                        await logActivity("qr_download", `Downloaded QR for ${qrCode.assetName} (${qrCode.assetId})`);
-                        await addNotification({
-                          title: "QR downloaded",
-                          message: `${qrCode.assetName} (${qrCode.assetId}) QR downloaded`,
-                          type: "qr",
-                        });
-                      } catch (e) {
-                        console.error(e);
-                        toast.error("Failed to download QR");
-                      }
-                    }}
-                  >
-                    <Download className="h-4 w-4" />
-                    Download
-                  </Button>
-         <Button
-                    size="sm"
-                    variant="outline"
-       className="gap-2 w-full md:w-full lg:w-auto"
-                    onClick={async () => {
-                      try {
-                        if (hasSupabaseEnv) {
-                          await updateQRCode(qrCode.id, { printed: true } as any);
-                        }
+                        if (!dataUrl) throw new Error('No image');
+                        // Print one per A4 page
+                        await printImagesAsLabels([dataUrl], { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
+                        if (hasSupabaseEnv) { await updateQRCode(qrCode.id, { printed: true } as any); }
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
-                        toast.success(`Printed QR for ${qrCode.assetName}`);
-                        await logActivity("qr_printed", `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
-                        await addNotification({
-                          title: "QR printed",
-                          message: `${qrCode.assetName} (${qrCode.assetId}) QR sent to printer`,
-                          type: "qr",
-                        });
+                        toast.success(`Opened print for ${qrCode.assetName}`);
+                        await logActivity('qr_printed', `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                        await addNotification({ title: 'QR printed', message: `${qrCode.assetName} (${qrCode.assetId}) QR sent to printer`, type: 'qr' });
                       } catch (e) {
                         console.error(e);
-                        toast.error("Failed to mark as printed");
+                        toast.error('Failed to print');
                       }
                     }}
                   >
@@ -804,14 +836,7 @@ export default function QRCodes() {
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openPreview(qrCode)}>Preview</Button>
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={async () => {
-                          try {
-                            let dataUrl = qrCode.imageUrl;
-                            if (!dataUrl) dataUrl = await generateQrPng(qrCode);
-                            if (dataUrl) downloadDataUrl(dataUrl, `qr-${qrCode.assetId}.png`);
-                            toast.success(`Downloaded QR for ${qrCode.assetName}`);
-                          } catch { toast.error('Failed to download QR'); }
-                        }}>Download</Button>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}>Download</Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -858,6 +883,53 @@ export default function QRCodes() {
               {previewMeta && (
                 <div className="text-xs text-muted-foreground">{previewMeta.assetId}</div>
               )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Download single format chooser */}
+        <Dialog open={dlSingleOpen} onOpenChange={setDlSingleOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Download format</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="flex gap-3 items-center">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="dlsingle" checked={dlSingleFmt==='png'} onChange={() => setDlSingleFmt('png')} /> PNG
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="dlsingle" checked={dlSingleFmt==='pdf'} onChange={() => setDlSingleFmt('pdf')} /> PDF
+                </label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setDlSingleOpen(false)}>Cancel</Button>
+                <Button onClick={confirmSingleDownload}>Continue</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Download all format chooser */}
+        <Dialog open={dlAllOpen} onOpenChange={setDlAllOpen}>
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Download all</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="flex gap-3 items-center">
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="dlall" checked={dlAllFmt==='zip'} onChange={() => setDlAllFmt('zip')} /> ZIP (PNGs)
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm">
+                  <input type="radio" name="dlall" checked={dlAllFmt==='pdf'} onChange={() => setDlAllFmt('pdf')} /> PDF (print)
+                </label>
+              </div>
+              <div className="text-xs text-muted-foreground">PDF opens a print dialog with one QR per A4 page.</div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => setDlAllOpen(false)}>Cancel</Button>
+                <Button onClick={confirmDownloadAll}>Continue</Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
