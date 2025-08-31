@@ -46,12 +46,20 @@ export async function listUserPermissions(userId: string): Promise<Record<PageKe
   try {
     const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId);
     if (error) throw error;
-    const out: Record<PageKey, { v: boolean; e: boolean }> = {} as any;
+    // Build from remote
+    const remote: Record<PageKey, { v: boolean; e: boolean }> = {} as any;
     (data || []).forEach((row: any) => {
       const page = row.page as PageKey;
-      out[page] = { v: !!row.can_view, e: !!row.can_edit };
+      remote[page] = { v: !!row.can_view, e: !!row.can_edit };
     });
-    return out;
+    // Merge in local entries for pages missing remotely (helps when RLS blocked or RPC not yet created)
+    const localAll = readLocal();
+    const local = (localAll[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
+    const merged: Record<PageKey, { v: boolean; e: boolean }> = { ...remote } as any;
+    (Object.keys(local) as PageKey[]).forEach((p) => {
+      if (!(p in merged)) merged[p] = local[p];
+    });
+    return merged;
   } catch {
     // Fallback to local when table missing or any error
     const map = readLocal();
@@ -73,24 +81,65 @@ export async function setUserPermissions(userId: string, perms: Record<PageKey, 
     writeLocal(map);
     return;
   }
-  // Upsert each page permission row
-  const rows: UserPermission[] = [];
-  (Object.keys(perms) as PageKey[]).forEach((page) => {
-    rows.push({ user_id: userId, page, can_view: !!perms[page].v, can_edit: !!perms[page].e });
-  });
-  // Delete unspecified pages? We won't; we only upsert changed pages.
+  // Build rows for RPC/upsert
+  const rows: Array<{ page: PageKey; v: boolean; e: boolean }> = (Object.keys(perms) as PageKey[]).map((page) => ({
+    page,
+    v: !!perms[page].v,
+    e: !!perms[page].e,
+  }));
+  // 1) Try SECURITY DEFINER RPC (JSON variant) to bypass RLS and avoid composite type issues
   try {
-    const { error } = await supabase.from(TABLE).upsert(rows, { onConflict: 'user_id,page' });
+    const { error: rpcJsonErr } = await supabase.rpc('set_user_permissions_json_v1', {
+      p_user_id: userId,
+      p_perms: rows, // JSON array [{page, v, e}]
+    } as any);
+    if (!rpcJsonErr) {
+      // Mirror to local
+      const map = readLocal();
+      const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
+      rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
+      map[userId] = cur;
+      writeLocal(map);
+      return;
+    }
+    console.warn('RPC set_user_permissions_json_v1 failed, trying typed RPC next...', rpcJsonErr);
+  } catch (e) {
+    console.warn('RPC set_user_permissions_json_v1 not available, trying typed RPC...', e);
+  }
+  // 1b) Try typed composite RPC if available
+  try {
+    const { error: rpcErr } = await supabase.rpc('set_user_permissions_v1', {
+      p_user_id: userId,
+      p_perms: rows as any,
+    } as any);
+    if (!rpcErr) {
+      const map = readLocal();
+      const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
+      rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
+      map[userId] = cur;
+      writeLocal(map);
+      return;
+    }
+    console.warn('RPC set_user_permissions_v1 failed, attempting direct upsert...', rpcErr);
+  } catch (e) {
+    console.warn('RPC set_user_permissions_v1 not available, attempting direct upsert...', e);
+  }
+  // 2) Direct upsert (may be blocked by RLS without admin policy)
+  try {
+    const upsertRows: UserPermission[] = rows.map((r) => ({ user_id: userId, page: r.page, can_view: r.v, can_edit: r.e }));
+    const { error } = await supabase.from(TABLE).upsert(upsertRows as any, { onConflict: 'user_id,page' });
     if (error) throw error;
+    // Mirror to local
+    const map = readLocal();
+    const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
+    rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
+    map[userId] = cur;
+    writeLocal(map);
   } catch {
     // Fallback to local on error
     const map = readLocal();
     const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-    (Object.keys(perms) as PageKey[]).forEach((p) => {
-      const existing = cur[p] || { v: false, e: false };
-      const next = { v: perms[p].v ?? existing.v, e: perms[p].e ?? existing.e };
-      cur[p] = next;
-    });
+    rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
     map[userId] = cur;
     writeLocal(map);
   }
