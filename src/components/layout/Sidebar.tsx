@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listApprovals } from "@/services/approvals";
+import { isAuditActive } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 
 const baseNav = [
@@ -29,6 +30,7 @@ const baseNav = [
   { name: "QR Codes", href: "/qr-codes", icon: QrCode },
   { name: "Scan QR", href: "/scan", icon: ScanLine }, // distinct icon from QR Codes
   { name: "Reports", href: "/reports", icon: FileBarChart },
+  { name: "Audit", href: "/audit", icon: ClipboardCheck },
   { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -46,6 +48,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [userDept, setUserDept] = useState<string>("");
+  const [auditActive, setAuditActive] = useState<boolean>(false);
   useEffect(() => {
     (async () => {
       try {
@@ -56,6 +59,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       } catch {}
     })();
   }, []);
+
+  // Check whether an audit session is active
+  useEffect(() => {
+    (async () => {
+      try { setAuditActive(await isAuditActive()); } catch { setAuditActive(false); }
+    })();
+  }, [location.pathname]);
 
   // Load current user's pending approvals count
   useEffect(() => {
@@ -152,6 +162,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
               // Approvals visible only to admin/manager
               if (item.name === "Approvals") return r === "admin" || r === "manager";
+              // Audit: admins always see (control page); managers see only when an audit is active
+              if (item.name === "Audit") return r === 'admin' || (auditActive && r === 'manager');
               // Items governed by permissions
               const key = pageNameToKey[item.name];
               if (!key) return true;

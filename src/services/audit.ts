@@ -1,0 +1,188 @@
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { listAssets, type Asset } from "@/services/assets";
+
+export type AuditSession = {
+  id: string;
+  started_at: string;
+  frequency_months: 3 | 6;
+  initiated_by?: string | null;
+  is_active: boolean;
+};
+
+export type AuditAssignment = {
+  session_id: string;
+  department: string;
+  status: "pending" | "submitted";
+  submitted_at?: string | null;
+  submitted_by?: string | null;
+};
+
+export type AuditReview = {
+  session_id: string;
+  asset_id: string;
+  department: string;
+  status: "verified" | "missing" | "damaged";
+  comment?: string | null;
+  updated_at?: string;
+};
+
+export async function isAuditActive(): Promise<boolean> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  try {
+    const { data, error } = await supabase.from("audit_sessions").select("id, is_active").eq("is_active", true).limit(1);
+    if (error) throw error;
+    return (data?.length || 0) > 0;
+  } catch { return false; }
+}
+
+export async function getActiveSession(): Promise<AuditSession | null> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data } = await supabase.from("audit_sessions").select("*").eq("is_active", true).maybeSingle();
+  return (data as any) || null;
+}
+
+export async function startAuditSession(freq: 3 | 6, initiated_by?: string | null): Promise<AuditSession> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.rpc("start_audit_session_v1", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null });
+  if (error) throw error;
+  return data as any;
+}
+
+export async function endAuditSession(): Promise<void> {
+  const current = await getActiveSession();
+  if (!current) return;
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { error } = await supabase.rpc("end_audit_session_v1", { p_session_id: current.id });
+  if (error) throw error;
+}
+
+export async function getAssignment(sessionId: string, department: string): Promise<AuditAssignment> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_assignments").select("*").eq("session_id", sessionId).eq("department", department).maybeSingle();
+  if (error) throw error;
+  if (data) return data as any;
+  const { data: created, error: e2 } = await supabase.rpc("ensure_audit_assignment_v1", { p_session_id: sessionId, p_department: department });
+  if (e2) throw e2;
+  return created as any;
+}
+
+export async function listDepartmentAssets(department: string): Promise<Asset[]> {
+  const all = await listAssets();
+  return (all || []).filter(a => (a.department || "").toLowerCase() === (department || "").toLowerCase());
+}
+
+export async function getReviewsFor(sessionId: string, department: string): Promise<AuditReview[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_reviews").select("*").eq("session_id", sessionId).eq("department", department);
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export async function saveReviewsFor(sessionId: string, department: string, rows: AuditReview[]): Promise<void> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const payload = rows.map(r => ({ asset_id: r.asset_id, status: r.status, comment: r.comment ?? null }));
+  const { error } = await supabase.rpc("upsert_audit_reviews_v1", { p_session_id: sessionId, p_department: department, p_rows_json: payload });
+  if (error) throw error;
+}
+
+export async function submitAssignment(sessionId: string, department: string, submitted_by?: string | null): Promise<void> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { error } = await supabase.rpc("submit_audit_assignment_v1", { p_session_id: sessionId, p_department: department, p_submitted_by: submitted_by ?? null });
+  if (error) throw error;
+}
+
+export async function getProgress(sessionId: string, departments: string[]): Promise<{ total: number; submitted: number; }>{
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_assignments").select("department,status").eq("session_id", sessionId);
+  if (error) throw error;
+  const total = departments.length;
+  const submitted = departments.filter(d => (data || []).find((a: any) => (a.department || '').toLowerCase() === d.toLowerCase() && a.status === 'submitted')).length;
+  return { total, submitted };
+}
+
+export async function listAssignments(sessionId: string): Promise<AuditAssignment[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_assignments").select("*").eq("session_id", sessionId);
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export async function getDepartmentReviewSummary(sessionId: string): Promise<Record<string, { verified: number; missing: number; damaged: number }>> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_reviews").select("department,status").eq("session_id", sessionId);
+  if (error) throw error;
+  const summary: Record<string, { verified: number; missing: number; damaged: number }> = {};
+  (data || []).forEach((r: any) => {
+    const dept = (r.department || '').toString();
+    if (!summary[dept]) summary[dept] = { verified: 0, missing: 0, damaged: 0 };
+    if (r.status === 'verified') summary[dept].verified++;
+    else if (r.status === 'missing') summary[dept].missing++;
+    else if (r.status === 'damaged') summary[dept].damaged++;
+  });
+  return summary;
+}
+
+export async function listReviewsForSession(sessionId: string): Promise<AuditReview[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_reviews").select("*").eq("session_id", sessionId);
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export type AuditReport = {
+  id: string;
+  session_id: string;
+  generated_at: string;
+  generated_by?: string | null;
+  payload: any;
+};
+
+export async function createAuditReport(sessionId: string, generated_by?: string | null): Promise<AuditReport> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.rpc("create_audit_report_v1", { p_session_id: sessionId, p_generated_by: generated_by ?? null });
+  if (error) throw error;
+  return data as any;
+}
+
+export async function listAuditReports(sessionId: string): Promise<AuditReport[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_reports").select("*").eq("session_id", sessionId).order("generated_at", { ascending: false });
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export async function getAuditReport(id: string): Promise<AuditReport | null> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_reports").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as any) || null;
+}
+
+export async function listRecentAuditReports(limit: number = 20): Promise<AuditReport[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase
+    .from("audit_reports")
+    .select("*")
+    .order("generated_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export async function listSessions(limit: number = 20): Promise<AuditSession[]> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase
+    .from("audit_sessions")
+    .select("*")
+    .order("started_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data as any[]) || [];
+}
+
+export async function getSessionById(id: string): Promise<AuditSession | null> {
+  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const { data, error } = await supabase.from("audit_sessions").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  return (data as any) || null;
+}

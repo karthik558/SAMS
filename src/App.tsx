@@ -11,6 +11,7 @@ import QRCodes from "./pages/QRCodes";
 import Approvals from "./pages/Approvals";
 import Tickets from "./pages/Tickets";
 import Reports from "./pages/Reports";
+import Audit from "./pages/Audit";
 import Users from "./pages/Users";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -81,6 +82,7 @@ const App = () => (
                     <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
                     <Route path="/tickets" element={<Tickets />} />
                     <Route path="/reports" element={<RequireView page="reports"><Reports /></RequireView>} />
+                    <Route path="/audit" element={<RoleGate roles={["manager","admin"]}><Audit /></RoleGate>} />
                     <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
                     <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
                     <Route path="*" element={<NotFound />} />

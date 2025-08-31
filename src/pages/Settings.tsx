@@ -17,6 +17,7 @@ import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp } from "@/services/auth";
 import PageHeader from "@/components/layout/PageHeader";
+// Audit controls have moved to the main Audit page
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 export default function Settings() {
@@ -38,6 +39,7 @@ export default function Settings() {
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
   const [role, setRole] = useState<string>("");
+  // Audit controls moved to /audit
 
   // MFA state
   const [mfaEnrolled, setMfaEnrolled] = useState<boolean>(false);
@@ -248,7 +250,7 @@ export default function Settings() {
       />
 
       <Tabs defaultValue="security" className="space-y-6">
-        <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+  <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3' : 'grid-cols-2'}`}>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
@@ -263,6 +265,7 @@ export default function Settings() {
               <span className="hidden sm:inline">Departments</span>
             </TabsTrigger>
           )}
+          
         </TabsList>
 
         <TabsContent value="notifications" className="space-y-6">
