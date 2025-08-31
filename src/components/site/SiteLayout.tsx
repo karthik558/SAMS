@@ -1,69 +1,27 @@
-import { useEffect, useRef } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { SiteSidebar } from "./SiteSidebar";
-
-interface SiteLayoutProps {
-  children: React.ReactNode;
-}
+interface SiteLayoutProps { children: React.ReactNode }
 
 export function SiteLayout({ children }: SiteLayoutProps) {
-  const isMobile = useIsMobile();
-  const mainRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    // Enable smooth scroll behavior for in-page anchors
-    if (typeof window !== "undefined") {
-      document.documentElement.style.scrollBehavior = "smooth";
-    }
-    return () => {
-      if (typeof window !== "undefined") {
-        document.documentElement.style.scrollBehavior = "auto";
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    // If there is an initial hash in URL, scroll to it once mounted
-    if (typeof window !== "undefined" && window.location.hash) {
-      const id = window.location.hash.replace(/^#/, "");
-      const target = document.getElementById(id);
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    }
-  }, []);
-
-  const onNavigate = (href: string) => {
-    const id = href.replace(/^#/, "");
-    const target = document.getElementById(id);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-      // Nudge to account for small sticky offset if any
-      const container = mainRef.current;
-      if (container) {
-        requestAnimationFrame(() => {
-          container.scrollTo({ top: container.scrollTop - 12, behavior: "instant" as any });
-        });
-      }
-      // Update hash for back/forward and deep-link
-      if (window.location.hash !== `#${id}`) {
-        history.replaceState(null, "", `#${id}`);
-      }
-    }
-  };
   return (
-    <div className="flex min-h-dvh bg-background flex-col md:flex-row">
-      {/* Sidebar on desktop, top bar on mobile */}
-      <div className="hidden md:block">
-        <SiteSidebar onNavigate={onNavigate} />
-      </div>
-      <div className="md:hidden w-full sticky top-0 z-30">
-        <SiteSidebar isMobile onNavigate={onNavigate} />
-      </div>
+    <div className="min-h-dvh bg-gradient-to-b from-background to-muted/30">
+      {/* Top header */}
+      <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
+        <div className="container flex h-14 items-center justify-between">
+          <div className="flex items-center gap-2">
+            <img src="/favicon.png" alt="SAMS" className="h-5 w-5" />
+            <span className="font-semibold tracking-tight">SAMS</span>
+          </div>
+          {/* simple header, external links removed per request */}
+        </div>
+      </header>
 
-      <main ref={(el) => (mainRef.current = el)} className="flex-1 overflow-auto p-4 md:p-6 bg-muted/30">
+      {/* Main content */}
+      <main className="container px-4 py-10 md:py-16">
         {children}
       </main>
+
+      <footer className="border-t py-6 text-xs text-muted-foreground">
+        <div className="container">© {new Date().getFullYear()} SAMS. All rights reserved.</div>
+      </footer>
     </div>
   );
 }
