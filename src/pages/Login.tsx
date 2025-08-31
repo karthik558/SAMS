@@ -77,21 +77,19 @@ export default function Login() {
           return;
         }
         // Single-device enforcement
-  // Clear any stale local tag before creating a new one
-  try { clearLocalSessionTag(); } catch {}
-  const tag = generateSessionTag();
-        const single = await ensureSingleActiveSession(u.email, tag, false);
+        // Clear any stale local tag before creating a new one
+        try { clearLocalSessionTag(); } catch {}
+        let finalTag = generateSessionTag();
+        const single = await ensureSingleActiveSession(u.email, finalTag, false);
         if ((single as any).conflict) {
           const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
           if (!overwrite) return;
           const newTag = generateSessionTag();
           const force = await ensureSingleActiveSession(u.email, newTag, true);
-          if ((force as any).ok) {
-            try { setLocalSessionTag(newTag); } catch {}
-          }
           if (!(force as any).ok) return;
+          finalTag = newTag; // adopt the server-overwritten tag
         }
-        try { setLocalSessionTag(tag); } catch {}
+        try { setLocalSessionTag(finalTag); } catch {}
         try {
           localStorage.setItem(CURRENT_USER_KEY, u.id);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
@@ -133,20 +131,18 @@ export default function Login() {
       const u = await mfaVerify(factorId, challengeId, otp, email.trim());
       if (!u) { toast({ title: "MFA failed", variant: "destructive" }); return; }
       // Single-device enforcement
-  try { clearLocalSessionTag(); } catch {}
-  const tag = generateSessionTag();
-      const single = await ensureSingleActiveSession(u.email, tag, false);
+      try { clearLocalSessionTag(); } catch {}
+      let finalTag = generateSessionTag();
+      const single = await ensureSingleActiveSession(u.email, finalTag, false);
       if ((single as any).conflict) {
         const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
         if (!overwrite) return;
-  const newTag = generateSessionTag();
+        const newTag = generateSessionTag();
         const force = await ensureSingleActiveSession(u.email, newTag, true);
-        if ((force as any).ok) {
-          try { setLocalSessionTag(newTag); } catch {}
-        }
         if (!(force as any).ok) return;
+        finalTag = newTag;
       }
-      try { setLocalSessionTag(tag); } catch {}
+      try { setLocalSessionTag(finalTag); } catch {}
       localStorage.setItem(CURRENT_USER_KEY, u.id);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
       try { await updateLastLogin(u.email); } catch {}

@@ -13,9 +13,31 @@ export function SingleDeviceGuard() {
       try { return (JSON.parse(localStorage.getItem("auth_user") || "{}") as any)?.email || null; } catch { return null; }
     })();
 
+    function isProtectedPath(p: string) {
+      // Only enforce inside the authenticated app shell; skip public/demo routes and marketing site
+      // Special-case: /assets/:id is a public asset preview page
+      if (/^\/assets\/[A-Za-z0-9\-]+$/.test(p)) return false;
+      return (
+        p === '/' ||
+        p.startsWith('/assets') ||
+        p.startsWith('/properties') ||
+        p.startsWith('/qr-codes') ||
+        p.startsWith('/approvals') ||
+        p.startsWith('/tickets') ||
+        p.startsWith('/reports') ||
+        p.startsWith('/users') ||
+        p.startsWith('/settings')
+      );
+    }
+
     async function checkOnce() {
       const local = getLocalSessionTag();
       if (!authUserEmail || !local) return;
+      try {
+        // Do not interrupt if user is on public pages (scan, site), auth pages, or demo
+        const path = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+        if (!isProtectedPath(path)) return;
+      } catch {}
       try {
         const server = await fetchServerSessionTag(authUserEmail);
         if (server && server !== local) {
@@ -59,7 +81,7 @@ export function SingleDeviceGuard() {
       } catch {}
     }
 
-    return () => {
+  return () => {
       mounted = false;
       if (unsub) try { unsub(); } catch {}
       if (timer) clearInterval(timer);
