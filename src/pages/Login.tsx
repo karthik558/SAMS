@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QrCode, Eye, EyeOff } from "lucide-react";
 import { listUsers, type AppUser } from "@/services/users";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { initiatePasswordSignIn, mfaChallenge, mfaVerify, ensureSingleActiveSession, generateSessionTag, getLocalSessionTag, setLocalSessionTag, loginWithPassword, requestPasswordReset, clearLocalSessionTag, updateLastLogin } from "@/services/auth";
+import { initiatePasswordSignIn, mfaChallenge, mfaVerify, loginWithPassword, requestPasswordReset, updateLastLogin } from "@/services/auth";
 
 const LS_USERS_KEY = "app_users_fallback";
 const CURRENT_USER_KEY = "current_user_id";
@@ -76,20 +76,6 @@ export default function Login() {
           setAttempts(a => a + 1);
           return;
         }
-        // Single-device enforcement
-        // Clear any stale local tag before creating a new one
-        try { clearLocalSessionTag(); } catch {}
-        let finalTag = generateSessionTag();
-        const single = await ensureSingleActiveSession(u.email, finalTag, false);
-        if ((single as any).conflict) {
-          const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
-          if (!overwrite) return;
-          const newTag = generateSessionTag();
-          const force = await ensureSingleActiveSession(u.email, newTag, true);
-          if (!(force as any).ok) return;
-          finalTag = newTag; // adopt the server-overwritten tag
-        }
-        try { setLocalSessionTag(finalTag); } catch {}
         try {
           localStorage.setItem(CURRENT_USER_KEY, u.id);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
@@ -130,19 +116,6 @@ export default function Login() {
       if (!factorId || !challengeId || !otp) return;
       const u = await mfaVerify(factorId, challengeId, otp, email.trim());
       if (!u) { toast({ title: "MFA failed", variant: "destructive" }); return; }
-      // Single-device enforcement
-      try { clearLocalSessionTag(); } catch {}
-      let finalTag = generateSessionTag();
-      const single = await ensureSingleActiveSession(u.email, finalTag, false);
-      if ((single as any).conflict) {
-        const overwrite = window.confirm("You are already signed in on another device or browser. Sign out the other session to continue?");
-        if (!overwrite) return;
-        const newTag = generateSessionTag();
-        const force = await ensureSingleActiveSession(u.email, newTag, true);
-        if (!(force as any).ok) return;
-        finalTag = newTag;
-      }
-      try { setLocalSessionTag(finalTag); } catch {}
       localStorage.setItem(CURRENT_USER_KEY, u.id);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
       try { await updateLastLogin(u.email); } catch {}

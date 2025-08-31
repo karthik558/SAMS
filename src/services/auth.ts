@@ -109,50 +109,10 @@ export async function logout(): Promise<void> {
     const { data: userRes } = await supabase.auth.getUser();
     const email = (userRes?.user?.email || '').toLowerCase();
     if (email) {
-  // Clear server tag only on explicit sign-out
-  await supabase.from('app_users').update({ active_session_id: null }).eq('email', email);
+  // Standard sign-out; no single-device session cleanup
     }
   } catch {}
-  try { localStorage.removeItem(SESSION_TAG_KEY); } catch {}
   await supabase.auth.signOut();
-}
-
-const SESSION_TAG_KEY = 'active_session_id';
-export function generateSessionTag(): string {
-  const a = new Uint8Array(16);
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
-  return Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
-}
-export function getLocalSessionTag(): string | null {
-  try { return localStorage.getItem(SESSION_TAG_KEY); } catch { return null; }
-}
-export function setLocalSessionTag(tag: string) {
-  try { localStorage.setItem(SESSION_TAG_KEY, tag); } catch {}
-}
-export function clearLocalSessionTag() {
-  try { localStorage.removeItem(SESSION_TAG_KEY); } catch {}
-}
-
-export async function ensureSingleActiveSession(email: string, tag: string, overwrite = false): Promise<{ ok: true } | { conflict: true }> {
-  if (!hasSupabaseEnv) return { ok: true } as any;
-  const { data, error } = await supabase.from('app_users').select('id, active_session_id').eq('email', email.toLowerCase()).maybeSingle();
-  if (error) throw error;
-  const current = (data as any)?.active_session_id as string | null | undefined;
-  if (current && current !== tag && !overwrite) {
-    return { conflict: true } as any;
-  }
-  const next = tag || generateSessionTag();
-  const { error: upErr } = await supabase.from('app_users').update({ active_session_id: next }).eq('email', email.toLowerCase());
-  if (upErr) throw upErr;
-  setLocalSessionTag(next);
-  return { ok: true } as any;
-}
-
-export async function fetchServerSessionTag(email: string): Promise<string | null> {
-  if (!hasSupabaseEnv) return getLocalSessionTag();
-  const { data, error } = await supabase.from('app_users').select('active_session_id').eq('email', email.toLowerCase()).maybeSingle();
-  if (error) throw error;
-  return (data as any)?.active_session_id ?? null;
 }
 
 export async function setUserPassword(userId: string, password: string): Promise<void> {

@@ -20,7 +20,7 @@ import DemoAppRouter from "./pages/demo/DemoApp";
 import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
 import Website from "./pages/Website";
-import { SingleDeviceGuard } from "@/components/session/SingleDeviceGuard";
+// SingleDeviceGuard removed per user request
 import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
 
@@ -55,7 +55,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-  <SingleDeviceGuard />
+  {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
