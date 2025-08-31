@@ -208,7 +208,7 @@ export default function Login() {
             <div className="mt-4">
               <Button type="button" variant="outline" className="w-full gap-2" onClick={() => navigate('/scan')}>
                 <QrCode className="h-4 w-4" />
-                Scan QR (No login)
+                Scan QR
               </Button>
             </div>
           </CardContent>
