@@ -28,6 +28,7 @@ import { isDemoMode } from "@/lib/demo";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes } from "@/services/itemTypes";
 import { listReports, createReport, clearReports, type Report } from "@/services/reports";
+import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
@@ -217,6 +218,11 @@ export default function Reports() {
           }
         } catch {}
         setRecentReports(reports);
+        // Log activity that a report was generated
+        try {
+          const rname = `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''}`;
+          await logActivity('report_generated', `${rname} generated${reportFormat ? ` (${reportFormat.toUpperCase()})` : ''}`, (currentUser?.name || currentUser?.email || null));
+        } catch {}
         await addNotification({
           title: "Report generated",
           message: `${reportTypes.find(r => r.id === selectedReportType)?.name} is ready for download`,
