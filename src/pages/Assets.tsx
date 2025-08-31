@@ -37,10 +37,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
+import { listDepartments } from "@/services/departments";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
@@ -58,6 +65,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { useTablePreferences } from "@/components/table/useTablePreferences";
 import ColumnChooser, { type ColumnDef } from "@/components/table/ColumnChooser";
+import { listUserDepartmentAccess } from "@/services/userDeptAccess";
 
 // Mock data fallback
 const mockAssets = [
@@ -123,9 +131,12 @@ export default function Assets() {
   const [assets, setAssets] = useState<any[]>(mockAssets);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
+  const [deptOptions, setDeptOptions] = useState<string[]>([]);
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [sortBy, setSortBy] = useState("newest");
+  const [deptFilter, setDeptFilter] = useState<string[]>([]);
+  const [deptAll, setDeptAll] = useState<boolean>(true);
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   const [role, setRole] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -141,6 +152,7 @@ export default function Assets() {
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const [range, setRange] = useState<DateRange>();
+  const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
   const prefs = useTablePreferences("assets");
   const columnDefs: ColumnDef[] = [
     { key: "select", label: "Select", always: true },
@@ -148,6 +160,7 @@ export default function Assets() {
     { key: "name", label: "Name", always: true },
     { key: "type", label: "Type" },
     { key: "property", label: "Property" },
+  { key: "department", label: "Department" },
     { key: "qty", label: "Quantity" },
     { key: "location", label: "Location" },
     { key: "purchaseDate", label: "Purchase Date" },
@@ -200,6 +213,22 @@ export default function Assets() {
     } catch {}
   }, []);
 
+  // Load allowed departments for current user (Supabase-backed mapping)
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        const user = raw ? JSON.parse(raw) : null;
+        if (user?.id) {
+          const depts = await listUserDepartmentAccess(user.id);
+          setAllowedDepts(Array.isArray(depts) ? depts : []);
+        } else {
+          setAllowedDepts(null);
+        }
+      } catch { setAllowedDepts(null); }
+    })();
+  }, []);
+
   const [canEditPage, setCanEditPage] = useState<boolean>(true);
   useEffect(() => {
     (async () => {
@@ -238,9 +267,10 @@ export default function Assets() {
     (async () => {
       try {
         if (isSupabase) {
-          const [props, types] = await Promise.all([
+          const [props, types, depts] = await Promise.all([
             listProperties().catch(() => [] as any[]),
             listItemTypes().catch(() => [] as any[]),
+            listDepartments().catch(() => [] as any[]),
           ]);
           if (props?.length) {
             const active = props.filter((p: any) => (p.status || '').toLowerCase() !== 'disabled');
@@ -249,6 +279,10 @@ export default function Assets() {
             setPropsByName(Object.fromEntries(props.map((p: any) => [p.name, p])));
           }
           if (types?.length) setTypeOptions(types.map((t: any) => t.name));
+          if (depts?.length) {
+            const names = Array.from(new Set((depts as any[]).map((d: any) => (d.name || '').toString()).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+            if (names.length) setDeptOptions(names);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -267,7 +301,47 @@ export default function Assets() {
       const types = Array.from(new Set(assets.map(a => a.type))).filter(Boolean) as string[];
       if (types.length) setTypeOptions(types);
     }
+    // derive department options from assets when not set
+    if (!deptOptions.length) {
+      const depts = Array.from(new Set(assets.map(a => (a.department || '').toString()).filter(Boolean)));
+      if (depts.length) setDeptOptions(depts);
+    }
   }, [assets]);
+
+  // Visible department options respecting allowedDepts for non-admins
+  const visibleDeptOptions = useMemo(() => {
+    // Departments actually present in the current assets dataset
+    const inUse = Array.from(new Set(assets.map(a => (a.department || '').toString()).filter(Boolean)));
+    // Start from backend-provided list if any, else from in-use set
+    let base = (deptOptions && deptOptions.length ? Array.from(new Set(deptOptions)) : inUse)
+      // Show only departments that have at least one asset
+      .filter(d => inUse.includes(d))
+      .sort((a,b)=>a.localeCompare(b));
+    // Restrict to allowed for non-admins
+    const lowerAllowed = (role !== 'admin' && Array.isArray(allowedDepts) && allowedDepts.length)
+      ? new Set(allowedDepts.map(d => d.toLowerCase()))
+      : null;
+    base = lowerAllowed ? base.filter(d => lowerAllowed.has(d.toLowerCase())) : base;
+    return base;
+  }, [deptOptions, allowedDepts, role, assets]);
+
+  // Keep "All" selected by default and sync when options change
+  useEffect(() => {
+    if (deptAll) {
+      // ensure all visible options are selected
+      if (visibleDeptOptions.length) {
+        const allSelected = deptFilter.length === visibleDeptOptions.length && visibleDeptOptions.every(d => deptFilter.includes(d));
+        if (!allSelected) setDeptFilter(visibleDeptOptions);
+      } else if (deptFilter.length) {
+        setDeptFilter([]);
+      }
+    } else if (deptFilter.length) {
+      // prune selections that no longer exist
+      const pruned = deptFilter.filter(d => visibleDeptOptions.includes(d));
+      if (pruned.length !== deptFilter.length) setDeptFilter(pruned);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleDeptOptions, deptAll]);
 
   // Load pending approvals per asset for indicator
   useEffect(() => {
@@ -325,6 +399,18 @@ export default function Assets() {
       toast.error("You don't have permission to create assets");
       return;
     }
+    // Department enforcement: if user has an allowed department list (from mapping), selected must be in list (non-admin)
+    try {
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+      const user = raw ? JSON.parse(raw) : null;
+      const role = (user?.role || '').toLowerCase();
+      const effectiveAllowed = (allowedDepts && allowedDepts.length) ? allowedDepts : (user?.department ? [user.department] : []);
+      if (role !== 'admin' && Array.isArray(effectiveAllowed) && effectiveAllowed.length > 0) {
+        const sel = (assetData.department || user?.department || '').toString().toLowerCase();
+        const ok = effectiveAllowed.map((d) => d.toLowerCase()).includes(sel);
+        if (!ok) { toast.error('You are not allowed to create assets for this department'); return; }
+      }
+    } catch {}
     try {
   if (isSupabase) {
   const propertyCodeRaw = assetData.property; // Select provides property id/code
@@ -337,6 +423,7 @@ export default function Assets() {
           type: assetData.itemType,
           property: propertyCodeRaw,
           property_id: propertyCodeRaw as any,
+          department: (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); const user = raw ? JSON.parse(raw) : null; return assetData.department || user?.department || null; } catch { return assetData.department || null; } })(),
           quantity: selectedAsset ? Number(assetData.quantity || 1) : 1,
           purchaseDate: assetData.purchaseDate ? new Date(assetData.purchaseDate).toISOString().slice(0,10) : null,
           expiryDate: assetData.expiryDate ? new Date(assetData.expiryDate).toISOString().slice(0,10) : null,
@@ -372,6 +459,7 @@ export default function Assets() {
             name: assetData.itemName,
             type: assetData.itemType,
             property: propertyCode,
+            department: assetData.department || null,
             quantity: 1,
             purchaseDate: assetData.purchaseDate || null,
             expiryDate: assetData.expiryDate || null,
@@ -386,7 +474,12 @@ export default function Assets() {
       setShowAddForm(false);
     } catch (e: any) {
       console.error(e);
-      toast.error(e.message || "Failed to save asset");
+      const msg = (e?.message || '').toString();
+      if (/row-level security|permission|not allowed|policy/i.test(msg)) {
+        toast.error("You don't have permission to create assets for this department");
+      } else {
+        toast.error(msg || "Failed to save asset");
+      }
     }
   };
 
@@ -548,6 +641,8 @@ export default function Assets() {
                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();
     const matchesProperty = filterProperty === "all" || (asset.property || "").toLowerCase() === filterProperty.toLowerCase();
+  // Department multi-select filter
+  const matchesDepartment = deptAll || deptFilter.map(d => d.toLowerCase()).includes((asset.department || '').toString().toLowerCase());
     // Date range filter: use purchaseDate when available, else fallback to created_at
     const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
@@ -564,7 +659,7 @@ export default function Assets() {
       }
     }
     
-    return matchesSearch && matchesType && matchesProperty && matchesDate;
+  return matchesSearch && matchesType && matchesProperty && matchesDepartment && matchesDate;
   });
 
   const sortedAssets = [...filteredAssets].sort((a, b) => {
@@ -573,6 +668,12 @@ export default function Assets() {
       case "id-desc": return -compareById(a, b);
       case "name": return (a.name || "").localeCompare(b.name || "");
       case "qty": return (b.quantity || 0) - (a.quantity || 0);
+      case "department": {
+        const da = (a.department || "").toString();
+        const db = (b.department || "").toString();
+        const cmp = da.localeCompare(db);
+        return cmp !== 0 ? cmp : compareById(a, b);
+      }
       case "newest":
       default: {
         const at = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -774,6 +875,53 @@ export default function Assets() {
                 </SelectContent>
               </Select>
 
+              {/* Department multi-select filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="w-full md:w-56 justify-between">
+                    <span>Departments{deptAll ? ' (All)' : (deptFilter.length ? ` (${deptFilter.length})` : '')}</span>
+                    <ArrowUpDown className="ml-2 h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56 max-h-64 overflow-auto">
+                  {/* All toggle */}
+                  <DropdownMenuCheckboxItem
+                    checked={deptAll}
+                    onCheckedChange={(checked) => {
+                      const on = !!checked;
+                      setDeptAll(on);
+                      if (on) setDeptFilter(visibleDeptOptions);
+                    }}
+                  >
+                    All Departments
+                  </DropdownMenuCheckboxItem>
+                  {/* Build options, restricting to allowedDepts for non-admins if present */}
+                  {visibleDeptOptions.length === 0 ? (
+                    <div className="px-2 py-1 text-xs text-muted-foreground">No departments</div>
+                  ) : (
+                    visibleDeptOptions.map((d) => (
+                      <DropdownMenuCheckboxItem
+                        key={d}
+                        checked={deptAll || deptFilter.includes(d)}
+                        onCheckedChange={(checked) => {
+                          setDeptAll(false);
+                          setDeptFilter((prev) => {
+                            const set = new Set(prev);
+                            if (checked) set.add(d); else set.delete(d);
+                            const next = Array.from(set);
+                            // if all selected, toggle back to All
+                            if (next.length === visibleDeptOptions.length) setDeptAll(true);
+                            return next;
+                          });
+                        }}
+                      >
+                        {d}
+                      </DropdownMenuCheckboxItem>
+                    ))
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Select value={sortBy} onValueChange={setSortBy}>
                 <SelectTrigger className="w-full md:w-48">
                   <SelectValue placeholder="Sort by" />
@@ -784,6 +932,7 @@ export default function Assets() {
                   <SelectItem value="id-desc">ID ↓</SelectItem>
                   <SelectItem value="name">Name</SelectItem>
                   <SelectItem value="qty">Quantity</SelectItem>
+                  <SelectItem value="department">Department</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -881,6 +1030,7 @@ export default function Assets() {
                     {isVisible('name') && <TableHead>Name</TableHead>}
                     {isVisible('type') && <TableHead>Type</TableHead>}
                     {isVisible('property') && <TableHead>Property</TableHead>}
+                    {isVisible('department') && <TableHead>Department</TableHead>}
                     {isVisible('qty') && <TableHead>Quantity</TableHead>}
                     {isVisible('location') && <TableHead>Location</TableHead>}
                     {isVisible('purchaseDate') && <TableHead>Purchase Date</TableHead>}
@@ -908,6 +1058,7 @@ export default function Assets() {
                     {isVisible('name') && <TableCell>{asset.name}</TableCell>}
                     {isVisible('type') && <TableCell>{asset.type}</TableCell>}
                     {isVisible('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
+                    {isVisible('department') && <TableCell>{asset.department || '-'}</TableCell>}
                     {isVisible('qty') && <TableCell>{asset.quantity}</TableCell>}
                     {isVisible('location') && <TableCell>{asset.location || '-'}</TableCell>}
                     {isVisible('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}

@@ -54,6 +54,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
+import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/userDeptAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
@@ -168,6 +169,7 @@ export default function Users() {
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<Department[]>([]);
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
@@ -185,6 +187,7 @@ export default function Users() {
   const [ePhone, setEPhone] = useState("");
   const [eRole, setERole] = useState<string | undefined>(undefined);
   const [eDepartment, setEDepartment] = useState<string | undefined>(undefined);
+  const [editSelectedDepartments, setEditSelectedDepartments] = useState<string[]>([]);
   const [eStatus, setEStatus] = useState<string>("active");
   const [ePassword, setEPassword] = useState("");
   const [eMustChange, setEMustChange] = useState(false);
@@ -330,6 +333,8 @@ export default function Users() {
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
       }
+  // Persist department access mapping
+  try { await setUserDepartmentAccess(created.id, selectedDepartments); } catch {}
       // Persist per-page permissions
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
@@ -363,6 +368,7 @@ export default function Users() {
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(local.id, selectedPropertyIds); } catch {}
       }
+  try { await setUserDepartmentAccess(local.id, selectedDepartments); } catch {}
       // Local per-page permissions fallback
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
@@ -402,6 +408,12 @@ export default function Users() {
       setEditSelectedPropertyIds(ids);
     } catch {
       setEditSelectedPropertyIds([]);
+    }
+    try {
+      const depts = await listUserDepartmentAccess(user.id);
+      setEditSelectedDepartments(depts);
+    } catch {
+      setEditSelectedDepartments([]);
     }
     // Load per-page permissions for this user and merge with role defaults for display
     try {
@@ -461,6 +473,8 @@ export default function Users() {
       }
       // Persist property access mapping
       try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
+  // Persist department access mapping
+  try { await setUserDepartmentAccess(editingUser.id, editSelectedDepartments); } catch {}
       // Persist per-page permissions
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!ePermView[p], e: !!ePermEdit[p] }])) as any;
@@ -699,6 +713,75 @@ export default function Users() {
                           onSelect={(e) => {
                             e.preventDefault();
                             setSelectedPropertyIds([]);
+                          }}
+                          className="text-muted-foreground"
+                        >
+                          Clear selection
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {/* Department Access - Dropdown multi-select */}
+              <div className="space-y-2">
+                <Label>Department Access</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                      <span className="truncate text-left flex-1 min-w-0">
+                        {selectedDepartments.length > 0
+                          ? (() => {
+                              const names = selectedDepartments;
+                              const preview = names.slice(0, 3).join(", ");
+                              const extra = names.length - 3;
+                              const label = preview.length > 24 ? `${names.length} selected` : preview;
+                              return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                            })()
+                          : "Select departments (e.g., Finance, HR)"}
+                      </span>
+                      <MoreHorizontal className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                    {deptOptions.filter(d => d.is_active).map((d) => {
+                      const checked = selectedDepartments.includes(d.name);
+                      return (
+                        <DropdownMenuItem
+                          key={d.id}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            const next = new Set(selectedDepartments);
+                            if (checked) next.delete(d.name); else next.add(d.name);
+                            setSelectedDepartments(Array.from(next));
+                          }}
+                          className="gap-2 w-full"
+                        >
+                          <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                          <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    {deptOptions.filter(d => d.is_active).length === 0 && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">No active departments available.</div>
+                    )}
+                    {deptOptions.filter(d => d.is_active).length > 0 && (
+                      <>
+                        <div className="my-1 h-px bg-border" />
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            const names = deptOptions.filter(d => d.is_active).map(d => d.name);
+                            setSelectedDepartments(names);
+                          }}
+                          className="text-muted-foreground"
+                        >
+                          Select all
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            setSelectedDepartments([]);
                           }}
                           className="text-muted-foreground"
                         >
@@ -1014,6 +1097,75 @@ export default function Users() {
                         onSelect={(e) => {
                           e.preventDefault();
                           setEditSelectedPropertyIds([]);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Clear selection
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {/* Department Access - Dropdown multi-select (edit) */}
+            <div className="space-y-2">
+              <Label>Department Access</Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                    <span className="truncate text-left flex-1 min-w-0">
+                      {editSelectedDepartments.length > 0
+                        ? (() => {
+                            const names = editSelectedDepartments;
+                            const preview = names.slice(0, 3).join(", ");
+                            const extra = names.length - 3;
+                            const label = preview.length > 24 ? `${names.length} selected` : preview;
+                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                          })()
+                        : "Select departments"}
+                    </span>
+                    <MoreHorizontal className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                  {deptOptions.filter(d => d.is_active).map((d) => {
+                    const checked = editSelectedDepartments.includes(d.name);
+                    return (
+                      <DropdownMenuItem
+                        key={d.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          const next = new Set(editSelectedDepartments);
+                          if (checked) next.delete(d.name); else next.add(d.name);
+                          setEditSelectedDepartments(Array.from(next));
+                        }}
+                        className="gap-2 w-full"
+                      >
+                        <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                        <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  {deptOptions.filter(d => d.is_active).length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active departments available.</div>
+                  )}
+                  {deptOptions.filter(d => d.is_active).length > 0 && (
+                    <>
+                      <div className="my-1 h-px bg-border" />
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          const names = deptOptions.filter(d => d.is_active).map(d => d.name);
+                          setEditSelectedDepartments(names);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Select all
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setEditSelectedDepartments([]);
                         }}
                         className="text-muted-foreground"
                       >

@@ -57,6 +57,12 @@ const reportTypes = [
     icon: FileText
   },
   {
+    id: "department-wise",
+    name: "Department-wise Asset Report",
+    description: "Detailed breakdown of assets for each department",
+    icon: FileText
+  },
+  {
     id: "expiry-tracking",
     name: "Expiry Tracking Report",
     description: "Assets approaching expiry dates with timeline",
@@ -221,6 +227,7 @@ export default function Reports() {
             name: a.name,
             type: a.type,
             property: a.property,
+            department: (a as any).department || '',
             quantity: a.quantity,
             purchaseDate: a.purchaseDate,
             expiryDate: a.expiryDate,
@@ -233,6 +240,18 @@ export default function Reports() {
             id: a.id,
             name: a.name,
             type: a.type,
+            department: (a as any).department || '',
+            quantity: a.quantity,
+            status: a.status,
+          }));
+          break;
+        case "department-wise":
+          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
+            department: (a as any).department || '',
+            id: a.id,
+            name: a.name,
+            type: a.type,
+            property: a.property,
             quantity: a.quantity,
             status: a.status,
           }));
@@ -242,6 +261,7 @@ export default function Reports() {
             id: a.id,
             name: a.name,
             property: a.property,
+            department: (a as any).department || '',
             expiryDate: a.expiryDate,
             status: a.status,
           }));

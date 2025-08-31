@@ -11,6 +11,7 @@ export type BulkAssetRow = {
   name: string;
   type: string;
   property: string; // property code (e.g., PROP-001)
+  department?: string; // optional; defaults to uploader's department if finance
   quantity: number;
   purchaseDate?: string | null;
   expiryDate?: string | null;
@@ -25,6 +26,7 @@ const HEADER: (keyof BulkAssetRow)[] = [
   "name",
   "type",
   "property",
+  "department",
   "quantity",
   "purchaseDate",
   "expiryDate",
@@ -46,6 +48,7 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   const propertyCodes = properties.map(p => p.id);
   const conditions = ["Excellent", "Good", "Fair", "Poor", "Damaged"];
   const statuses = ["Active", "Expiring Soon", "Expired", "Inactive"];
+  const departments = ["IT","HR","Finance","Operations"]; // best-effort; dynamic list not embedded to keep template simple offline
 
   const book = new ExcelJS.Workbook();
   const input = book.addWorksheet("Assets");
@@ -60,6 +63,8 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   conditions.forEach((v, i) => (lists.getCell(i + 2, 3).value = v));
   lists.getCell("D1").value = "Statuses";
   statuses.forEach((v, i) => (lists.getCell(i + 2, 4).value = v));
+  lists.getCell("E1").value = "Departments";
+  departments.forEach((v, i) => (lists.getCell(i + 2, 5).value = v));
   lists.state = "veryHidden";
 
   // Header
@@ -71,6 +76,7 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
     "Sample Laptop",
   types[0] || "Electronics",
   propertyCodes[0] || "",
+  departments[0] || "",
     10,
     "2025-01-15",
     "2027-01-15",
@@ -81,7 +87,7 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   ]);
 
   // Column widths matching HEADER order
-  const widths = [24, 18, 22, 10, 14, 14, 16, 14, 14, 28];
+  const widths = [24, 18, 22, 18, 10, 14, 14, 16, 14, 14, 28];
   input.columns = widths.map((wch) => ({ width: wch } as any));
 
   // Data validation for rows 2..1000
@@ -102,8 +108,9 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   // Only apply list validations if we have values; otherwise leave free text
   if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`); // type
   if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`); // property code
-  setListValidation(8, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition
-  setListValidation(9, `=Lists!$D$2:$D$${statuses.length + 1}`); // status
+  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`); // department
+  setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition
+  setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status
 
   // Save
   const buf = await book.xlsx.writeBuffer();
@@ -217,12 +224,20 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   let skipped = 0;
   const errors: { row: number; message: string }[] = [];
 
+  // Who is importing (for department enforcement)
+  let currentUser: any = null;
+  try {
+    const raw = (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user') || localStorage.getItem('auth_user'));
+    currentUser = raw ? JSON.parse(raw) : null;
+  } catch {}
+
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const rowNum = i + 2; // considering header at row 1
   const name = String(r["name"] ?? "").trim();
   const type = String(r["type"] ?? "").trim();
   const property = String(r["property"] ?? "").trim();
+  const department = String(r["department"] ?? "").trim();
   const quantity = Number(r["quantity"] ?? NaN);
   const status = String(r["status"] ?? "").trim() || "Active";
 
@@ -239,12 +254,28 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const providedId = String(r["id"] || "").trim();
   const id = providedId || nextId(type, propertyCode);
 
-    const asset: Asset = {
+      // Enforce department access if mapping exists (non-admin)
+      const role = String(currentUser?.role || '').toLowerCase();
+      const allowedMapRaw = localStorage.getItem('user_dept_access');
+      const allowedMap = allowedMapRaw ? JSON.parse(allowedMapRaw) as Record<string, string[]> : {};
+      const allowed = currentUser?.id ? (allowedMap[currentUser.id] || []) : [];
+      const effectiveDept = department || currentUser?.department || '';
+      if (role !== 'admin' && Array.isArray(allowed) && allowed.length > 0) {
+        const ok = allowed.map((d) => d.toLowerCase()).includes(String(effectiveDept).toLowerCase());
+        if (!ok) {
+          skipped++;
+          errors.push({ row: rowNum, message: `You are not allowed to import assets for department ${effectiveDept || '(blank)'}` });
+          continue;
+        }
+      }
+
+      const asset: Asset = {
       id,
       name,
       type,
   property: propertyCode,
   property_id: propertyCode,
+    department: effectiveDept || null,
       quantity,
   purchaseDate: r["purchaseDate"] ? String(r["purchaseDate"]).slice(0, 10) : null,
   expiryDate: r["expiryDate"] ? String(r["expiryDate"]).slice(0, 10) : null,

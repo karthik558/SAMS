@@ -20,6 +20,9 @@ import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes, createItemType } from "@/services/itemTypes";
+import { listDepartments, type Department } from "@/services/departments";
+import { listUserDepartmentAccess } from "@/services/userDeptAccess";
+import { isDemoMode } from "@/lib/demo";
 
 interface AssetFormProps {
   onSubmit?: (data: any) => void;
@@ -43,6 +46,9 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
   const [properties, setProperties] = useState<Property[]>([]);
   const [itemTypes, setItemTypes] = useState<string[]>([]);
   const [newType, setNewType] = useState<string>("");
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allowedDeptNames, setAllowedDeptNames] = useState<string[] | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -69,8 +75,39 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
       } catch (e) {
         console.error(e);
       }
+  try {
+        const list = await listDepartments();
+        setDepartments(list);
+      } catch (e) {
+        console.error(e);
+      }
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        const cu = raw ? JSON.parse(raw) : null;
+        setCurrentUser(cu);
+        // Load allowed departments for current user (self), when backend present
+        if (hasSupabaseEnv && cu?.id) {
+          try {
+            const depts = await listUserDepartmentAccess(cu.id);
+            setAllowedDeptNames(Array.isArray(depts) ? depts : []);
+          } catch {
+            setAllowedDeptNames([]);
+          }
+        } else {
+          setAllowedDeptNames(null);
+        }
+      } catch {}
     })();
   }, []);
+
+  // Auto-select effective department for non-admins when there's a single choice
+  useEffect(() => {
+    const role = (currentUser?.role || '').toLowerCase();
+    const allowed = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
+    if (role !== 'admin' && allowed.length === 1 && !(formData as any).department) {
+      setFormData((prev) => ({ ...prev, department: allowed[0] } as any));
+    }
+  }, [currentUser, allowedDeptNames]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,6 +116,18 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     if (!formData.itemName || !formData.quantity || !formData.itemType || !formData.property) {
       toast.error("Please fill in all required fields");
       return;
+    }
+
+    // Generic enforcement: if user is not admin and has allowed departments, selected department must be in that list
+    const role = (currentUser?.role || '').toLowerCase();
+    const selectedDept = (formData as any).department || currentUser?.department || '';
+    const effectiveAllowed = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
+    const allowed = new Set(effectiveAllowed.map((d: string) => String(d).toLowerCase()));
+    if (role !== 'admin' && allowed.size > 0) {
+      if (!selectedDept || !allowed.has(String(selectedDept).toLowerCase())) {
+        toast.error("You are not allowed to create assets for this department");
+        return;
+      }
     }
 
     onSubmit?.(formData);
@@ -98,6 +147,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
         condition: "",
         serialNumber: "",
   location: "",
+  // department will re-compute from currentUser in UI
       });
     }
   };
@@ -199,6 +249,31 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
                     </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Department */}
+            <div className="space-y-2">
+              <Label htmlFor="department">Department</Label>
+              <Select
+                value={(formData as any).department || currentUser?.department || ""}
+                onValueChange={(value) => handleInputChange("department", value)}
+                disabled={(currentUser?.role || '').toLowerCase() !== 'admin' && ((allowedDeptNames && allowedDeptNames.length ? allowedDeptNames.length : (currentUser?.department ? 1 : 0)) === 1)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(() => {
+                    const role = (currentUser?.role || '').toLowerCase();
+                    if (role === 'admin') return departments;
+                    const effective = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
+                    const set = new Set(effective.map((n: string) => n.toLowerCase()));
+                    return (departments || []).filter((d) => set.has((d.name || '').toLowerCase()));
+                  })().map((d) => (
+                    <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

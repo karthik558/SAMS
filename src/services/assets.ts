@@ -7,6 +7,7 @@ export type Asset = {
   type: string;
   property: string; // storing property code for display/filter
   property_id?: string | null;
+  department?: string | null;
   quantity: number;
   purchaseDate: string | null;
   expiryDate: string | null;
@@ -27,6 +28,7 @@ function toCamel(row: any): Asset {
     type: row.type,
     property: row.property,
   property_id: row.property_id ?? null,
+    department: row.department ?? null,
     quantity: row.quantity,
     purchaseDate: row.purchase_date ?? null,
     expiryDate: row.expiry_date ?? null,
@@ -45,6 +47,7 @@ function toSnake(asset: Partial<Asset>) {
   if ("type" in asset) row.type = asset.type;
   if ("property" in asset) row.property = asset.property;
   if ("property_id" in asset) row.property_id = asset.property_id ?? null;
+  if ("department" in asset) row.department = asset.department ?? null;
   if ("quantity" in asset) row.quantity = asset.quantity;
   if ("purchaseDate" in asset) row.purchase_date = asset.purchaseDate ?? null;
   if ("expiryDate" in asset) row.expiry_date = asset.expiryDate ?? null;
