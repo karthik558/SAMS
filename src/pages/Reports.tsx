@@ -16,7 +16,8 @@ import {
   CalendarIcon, 
   Filter, 
   BarChart3,
-  FileText
+  FileText,
+  ChevronDown
 } from "lucide-react";
 // format no longer needed after centralizing date range picker
 import { cn } from "@/lib/utils";
@@ -42,6 +43,12 @@ import {
 import StatusChip from "@/components/ui/status-chip";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const reportTypes = [
   {
@@ -82,6 +89,8 @@ export default function Reports() {
   const [itemTypes, setItemTypes] = useState<string[]>([]);
   const [recentReports, setRecentReports] = useState<Report[] | null>(null);
   const [assetsCache, setAssetsCache] = useState<Asset[] | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptForReport, setDeptForReport] = useState<string>("ALL");
 
   // Approvals Log state (admin/manager only)
   const [approvalsAll, setApprovalsAll] = useState<ApprovalRequest[] | null>(null);
@@ -112,10 +121,12 @@ export default function Reports() {
       const assets = await listAssets();
             setAssetsCache(assets as Asset[]);
           } catch { /* ignore */ }
-          // Load departments for admin Approvals Log filter
-          if (role === 'admin') {
-            try { setApDepartments(await listDepartments() as Department[]); } catch { /* ignore */ }
-          }
+          // Load departments for admin Approvals Log filter and for department-wise reports
+          try {
+            const depts = await listDepartments() as Department[];
+            setDepartments(depts);
+            if (role === 'admin') setApDepartments(depts);
+          } catch { /* ignore */ }
         } else {
           setProperties([
             { id: "PROP-001", name: "Main Office", type: "Office", status: "Active", address: null, manager: null } as any,
@@ -166,6 +177,7 @@ export default function Reports() {
       dateTo,
       property: selectedProperty,
       assetType: selectedAssetType,
+      department: selectedReportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
       format: reportFormat,
       email: emailReport
     };
@@ -173,13 +185,16 @@ export default function Reports() {
     try {
   if (hasSupabaseEnv || isDemoMode()) {
         await createReport({
-          name: `${reportTypes.find(r => r.id === selectedReportType)?.name} - ${new Date().toISOString().slice(0,10)}`,
+          name: `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`,
           type: selectedReportType,
           format: reportFormat.toUpperCase(),
           status: "Completed",
           date_from: dateFrom ? new Date(dateFrom).toISOString().slice(0,10) : null,
           date_to: dateTo ? new Date(dateTo).toISOString().slice(0,10) : null,
           file_url: null,
+          filter_department: reportData.department ?? null,
+          filter_property: selectedProperty !== 'all' ? selectedProperty : null,
+          filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
         } as any);
         const reports = await listReports();
         setRecentReports(reports);
@@ -189,6 +204,25 @@ export default function Reports() {
           type: "report",
         });
       }
+      // Also generate a client-side export immediately using current selections
+      try {
+        const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+        const rows = buildRows({
+          type: selectedReportType,
+          assets: assets as any[],
+          dateFrom,
+          dateTo,
+          department: reportData.department,
+          propertyId: selectedProperty !== 'all' ? selectedProperty : undefined,
+          assetType: selectedAssetType !== 'all' ? selectedAssetType : undefined,
+        });
+        if (rows.length) {
+          if (reportFormat === 'pdf') downloadPdfFromRows(`${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`, rows);
+          else downloadCsvFromRows(`${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`, rows);
+        } else {
+          toast.info('No data matched your filters');
+        }
+      } catch { /* ignore */ }
       toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${hasSupabaseEnv ? "" : " (local)"}.`);
     } catch (e: any) {
       console.error(e);
@@ -198,107 +232,202 @@ export default function Reports() {
 
   const handleQuickReport = (reportType: string) => {
   const report = reportTypes.find(r => r.id === reportType);
-  toast.info(`Generating ${report?.name}${hasSupabaseEnv ? "" : " (local)"}.`);
+  (async () => {
+    try {
+      // Ensure assets are loaded
+      const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+      setAssetsCache(Array.isArray(assets) ? assets : []);
+      // Build rows
+      const rows = buildRows({
+        type: reportType,
+        assets: assets as any[],
+        dateFrom: undefined,
+        dateTo: undefined,
+        department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
+      });
+      if (!rows.length) { toast.info('No data for this report'); return; }
+      downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
+      toast.success(`${report?.name} generated`);
+    } catch (e:any) {
+      console.error(e);
+      toast.error(e?.message || 'Failed to generate quick report');
+    }
+  })();
   };
 
+  // Build rows for report export
+  function buildRows(opts: { type: string; assets: Asset[]; dateFrom?: Date; dateTo?: Date; department?: string; propertyId?: string; assetType?: string; }) {
+    const { type, assets, dateFrom, dateTo, department, propertyId, assetType } = opts;
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    const inRange = (d: string | null) => {
+      if (!d) return true;
+      const dt = new Date(d);
+      if (from && dt < from) return false;
+      if (to && dt > to) return false;
+      return true;
+    };
+    const byDept = (a: any) => !department || (String(a.department || '').toLowerCase() === String(department).toLowerCase());
+    const byProp = (a: any) => !propertyId || String(a.property_id || a.property) === propertyId;
+    const byType = (a: any) => !assetType || String(a.type) === assetType;
+
+    switch (type) {
+      case 'asset-summary':
+        return assets.filter(a => inRange(a.purchaseDate) && byProp(a) && byType(a)).map(a => ({
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          property: a.property,
+          department: (a as any).department || '',
+          quantity: a.quantity,
+          purchaseDate: a.purchaseDate,
+          expiryDate: a.expiryDate,
+          status: a.status,
+        }));
+      case 'property-wise':
+        return assets.filter(a => inRange(a.purchaseDate) && byProp(a) && byType(a)).map(a => ({
+          property: a.property,
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          department: (a as any).department || '',
+          quantity: a.quantity,
+          status: a.status,
+        }));
+      case 'department-wise':
+        return assets.filter(a => inRange(a.purchaseDate) && byDept(a) && byProp(a) && byType(a)).map(a => ({
+          department: (a as any).department || '',
+          id: a.id,
+          name: a.name,
+          type: a.type,
+          property: a.property,
+          quantity: a.quantity,
+          status: a.status,
+        }));
+      case 'expiry-tracking':
+        return assets.filter(a => a.expiryDate && inRange(a.expiryDate) && byProp(a) && byType(a)).map(a => ({
+          id: a.id,
+          name: a.name,
+          property: a.property,
+          department: (a as any).department || '',
+          expiryDate: a.expiryDate,
+          status: a.status,
+        }));
+      default:
+        return [];
+    }
+  }
+
+  const toCsv = (data: any[]) => {
+    if (!data.length) return '';
+    const cols = Object.keys(data[0]);
+    const header = cols.join(',');
+    const lines = data.map(r => cols.map(c => {
+      const v = (r[c] ?? '').toString().replace(/"/g, '""');
+      return /[",\n]/.test(v) ? `"${v}"` : v;
+    }).join(','));
+    return [header, ...lines].join('\n');
+  };
+
+  function downloadCsvFromRows(name: string, rows: any[]) {
+    const csv = toCsv(rows);
+    if (!csv) { toast.info('No data to download for this report'); return; }
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+  a.href = url; a.download = `${name.replace(/\s+/g, '_')}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadPdfFromRows(name: string, rows: any[]) {
+    if (!rows.length) { toast.info('No data to download for this report'); return; }
+    // Build simple printable HTML table
+    const cols = Object.keys(rows[0]);
+    const thead = `<tr>${cols.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">${c}</th>`).join('')}</tr>`;
+    const tbody = rows.map(r => `<tr>${cols.map(c => `<td style="padding:8px;border-bottom:1px solid #f0f0f0;">${(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
+    // Use app base to resolve public path for favicon
+    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const normalizedBase = (base || '').replace(/\/$/, '');
+    const logoSrc = `${normalizedBase}/favicon.png`;
+    const html = `<!doctype html><html><head><meta charset=\"utf-8\"/><title>${name}</title>
+    <style>@page{size:A4;margin:16mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 12px} table{border-collapse:collapse;width:100%;font-size:12px} .meta{color:#666;font-size:12px;margin-bottom:8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:8px} .brand img{height:28px;width:28px;object-fit:contain}</style>
+    </head><body>
+    <div class=\"brand\"><img src='${logoSrc}' onerror=\"this.src='/favicon.ico'\" alt='logo' /><h1>${name}</h1></div>
+    <div class=\"meta\">Generated at ${new Date().toLocaleString()}</div>
+    <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+    </body></html>`;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    doc?.open(); doc?.write(html); doc?.close();
+    const trigger = () => { try { iframe.contentWindow?.focus(); setTimeout(() => iframe.contentWindow?.print(), 50); } finally { setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1000); } };
+    setTimeout(trigger, 200);
+  }
+
   // Download a CSV for a given recent report (client-side export snapshot)
-  const downloadReport = async (report: any) => {
+  const downloadReportCsv = async (report: any) => {
     try {
       // Prepare data set
       let rows: any[] = [];
-      if (hasSupabaseEnv && !assetsCache) {
-        try { setAssetsCache(await listAssets()); } catch {}
+      const assets: Asset[] = (assetsCache && assetsCache.length)
+        ? assetsCache
+        : (await listAssets().catch(() => [])) as Asset[];
+      if (!assetsCache || (assetsCache && !assetsCache.length)) {
+        try { setAssetsCache(assets); } catch {}
       }
-      const assets = assetsCache ?? [];
-      const from = report.date_from ? new Date(report.date_from) : null;
-      const to = report.date_to ? new Date(report.date_to) : null;
-      const inRange = (d: string | null) => {
-        if (!d) return true;
-        const dt = new Date(d);
-        if (from && dt < from) return false;
-        if (to && dt > to) return false;
-        return true;
-      };
-
-      switch ((report.type || "").toString()) {
-        case "asset-summary":
-          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
-            id: a.id,
-            name: a.name,
-            type: a.type,
-            property: a.property,
-            department: (a as any).department || '',
-            quantity: a.quantity,
-            purchaseDate: a.purchaseDate,
-            expiryDate: a.expiryDate,
-            status: a.status,
-          }));
-          break;
-        case "property-wise":
-          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
-            property: a.property,
-            id: a.id,
-            name: a.name,
-            type: a.type,
-            department: (a as any).department || '',
-            quantity: a.quantity,
-            status: a.status,
-          }));
-          break;
-        case "department-wise":
-          rows = assets.filter(a => inRange(a.purchaseDate)).map(a => ({
-            department: (a as any).department || '',
-            id: a.id,
-            name: a.name,
-            type: a.type,
-            property: a.property,
-            quantity: a.quantity,
-            status: a.status,
-          }));
-          break;
-        case "expiry-tracking":
-          rows = assets.filter(a => a.expiryDate && inRange(a.expiryDate)).map(a => ({
-            id: a.id,
-            name: a.name,
-            property: a.property,
-            department: (a as any).department || '',
-            expiryDate: a.expiryDate,
-            status: a.status,
-          }));
-          break;
-        default:
-          rows = [];
-      }
-
-      const toCsv = (data: any[]) => {
-        if (!data.length) return "";
-        const cols = Object.keys(data[0]);
-        const header = cols.join(",");
-        const lines = data.map(r => cols.map(c => {
-          const v = (r[c] ?? "").toString().replaceAll('"', '""');
-          return /[",\n]/.test(v) ? `"${v}"` : v;
-        }).join(","));
-        return [header, ...lines].join("\n");
-      };
-
-      const csv = toCsv(rows);
-      if (!csv) {
-        toast.info("No data to download for this report");
-        return;
-      }
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(report.name || 'report').toString().replaceAll(' ', '_')}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("Report downloaded");
+      const from = report.date_from ? new Date(report.date_from) : undefined;
+      const to = report.date_to ? new Date(report.date_to) : undefined;
+      // Prefer stored filter metadata
+      const depStored = (report as any).filter_department || undefined;
+      const propStored = (report as any).filter_property || undefined;
+      const typeStored = (report as any).filter_asset_type || undefined;
+      // Fallback to parsing from name if needed
+      const dep = depStored ?? (() => {
+        const n = String(report.name || '');
+        const m = n.match(/Department-wise[^-]*-\s*([^\-\n]+)/i);
+        const v = m ? m[1].trim() : undefined;
+        if (!v) return undefined;
+        if (/^all\b/i.test(v)) return undefined;
+        return v;
+      })();
+      rows = buildRows({ type: String(report.type || ''), assets, dateFrom: from, dateTo: to, department: dep, propertyId: propStored, assetType: typeStored });
+      if (!rows.length) { toast.info('No data to download for this report'); return; }
+      downloadCsvFromRows(String(report.name || 'report'), rows);
+      toast.success('Report downloaded');
     } catch (e) {
       console.error(e);
       toast.error("Failed to download report");
+    }
+  };
+  const downloadReportPdf = async (report: any) => {
+    try {
+      const assets: Asset[] = (assetsCache && assetsCache.length)
+        ? assetsCache
+        : (await listAssets().catch(() => [])) as Asset[];
+      if (!assetsCache || (assetsCache && !assetsCache.length)) {
+        try { setAssetsCache(assets); } catch {}
+      }
+      const from = report.date_from ? new Date(report.date_from) : undefined;
+      const to = report.date_to ? new Date(report.date_to) : undefined;
+      const depStored = (report as any).filter_department || undefined;
+      const propStored = (report as any).filter_property || undefined;
+      const typeStored = (report as any).filter_asset_type || undefined;
+      const dep = depStored ?? (() => {
+        const n = String(report.name || '');
+        const m = n.match(/Department-wise[^-]*-\s*([^\-\n]+)/i);
+        const v = m ? m[1].trim() : undefined;
+        if (!v) return undefined;
+        if (/^all\b/i.test(v)) return undefined;
+        return v;
+      })();
+      const rows = buildRows({ type: String(report.type || ''), assets, dateFrom: from, dateTo: to, department: dep, propertyId: propStored, assetType: typeStored });
+      if (!rows.length) { toast.info('No data to download for this report'); return; }
+      downloadPdfFromRows(String(report.name || 'report'), rows);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export PDF');
     }
   };
 
@@ -488,6 +617,22 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
               </div>
+              {selectedReportType === 'department-wise' && (
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select value={deptForReport} onValueChange={setDeptForReport}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">All Departments</SelectItem>
+                      {departments.map((d) => (
+                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
 
             {/* Output Options */}
@@ -564,9 +709,18 @@ export default function Reports() {
                     )}>
                       {report.status || "Completed"}
                     </span>
-                    <Button size="sm" variant="outline" onClick={() => downloadReport(report)}>
-                      <Download className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline" className="gap-1">
+                          <Download className="h-4 w-4" />
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => downloadReportCsv(report)}>Download CSV</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => downloadReportPdf(report)}>Download PDF</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
