@@ -61,7 +61,7 @@ function toSnake(asset: Partial<Asset>) {
 export async function listAssets(): Promise<Asset[]> {
   if (isDemoMode()) return getDemoAssets();
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").order("id");
+  const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return (data ?? []).map(toCamel);
 }
