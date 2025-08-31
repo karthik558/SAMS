@@ -636,7 +636,7 @@ export default function Reports() {
 
             {/* Date Range */}
             <div className="space-y-3">
-              <Label>Date Range</Label>
+              <Label className="block mb-2">Date Range</Label>
               <DateRangePicker
                 value={{ from: dateFrom, to: dateTo }}
                 onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
