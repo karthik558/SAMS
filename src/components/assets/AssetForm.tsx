@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
-import { listItemTypes, createItemType } from "@/services/itemTypes";
+import { listItemTypes, createItemType, deleteItemType } from "@/services/itemTypes";
 import { listDepartments, type Department } from "@/services/departments";
 import { listUserDepartmentAccess } from "@/services/userDeptAccess";
 import { isDemoMode } from "@/lib/demo";
@@ -117,16 +117,18 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+  const role = (currentUser?.role || '').toLowerCase();
+  // For non-admins, if itemType not provided (hidden), default to "Other"
+  const toSubmit = { ...formData, itemType: (role === 'admin' ? formData.itemType : (formData.itemType || 'Other')) };
+
     // Basic validation
-    if (!formData.itemName || !formData.quantity || !formData.itemType || !formData.property) {
+  if (!toSubmit.itemName || !toSubmit.quantity || (role === 'admin' && !toSubmit.itemType) || !toSubmit.property) {
       toast.error("Please fill in all required fields");
       return;
     }
 
     // Generic enforcement: if user is not admin and has allowed departments, selected department must be in that list
-    const role = (currentUser?.role || '').toLowerCase();
-    const selectedDept = (formData as any).department || currentUser?.department || '';
+  const selectedDept = (toSubmit as any).department || currentUser?.department || '';
     const effectiveAllowed = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
     const allowed = new Set(effectiveAllowed.map((d: string) => String(d).toLowerCase()));
     if (role !== 'admin' && allowed.size > 0) {
@@ -136,7 +138,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
       }
     }
 
-    onSubmit?.(formData);
+  onSubmit?.(toSubmit);
     toast.success("Asset saved successfully!");
     
     // Reset form if creating new asset
@@ -202,46 +204,77 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
               />
             </div>
 
-            {/* Item Type */}
-            <div className="space-y-2">
-              <Label htmlFor="itemType">Item Type *</Label>
-              <Select value={formData.itemType} onValueChange={(value) => handleInputChange("itemType", value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select item type" />
-                </SelectTrigger>
-                <SelectContent>
+            {/* Item Type (Admin only) */}
+            {((currentUser?.role || '').toLowerCase() === 'admin') && (
+              <div className="space-y-2">
+                <Label htmlFor="itemType">Item Type *</Label>
+                <Select value={formData.itemType} onValueChange={(value) => handleInputChange("itemType", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select item type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {itemTypes.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="flex gap-2 mt-2">
+                  <Input
+                    placeholder="Add new type"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      const name = newType.trim();
+                      if (!name) return;
+                      try {
+                        const created = await createItemType(name);
+                        setItemTypes((prev) => Array.from(new Set([...prev, created.name])));
+                        setNewType("");
+                        toast.success("Item type added");
+                      } catch (e: any) {
+                        console.error(e);
+                        toast.error(e.message || "Failed to add item type");
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {/* Admin-only type delete list */}
+                <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-2">
                   {itemTypes.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                    <div key={t} className="flex items-center justify-between rounded border px-2 py-1 text-sm">
+                      <span>{t}</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        title={`Delete ${t}`}
+                        onClick={async () => {
+                          if (!confirm(`Delete item type "${t}"?`)) return;
+                          try {
+                            await deleteItemType(t);
+                            setItemTypes((prev) => prev.filter((x) => x !== t));
+                            setFormData((prev) => (prev.itemType === t ? { ...prev, itemType: "" } : prev));
+                            toast.success("Item type deleted");
+                          } catch (e: any) {
+                            console.error(e);
+                            toast.error(e.message || "Failed to delete item type");
+                          }
+                        }}
+                      >
+                        {/* simple X */}
+                        ×
+                      </Button>
+                    </div>
                   ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 mt-2">
-                <Input
-                  placeholder="Add new type (Admin)"
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={async () => {
-                    const name = newType.trim();
-                    if (!name) return;
-                    try {
-                      const created = await createItemType(name);
-                      setItemTypes((prev) => Array.from(new Set([...prev, created.name])));
-                      setNewType("");
-                      toast.success("Item type added");
-                    } catch (e: any) {
-                      console.error(e);
-                      toast.error(e.message || "Failed to add item type");
-                    }
-                  }}
-                >
-                  Add
-                </Button>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Property */}
             <div className="space-y-2">

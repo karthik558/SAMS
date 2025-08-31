@@ -33,3 +33,14 @@ export async function createItemType(name: string): Promise<ItemType> {
   if (error) throw error;
   return data as ItemType;
 }
+
+export async function deleteItemType(name: string): Promise<void> {
+  if (!name || !name.trim()) throw new Error("Type name required");
+  if (!hasSupabaseEnv) return; // local no-op
+  // Try privileged RPC first (if present) to bypass RLS and guard referential integrity
+  const rpc = await supabase.rpc("delete_asset_type_v1", { p_name: name });
+  if (!rpc.error) return;
+  // Fallback to direct delete (may fail under RLS)
+  const { error } = await supabase.from(table).delete().eq("name", name);
+  if (error) throw error;
+}
