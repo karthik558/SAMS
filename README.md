@@ -1,7 +1,6 @@
-
+<img src="https://raw.githubusercontent.com/FoORK-Lab/pass-gen-dependencies/refs/heads/main/sams_banner.jpg" alt="SAMS"/>
 <div align="center">
-	<img src="./public/favicon.png" alt="SAMS" height="80" />
-	<h1>Smart Asset Management System</h1>
+	<h1>SAMS (Smart Asset Management System)</h1>
 	<p>Centralized asset lifecycle, tracking, and auditing for modern operations</p>
 	<p>
 		<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
