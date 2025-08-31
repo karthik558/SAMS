@@ -176,7 +176,7 @@ export default function Assets() {
     // Only set defaults if nothing was loaded from storage
     if (!prefs.visibleCols.length) {
       const defaults = columnDefs
-        .filter(c => c.always || ["type","property","qty","status","actions"].includes(c.key))
+        .filter(c => c.always || ["type","property","department","qty","status","actions"].includes(c.key))
         .map(c => c.key);
       // Merge with ALWAYS_COLS to be safe
       const merged = Array.from(new Set([...
@@ -187,6 +187,20 @@ export default function Assets() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // One-time bootstrap: if user already has saved prefs but Department is missing, add it once
+  useEffect(() => {
+    try {
+      const key = 'assets_dept_col_added_v1';
+      if (prefs.visibleCols.length && !prefs.visibleCols.includes('department')) {
+        const done = sessionStorage.getItem(key);
+        if (!done) {
+          prefs.setVisibleCols((cols) => Array.from(new Set([...cols, 'department'])));
+          sessionStorage.setItem(key, '1');
+        }
+      }
+    } catch { /* ignore */ }
+  }, [prefs.visibleCols]);
   const activePropertyIds = useMemo(() => {
     const list = Object.values(propsById);
     if (!list.length) return new Set<string>();
