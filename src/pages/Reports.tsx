@@ -27,7 +27,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { listProperties, type Property } from "@/services/properties";
 import { listItemTypes } from "@/services/itemTypes";
-import { listReports, createReport, type Report } from "@/services/reports";
+import { listReports, createReport, clearReports, type Report } from "@/services/reports";
 import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
@@ -91,6 +91,10 @@ export default function Reports() {
   const [assetsCache, setAssetsCache] = useState<Asset[] | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [deptForReport, setDeptForReport] = useState<string>("ALL");
+  // Recent Reports filters
+  const [rrRange, setRrRange] = useState<'all' | 'today' | '7d' | 'custom'>('all');
+  const [rrFrom, setRrFrom] = useState<Date | undefined>();
+  const [rrTo, setRrTo] = useState<Date | undefined>();
 
   // Approvals Log state (admin/manager only)
   const [approvalsAll, setApprovalsAll] = useState<ApprovalRequest[] | null>(null);
@@ -182,7 +186,7 @@ export default function Reports() {
       email: emailReport
     };
 
-    try {
+  try {
   if (hasSupabaseEnv || isDemoMode()) {
         await createReport({
           name: `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`,
@@ -194,9 +198,24 @@ export default function Reports() {
           file_url: null,
           filter_department: reportData.department ?? null,
           filter_property: selectedProperty !== 'all' ? selectedProperty : null,
-          filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
+      filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
+      // creator metadata
+      created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
+      created_by_id: (currentUser?.id || null) as any,
         } as any);
-        const reports = await listReports();
+        let reports = await listReports();
+        // Enrich top record with creator info if backend omitted columns
+        try {
+          if (reports && reports.length) {
+            const top = { ...reports[0] } as any;
+            const justNow = top.created_at ? (Date.now() - new Date(top.created_at).getTime() < 60_000) : true;
+            if (justNow && !top.created_by) {
+              top.created_by = (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null);
+              top.created_by_id = (currentUser?.id || null);
+            }
+            reports = [top, ...reports.slice(1) as any];
+          }
+        } catch {}
         setRecentReports(reports);
         await addNotification({
           title: "Report generated",
@@ -247,6 +266,38 @@ export default function Reports() {
       });
       if (!rows.length) { toast.info('No data for this report'); return; }
       downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
+      // Log the quick report for Recent Reports with filter metadata
+      if (hasSupabaseEnv || isDemoMode()) {
+        try {
+          await createReport({
+            name: `${report?.name}${(reportType === 'department-wise' && deptForReport && deptForReport !== 'ALL') ? ` - ${deptForReport}` : ''} - ${new Date().toISOString().slice(0,10)}`,
+            type: reportType,
+            format: 'CSV',
+            status: 'Completed',
+            date_from: null,
+            date_to: null,
+            file_url: null,
+            filter_department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? null : deptForReport) : null,
+            filter_property: null,
+            filter_asset_type: null,
+            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
+            created_by_id: (currentUser?.id || null) as any,
+          } as any);
+          let reports = await listReports();
+          try {
+            if (reports && reports.length) {
+              const top = { ...reports[0] } as any;
+              const justNow = top.created_at ? (Date.now() - new Date(top.created_at).getTime() < 60_000) : true;
+              if (justNow && !top.created_by) {
+                top.created_by = (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null);
+                top.created_by_id = (currentUser?.id || null);
+              }
+              reports = [top, ...reports.slice(1) as any];
+            }
+          } catch {}
+          setRecentReports(reports);
+        } catch (e) { /* ignore logging failure */ }
+      }
       toast.success(`${report?.name} generated`);
     } catch (e:any) {
       console.error(e);
@@ -680,50 +731,128 @@ export default function Reports() {
         {/* Recent Reports */}
         <Card>
           <CardHeader>
-            <CardTitle>Recent Reports</CardTitle>
-            <CardDescription>
-              Previously generated reports and scheduled reports
-            </CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle>Recent Reports</CardTitle>
+                <CardDescription>Previously generated reports and scheduled reports</CardDescription>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="w-40">
+                  <Select value={rrRange} onValueChange={(v: any) => setRrRange(v)}>
+                    <SelectTrigger><SelectValue placeholder="Range" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="7d">Last 7 days</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {rrRange === 'custom' && (
+                  <div className="min-w-[260px]">
+                    <DateRangePicker
+                      value={{ from: rrFrom, to: rrTo }}
+                      onChange={(r) => { setRrFrom(r.from); setRrTo(r.to); }}
+                    />
+                  </div>
+                )}
+                {role === 'admin' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const ok = window.confirm('Clear all recent report logs? This cannot be undone.');
+                      if (!ok) return;
+                      try {
+                        await clearReports();
+                        // Refetch to verify cleared server-side
+                        try {
+                          const fresh = await listReports();
+                          setRecentReports(fresh);
+                          if (!fresh || fresh.length === 0) {
+                            toast.success('Recent report logs cleared');
+                          } else {
+                            toast.error('Could not clear all logs. Check Supabase RLS/policies.');
+                          }
+                        } catch {
+                          setRecentReports([]);
+                          toast.success('Recent report logs cleared');
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        toast.error('Failed to clear logs');
+                      }
+                    }}
+                  >
+                    Clear Logs
+                  </Button>
+                )}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {(recentReports ?? [
-                { name: "Asset Summary Report - Sample", type: "Sample", date_from: null, date_to: null, format: "PDF", status: "Completed" }
-              ] as any[]).map((report: any, index: number) => (
-                <div key={report.id ?? index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="font-medium">{report.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {report.type} • {report.created_at?.slice(0,10) ?? "-"} • {report.format}
-                      </p>
+              {(() => {
+                const list = (recentReports ?? []) as any[];
+                const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+                const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7); sevenDaysAgo.setHours(0,0,0,0);
+                const from = rrRange === 'today' ? todayStart : rrRange === '7d' ? sevenDaysAgo : (rrRange === 'custom' ? (rrFrom ? new Date(new Date(rrFrom).setHours(0,0,0,0)) : undefined) : undefined);
+                const to = rrRange === 'custom' ? (rrTo ? new Date(new Date(rrTo).setHours(23,59,59,999)) : undefined) : undefined;
+                const filtered = list.filter(r => {
+                  const when = r.created_at ? new Date(r.created_at) : null;
+                  if (rrRange === 'all') return true;
+                  if (rrRange === 'today') return when && when >= todayStart;
+                  if (rrRange === '7d') return when && when >= sevenDaysAgo;
+                  if (rrRange === 'custom') {
+                    if (from && (!when || when < from)) return false;
+                    if (to && (!when || when > to)) return false;
+                    return true;
+                  }
+                  return true;
+                });
+                if (!filtered.length) {
+                  return (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      No recent reports
+                    </div>
+                  );
+                }
+                return filtered.map((report: any, index: number) => (
+                  <div key={report.id ?? index} className="flex items-center justify-between p-3 border border-border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{report.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {report.type} • {report.created_at ? new Date(report.created_at).toLocaleString() : "-"} • {report.format} • by {report.created_by || 'Unknown'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded",
+                        (report.status || "Completed") === "Completed" 
+                          ? "bg-success/10 text-success" 
+                          : "bg-warning/10 text-warning"
+                      )}>
+                        {report.status || "Completed"}
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline" className="gap-1">
+                            <Download className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => downloadReportCsv(report)}>Download CSV</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadReportPdf(report)}>Download PDF</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(
-                      "text-xs px-2 py-1 rounded",
-                      (report.status || "Completed") === "Completed" 
-                        ? "bg-success/10 text-success" 
-                        : "bg-warning/10 text-warning"
-                    )}>
-                      {report.status || "Completed"}
-                    </span>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button size="sm" variant="outline" className="gap-1">
-                          <Download className="h-4 w-4" />
-                          <ChevronDown className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => downloadReportCsv(report)}>Download CSV</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => downloadReportPdf(report)}>Download PDF</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           </CardContent>
         </Card>
