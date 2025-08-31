@@ -37,10 +37,30 @@ export async function setUserPropertyAccess(userId: string, propertyIds: string[
     writeLocal(map);
     return;
   }
-  // fetch existing
-  const existing = await listUserPropertyAccess(userId);
-  const toAdd = propertyIds.filter((p) => !existing.includes(p));
-  const toRemove = existing.filter((p) => !propertyIds.includes(p));
+  // 1) Try SECURITY DEFINER RPC to bypass RLS if available
+  try {
+    const { error: rpcErr } = await supabase.rpc('set_user_property_access_v1', {
+      p_user_id: userId,
+      p_property_ids: Array.from(new Set(propertyIds)),
+    } as any);
+    if (!rpcErr) {
+      const map = readLocal();
+      map[userId] = Array.from(new Set(propertyIds));
+      writeLocal(map);
+      return;
+    }
+    console.warn('RPC set_user_property_access_v1 failed, attempting direct writes...', rpcErr);
+  } catch (e) {
+    console.warn('RPC set_user_property_access_v1 not available, attempting direct writes...', e);
+  }
+  // 2) Direct writes (may be blocked by RLS)
+  // Fetch existing REMOTE rows only
+  const { data: exRows, error: exErr } = await supabase.from(TABLE).select('property_id').eq('user_id', userId);
+  if (exErr) throw exErr;
+  const existing = (exRows || []).map((r: any) => String(r.property_id));
+  const uniq = Array.from(new Set(propertyIds));
+  const toAdd = uniq.filter((p) => !existing.includes(p));
+  const toRemove = existing.filter((p) => !uniq.includes(p));
   if (toAdd.length) {
     const rows = toAdd.map((property_id) => ({ user_id: userId, property_id }));
     const { error } = await supabase.from(TABLE).insert(rows);
@@ -50,6 +70,9 @@ export async function setUserPropertyAccess(userId: string, propertyIds: string[
     const { error } = await supabase.from(TABLE).delete().eq("user_id", userId).in("property_id", toRemove);
     if (error) throw error;
   }
+  const map = readLocal();
+  map[userId] = uniq;
+  writeLocal(map);
 }
 
 export async function grantUserProperty(userId: string, propertyId: string): Promise<void> {

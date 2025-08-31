@@ -223,11 +223,12 @@ export default function Users() {
     };
   }, []);
 
-  // Load departments for selectors
+  // Load departments for selectors (requires Supabase)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        if (!hasSupabaseEnv) { if (!cancelled) setDeptOptions([]); return; }
         const deps = await listDepartments();
         if (!cancelled) setDeptOptions(deps.filter(d => d.is_active));
       } catch {}
@@ -334,7 +335,12 @@ export default function Users() {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
       }
   // Persist department access mapping
-  try { await setUserDepartmentAccess(created.id, selectedDepartments); } catch {}
+  try {
+        const res = await setUserDepartmentAccess(created.id, selectedDepartments);
+        if (!res?.savedRemotely) {
+          console.warn("Department access saved locally only (not remote)");
+        }
+      } catch {}
       // Persist per-page permissions
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
@@ -474,7 +480,12 @@ export default function Users() {
       // Persist property access mapping
       try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
   // Persist department access mapping
-  try { await setUserDepartmentAccess(editingUser.id, editSelectedDepartments); } catch {}
+  try {
+        const res = await setUserDepartmentAccess(editingUser.id, editSelectedDepartments);
+        if (!res?.savedRemotely) {
+          console.warn("Department access saved locally only (not remote)");
+        }
+      } catch {}
       // Persist per-page permissions
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!ePermView[p], e: !!ePermEdit[p] }])) as any;
@@ -726,9 +737,12 @@ export default function Users() {
               {/* Department Access - Dropdown multi-select */}
               <div className="space-y-2">
                 <Label>Department Access</Label>
+                {authRole !== 'admin' && (
+                  <div className="text-xs text-muted-foreground">Admin only</div>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
                       <span className="truncate text-left flex-1 min-w-0">
                         {selectedDepartments.length > 0
                           ? (() => {
@@ -751,13 +765,14 @@ export default function Users() {
                           key={d.id}
                           onSelect={(e) => {
                             e.preventDefault();
+                            if (authRole !== 'admin') return;
                             const next = new Set(selectedDepartments);
                             if (checked) next.delete(d.name); else next.add(d.name);
                             setSelectedDepartments(Array.from(next));
                           }}
                           className="gap-2 w-full"
                         >
-                          <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                          <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
                           <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
                         </DropdownMenuItem>
                       );
@@ -771,6 +786,7 @@ export default function Users() {
                         <DropdownMenuItem
                           onSelect={(e) => {
                             e.preventDefault();
+                            if (authRole !== 'admin') return;
                             const names = deptOptions.filter(d => d.is_active).map(d => d.name);
                             setSelectedDepartments(names);
                           }}
@@ -781,6 +797,7 @@ export default function Users() {
                         <DropdownMenuItem
                           onSelect={(e) => {
                             e.preventDefault();
+                            if (authRole !== 'admin') return;
                             setSelectedDepartments([]);
                           }}
                           className="text-muted-foreground"
@@ -1110,9 +1127,12 @@ export default function Users() {
             {/* Department Access - Dropdown multi-select (edit) */}
             <div className="space-y-2">
               <Label>Department Access</Label>
+              {authRole !== 'admin' && (
+                <div className="text-xs text-muted-foreground">Admin only</div>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
                     <span className="truncate text-left flex-1 min-w-0">
                       {editSelectedDepartments.length > 0
                         ? (() => {
@@ -1135,13 +1155,14 @@ export default function Users() {
                         key={d.id}
                         onSelect={(e) => {
                           e.preventDefault();
+                          if (authRole !== 'admin') return;
                           const next = new Set(editSelectedDepartments);
                           if (checked) next.delete(d.name); else next.add(d.name);
                           setEditSelectedDepartments(Array.from(next));
                         }}
                         className="gap-2 w-full"
                       >
-                        <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
                         <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
                       </DropdownMenuItem>
                     );
@@ -1155,6 +1176,7 @@ export default function Users() {
                       <DropdownMenuItem
                         onSelect={(e) => {
                           e.preventDefault();
+                          if (authRole !== 'admin') return;
                           const names = deptOptions.filter(d => d.is_active).map(d => d.name);
                           setEditSelectedDepartments(names);
                         }}
@@ -1165,6 +1187,7 @@ export default function Users() {
                       <DropdownMenuItem
                         onSelect={(e) => {
                           e.preventDefault();
+                          if (authRole !== 'admin') return;
                           setEditSelectedDepartments([]);
                         }}
                         className="text-muted-foreground"

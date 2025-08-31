@@ -104,8 +104,14 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
   useEffect(() => {
     const role = (currentUser?.role || '').toLowerCase();
     const allowed = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
-    if (role !== 'admin' && allowed.length === 1 && !(formData as any).department) {
-      setFormData((prev) => ({ ...prev, department: allowed[0] } as any));
+    if (role !== 'admin') {
+      if (allowed.length === 1 && !(formData as any).department) {
+        setFormData((prev) => ({ ...prev, department: allowed[0] } as any));
+      }
+      if (allowed.length > 1 && (formData as any).department && !allowed.map(d => d.toLowerCase()).includes(String((formData as any).department).toLowerCase())) {
+        // Clear prefilled department if it isn't in allowed list
+        setFormData((prev) => ({ ...prev, department: '' } as any));
+      }
     }
   }, [currentUser, allowedDeptNames]);
 
@@ -258,7 +264,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
             <div className="space-y-2">
               <Label htmlFor="department">Department</Label>
               <Select
-                value={(formData as any).department || currentUser?.department || ""}
+                value={(formData as any).department || ""}
                 onValueChange={(value) => handleInputChange("department", value)}
                 disabled={(currentUser?.role || '').toLowerCase() !== 'admin' && ((allowedDeptNames && allowedDeptNames.length ? allowedDeptNames.length : (currentUser?.department ? 1 : 0)) === 1)}
               >
