@@ -14,7 +14,7 @@ import { demoAuthKeys } from "@/lib/demo";
 
 function DemoRequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
-  try { authed = Boolean(localStorage.getItem(demoAuthKeys().current)); } catch {}
+  try { authed = Boolean(sessionStorage.getItem(demoAuthKeys().current)); } catch {}
   if (!authed) return <Navigate to="/demo/login" replace />;
   return <>{children}</>;
 }

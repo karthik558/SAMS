@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isDemoMode } from "@/lib/demo";
 import { createTicket, listTickets, updateTicket, listTicketEvents, type Ticket } from "@/services/tickets";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ export default function Tickets() {
 
   useEffect(() => {
     (async () => {
-      const raw = localStorage.getItem('auth_user');
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
       let role: string | null = null;
       let me: string | null = null;
       try { const u = raw ? JSON.parse(raw) : null; role = u?.role || null; me = u?.email || u?.id || null; } catch {}
@@ -47,7 +48,7 @@ export default function Tickets() {
 
   const add = async () => {
     if (!title || !description) return;
-    const currentUser = (() => { try { return JSON.parse(localStorage.getItem('auth_user') || '{}'); } catch { return {}; } })();
+    const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })();
     const createdBy = (currentUser?.email || currentUser?.id || 'user');
     const t = await createTicket({ title, description, targetRole, createdBy });
     setItems((s) => [t, ...s]);

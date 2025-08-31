@@ -13,7 +13,7 @@ export default function DemoLogin() {
 
   useEffect(() => {
     try {
-      const uid = localStorage.getItem(demoAuthKeys().current);
+      const uid = sessionStorage.getItem(demoAuthKeys().current);
       if (uid) navigate("/demo", { replace: true });
     } catch {}
   }, [navigate]);
@@ -39,16 +39,15 @@ export default function DemoLogin() {
               onSubmit={(e) => {
                 e.preventDefault();
                 setError("");
-                if (email.trim().toLowerCase() === "demo@demo.com" && password === "demo@123") {
+        if (email.trim().toLowerCase() === "demo@demo.com" && password === "demo@123") {
                   try {
                     const keys = demoAuthKeys();
                     const user = { id: "demo-user", name: "Demo User", email: "demo@demo.com", role: "admin" };
-                    // Demo-scoped keys
-                    localStorage.setItem(keys.current, user.id);
-                    localStorage.setItem(keys.auth, JSON.stringify(user));
-                    // Also set standard keys for components reading common storage
-                    localStorage.setItem("current_user_id", user.id);
-                    localStorage.setItem("auth_user", JSON.stringify(user));
+          // Demo-scoped keys (session only for isolation; no cross-contamination)
+          sessionStorage.setItem(keys.current, user.id);
+          sessionStorage.setItem(keys.auth, JSON.stringify(user));
+          // Ensure any stale demo keys in localStorage are cleared
+          try { localStorage.removeItem(keys.current); localStorage.removeItem(keys.auth); } catch {}
                   } catch {}
                   navigate("/demo", { replace: true });
                 } else {

@@ -113,7 +113,7 @@ export default function QRCodes() {
   // Load QR codes and properties
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
+  const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}

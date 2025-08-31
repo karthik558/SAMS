@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -233,7 +234,7 @@ export default function Users() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
+  const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setAuthRole((r || "").toLowerCase());
     } catch {}

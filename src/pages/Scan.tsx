@@ -1,3 +1,4 @@
+import { isDemoMode } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -104,9 +105,10 @@ export default function Scan() {
       if (window.history.length > 1) {
         window.history.back();
       } else {
-        // fallback: go to login if not authed, else home
-        const authed = Boolean(localStorage.getItem('current_user_id'));
-        window.location.assign(authed ? '/' : '/login');
+  // fallback: go to login if not authed, else home (demo-aware)
+  const demo = isDemoMode();
+  const authed = demo ? Boolean(sessionStorage.getItem('demo_current_user_id')) : Boolean(localStorage.getItem('current_user_id'));
+  window.location.assign(authed ? (demo ? '/demo' : '/') : (demo ? '/demo/login' : '/login'));
       }
     } catch {
       window.location.assign('/');

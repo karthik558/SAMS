@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { updateAsset } from "@/services/assets";
 
 export type ApprovalAction = "create" | "edit" | "decommission";
@@ -130,10 +131,10 @@ export async function listApprovals(status?: ApprovalStatus, department?: string
 }
 
 export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status" | "requestedAt" | "reviewedBy" | "reviewedAt">): Promise<ApprovalRequest> {
-  // Try to infer requester department from auth_user
+  // Try to infer requester department from auth_user (demo-aware)
   let dept: string | null = null;
   try {
-    const raw = localStorage.getItem('auth_user');
+    const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
     if (raw) {
       const u = JSON.parse(raw);
       dept = u?.department || null;

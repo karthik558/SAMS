@@ -28,7 +28,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
   try {
     authed = isDemoMode()
-      ? Boolean(localStorage.getItem("demo_current_user_id"))
+      ? Boolean(sessionStorage.getItem("demo_current_user_id"))
       : Boolean(localStorage.getItem("current_user_id"));
   } catch {}
   if (!authed) return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;

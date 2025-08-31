@@ -124,10 +124,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           {(() => {
             let role: string = "";
             try {
-              const raw = localStorage.getItem("auth_user");
-              role = raw ? (JSON.parse(raw).role || "") : "";
+              if (isDemoMode()) {
+                const raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
+                role = raw ? (JSON.parse(raw).role || "") : "";
+              } else {
+                const raw = localStorage.getItem("auth_user");
+                role = raw ? (JSON.parse(raw).role || "") : "";
+              }
             } catch {}
-            const r = isDemoMode() ? "admin" : role.toLowerCase();
+            const r = isDemoMode() ? (role ? role.toLowerCase() : 'admin') : role.toLowerCase();
             // Merge role defaults with any stored overrides for this user
             const effective = mergeDefaultsWithOverrides(r, (perm || {}) as any);
             const pageNameToKey: Record<string, PageKey | null> = {

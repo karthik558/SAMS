@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { isDemoMode } from "@/lib/demo";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
@@ -193,7 +194,7 @@ export default function Assets() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
+  const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}

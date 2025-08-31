@@ -232,7 +232,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
   const toUpdate = { ...patch, updatedAt: new Date().toISOString() } as Partial<Ticket>;
   const getActor = () => {
     try {
-      const raw = localStorage.getItem('auth_user');
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
       const u = raw ? JSON.parse(raw) : null;
       return u?.email || u?.id || 'system';
     } catch {

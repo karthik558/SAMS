@@ -63,9 +63,14 @@ export function Header({ onMenuClick }: HeaderProps) {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
-      if (raw) setAuthUser(JSON.parse(raw));
-    } catch {}
+      if (isDemoMode()) {
+        const raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
+        setAuthUser(raw ? JSON.parse(raw) : null);
+      } else {
+        const raw = localStorage.getItem("auth_user");
+        setAuthUser(raw ? JSON.parse(raw) : null);
+      }
+    } catch { setAuthUser(null); }
   }, []);
 
   // Notifications: load from service (Supabase or localStorage). In demo, seed fake ones each load.
@@ -354,6 +359,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                         localStorage.removeItem('current_user_id');
                         localStorage.removeItem('auth_user');
                         if (isDemoMode()) {
+                          sessionStorage.removeItem('demo_current_user_id');
+                          sessionStorage.removeItem('demo_auth_user');
                           localStorage.removeItem('demo_current_user_id');
                           localStorage.removeItem('demo_auth_user');
                         }
@@ -372,6 +379,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                       localStorage.removeItem('current_user_id');
                       localStorage.removeItem('auth_user');
                       if (isDemoMode()) {
+                        sessionStorage.removeItem('demo_current_user_id');
+                        sessionStorage.removeItem('demo_auth_user');
                         localStorage.removeItem('demo_current_user_id');
                         localStorage.removeItem('demo_auth_user');
                       }

@@ -95,7 +95,7 @@ const Index = () => {
   // Load current user's first name for greeting
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       if (raw) {
         const u = JSON.parse(raw) as { name?: string; role?: string };
         const fn = String(u?.name || "").trim().split(/\s+/)[0] || "";

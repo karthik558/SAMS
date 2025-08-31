@@ -85,7 +85,7 @@ export default function Reports() {
   const [apDepartments, setApDepartments] = useState<Department[]>([]);
   const [apDeptFilter, setApDeptFilter] = useState<string>('ALL');
   const [showApprovalsLog, setShowApprovalsLog] = useState<boolean>(false);
-  const currentUser = (() => { try { return JSON.parse(localStorage.getItem('auth_user') || '{}'); } catch { return {}; } })() as any;
+  const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })() as any;
   const role: string = (currentUser?.role || '').toLowerCase();
   const myDept: string | null = currentUser?.department ?? null;
 

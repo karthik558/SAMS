@@ -5,6 +5,7 @@ import StatusChip from "@/components/ui/status-chip";
 import { Building2, Plus, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import { isDemoMode } from "@/lib/demo";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
@@ -169,7 +170,7 @@ export default function Properties() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("auth_user");
+  const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}
