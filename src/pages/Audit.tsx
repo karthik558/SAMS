@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck } from "lucide-react";
-import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession } from "@/services/audit";
+import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -38,6 +38,9 @@ export default function Audit() {
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [sessionReports, setSessionReports] = useState<AuditReport[]>([]);
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const [assignmentStatus, setAssignmentStatus] = useState<"pending" | "submitted" | "">("");
+  const [reportReviews, setReportReviews] = useState<AuditReview[]>([]);
+  const [detailDept, setDetailDept] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -70,7 +73,8 @@ export default function Audit() {
               : dept;
             if ((user?.role || '').toLowerCase() === 'admin') setAdminDept(initialDept);
             if (initialDept) {
-              await getAssignment(sid, initialDept);
+              const asg0 = await getAssignment(sid, initialDept);
+              setAssignmentStatus(((asg0 as any)?.status) || 'pending');
               const assets = await listDepartmentAssets(initialDept);
               const prior = await getReviewsFor(sid, initialDept);
               const merged: Row[] = (assets || []).map(a => {
@@ -90,6 +94,7 @@ export default function Audit() {
             try {
               const rec = await listRecentAuditReports(20);
               setRecentReports(rec);
+              try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
               if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
               const sessList = await listSessions(20);
               setSessions(sessList);
@@ -104,6 +109,7 @@ export default function Audit() {
           try {
             const rec = await listRecentAuditReports(20);
             setRecentReports(rec);
+            try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
             // If no local latest picked, show the most recent one
             if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
             const sess = await listSessions(20);
@@ -128,7 +134,8 @@ export default function Audit() {
                     : dept;
                   if ((user?.role || '').toLowerCase() === 'admin') setAdminDept(initialDept);
                   if (initialDept) {
-                    await getAssignment(sess.id, initialDept);
+                    const asg1 = await getAssignment(sess.id, initialDept);
+                    setAssignmentStatus(((asg1 as any)?.status) || 'pending');
                     const assets = await listDepartmentAssets(initialDept);
                     const prior = await getReviewsFor(sess.id, initialDept);
                     const merged: Row[] = (assets || []).map(a => {
@@ -161,7 +168,8 @@ export default function Audit() {
       if (!dep) { setRows([]); return; }
       try {
         setLoading(true);
-        await getAssignment(sessionId, dep);
+  const asg2 = await getAssignment(sessionId, dep);
+  setAssignmentStatus(((asg2 as any)?.status) || 'pending');
         const assets = await listDepartmentAssets(dep);
         const prior = await getReviewsFor(sessionId, dep);
         const merged: Row[] = (assets || []).map(a => {
@@ -198,13 +206,24 @@ export default function Audit() {
       const au = raw ? JSON.parse(raw) : null;
       await submitAssignment(sessionId, dep, au?.name || au?.email || au?.id || null);
       toast.success("Submitted");
+      setAssignmentStatus('submitted');
     } catch (e: any) { toast.error(e?.message || "Submit failed"); } finally { setSubmitting(false); }
   };
 
+  // Load full reviews for latest report to enable dept-wise details
+  useEffect(() => {
+    (async () => {
+      if (!latestReport?.session_id) { setReportReviews([]); return; }
+      try { const rows = await listReviewsForSession(latestReport.session_id); setReportReviews(rows || []); } catch { setReportReviews([]); }
+    })();
+  }, [latestReport?.id, latestReport?.session_id]);
+
   return (
     <div className="space-y-6">
-      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
-      <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+      <div className="print:hidden">
+        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
+        <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+      </div>
 
       {/* Admin Control Panel */}
       {role === 'admin' && (
@@ -214,7 +233,7 @@ export default function Audit() {
             <CardDescription>Start/stop sessions and monitor progress.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
               <div className="space-y-1">
                 <Label>Frequency</Label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -256,13 +275,27 @@ export default function Audit() {
                       try { localStorage.removeItem('active_audit_session_id'); } catch (e) { console.error(e); }
                       if (sid) {
                         try {
-                          const raw = localStorage.getItem('auth_user');
-                          const au = raw ? JSON.parse(raw) : null;
-                          const rep = await createAuditReport(sid, au?.name || au?.email || au?.id || null);
-                          setLatestReport(rep);
-                          const list = await listAuditReports(sid);
-                          setReports(list);
-                          toast.message('Audit ended. A report was generated.', { description: 'Scroll below to view charts or print.' });
+                          // Enforce at most 2 reports per session when auto-generating on stop
+                          const existing = await listAuditReports(sid);
+                          if ((existing?.length || 0) >= 2) {
+                            const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+                            if (latest) {
+                              setLatestReport(latest);
+                              setViewReportId(latest.id);
+                              toast.info('This session already has 2 reports. Showing the latest report.');
+                              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+                            }
+                          } else {
+                            const raw = localStorage.getItem('auth_user');
+                            const au = raw ? JSON.parse(raw) : null;
+                            const rep = await createAuditReport(sid, au?.name || au?.email || au?.id || null);
+                            setLatestReport(rep);
+                            setViewReportId(rep?.id || null);
+                            const list = await listAuditReports(sid);
+                            setReports(list);
+                            toast.message('Audit ended. A report was generated.', { description: 'Scroll below to view charts or print.' });
+                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+                          }
                         } catch (e: any) {
                           console.error(e);
                           toast.error(e?.message || 'Failed to create audit report');
@@ -271,6 +304,7 @@ export default function Audit() {
                       try {
                         const rec = await listRecentAuditReports(20);
                         setRecentReports(rec);
+                        try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
                         if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
                         const sessList = await listSessions(20);
                         setSessions(sessList);
@@ -284,7 +318,7 @@ export default function Audit() {
               </div>
             </div>
 
-            <div>
+            <div className="print:hidden">
               <Label>Progress</Label>
               {progress ? (
                 <p className="text-sm text-muted-foreground">{progress.submitted} of {progress.total} departments submitted</p>
@@ -293,7 +327,7 @@ export default function Audit() {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 print:hidden">
               <Button variant="outline" onClick={async () => {
                 try {
                   if (!sessionId) { toast.info('No active session'); return; }
@@ -318,7 +352,7 @@ export default function Audit() {
             </div>
 
             {Object.keys(summary).length > 0 && (
-              <div className="overflow-auto">
+              <div className="overflow-auto print:hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -344,7 +378,7 @@ export default function Audit() {
 
             {(latestReport || recentReports.length > 0) && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
                   <div className="text-sm text-muted-foreground">
                     {latestReport ? `Generated at ${new Date(latestReport.generated_at).toLocaleString()}` : `Reports available: ${recentReports.length}`}
                   </div>
@@ -421,7 +455,82 @@ export default function Audit() {
                     </CardContent>
                   </Card>
                 </div>
-                <Card>
+                {/* Department breakdown with drill-down */}
+                {latestReport && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Department Breakdown</CardTitle>
+                      <CardDescription>View department-level results and details</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const byDept = (latestReport?.payload?.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>
+                        if (!byDept.length) return <p className="text-sm text-muted-foreground">No breakdown available.</p>;
+                        return (
+                          <div className="space-y-4">
+                            <div className="overflow-auto">
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Department</TableHead>
+                                    <TableHead>Verified</TableHead>
+                                    <TableHead>Missing</TableHead>
+                                    <TableHead>Damaged</TableHead>
+                                    <TableHead>Total</TableHead>
+                                    <TableHead className="w-28">Details</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {byDept.map((d) => (
+                                    <TableRow key={d.department}>
+                                      <TableCell>{d.department}</TableCell>
+                                      <TableCell>{d.verified}</TableCell>
+                                      <TableCell>{d.missing}</TableCell>
+                                      <TableCell>{d.damaged}</TableCell>
+                                      <TableCell>{d.total}</TableCell>
+                                      <TableCell>
+                                        <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>View</Button>
+                                      </TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                            {detailDept && (
+                              <div>
+                                <div className="mb-2 flex items-center justify-between">
+                                  <Label>Details • {detailDept}</Label>
+                                  <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>Clear</Button>
+                                </div>
+                                <div className="overflow-auto">
+                                  <Table>
+                                    <TableHeader>
+                                      <TableRow>
+                                        <TableHead>Asset ID</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Comment</TableHead>
+                                      </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                      {(reportReviews || []).filter(r => r.department === detailDept).map((r, i) => (
+                                        <TableRow key={`${r.asset_id}-${i}`}>
+                                          <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
+                                          <TableCell className={r.status === 'missing' ? 'text-red-600' : r.status === 'damaged' ? 'text-yellow-600' : ''}>{r.status}</TableCell>
+                                          <TableCell>{r.comment || ''}</TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                )}
+                <Card className="print:hidden">
                   <CardHeader>
                     <CardTitle>Audit History</CardTitle>
                     <CardDescription>Previous audit reports with status and contributors</CardDescription>
@@ -432,7 +541,15 @@ export default function Audit() {
                         <Label>Sessions</Label>
                         <Select value={selectedSessionId} onValueChange={async (sid) => {
                           setSelectedSessionId(sid);
-                          try { const reps = await listAuditReports(sid); setSessionReports(reps || []); } catch {}
+                          try {
+                            const reps = await listAuditReports(sid);
+                            setSessionReports(reps || []);
+                            if (reps && reps.length) {
+                              setLatestReport(reps[0]);
+                              setViewReportId(reps[0].id);
+                              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+                            }
+                          } catch {}
                         }}>
                           <SelectTrigger className="min-w-[220px]"><SelectValue placeholder="Select session" /></SelectTrigger>
                           <SelectContent>
@@ -448,13 +565,24 @@ export default function Audit() {
                       {sessionId && (
                         <Button size="sm" onClick={async () => {
                           try {
+                            // Enforce at most 2 reports per session (active)
+                            const existing = await listAuditReports(sessionId);
+                            if ((existing?.length || 0) >= 2) {
+                              const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+                              if (latest) { setLatestReport(latest); setViewReportId(latest.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }
+                              toast.info('This session already has 2 reports. Showing the latest report.');
+                              return;
+                            }
                             const raw = localStorage.getItem('auth_user');
                             const au = raw ? JSON.parse(raw) : null;
                             const rep = await createAuditReport(sessionId, au?.name || au?.email || au?.id || null);
                             setLatestReport(rep);
+                            setViewReportId(rep?.id || null);
                             const rec = await listRecentAuditReports(20);
                             setRecentReports(rec);
+                            try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
                             toast.success('Report created for active session');
+                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
                           } catch (e: any) {
                             toast.error(e?.message || 'Failed to create report');
                           }
@@ -463,15 +591,26 @@ export default function Audit() {
                       {selectedSessionId && (
                         <Button size="sm" variant="outline" onClick={async () => {
                           try {
+                            // Enforce at most 2 reports per session (selected)
+                            const existing = await listAuditReports(selectedSessionId);
+                            if ((existing?.length || 0) >= 2) {
+                              const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+                              if (latest) { setLatestReport(latest); setViewReportId(latest.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }
+                              toast.info('This session already has 2 reports. Showing the latest report.');
+                              return;
+                            }
                             const raw = localStorage.getItem('auth_user');
                             const au = raw ? JSON.parse(raw) : null;
                             const rep = await createAuditReport(selectedSessionId, au?.name || au?.email || au?.id || null);
                             setLatestReport(rep);
+                            setViewReportId(rep?.id || null);
                             const reps = await listAuditReports(selectedSessionId);
                             setSessionReports(reps || []);
                             const rec = await listRecentAuditReports(20);
                             setRecentReports(rec);
+                            try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
                             toast.success('Report created');
+                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
                           } catch (e: any) {
                             toast.error(e?.message || 'Failed to create report');
                           }
@@ -517,43 +656,7 @@ export default function Audit() {
                         </Table>
                       </div>
                     )}
-                    <div className="overflow-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Generated By</TableHead>
-                            <TableHead>Submissions</TableHead>
-                            <TableHead>Damaged</TableHead>
-                            <TableHead className="w-32">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(recentReports || []).map(r => {
-                            const p = r.payload || {};
-                            const totals = p.totals || {};
-                            const subs = p.submissions || {};
-                            const damaged = Number(totals.damaged || 0);
-                            return (
-                              <TableRow key={r.id}>
-                                <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
-                                <TableCell>{r.generated_by || '-'}</TableCell>
-                                <TableCell>{Number(subs.submitted || 0)} / {Number(subs.total || 0)}</TableCell>
-                                <TableCell>
-                                  <span className={damaged > 0 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>{damaged}</span>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); } } catch {} }}>View</Button>
-                                    <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
+                    
                     {latestReport?.payload?.contributors && (
                       <div className="mt-4">
                         <Label>Contributors</Label>
@@ -574,7 +677,7 @@ export default function Audit() {
         </Card>
       )}
 
-      <Card>
+  <Card className="print:hidden">
         <CardHeader>
           <CardTitle>Department</CardTitle>
           <CardDescription>{role === 'admin' ? 'Select a department to review' : 'Your assigned department for this audit'}</CardDescription>
@@ -596,7 +699,7 @@ export default function Audit() {
       </Card>
 
   {sessionId && (
-  <Card>
+  <Card className="print:hidden">
         <CardHeader>
           <CardTitle>Review Items</CardTitle>
           <CardDescription>{role === 'admin' ? 'Admin review for selected department' : 'Mark each asset as verified, missing, or damaged. Add comments if needed.'}</CardDescription>
@@ -623,7 +726,7 @@ export default function Audit() {
                       <TableCell className="font-mono text-xs">{r.id}</TableCell>
                       <TableCell>{r.name}</TableCell>
                       <TableCell>
-                        <Select value={r.status} onValueChange={(v: any) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, status: v } : x))}>
+                        <Select value={r.status} onValueChange={(v: any) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, status: v } : x))} disabled={assignmentStatus === 'submitted' && role !== 'admin'}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="verified">Verified</SelectItem>
@@ -633,7 +736,7 @@ export default function Audit() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        <Input placeholder="Optional notes" value={r.comment} onChange={(e) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, comment: e.target.value } : x))} />
+                        <Input placeholder="Optional notes" value={r.comment} onChange={(e) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, comment: e.target.value } : x))} disabled={assignmentStatus === 'submitted' && role !== 'admin'} />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -641,13 +744,224 @@ export default function Audit() {
               </Table>
             </div>
           )}
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={saveProgress}>Save</Button>
-            <Button onClick={submit} disabled={submitting || !rows.length}>Submit</Button>
-          </div>
+          {role !== 'admin' && assignmentStatus === 'submitted' ? (
+            <div className="flex justify-end mt-4 text-sm text-muted-foreground">Submitted</div>
+          ) : (
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={saveProgress}>Save</Button>
+              <Button onClick={submit} disabled={submitting || !rows.length}>Submit</Button>
+            </div>
+          )}
         </CardContent>
   </Card>
   )}
+
+      {/* Reports section visible to non-admins as well, with printable scope */}
+      {role !== 'admin' && (latestReport || recentReports.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Audit Reports</CardTitle>
+            <CardDescription>View and print your department's audit outcomes</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
+              <div className="text-sm text-muted-foreground">
+                {latestReport ? `Generated at ${new Date(latestReport.generated_at).toLocaleString()}` : `Reports available: ${recentReports.length}`}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => window.print()}>Print</Button>
+                <Button variant="outline" onClick={() => window.print()}>Export PDF</Button>
+              </div>
+            </div>
+            {/* Printable report area */}
+            <div className="mt-4">
+              <div className="hidden print:block mb-4">
+                <div className="flex items-center gap-3">
+                  <picture>
+                    <source srcSet="/favicon.png" type="image/png" />
+                    <img src="/favicon.ico" alt="Logo" className="h-8 w-8" />
+                  </picture>
+                  <div>
+                    <div className="text-lg font-semibold">Audit Report</div>
+                    {latestReport?.generated_at && (
+                      <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Overall Summary</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const payload = (latestReport?.payload) || {};
+                      const totals = payload.totals || { verified: 0, missing: 0, damaged: 0 };
+                      const data = [{ name: 'All', Verified: Number(totals.verified || 0), Missing: Number(totals.missing || 0), Damaged: Number(totals.damaged || 0) }];
+                      return (
+                        <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
+                          <BarChart data={data}>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                            <YAxis allowDecimals={false} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="Verified" radius={[4,4,0,0]} fill="var(--color-Verified)" />
+                            <Bar dataKey="Missing" radius={[4,4,0,0]} fill="var(--color-Missing)" />
+                            <Bar dataKey="Damaged" radius={[4,4,0,0]} fill="var(--color-Damaged)" />
+                            <ChartLegend content={<ChartLegendContent />} />
+                          </BarChart>
+                        </ChartContainer>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+                <Card className="col-span-1 lg:col-span-1">
+                  <CardHeader>
+                    <CardTitle>By Department</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const payload = (latestReport?.payload) || {};
+                      const byDept = (payload.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>;
+                      const data = byDept.map(d => ({ name: d.department, Verified: d.verified, Missing: d.missing, Damaged: d.damaged }));
+                      return (
+                        <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
+                          <BarChart data={data}>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} />
+                            <YAxis allowDecimals={false} />
+                            <ChartTooltip content={<ChartTooltipContent />} />
+                            <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" />
+                            <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" />
+                            <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" />
+                            <ChartLegend content={<ChartLegendContent />} />
+                          </BarChart>
+                        </ChartContainer>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              </div>
+              {/* Department breakdown with drill-down */}
+              {latestReport && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Department Breakdown</CardTitle>
+                    <CardDescription>View department-level results and details</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {(() => {
+                      const byDept = (latestReport?.payload?.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>
+                      if (!byDept.length) return <p className="text-sm text-muted-foreground">No breakdown available.</p>;
+                      return (
+                        <div className="space-y-4">
+                          <div className="overflow-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Department</TableHead>
+                                  <TableHead>Verified</TableHead>
+                                  <TableHead>Missing</TableHead>
+                                  <TableHead>Damaged</TableHead>
+                                  <TableHead>Total</TableHead>
+                                  <TableHead className="w-28">Details</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {byDept.map((d) => (
+                                  <TableRow key={d.department}>
+                                    <TableCell>{d.department}</TableCell>
+                                    <TableCell>{d.verified}</TableCell>
+                                    <TableCell>{d.missing}</TableCell>
+                                    <TableCell>{d.damaged}</TableCell>
+                                    <TableCell>{d.total}</TableCell>
+                                    <TableCell>
+                                      <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>View</Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                          {detailDept && (
+                            <div>
+                              <div className="mb-2 flex items-center justify-between">
+                                <Label>Details • {detailDept}</Label>
+                                <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>Clear</Button>
+                              </div>
+                              <div className="overflow-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow>
+                                      <TableHead>Asset ID</TableHead>
+                                      <TableHead>Status</TableHead>
+                                      <TableHead>Comment</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {(reportReviews || []).filter(r => r.department === detailDept).map((r, i) => (
+                                      <TableRow key={`${r.asset_id}-${i}`}>
+                                        <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
+                                        <TableCell className={r.status === 'missing' ? 'text-red-600' : r.status === 'damaged' ? 'text-yellow-600' : ''}>{r.status}</TableCell>
+                                        <TableCell>{r.comment || ''}</TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+            {/* History actions (non-print) */}
+            <div className="mt-6 print:hidden">
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Generated By</TableHead>
+                      <TableHead>Submissions</TableHead>
+                      <TableHead>Damaged</TableHead>
+                      <TableHead className="w-32">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(recentReports || []).map(r => {
+                      const p = r.payload || {};
+                      const totals = p.totals || {};
+                      const subs = p.submissions || {};
+                      const damaged = Number(totals.damaged || 0);
+                      return (
+                        <TableRow key={r.id}>
+                          <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
+                          <TableCell>{r.generated_by || '-'}</TableCell>
+                          <TableCell>{Number(subs.submitted || 0)} / {Number(subs.total || 0)}</TableCell>
+                          <TableCell>
+                            <span className={damaged > 0 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>{damaged}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); } } catch {} }}>View</Button>
+                              <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

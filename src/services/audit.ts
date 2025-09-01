@@ -91,12 +91,22 @@ export async function submitAssignment(sessionId: string, department: string, su
   if (error) throw error;
 }
 
-export async function getProgress(sessionId: string, departments: string[]): Promise<{ total: number; submitted: number; }>{
+export async function getProgress(sessionId: string, departments: string[]): Promise<{ total: number; submitted: number; }> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from("audit_assignments").select("department,status").eq("session_id", sessionId);
   if (error) throw error;
+  const norm = (s: string) => (s || '').toString().trim().toLowerCase();
   const total = departments.length;
-  const submitted = departments.filter(d => (data || []).find((a: any) => (a.department || '').toLowerCase() === d.toLowerCase() && a.status === 'submitted')).length;
+  let submitted = departments.filter(d => (data || []).find((a: any) => norm(a.department) === norm(d) && a.status === 'submitted')).length;
+  // Fallback: if no assignments yet, infer submissions by presence of a submitted assignment or, as a last resort, by any review activity
+  if (!submitted && (data || []).length === 0 && departments.length) {
+    const { data: revs } = await supabase
+      .from("audit_reviews")
+      .select("department")
+      .eq("session_id", sessionId);
+    const have = new Set((revs || []).map((r: any) => norm(r.department)));
+    submitted = departments.filter(d => have.has(norm(d))).length;
+  }
   return { total, submitted };
 }
 

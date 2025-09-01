@@ -49,6 +49,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
   const [userDept, setUserDept] = useState<string>("");
   const [auditActive, setAuditActive] = useState<boolean>(false);
+  const [hasAuditReports, setHasAuditReports] = useState<boolean>(false);
   useEffect(() => {
     (async () => {
       try {
@@ -64,6 +65,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   useEffect(() => {
     (async () => {
       try { setAuditActive(await isAuditActive()); } catch { setAuditActive(false); }
+      try { setHasAuditReports(localStorage.getItem('has_audit_reports') === '1'); } catch {}
     })();
   }, [location.pathname]);
 
@@ -162,8 +164,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
               // Approvals visible only to admin/manager
               if (item.name === "Approvals") return r === "admin" || r === "manager";
-              // Audit: admins always see (control page); managers see only when an audit is active
-              if (item.name === "Audit") return r === 'admin' || (auditActive && r === 'manager');
+              // Audit: admins always see (control page); managers see when an audit is active OR if there are reports
+              if (item.name === "Audit") return r === 'admin' || ((auditActive || hasAuditReports) && r === 'manager');
               // Items governed by permissions
               const key = pageNameToKey[item.name];
               if (!key) return true;
