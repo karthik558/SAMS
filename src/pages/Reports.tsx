@@ -33,6 +33,7 @@ import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
 import { listDepartments, type Department } from "@/services/departments";
+import { listSessions, listReviewsForSession, type AuditSession } from "@/services/audit";
 import {
   Table,
   TableBody,
@@ -50,6 +51,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const reportTypes = [
   {
@@ -76,6 +85,13 @@ const reportTypes = [
     description: "Assets approaching expiry dates with timeline",
     icon: CalendarIcon
   }
+  ,
+  {
+    id: "audit-review",
+    name: "Audit Review Report",
+    description: "Audit session reviews (by department or all) with issues highlighted",
+    icon: FileBarChart
+  }
 ];
 
 export default function Reports() {
@@ -92,6 +108,13 @@ export default function Reports() {
   const [assetsCache, setAssetsCache] = useState<Asset[] | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [deptForReport, setDeptForReport] = useState<string>("ALL");
+  const [auditSessions, setAuditSessions] = useState<AuditSession[]>([]);
+  const [selectedAuditSessionId, setSelectedAuditSessionId] = useState<string>("");
+  // Quick Generate dialog state for Audit Review Report
+  const [auditQuickOpen, setAuditQuickOpen] = useState<boolean>(false);
+  const [qrSessionId, setQrSessionId] = useState<string>("");
+  const [qrDept, setQrDept] = useState<string>("ALL");
+  const [qrProperty, setQrProperty] = useState<string>("all");
   // Recent Reports filters
   const [rrRange, setRrRange] = useState<'all' | 'today' | '7d' | 'custom'>('all');
   const [rrFrom, setRrFrom] = useState<Date | undefined>();
@@ -153,6 +176,16 @@ export default function Reports() {
       } catch (e) {
         console.error(e);
       }
+      // Load audit sessions for audit-review report
+      try {
+        if (hasSupabaseEnv || isDemoMode()) {
+          const sess = await listSessions(25);
+          setAuditSessions(sess || []);
+        }
+      } catch (e) {
+        console.error(e);
+        setAuditSessions([]);
+      }
     })();
   }, []);
 
@@ -182,15 +215,16 @@ export default function Reports() {
       dateTo,
       property: selectedProperty,
       assetType: selectedAssetType,
-      department: selectedReportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
+      department: selectedReportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : (selectedReportType === 'audit-review' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined),
       format: reportFormat,
       email: emailReport
     };
 
   try {
   if (hasSupabaseEnv || isDemoMode()) {
+        const displayName = `${reportTypes.find(r => r.id === selectedReportType)?.name}${selectedReportType === 'audit-review' ? (selectedAuditSessionId ? ` - Session ${selectedAuditSessionId}` : '') : ''}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
         await createReport({
-          name: `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`,
+          name: displayName,
           type: selectedReportType,
           format: reportFormat.toUpperCase(),
           status: "Completed",
@@ -199,10 +233,11 @@ export default function Reports() {
           file_url: null,
           filter_department: reportData.department ?? null,
           filter_property: selectedProperty !== 'all' ? selectedProperty : null,
-      filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
-      // creator metadata
-      created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
-      created_by_id: (currentUser?.id || null) as any,
+          filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
+          // Note: backend may not persist this, but keep in name for parsing later
+          // filter_session_id: selectedReportType === 'audit-review' ? selectedAuditSessionId : null,
+          created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
+          created_by_id: (currentUser?.id || null) as any,
         } as any);
         let reports = await listReports();
         // Enrich top record with creator info if backend omitted columns
@@ -231,21 +266,32 @@ export default function Reports() {
       }
       // Also generate a client-side export immediately using current selections
       try {
-        const assets = assetsCache ?? await listAssets().catch(() => [] as any);
-        const rows = buildRows({
-          type: selectedReportType,
-          assets: assets as any[],
-          dateFrom,
-          dateTo,
-          department: reportData.department,
-          propertyId: selectedProperty !== 'all' ? selectedProperty : undefined,
-          assetType: selectedAssetType !== 'all' ? selectedAssetType : undefined,
-        });
-        if (rows.length) {
-          if (reportFormat === 'pdf') downloadPdfFromRows(`${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`, rows);
-          else downloadCsvFromRows(`${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`, rows);
+        if (selectedReportType === 'audit-review') {
+          if (!selectedAuditSessionId) { toast.error('Please select an audit session'); return; }
+          const rows = await buildAuditRows(selectedAuditSessionId, reportData.department, (selectedProperty !== 'all' ? selectedProperty : undefined));
+          if (rows.length) {
+            const name = `${reportTypes.find(r => r.id === selectedReportType)?.name} - Session ${selectedAuditSessionId}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
+            if (reportFormat === 'pdf') downloadAuditPdfFromRows(name, rows);
+            else downloadCsvFromRows(name, rows);
+          } else { toast.info('No reviews found for that selection'); }
         } else {
-          toast.info('No data matched your filters');
+          const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+          const rows = buildRows({
+            type: selectedReportType,
+            assets: assets as any[],
+            dateFrom,
+            dateTo,
+            department: reportData.department,
+            propertyId: selectedProperty !== 'all' ? selectedProperty : undefined,
+            assetType: selectedAssetType !== 'all' ? selectedAssetType : undefined,
+          });
+          if (rows.length) {
+            const name = `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
+            if (reportFormat === 'pdf') downloadPdfFromRows(name, rows);
+            else downloadCsvFromRows(name, rows);
+          } else {
+            toast.info('No data matched your filters');
+          }
         }
       } catch { /* ignore */ }
       toast.success(`${reportTypes.find(r => r.id === selectedReportType)?.name} generated${hasSupabaseEnv ? "" : " (local)"}.`);
@@ -260,18 +306,37 @@ export default function Reports() {
   (async () => {
     try {
       // Ensure assets are loaded
-      const assets = assetsCache ?? await listAssets().catch(() => [] as any);
-      setAssetsCache(Array.isArray(assets) ? assets : []);
-      // Build rows
-      const rows = buildRows({
-        type: reportType,
-        assets: assets as any[],
-        dateFrom: undefined,
-        dateTo: undefined,
-        department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
-      });
-      if (!rows.length) { toast.info('No data for this report'); return; }
-      downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
+      if (reportType === 'audit-review') {
+        // Open website-style modal to select filters
+        let sid = selectedAuditSessionId;
+        try {
+          if (!sid && !auditSessions.length) {
+            const sess = await listSessions(25);
+            setAuditSessions(sess || []);
+            if (sess && sess.length) sid = sess[0].id;
+          } else if (!sid && auditSessions.length) {
+            sid = auditSessions[0].id;
+          }
+        } catch {}
+        setQrSessionId(sid || "");
+        setQrDept(deptForReport || 'ALL');
+        setQrProperty(selectedProperty || 'all');
+        setAuditQuickOpen(true);
+        return;
+      } else {
+        const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+        setAssetsCache(Array.isArray(assets) ? assets : []);
+        // Build rows
+        const rows = buildRows({
+          type: reportType,
+          assets: assets as any[],
+          dateFrom: undefined,
+          dateTo: undefined,
+          department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
+        });
+        if (!rows.length) { toast.info('No data for this report'); return; }
+        downloadCsvFromRows(`${report?.name || 'Report'} - ${new Date().toISOString().slice(0,10)}`, rows);
+      }
       // Log the quick report for Recent Reports with filter metadata
       if (hasSupabaseEnv || isDemoMode()) {
         try {
@@ -311,6 +376,49 @@ export default function Reports() {
     }
   })();
   };
+
+  async function confirmQuickAudit() {
+    try {
+      const sid = qrSessionId;
+      if (!sid) { toast.error('Please select an audit session'); return; }
+      const dep = qrDept === 'ALL' ? undefined : qrDept;
+      const propId = qrProperty !== 'all' ? qrProperty : undefined;
+      const rows = await buildAuditRows(sid, dep, propId);
+      if (!rows.length) { toast.info('No data for this report'); return; }
+      const name = `Audit Review Report - Session ${sid}${(dep ? ` - ${dep}` : '')} - ${new Date().toISOString().slice(0,10)}`;
+      downloadCsvFromRows(name, rows);
+      // Log recent report
+      if (hasSupabaseEnv || isDemoMode()) {
+        try {
+          await createReport({
+            name,
+            type: 'audit-review',
+            format: 'CSV',
+            status: 'Completed',
+            date_from: null,
+            date_to: null,
+            file_url: null,
+            filter_department: dep || null,
+            filter_property: propId || null,
+            filter_asset_type: null,
+            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
+            created_by_id: (currentUser?.id || null) as any,
+          } as any);
+          let reports = await listReports();
+          setRecentReports(reports);
+        } catch {}
+      }
+      // Persist choices into main filters for consistency
+      setSelectedAuditSessionId(sid);
+      setDeptForReport(qrDept);
+      setSelectedProperty(qrProperty);
+      setAuditQuickOpen(false);
+      toast.success('Audit review report generated');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to generate audit review report');
+    }
+  }
 
   // Build rows for report export
   function buildRows(opts: { type: string; assets: Asset[]; dateFrom?: Date; dateTo?: Date; department?: string; propertyId?: string; assetType?: string; }) {
@@ -423,10 +531,102 @@ export default function Reports() {
     setTimeout(trigger, 200);
   }
 
+  // Build rows for Audit Review Report from audit_reviews
+  async function buildAuditRows(sessionId: string, department?: string, propertyId?: string): Promise<any[]> {
+    try {
+      if (!(hasSupabaseEnv || isDemoMode())) return [];
+      const reviews = await listReviewsForSession(sessionId).catch(() => []);
+      const filtered = (reviews || []).filter((r: any) => !department || String(r.department || '').toLowerCase() === String(department).toLowerCase());
+      // Enrich with asset details when available
+      let assets: Asset[] = assetsCache || [];
+      if (!assets.length) {
+        try { assets = await listAssets().catch(() => [] as any); setAssetsCache(assets); } catch {}
+      }
+      const byId = new Map((assets || []).map(a => [String(a.id), a]));
+    const rows = filtered.map((r: any) => {
+        const a = byId.get(String(r.asset_id));
+        return {
+          session_id: r.session_id,
+          department: r.department || '',
+          asset_id: r.asset_id,
+          asset_name: a?.name || '',
+          property: (a as any)?.property || '',
+      property_id: (a as any)?.property_id || null,
+          type: a?.type || '',
+          status: r.status,
+          comment: r.comment || '',
+          updated_at: r.updated_at || ''
+        };
+      });
+    const rows2 = rows.filter(r => !propertyId || String(r.property_id || '') === String(propertyId));
+      // Put issues first to make them prominent
+      const order = { missing: 0, damaged: 1, verified: 2 } as any;
+    return rows2.sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
+    } catch {
+      return [];
+    }
+  }
+
+  // PDF with highlighting for missing/damaged
+  function downloadAuditPdfFromRows(name: string, rows: any[]) {
+    if (!rows.length) { toast.info('No data to download for this report'); return; }
+    const cols = Object.keys(rows[0]);
+    const thead = `<tr>${cols.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">${c}</th>`).join('')}</tr>`;
+    const tbody = rows.map(r => {
+      const status = String(r.status || '').toLowerCase();
+      const bg = status === 'missing' ? '#fee2e2' : (status === 'damaged' ? '#fef3c7' : 'transparent');
+      const fw = status === 'missing' ? '600' : 'normal';
+      return `<tr style="background:${bg};font-weight:${fw};">${cols.map(c => {
+        const val = (r[c] ?? '');
+        return `<td style="padding:8px;border-bottom:1px solid #f0f0f0;">${val}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    const totals = rows.reduce((acc, r) => { const s = String(r.status || '').toLowerCase(); acc[s] = (acc[s]||0)+1; return acc; }, {} as Record<string, number>);
+    const summary = `<div class="summary"><span class="chip ok">Verified: ${totals['verified'] || 0}</span><span class="chip warn">Damaged: ${totals['damaged'] || 0}</span><span class="chip err">Missing: ${totals['missing'] || 0}</span></div>`;
+    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const normalizedBase = (base || '').replace(/\/$/, '');
+    const logoSrc = `${normalizedBase}/favicon.png`;
+    const html = `<!doctype html><html><head><meta charset=\"utf-8\"/><title>${name}</title>
+    <style>@page{size:A4;margin:16mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 8px} table{border-collapse:collapse;width:100%;font-size:12px} .meta{color:#666;font-size:12px;margin-bottom:8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px} .brand img{height:28px;width:28px;object-fit:contain} .summary{display:flex;gap:8px;margin:8px 0 12px} .chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(0,0,0,0.08)} .chip.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0} .chip.warn{background:#fffbeb;color:#92400e;border-color:#fde68a} .chip.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}</style>
+    </head><body>
+    <div class=\"brand\"><img src='${logoSrc}' onerror=\"this.src='/favicon.ico'\" alt='logo' /><h1>${name}</h1></div>
+    <div class=\"meta\">Generated at ${new Date().toLocaleString()}</div>
+    ${summary}
+    <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
+    </body></html>`;
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+    document.body.appendChild(iframe);
+    const doc = iframe.contentWindow?.document;
+    doc?.open(); doc?.write(html); doc?.close();
+    const trigger = () => { try { iframe.contentWindow?.focus(); setTimeout(() => iframe.contentWindow?.print(), 50); } finally { setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1000); } };
+    setTimeout(trigger, 200);
+  }
+
   // Download a CSV for a given recent report (client-side export snapshot)
   const downloadReportCsv = async (report: any) => {
     try {
       // Prepare data set
+      if (String(report.type || '') === 'audit-review') {
+        const sid = (() => {
+          const n = String(report.name || '');
+          const m = n.match(/Session\s+([\w-]+)/i);
+          return m ? m[1] : '';
+        })();
+        const dep = (report as any).filter_department || (() => {
+          const n = String(report.name || '');
+          const m = n.match(/-\s([^-]+)\s-\s\d{4}-\d{2}-\d{2}$/);
+          const v = m ? m[1].trim() : undefined;
+          if (!v || /^all$/i.test(v)) return undefined;
+          return v;
+        })();
+        if (!sid) { toast.error('No session ID found on this report'); return; }
+  const rows = await buildAuditRows(sid, dep, ((report as any).filter_property || undefined));
+        if (!rows.length) { toast.info('No data to download for this report'); return; }
+        downloadCsvFromRows(String(report.name || 'report'), rows);
+        toast.success('Report downloaded');
+        return;
+      }
       let rows: any[] = [];
       const assets: Asset[] = (assetsCache && assetsCache.length)
         ? assetsCache
@@ -460,6 +660,25 @@ export default function Reports() {
   };
   const downloadReportPdf = async (report: any) => {
     try {
+      if (String(report.type || '') === 'audit-review') {
+        const sid = (() => {
+          const n = String(report.name || '');
+          const m = n.match(/Session\s+([\w-]+)/i);
+          return m ? m[1] : '';
+        })();
+        const dep = (report as any).filter_department || (() => {
+          const n = String(report.name || '');
+          const m = n.match(/-\s([^-]+)\s-\s\d{4}-\d{2}-\d{2}$/);
+          const v = m ? m[1].trim() : undefined;
+          if (!v || /^all$/i.test(v)) return undefined;
+          return v;
+        })();
+        if (!sid) { toast.error('No session ID found on this report'); return; }
+  const rows = await buildAuditRows(sid, dep, ((report as any).filter_property || undefined));
+        if (!rows.length) { toast.info('No data to download for this report'); return; }
+        downloadAuditPdfFromRows(String(report.name || 'report'), rows);
+        return;
+      }
       const assets: Asset[] = (assetsCache && assetsCache.length)
         ? assetsCache
         : (await listAssets().catch(() => [])) as Asset[];
@@ -544,7 +763,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" id="reports-top">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Reports" }]} />
         <PageHeader
           icon={FileBarChart}
@@ -608,6 +827,63 @@ export default function Reports() {
           ))}
         </div>
 
+        {/* Quick Generate — Audit Review Picker */}
+        <Dialog open={auditQuickOpen} onOpenChange={setAuditQuickOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Audit Review — Quick Generate</DialogTitle>
+              <DialogDescription>Select filters to generate CSV</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label>Audit Session</Label>
+                <Select value={qrSessionId} onValueChange={setQrSessionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select audit session" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {auditSessions.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.id} • {new Date(s.started_at).toLocaleString()} {s.is_active ? '(Active)' : ''}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select value={qrDept} onValueChange={setQrDept}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All departments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Departments</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Property</Label>
+                <Select value={qrProperty} onValueChange={setQrProperty}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All properties" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Properties</SelectItem>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAuditQuickOpen(false)}>Cancel</Button>
+              <Button onClick={confirmQuickAudit} disabled={!qrSessionId}>Generate CSV</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* Custom Report Generator */}
         <Card>
           <CardHeader>
@@ -645,6 +921,21 @@ export default function Reports() {
 
             {/* Filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {selectedReportType === 'audit-review' && (
+                <div className="space-y-2 md:col-span-1">
+                  <Label>Audit Session</Label>
+                  <Select value={selectedAuditSessionId} onValueChange={setSelectedAuditSessionId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select audit session" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {auditSessions.map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.id} • {new Date(s.started_at).toLocaleString()} {s.is_active ? '(Active)' : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Property Filter</Label>
                 <Select value={selectedProperty} onValueChange={setSelectedProperty}>
@@ -674,7 +965,7 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
               </div>
-              {selectedReportType === 'department-wise' && (
+              {(selectedReportType === 'department-wise' || selectedReportType === 'audit-review') && (
                 <div className="space-y-2">
                   <Label>Department</Label>
                   <Select value={deptForReport} onValueChange={setDeptForReport}>
