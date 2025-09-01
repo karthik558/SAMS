@@ -220,7 +220,7 @@ export default function Audit() {
 
   return (
     <div className="space-y-6">
-      <div className="print:hidden">
+      <div className="print:hidden space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
         <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
       </div>
