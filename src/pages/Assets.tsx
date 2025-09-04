@@ -158,6 +158,7 @@ export default function Assets() {
     { key: "select", label: "Select", always: true },
     { key: "id", label: "Asset ID", always: true },
     { key: "name", label: "Name", always: true },
+  { key: "description", label: "Description" },
     { key: "type", label: "Type" },
     { key: "property", label: "Property" },
   { key: "department", label: "Department" },
@@ -176,7 +177,7 @@ export default function Assets() {
     // Only set defaults if nothing was loaded from storage
     if (!prefs.visibleCols.length) {
       const defaults = columnDefs
-        .filter(c => c.always || ["type","property","department","qty","status","actions"].includes(c.key))
+        .filter(c => c.always || ["type","property","department","qty","status","description","actions"].includes(c.key))
         .map(c => c.key);
       // Merge with ALWAYS_COLS to be safe
       const merged = Array.from(new Set([...
@@ -1067,6 +1068,7 @@ export default function Assets() {
                       </TableHead>
                     )}
                     {isVisible('name') && <TableHead>Name</TableHead>}
+                    {isVisible('description') && <TableHead>Description</TableHead>}
                     {isVisible('type') && <TableHead>Type</TableHead>}
                     {isVisible('property') && <TableHead>Property</TableHead>}
                     {isVisible('department') && <TableHead>Department</TableHead>}
@@ -1095,6 +1097,7 @@ export default function Assets() {
                     </TableCell>)}
                     {isVisible('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
                     {isVisible('name') && <TableCell>{asset.name}</TableCell>}
+                    {isVisible('description') && <TableCell>{asset.description || '-'}</TableCell>}
                     {isVisible('type') && <TableCell>{asset.type}</TableCell>}
                     {isVisible('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
                     {isVisible('department') && <TableCell>{asset.department || '-'}</TableCell>}
