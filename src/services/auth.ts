@@ -137,3 +137,10 @@ export async function requestPasswordReset(email: string, redirectTo: string): P
   const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
   if (error) throw error;
 }
+
+// Complete password reset after clicking the email link (user has a temporary session)
+export async function completePasswordReset(newPassword: string): Promise<void> {
+  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
