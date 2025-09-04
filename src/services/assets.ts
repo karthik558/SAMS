@@ -15,6 +15,8 @@ export type Asset = {
   condition: string | null;
   status: string;
   location?: string | null;
+  description?: string | null;
+  serialNumber?: string | null;
   created_at?: string;
 };
 
@@ -36,6 +38,8 @@ function toCamel(row: any): Asset {
     condition: row.condition ?? null,
     status: row.status,
   location: row.location ?? null,
+  description: row.description ?? null,
+  serialNumber: row.serial_number ?? null,
     created_at: row.created_at,
   };
 }
@@ -55,6 +59,8 @@ function toSnake(asset: Partial<Asset>) {
   if ("condition" in asset) row.condition = asset.condition ?? null;
   if ("status" in asset) row.status = asset.status;
   if ("location" in asset) row.location = asset.location ?? null;
+  if ("description" in asset) row.description = asset.description ?? null;
+  if ("serialNumber" in asset) row.serial_number = asset.serialNumber ?? null;
   return row;
 }
 

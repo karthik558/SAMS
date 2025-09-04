@@ -445,6 +445,8 @@ export default function Assets() {
           condition: assetData.condition || null,
           status: selectedAsset?.status || 'Active',
           location: assetData.location || null,
+          description: assetData.description || null,
+          serialNumber: assetData.serialNumber || null,
         } as any;
         if (selectedAsset) {
           const id = ids[0];
@@ -480,6 +482,8 @@ export default function Assets() {
             poNumber: assetData.poNumber || null,
             condition: assetData.condition || null,
             location: assetData.location || null,
+            description: assetData.description || null,
+            serialNumber: assetData.serialNumber || null,
             status: 'Active',
           }))
         ]));
@@ -609,6 +613,8 @@ export default function Assets() {
           condition: copy.condition ?? null,
           status: copy.status || 'Active',
           location: copy.location ?? null,
+          description: copy.description ?? null,
+          serialNumber: copy.serialNumber ?? null,
         } as any);
       }
   // Refresh list from DB and return only the unit assets we created/updated
@@ -701,6 +707,25 @@ export default function Assets() {
   });
 
   if (showAddForm) {
+    // Map selected asset shape (services Asset) to AssetForm expected initialData keys
+    const initialFormData = selectedAsset
+      ? {
+          itemName: selectedAsset.name ?? "",
+          itemType: selectedAsset.type ?? "",
+          property: selectedAsset.property ?? "",
+          department: selectedAsset.department ?? "",
+          quantity: selectedAsset.quantity ?? 1,
+          // Convert stored date strings (YYYY-MM-DD) to Date objects for the Calendar inputs
+          purchaseDate: selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate) : undefined,
+          expiryDate: selectedAsset.expiryDate ? new Date(selectedAsset.expiryDate) : undefined,
+          poNumber: selectedAsset.poNumber ?? "",
+          condition: selectedAsset.condition ?? "",
+          location: selectedAsset.location ?? "",
+          // Fields that may not exist on the asset record
+          description: selectedAsset.description ?? "",
+          serialNumber: selectedAsset.serialNumber ?? "",
+        }
+      : undefined;
     return (
       <div className="space-y-6">
           <div className="flex items-center gap-4">
@@ -713,7 +738,7 @@ export default function Assets() {
           </div>
           <AssetForm 
             onSubmit={handleAddAsset} 
-            initialData={selectedAsset}
+            initialData={initialFormData}
           />
         </div>
     );
