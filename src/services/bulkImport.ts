@@ -19,6 +19,8 @@ export type BulkAssetRow = {
   condition?: string | null;
   status: string;
   location?: string | null;
+  description?: string | null;
+  serialNumber?: string | null;
 };
 
 // Template header: omit id so it's generated automatically
@@ -34,6 +36,8 @@ const HEADER: (keyof BulkAssetRow)[] = [
   "condition",
   "status",
   "location",
+  "description",
+  "serialNumber",
 ];
 
 export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Template.xlsx") {
@@ -84,10 +88,12 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
     "Good",
     "Active",
     "Floor 2, IT Room",
+    "15\" laptop, 16GB RAM",
+    "SN-ABC-12345",
   ]);
 
   // Column widths matching HEADER order
-  const widths = [24, 18, 22, 18, 10, 14, 14, 16, 14, 14, 28];
+  const widths = [24, 18, 22, 18, 10, 14, 14, 16, 14, 14, 28, 28, 18];
   input.columns = widths.map((wch) => ({ width: wch } as any));
 
   // Data validation for rows 2..1000
@@ -283,6 +289,8 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
       condition: r["condition"] ? String(r["condition"]).trim() : null,
       status,
       location: r["location"] ? String(r["location"]).trim() : null,
+  description: r["description"] ? String(r["description"]).trim() : null,
+  serialNumber: r["serialNumber"] ? String(r["serialNumber"]).trim() : null,
     };
 
     try {
