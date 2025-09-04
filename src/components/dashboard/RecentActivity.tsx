@@ -107,7 +107,7 @@ export function RecentActivity() {
                 </p>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <p className="text-xs text-muted-foreground">
-                    by {activity.user_name || "System"}
+                    by {activity.user_name || (() => { try { const raw = (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user') || localStorage.getItem('auth_user')); if (!raw) return 'System'; const u = JSON.parse(raw); return u?.name || u?.email || 'System'; } catch { return 'System'; } })()}
                   </p>
                   <span className="text-xs text-muted-foreground">•</span>
                   <p className="text-xs text-muted-foreground">

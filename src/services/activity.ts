@@ -73,13 +73,22 @@ export async function listActivity(limit = 20): Promise<Activity[]> {
 }
 
 export async function logActivity(type: string, message: string, user_name?: string | null) {
+  // Derive a sensible default actor label when not explicitly provided
+  let derivedName: string | null = null;
+  try {
+    const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      derivedName = u?.name || u?.email || u?.id || null;
+    }
+  } catch {}
   if (isDemoMode()) {
     const list = loadDemoActivity();
     const next: Activity = {
       id: (list[0]?.id ?? 0) + 1,
       type,
       message,
-      user_name: user_name ?? null,
+      user_name: (user_name ?? derivedName) ?? null,
       created_at: new Date().toISOString(),
     };
     saveDemoActivity([next, ...list]);
@@ -87,7 +96,7 @@ export async function logActivity(type: string, message: string, user_name?: str
   }
   if (!hasSupabaseEnv) return; // silently ignore when not configured
   const uid = getCurrentUserId();
-  const { error } = await supabase.from(table).insert({ type, message, user_name: user_name ?? null, user_id: uid ?? null });
+  const { error } = await supabase.from(table).insert({ type, message, user_name: (user_name ?? derivedName) ?? null, user_id: uid ?? null });
   if (error) console.error("logActivity error", error);
 }
 
