@@ -31,7 +31,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
-  const [globalResults, setGlobalResults] = useState<{ nav: any[]; assets: any[]; properties: any[]; users: any[]; qrcodes: any[]; tickets: any[] }>({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+  const [globalResults, setGlobalResults] = useState<{ nav: any[]; assets: any[]; properties: any[]; users: any[]; qrcodes: any[]; tickets: any[]; approvals: any[] }>({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
   const [searching, setSearching] = useState(false);
 
   const toggleTheme = () => {
@@ -120,8 +120,26 @@ export function Header({ onMenuClick }: HeaderProps) {
     const q = search.trim().toLowerCase();
     const out: Array<{ key: string; label: string; sub?: string; path: string; group: string }> = [];
     // Nav: auto-match label and path (no manual keywords)
+    const synonyms: Array<{ terms: string[]; label: string; path: string }> = [
+      { terms: ['dashboard','home','main'], label: 'Dashboard', path: navItems.find(i=>i.label==='Dashboard')?.path || '/' },
+      { terms: ['assets','asset','inventory'], label: 'Assets', path: navItems.find(i=>i.label==='Assets')?.path || '/assets' },
+      { terms: ['properties','property','location','site'], label: 'Properties', path: navItems.find(i=>i.label==='Properties')?.path || '/properties' },
+      { terms: ['qr','qrcodes','qr codes','scan'], label: 'QR Codes', path: navItems.find(i=>i.label==='QR Codes')?.path || '/qr-codes' },
+      { terms: ['reports','report','export'], label: 'Reports', path: navItems.find(i=>i.label==='Reports')?.path || '/reports' },
+      { terms: ['users','user','accounts'], label: 'Users', path: navItems.find(i=>i.label==='Users')?.path || '/users' },
+      { terms: ['settings','config','preferences'], label: 'Settings', path: navItems.find(i=>i.label==='Settings')?.path || '/settings' },
+      { terms: ['tickets','ticket','maintenance'], label: 'Tickets', path: navItems.find(i=>i.label==='Tickets')?.path || '/tickets' },
+      { terms: ['approvals','approval','requests'], label: 'Approvals', path: navItems.find(i=>i.label==='Approvals')?.path || '/approvals' },
+      { terms: ['audit','audits'], label: 'Audit', path: navItems.find(i=>i.label==='Audit')?.path || '/audit' },
+    ];
+    const synMatches = q
+      ? synonyms.filter(s => s.terms.some(t => q.includes(t)))
+      : [];
     const nav = q
-      ? navItems.filter(i => i.label.toLowerCase().includes(q) || i.path.toLowerCase().includes(q))
+      ? [
+          ...navItems.filter(i => i.label.toLowerCase().includes(q) || i.path.toLowerCase().includes(q)),
+          ...synMatches.map(m => ({ label: m.label, path: m.path }))
+        ]
       : [];
     out.push(
       ...nav.slice(0, 6).map(i => ({ key: `nav:${i.path}` , label: i.label, sub: i.path, path: i.path, group: 'Pages' }))
@@ -133,11 +151,12 @@ export function Header({ onMenuClick }: HeaderProps) {
         out.push({ key: t.key || `${group}:${t.path}:${t.label}`, label: t.label, sub: t.sub, path: t.path, group });
       }
     };
-  add(globalResults.assets, 'Assets', (a:any) => ({ label: `${a.id} — ${a.name || ''}`.trim(), sub: `${a.type || ''} @ ${a.property || ''}`.trim(), path: `${prefix}/assets/${a.id}` }));
+  add(globalResults.assets, 'Assets', (a:any) => ({ label: `${a.id} — ${a.name || ''}`.trim(), sub: `${a.type || ''} @ ${a.property || ''}${a.serial_number?` · ${a.serial_number}`:''}`.trim(), path: `${prefix}/assets/${a.id}` }));
   add(globalResults.properties, 'Properties', (p:any) => ({ label: `${p.id} — ${p.name}`.trim(), sub: `${p.type || ''} · ${p.status || ''}`.trim(), path: `${prefix}/properties` }));
   add(globalResults.users, 'Users', (u:any) => ({ label: u.name || u.email, sub: `${u.email} · ${u.role}${u.department ? ' · ' + u.department : ''}`, path: `${prefix}/users` }));
   add(globalResults.qrcodes, 'QR Codes', (q:any) => ({ label: q.id, sub: `${q.asset_id || q.assetId || ''} · ${q.property || ''}`, path: `${prefix}/qr-codes` }));
-  add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}`, path: `${prefix}/tickets` }));
+  add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}${t.assignee?` · ${t.assignee}`:''}${t.created_by?` · ${t.created_by}`:''}`, path: `${prefix}/tickets` }));
+  add(globalResults.approvals, 'Approvals', (a:any) => ({ label: `${a.id} — ${a.asset_id || ''}`.trim(), sub: `${a.status || ''}${a.department?` · ${a.department}`:''}`, path: `${prefix}/approvals` }));
     return out;
   }, [search, navItems, globalResults]);
 
@@ -152,7 +171,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   useEffect(() => {
     const q = search.trim();
     if (!hasSupabaseEnv || q.length < 2) {
-      setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+      setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
       setSearching(false);
       return;
     }
@@ -161,12 +180,13 @@ export function Header({ onMenuClick }: HeaderProps) {
     const timer = setTimeout(async () => {
       try {
         const like = `%${q}%`;
-        const [assets, properties, users, qrcodes, tickets] = await Promise.all([
-          supabase.from('assets').select('id,name,type,property').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},property.ilike.${like}`).limit(5),
+        const [assets, properties, users, qrcodes, tickets, approvals] = await Promise.all([
+          supabase.from('assets').select('id,name,type,property,serial_number,department,location,description').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},property.ilike.${like},serial_number.ilike.${like},department.ilike.${like},location.ilike.${like},description.ilike.${like}`).limit(5),
           supabase.from('properties').select('id,name,type,status').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},status.ilike.${like}`).limit(5),
           supabase.from('app_users').select('name,email,role,department').or(`name.ilike.${like},email.ilike.${like},role.ilike.${like},department.ilike.${like}`).limit(5),
           supabase.from('qr_codes').select('id,asset_id,property,generated_date').or(`id.ilike.${like},asset_id.ilike.${like},property.ilike.${like}`).limit(5),
-          supabase.from('tickets').select('id,title,status').or(`id.ilike.${like},title.ilike.${like},status.ilike.${like}`).limit(5),
+          supabase.from('tickets').select('id,title,status,assignee,created_by,priority,target_role').or(`id.ilike.${like},title.ilike.${like},status.ilike.${like},assignee.ilike.${like},created_by.ilike.${like},priority.ilike.${like},target_role.ilike.${like}`).limit(5),
+          supabase.from('approvals').select('id,asset_id,status,department').or(`id.ilike.${like},asset_id.ilike.${like},status.ilike.${like},department.ilike.${like}`).limit(5),
         ]);
         setGlobalResults({
           nav: [],
@@ -175,10 +195,11 @@ export function Header({ onMenuClick }: HeaderProps) {
           users: users.data || [],
           qrcodes: qrcodes.data || [],
           tickets: tickets.data || [],
+          approvals: approvals.data || [],
         });
       } catch (e) {
         // ignore errors silently; keep nav-only
-        setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [] });
+        setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
       } finally {
         setSearching(false);
       }
