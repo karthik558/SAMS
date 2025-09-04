@@ -14,6 +14,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { isDemoMode } from "@/lib/demo";
 import { listDepartments, type Department } from "@/services/departments";
+import { listProperties, type Property } from "@/services/properties";
 
 type Row = { id: string; name: string; status: "verified" | "missing" | "damaged"; comment: string };
 
@@ -41,6 +42,8 @@ export default function Audit() {
   const [assignmentStatus, setAssignmentStatus] = useState<"pending" | "submitted" | "">("");
   const [reportReviews, setReportReviews] = useState<AuditReview[]>([]);
   const [detailDept, setDetailDept] = useState<string>("");
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -54,10 +57,16 @@ export default function Audit() {
         setAuditOn(active);
         const deps = await listDepartments();
         setDepartments(deps);
+        try {
+          const props = await listProperties();
+          setProperties(props as Property[]);
+        } catch {}
         if (active) {
           const sess = await getActiveSession();
           const sid = sess?.id || "";
+          const pid = (sess as any)?.property_id || localStorage.getItem('active_audit_property_id') || '';
           try { if (sid) localStorage.setItem('active_audit_session_id', sid); } catch (e) { console.error(e); }
+          try { if (pid) localStorage.setItem('active_audit_property_id', String(pid)); } catch {}
           if (!sid) {
             // Inconsistent state: mark as no active session
             setAuditOn(false);
@@ -67,6 +76,7 @@ export default function Audit() {
             setSummary({});
           } else {
             setSessionId(sid);
+            setSelectedPropertyId(String(pid || ""));
             // initial load for manager/admin
             const initialDept = ((user?.role || '').toLowerCase() === 'admin')
               ? (dept && deps.find(d => d.name.toLowerCase() === String(dept).toLowerCase()) ? dept : (deps[0]?.name || ""))
@@ -75,7 +85,7 @@ export default function Audit() {
             if (initialDept) {
               const asg0 = await getAssignment(sid, initialDept);
               setAssignmentStatus(((asg0 as any)?.status) || 'pending');
-              const assets = await listDepartmentAssets(initialDept);
+              const assets = await listDepartmentAssets(initialDept, (pid || undefined));
               const prior = await getReviewsFor(sid, initialDept);
               const merged: Row[] = (assets || []).map(a => {
                 const r = prior.find(p => p.asset_id === a.id);
@@ -123,6 +133,8 @@ export default function Audit() {
                 if (sess && sess.is_active) {
                   setAuditOn(true);
                   setSessionId(sess.id);
+                  const pid = (sess as any)?.property_id || localStorage.getItem('active_audit_property_id') || '';
+                  setSelectedPropertyId(String(pid || ''));
                   // Load initial dept rows and admin summary similar to active branch
                   const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
                   const user = raw ? JSON.parse(raw) : null;
@@ -136,7 +148,7 @@ export default function Audit() {
                   if (initialDept) {
                     const asg1 = await getAssignment(sess.id, initialDept);
                     setAssignmentStatus(((asg1 as any)?.status) || 'pending');
-                    const assets = await listDepartmentAssets(initialDept);
+                    const assets = await listDepartmentAssets(initialDept, (pid || undefined));
                     const prior = await getReviewsFor(sess.id, initialDept);
                     const merged: Row[] = (assets || []).map(a => {
                       const r = prior.find(p => p.asset_id === a.id);
@@ -168,9 +180,9 @@ export default function Audit() {
       if (!dep) { setRows([]); return; }
       try {
         setLoading(true);
-  const asg2 = await getAssignment(sessionId, dep);
-  setAssignmentStatus(((asg2 as any)?.status) || 'pending');
-        const assets = await listDepartmentAssets(dep);
+        const asg2 = await getAssignment(sessionId, dep);
+        setAssignmentStatus(((asg2 as any)?.status) || 'pending');
+        const assets = await listDepartmentAssets(dep, (selectedPropertyId || undefined));
         const prior = await getReviewsFor(sessionId, dep);
         const merged: Row[] = (assets || []).map(a => {
           const r = prior.find(p => p.asset_id === a.id);
@@ -223,6 +235,14 @@ export default function Audit() {
       <div className="print:hidden space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
         <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+        {(auditOn && selectedPropertyId) && (
+          <div className="text-sm text-muted-foreground">
+            Property: <span className="font-medium text-foreground">{(() => {
+              const p = (properties || []).find(pp => String(pp.id) === String(selectedPropertyId));
+              return p ? `${p.name} (${p.id})` : selectedPropertyId;
+            })()}</span>
+          </div>
+        )}
       </div>
 
       {/* Admin Control Panel */}
@@ -241,13 +261,14 @@ export default function Audit() {
                   <Button variant={auditFreq === 6 ? 'default' : 'outline'} size="sm" onClick={() => setAuditFreq(6)}>Every 6 months</Button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex items-center gap-2 w-full md:w-auto">
                 {!auditOn ? (
                   <Button className="w-full md:w-auto" onClick={async () => {
                     try {
                       const raw = localStorage.getItem('auth_user');
                       const au = raw ? JSON.parse(raw) : null;
-                      const created = await startAuditSession(auditFreq, au?.name || au?.email || au?.id || null);
+          if (!selectedPropertyId) { toast.error('Please select a property for this audit'); return; }
+          const created = await startAuditSession(auditFreq, (au?.name || au?.email || au?.id || null), selectedPropertyId);
                       const sid = created?.id || '';
                       if (!sid) {
                         toast.error('Failed to start audit session');
@@ -255,7 +276,8 @@ export default function Audit() {
                       }
                       setAuditOn(true);
                       setSessionId(sid);
-                      try { localStorage.setItem('active_audit_session_id', sid); } catch (e) { console.error(e); }
+          try { localStorage.setItem('active_audit_session_id', sid); } catch (e) { console.error(e); }
+          try { localStorage.setItem('active_audit_property_id', String(selectedPropertyId)); } catch {}
                       try {
                         const prog = await getProgress(sid, departments.map(d => d.name));
                         setProgress(prog);
@@ -317,6 +339,25 @@ export default function Audit() {
                 )}
               </div>
             </div>
+            {/* Property selection for property-scoped auditing */}
+            {!auditOn && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
+                <div className="space-y-1">
+                  <Label>Property</Label>
+                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {properties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">This audit will only include assets from the selected property.</p>
+                </div>
+              </div>
+            )}
 
             <div className="print:hidden">
               <Label>Progress</Label>
@@ -397,6 +438,12 @@ export default function Audit() {
                       <div className="text-lg font-semibold">Audit Report</div>
                       {latestReport?.generated_at && (
                         <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
+                      )}
+                      {(selectedPropertyId) && (
+                        <div className="text-xs text-muted-foreground">Property: {(() => {
+                          const p = (properties || []).find(pp => String(pp.id) === String(selectedPropertyId));
+                          return p ? `${p.name} (${p.id})` : selectedPropertyId;
+                        })()}</div>
                       )}
                     </div>
                   </div>

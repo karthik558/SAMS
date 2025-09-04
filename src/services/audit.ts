@@ -7,6 +7,7 @@ export type AuditSession = {
   frequency_months: 3 | 6;
   initiated_by?: string | null;
   is_active: boolean;
+  property_id?: string | null;
 };
 
 export type AuditAssignment = {
@@ -41,11 +42,18 @@ export async function getActiveSession(): Promise<AuditSession | null> {
   return (data as any) || null;
 }
 
-export async function startAuditSession(freq: 3 | 6, initiated_by?: string | null): Promise<AuditSession> {
+export async function startAuditSession(freq: 3 | 6, initiated_by?: string | null, property_id?: string | null): Promise<AuditSession> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.rpc("start_audit_session_v1", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null });
-  if (error) throw error;
-  return data as any;
+  // Try v2 with property scoping; fallback to v1 if not available
+  try {
+    const { data, error } = await supabase.rpc("start_audit_session_v2", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null, p_property_id: property_id ?? null });
+    if (error) throw error;
+    return data as any;
+  } catch (e) {
+    const { data, error } = await supabase.rpc("start_audit_session_v1", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null });
+    if (error) throw error;
+    return data as any;
+  }
 }
 
 export async function endAuditSession(): Promise<void> {
@@ -66,9 +74,12 @@ export async function getAssignment(sessionId: string, department: string): Prom
   return created as any;
 }
 
-export async function listDepartmentAssets(department: string): Promise<Asset[]> {
+export async function listDepartmentAssets(department: string, propertyId?: string): Promise<Asset[]> {
   const all = await listAssets();
-  return (all || []).filter(a => (a.department || "").toLowerCase() === (department || "").toLowerCase());
+  const norm = (s: string) => (s || '').toLowerCase();
+  return (all || [])
+    .filter(a => norm(a.department || '') === norm(department || ''))
+    .filter(a => !propertyId || String(a.property_id || '') === String(propertyId));
 }
 
 export async function getReviewsFor(sessionId: string, department: string): Promise<AuditReview[]> {
