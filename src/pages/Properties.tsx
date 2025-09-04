@@ -334,6 +334,30 @@ export default function Properties() {
       .map(([name, assets], i) => ({ name, assets, fill: paletteAssets[i % paletteAssets.length] }));
   })();
 
+  // Themed tooltip for charts to ensure readability in dark mode
+  function ChartTooltip({ active, payload, label }: any) {
+    if (!active || !payload || !payload.length) return null;
+    return (
+      <div
+        className="rounded-md border bg-card/95 backdrop-blur px-2.5 py-2 shadow-md text-xs"
+        style={{ color: 'hsl(var(--foreground))', borderColor: 'hsl(var(--border))' }}
+      >
+        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
+        <div className="space-y-1">
+          {payload.map((entry: any, i: number) => (
+            <div key={i} className="flex items-center gap-2">
+              {entry?.color ? (
+                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+              ) : null}
+              <span className="text-muted-foreground">{entry?.name}</span>
+              <span className="font-medium text-foreground">{entry?.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
@@ -408,53 +432,69 @@ export default function Properties() {
         </div>
 
         {/* Properties Grid */}
-  <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {properties.map((property) => {
             const pct = Math.max(0, Math.min(100, Math.round((Number(property.assetCount) || 0) / maxAssets * 100)));
             return (
-              <Card key={property.id} className="hover:shadow-sm transition-colors border-border/70">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base md:text-[1.05rem] truncate">{property.name}</CardTitle>
-                      <div className="mt-1 flex items-center gap-2 text-xs">
-                        <Badge variant="outline" className="px-2 py-0.5 text-[11px]">{property.type}</Badge>
+              <Card
+                key={property.id}
+                className="group relative border-border/70 hover:border-primary/30 hover:shadow-md transition-colors duration-200 rounded-xl overflow-hidden bg-card hover:bg-card/90"
+              >
+                <CardHeader className="pb-0">
+                  <div className="flex items-start gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <CardTitle className="text-base md:text-[1.05rem] truncate">{property.name}</CardTitle>
                         {getStatusBadge(property.status)}
                       </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">{property.id}</span>
+                        <Badge variant="outline" className="px-2 py-0.5 text-[11px]">{property.type}</Badge>
+                      </div>
                     </div>
-          {/* Actions moved below for a clean header */}
                   </div>
                 </CardHeader>
-        <CardContent className="space-y-3">
+                <CardContent className="space-y-3 pt-3">
                   {/* Address */}
                   <p className="text-xs text-muted-foreground flex items-start gap-1.5">
                     <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground/80" />
                     <span className="truncate">{property.address}</span>
                   </p>
 
-                  {/* Asset meter minimal */}
+                  {/* Stats chips */}
+                  <div className="flex items-center gap-3 text-xs">
+                    <div className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 border px-2 py-1">
+                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-muted-foreground">Assets</span>
+                      <span className="font-medium text-foreground">{property.assetCount}</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 rounded-md bg-muted/60 border px-2 py-1">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-muted-foreground">Users</span>
+                      <span className="font-medium text-foreground">{Number(property.userCount) || 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Asset meter */}
                   <div>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[11px] text-muted-foreground">Assets</span>
-                      <span className="text-[11px] font-medium text-foreground">{property.assetCount}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] text-muted-foreground">Utilization</span>
+                      <span className="text-[11px] font-medium text-foreground">{pct}%</span>
                     </div>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-primary rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="h-1.5 w-full rounded-full bg-primary/10 overflow-hidden">
+                      <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${pct}%` }} />
                     </div>
                   </div>
 
-                  {/* Users count minimal */}
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Users className="h-3.5 w-3.5" />
-                    <span>{Number(property.userCount) || 0} users</span>
-                  </div>
-
-                  {/* Manager (muted, minimal) */}
+                  {/* Manager */}
                   {property.manager ? (
                     <p className="text-[11px] text-muted-foreground">Manager: <span className="text-foreground/90 font-medium">{property.manager}</span></p>
                   ) : null}
 
-                  {/* Visible action buttons */}
+                  {/* Actions */}
                   {canEditPage && (
                     <div className="flex gap-2 pt-1">
                       <Button size="sm" variant="outline" onClick={() => handleEditProperty(property.id)} className="gap-2">
@@ -482,12 +522,12 @@ export default function Properties() {
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <RechartsTooltip formatter={(v: any, n: any) => [v, n]} />
+                    <RechartsTooltip content={<ChartTooltip />} />
                     <Pie
                       dataKey="value"
                       data={typeCounts}
-                      innerRadius={46}
-                      outerRadius={70}
+                      innerRadius={48}
+                      outerRadius={76}
                       paddingAngle={2}
                       startAngle={90}
                       endAngle={-270}
@@ -497,6 +537,7 @@ export default function Properties() {
                       {typeCounts.map((d) => (
                         <Cell key={d.name} fill={d.fill} />
                       ))}
+                      <LabelList dataKey="value" position="outside" className="text-[10px]" style={{ fill: 'hsl(var(--foreground))' }} />
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
@@ -527,10 +568,11 @@ export default function Properties() {
                     layout="vertical"
         margin={{ top: 4, right: 8, left: 8, bottom: 4 }}
                   >
+  <CartesianGrid stroke="hsl(var(--muted-foreground))" strokeOpacity={0.25} strokeDasharray="3 3" vertical={false} />
         <XAxis type="number" hide />
-        <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} axisLine={false} tickLine={false} />
-                    <RechartsTooltip formatter={(v: any) => [v, 'Assets']} />
-        <Bar dataKey="assets" radius={[4, 4, 4, 4]}>
+        <YAxis type="category" dataKey="name" width={120} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+        <Bar dataKey="assets" radius={[6, 6, 6, 6]} barSize={12} background={{ fill: 'hsl(var(--muted))', opacity: 0.35 }}>
                       {assetsByType.map((d) => (
                         <Cell key={d.name} fill={d.fill} />
                       ))}
