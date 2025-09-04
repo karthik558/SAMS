@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
+import { getCurrentUserId } from "@/services/permissions";
 
 export type Notification = {
   id: string;
@@ -29,9 +30,12 @@ function saveLocal(list: Notification[]) {
 export async function listNotifications(limit = 50): Promise<Notification[]> {
   if (!isDemoMode() && hasSupabaseEnv) {
     try {
+      const uid = getCurrentUserId();
+      if (!uid) return [];
       const { data, error } = await supabase
         .from(table)
         .select("id, title, message, type, read, created_at")
+        .eq('user_id', uid)
         .order("created_at", { ascending: false })
         .limit(limit);
       if (error) throw error;
@@ -54,6 +58,13 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
   };
   if (!isDemoMode() && hasSupabaseEnv) {
     try {
+      const uid = getCurrentUserId();
+      // Try to capture user_name for auditability
+      let user_name: string | null = null;
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        if (raw) { const u = JSON.parse(raw); user_name = u?.name || u?.email || u?.id || null; }
+      } catch {}
       const { data, error } = await supabase
         .from(table)
         .insert({
@@ -63,6 +74,8 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
           type: payload.type,
           read: payload.read,
           created_at: payload.created_at,
+          user_id: uid ?? null,
+          user_name,
         })
         .select("id, title, message, type, read, created_at")
         .single();
@@ -81,7 +94,9 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
 export async function markAllRead(): Promise<void> {
   if (!isDemoMode() && hasSupabaseEnv) {
     try {
-      const { error } = await supabase.from(table).update({ read: true }).neq("read", true);
+      const uid = getCurrentUserId();
+      if (!uid) return;
+      const { error } = await supabase.from(table).update({ read: true }).neq("read", true).eq('user_id', uid);
       if (error) throw error;
       return;
     } catch (e) {
@@ -95,7 +110,9 @@ export async function markAllRead(): Promise<void> {
 export async function clearAllNotifications(): Promise<void> {
   if (!isDemoMode() && hasSupabaseEnv) {
     try {
-      const { error } = await supabase.from(table).delete().neq("id", "");
+      const uid = getCurrentUserId();
+      if (!uid) return;
+      const { error } = await supabase.from(table).delete().eq('user_id', uid);
       if (error) throw error;
       return;
     } catch (e) {

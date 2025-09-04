@@ -102,6 +102,14 @@ export default function QRCodes() {
   const [dlSingleFmt, setDlSingleFmt] = useState<'png' | 'pdf'>('png');
   const [dlAllOpen, setDlAllOpen] = useState(false);
   const [dlAllFmt, setDlAllFmt] = useState<'zip' | 'pdf'>('zip');
+  // Current user label for activity logs/notifications
+  const actor: string | null = (() => {
+    try {
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+      if (raw) { const u = JSON.parse(raw); return u?.name || u?.email || u?.id || null; }
+    } catch {}
+    return null;
+  })();
 
   // Active property ids set (exclude disabled properties from UI everywhere)
   const activePropertyIds = useMemo(() => {
@@ -202,8 +210,16 @@ export default function QRCodes() {
   const handleBulkPrint = () => {
     const unprintedCodes = codes.filter(qr => !qr.printed);
     toast.success(`Printing ${unprintedCodes.length} QR codes`);
+       let actor: string | null = null;
+       try {
+         const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+         if (raw) {
+           const u = JSON.parse(raw);
+           actor = u?.name || u?.email || u?.id || null;
+         }
+       } catch {}
     (async () => {
-      await logActivity("qr_bulk_print", `Bulk printed ${unprintedCodes.length} QR codes`);
+          await logActivity("qr_bulk_print", `Bulk printed ${unprintedCodes.length} QR codes`, actor);
     })();
   };
 
@@ -222,6 +238,7 @@ export default function QRCodes() {
       setComputedImages({});
       toast.success("All QR codes cleared. You can generate fresh codes now.");
       await logActivity("qr_cleared_all", "All QR history cleared");
+  await logActivity("qr_cleared_all", "All QR history cleared", actor);
     } catch (e) {
       console.error(e);
       toast.error("Failed to clear QR codes");
@@ -242,11 +259,13 @@ export default function QRCodes() {
         downloadDataUrl(dataUrl, `qr-${dlSingleTarget.assetId}.png`);
         toast.success(`Downloaded QR for ${dlSingleTarget.assetName}`);
         await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
+  await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`, actor);
       } else {
         // PDF via print dialog on A4 page
         await printImagesAsLabels([dataUrl], { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
         toast.success(`Opened PDF print for ${dlSingleTarget.assetName}`);
         await logActivity('qr_download_pdf', `Prepared PDF for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
+  await logActivity('qr_download_pdf', `Prepared PDF for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`, actor);
       }
     } catch (e) {
       console.error(e);
@@ -286,11 +305,13 @@ export default function QRCodes() {
         URL.revokeObjectURL(url);
         toast.success('Downloading all QR codes (PNG)');
         await logActivity('qr_download_all', `Downloaded ${sortedQRCodes.length} QR codes (PNG zip)`);
+  await logActivity('qr_download_all', `Downloaded ${sortedQRCodes.length} QR codes (PNG zip)`, actor);
       } else {
         // PDF via print dialog: one QR per A4 page
         await printImagesAsLabels(images, { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
         toast.success('Opened PDF print for all');
         await logActivity('qr_download_all_pdf', `Prepared PDF for ${sortedQRCodes.length} QR codes`);
+  await logActivity('qr_download_all_pdf', `Prepared PDF for ${sortedQRCodes.length} QR codes`, actor);
       }
     } catch (e) {
       console.error(e);
@@ -366,7 +387,13 @@ export default function QRCodes() {
           { id, assetId: asset.id, assetName: asset.name, property: asset.property, generatedDate: today, status: 'Generated', printed: false, imageUrl: png }
         ]);
       }
-      await logActivity("qr_generated", `QR generated for ${asset.name} (${asset.id})`);
+      // Capture actor label for logs/notifications
+      let actor: string | null = null;
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        if (raw) { const u = JSON.parse(raw); actor = u?.name || u?.email || u?.id || null; }
+      } catch {}
+      await logActivity("qr_generated", `QR generated for ${asset.name} (${asset.id})`, actor);
       await addNotification({ title: "QR generated", message: `${asset.name} (${asset.id}) QR is ready`, type: "qr" });
       setAssetPickerOpen(false);
       setSearchTerm(asset.id);
@@ -794,6 +821,7 @@ export default function QRCodes() {
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
                         toast.success(`Opened print for ${qrCode.assetName}`);
                         await logActivity('qr_printed', `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`);
+                        await logActivity('qr_printed', `Printed QR for ${qrCode.assetName} (${qrCode.assetId})`, actor);
                         await addNotification({ title: 'QR printed', message: `${qrCode.assetName} (${qrCode.assetId}) QR sent to printer`, type: 'qr' });
                       } catch (e) {
                         console.error(e);

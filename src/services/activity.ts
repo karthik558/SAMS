@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
+import { getCurrentUserId } from "@/services/permissions";
 
 export type Activity = {
   id: number;
@@ -58,9 +59,13 @@ export async function listActivity(limit = 20): Promise<Activity[]> {
     return data;
   }
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  // Limit to current user's activity
+  const uid = getCurrentUserId();
+  if (!uid) return [];
   const { data, error } = await supabase
     .from(table)
     .select("id, type, message, user_name, created_at")
+    .eq('user_id', uid)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -81,7 +86,8 @@ export async function logActivity(type: string, message: string, user_name?: str
     return;
   }
   if (!hasSupabaseEnv) return; // silently ignore when not configured
-  const { error } = await supabase.from(table).insert({ type, message, user_name: user_name ?? null });
+  const uid = getCurrentUserId();
+  const { error } = await supabase.from(table).insert({ type, message, user_name: user_name ?? null, user_id: uid ?? null });
   if (error) console.error("logActivity error", error);
 }
 
