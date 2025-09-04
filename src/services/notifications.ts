@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId } from "@/services/permissions";
+import { listUsers } from "@/services/users";
 
 export type Notification = {
   id: string;
@@ -89,6 +90,69 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
   const updated = [payload, ...list];
   saveLocal(updated);
   return payload;
+}
+
+// Helper: read current actor name/email for attribution
+function getActorName(): string | null {
+  try {
+    const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.name || u?.email || u?.id || null;
+  } catch { return null; }
+}
+
+// Fan-out notifications to all users with the specified role (e.g., 'admin' or 'manager').
+// When Supabase is available, inserts one row per recipient user_id so it respects per-user RLS.
+export async function addRoleNotification(
+  input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
+  role: 'admin' | 'manager'
+): Promise<void> {
+  // In demo or without Supabase, fall back to a single local notification (best-effort)
+  if (!hasSupabaseEnv || isDemoMode()) {
+    await addNotification(input);
+    return;
+  }
+  try {
+    // Prefer server-side RPC to bypass RLS and fan out securely
+    try {
+      const { error: rpcError } = await supabase.rpc('add_notifications_for_role_v1', {
+        p_title: input.title,
+        p_message: input.message,
+        p_type: input.type,
+        p_role: role,
+      } as any);
+      if (!rpcError) return;
+      console.warn('RPC add_notifications_for_role_v1 failed, attempting client-side insert...', rpcError);
+    } catch (e) {
+      console.warn('RPC add_notifications_for_role_v1 not available, attempting client-side insert...', e);
+    }
+    // Load recipients from app_users
+    const users = await listUsers();
+    const recipients = users.filter(u => (u.role || '').toLowerCase() === role && (u.status || '').toLowerCase() !== 'inactive');
+    if (!recipients.length) {
+      // No recipients found; still record a notification for the actor so there's traceability
+      await addNotification(input);
+      return;
+    }
+    const actorName = getActorName();
+    const rows = recipients.map(r => ({
+      id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
+      title: input.title,
+      message: input.message,
+      type: input.type,
+      read: input.read ?? false,
+      created_at: new Date().toISOString(),
+      user_id: r.id,
+      user_name: actorName,
+    }));
+    // Insert in one batch
+    const { error } = await supabase.from(table).insert(rows);
+    if (error) throw error;
+  } catch (e) {
+    console.warn('addRoleNotification failed, falling back to single notification', e);
+    await addNotification(input);
+  }
 }
 
 export async function markAllRead(): Promise<void> {

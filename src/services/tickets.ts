@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
-import { addNotification } from "@/services/notifications";
+import { addNotification, addRoleNotification } from "@/services/notifications";
+import { listUsers } from "@/services/users";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -13,6 +14,7 @@ export type Ticket = {
   assignee?: string | null; // user id or email
   priority?: "low" | "medium" | "high" | "urgent";
   slaDueAt?: string | null; // ISO
+  closeNote?: string | null;
   createdBy: string;
   createdAt: string; // ISO
   updatedAt?: string | null;
@@ -168,13 +170,33 @@ export async function createTicket(input: {
   priority?: "low" | "medium" | "high" | "urgent";
   slaDueAt?: string | null;
 }): Promise<Ticket> {
+  // Derive default assignee when not provided: pick an active user with that role
+  async function pickDefaultAssignee(role: 'admin' | 'manager'): Promise<string | null> {
+    try {
+      if (isDemoMode()) return role === 'admin' ? 'admin@sams.demo' : 'manager@sams.demo';
+      if (!hasSupabaseEnv) return null;
+      const users = await listUsers();
+      const candidates = users.filter(u => (u.role || '').toLowerCase() === role && (u.status || '').toLowerCase() !== 'inactive');
+      // Prefer most recently active
+      const sorted = candidates.sort((a,b) => {
+        const ta = a.last_login ? Date.parse(a.last_login) : 0;
+        const tb = b.last_login ? Date.parse(b.last_login) : 0;
+        return tb - ta;
+      });
+  const chosen = sorted[0] || candidates[0];
+  return chosen ? (chosen.email || chosen.id || null) : null;
+    } catch {
+      return null;
+    }
+  }
+  const derivedAssignee = input.assignee ?? await pickDefaultAssignee(input.targetRole);
   const payload: Ticket = {
     id: `TCK-${Math.floor(Math.random()*900000+100000)}`,
     title: input.title,
     description: input.description,
     targetRole: input.targetRole,
     status: input.status ?? "open",
-    assignee: input.assignee ?? null,
+    assignee: derivedAssignee,
     priority: input.priority ?? "medium",
     slaDueAt: input.slaDueAt ?? null,
     createdBy: input.createdBy,
@@ -189,7 +211,7 @@ export async function createTicket(input: {
     const events = loadDemoEvents();
     const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
     saveDemoEvents([ev, ...events]);
-    await addNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` });
+    await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
     return payload;
   }
   if (hasSupabaseEnv) {
@@ -205,12 +227,12 @@ export async function createTicket(input: {
       } catch (e) {
         console.warn('ticket_events insert failed, continuing', e);
       }
-      // Notify target group (best-effort; service has its own fallback)
-      await addNotification({
+      // Notify target group by fan-out per role (best-effort)
+      await addRoleNotification({
         title: `New ticket for ${created.targetRole}`,
         message: `${created.id}: ${created.title}`,
         type: `ticket-${created.targetRole}`,
-      });
+      }, created.targetRole);
       return created;
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'insert_failed'); } catch {}
@@ -224,21 +246,53 @@ export async function createTicket(input: {
   const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
   saveLocalEvents([ev, ...events]);
   // Notify
-  await addNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` });
+  await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
   return payload;
 }
 
-export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<Ticket | null> {
+export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { message?: string }): Promise<Ticket | null> {
   const toUpdate = { ...patch, updatedAt: new Date().toISOString() } as Partial<Ticket>;
-  const getActor = () => {
+  const getActorInfo = () => {
     try {
       const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
       const u = raw ? JSON.parse(raw) : null;
-      return u?.email || u?.id || 'system';
+      const id = u?.id as string | undefined;
+      const email = u?.email as string | undefined;
+      const label = (email || id || 'system') as string;
+      return { id, email, label };
     } catch {
-      return 'system';
+      return { id: undefined, email: undefined, label: 'system' };
     }
   };
+  // Guard: Only the assigned person can change status
+  const ensureCanChange = async (): Promise<void> => {
+    // Only enforce when changing status; other updates can be extended later if needed
+    if (!('status' in patch) || !patch.status) return;
+    const actor = getActorInfo();
+    try {
+      if (!isDemoMode() && hasSupabaseEnv) {
+        const { data } = await supabase.from(TABLE).select('assignee').eq('id', id).limit(1).maybeSingle();
+        const assignee = (data as any)?.assignee ?? null;
+        if (!assignee || ![actor.id, actor.email].filter(Boolean).some(v => String(assignee) === String(v))) throw new Error('NOT_AUTHORIZED');
+      } else if (isDemoMode()) {
+        const list = loadDemoTickets();
+        const cur = list.find(t => t.id === id);
+        const assignee = cur?.assignee ?? null;
+        if (!assignee || ![actor.id, actor.email].filter(Boolean).some(v => String(assignee) === String(v))) throw new Error('NOT_AUTHORIZED');
+      } else {
+        const list = loadLocal();
+        const cur = list.find(t => t.id === id);
+        const assignee = cur?.assignee ?? null;
+        if (!assignee || ![actor.id, actor.email].filter(Boolean).some(v => String(assignee) === String(v))) throw new Error('NOT_AUTHORIZED');
+      }
+    } catch (e) {
+      // Re-throw with a consistent code
+      throw new Error('NOT_AUTHORIZED');
+    }
+  };
+
+  // Enforce permission for status changes
+  await ensureCanChange();
   if (!isDemoMode() && hasSupabaseEnv) {
     try {
       const { data, error } = await supabase.from(TABLE).update(toSnake(toUpdate)).eq("id", id).select("*").single();
@@ -246,11 +300,16 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
       const updated = toCamel(data);
       if (patch.status) {
         const event_type = patch.status === 'closed' ? 'closed' : 'status_change';
-        await supabase.from('ticket_events').insert({ ticket_id: id, event_type, author: patch.assignee || patch.createdBy || getActor(), message: `Status -> ${patch.status}` });
+        const actor = getActorInfo();
+        const msg = opts?.message || `Status -> ${patch.status}`;
+        await supabase.from('ticket_events').insert({ ticket_id: id, event_type, author: patch.assignee || patch.createdBy || actor.label, message: msg });
+        if (patch.status === 'closed' && opts?.message) {
+          await supabase.from(TABLE).update({ close_note: opts.message }).eq('id', id);
+        }
         // Notify interested parties
         await addNotification({
           title: `Ticket ${id} ${patch.status}`,
-          message: `Status changed to ${patch.status}`,
+          message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`,
           type: `ticket-status`,
         });
       }
@@ -270,9 +329,10 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
       saveDemoTickets(next);
       if (patch.status) {
         const events = loadDemoEvents();
-        const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: id, eventType: patch.status === 'closed' ? 'closed' : 'status_change', author: patch.assignee || getActor(), message: `Status -> ${patch.status}`, createdAt: new Date().toISOString() };
+        const actor = getActorInfo();
+        const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: id, eventType: patch.status === 'closed' ? 'closed' : 'status_change', author: patch.assignee || actor.label, message: opts?.message || `Status -> ${patch.status}`, createdAt: new Date().toISOString() };
         saveDemoEvents([ev, ...events]);
-        await addNotification({ title: `Ticket ${id} ${patch.status}`, message: `Status changed to ${patch.status}`, type: `ticket-status` });
+        await addNotification({ title: `Ticket ${id} ${patch.status}`, message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`, type: `ticket-status` });
       }
       return updated;
     }
@@ -287,9 +347,10 @@ export async function updateTicket(id: string, patch: Partial<Ticket>): Promise<
     saveLocal(next);
     if (patch.status) {
       const events = loadLocalEvents();
-      const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: id, eventType: patch.status === 'closed' ? 'closed' : 'status_change', author: patch.assignee || getActor(), message: `Status -> ${patch.status}`, createdAt: new Date().toISOString() };
+      const actor = getActorInfo();
+      const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: id, eventType: patch.status === 'closed' ? 'closed' : 'status_change', author: patch.assignee || actor.label, message: opts?.message || `Status -> ${patch.status}`, createdAt: new Date().toISOString() };
       saveLocalEvents([ev, ...events]);
-      await addNotification({ title: `Ticket ${id} ${patch.status}`, message: `Status changed to ${patch.status}`, type: `ticket-status` });
+      await addNotification({ title: `Ticket ${id} ${patch.status}`, message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`, type: `ticket-status` });
     }
     return updated;
   }
@@ -326,6 +387,7 @@ function toCamel(row: any): Ticket {
     assignee: row.assignee ?? null,
     priority: row.priority ?? "medium",
     slaDueAt: row.sla_due_at ?? null,
+  closeNote: row.close_note ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? null,
@@ -339,13 +401,20 @@ function toSnake(input: Partial<Ticket>) {
     description: input.description,
     target_role: input.targetRole,
     status: input.status,
-    assignee: input.assignee ?? null,
+    // Only include assignee when explicitly provided; avoid nulling on unrelated updates
+    // assignee will be set below via hasOwnProperty check
     priority: input.priority ?? undefined,
     sla_due_at: input.slaDueAt ?? null,
+  close_note: input.closeNote,
     created_by: input.createdBy,
     created_at: input.createdAt,
     updated_at: input.updatedAt,
   };
+  if (Object.prototype.hasOwnProperty.call(input, 'assignee')) {
+    // Allow setting to null explicitly when caller intends to unassign
+    // @ts-ignore
+    obj.assignee = input.assignee ?? null;
+  }
   // Remove undefined fields so DB defaults apply
   Object.keys(obj).forEach((k) => {
     if (obj[k] === undefined) delete obj[k];
