@@ -158,6 +158,153 @@ export type AuditReport = {
   payload: any;
 };
 
+export type AuditIncharge = {
+  property_id: string;
+  user_id: string;
+  user_name?: string | null;
+};
+
+// Local storage fallback keys
+const AI_LS_KEY = 'audit_incharge_map'; // { [property_id]: { user_id, user_name } }
+
+function readLocalAI(): Record<string, { user_id: string; user_name?: string | null }>{
+  try { return JSON.parse(localStorage.getItem(AI_LS_KEY) || '{}'); } catch { return {}; }
+}
+function writeLocalAI(data: Record<string, { user_id: string; user_name?: string | null }>) {
+  try { localStorage.setItem(AI_LS_KEY, JSON.stringify(data)); } catch {}
+}
+
+export async function getAuditIncharge(propertyId: string): Promise<AuditIncharge | null> {
+  if (!propertyId) return null;
+  if (!hasSupabaseEnv) {
+    const map = readLocalAI();
+    const v = map[propertyId];
+    return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
+  }
+  try {
+    const { data, error } = await supabase.from('audit_incharge').select('*').eq('property_id', propertyId).maybeSingle();
+    if (error) throw error;
+    if (data) return { property_id: data.property_id, user_id: data.user_id, user_name: data.user_name };
+    // No remote row: check local fallback
+    const map = readLocalAI();
+    const v = map[propertyId];
+    return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
+  } catch (e) {
+    // Fallback to local if remote read blocked by RLS or table missing
+    const map = readLocalAI();
+    const v = map[propertyId];
+    return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
+  }
+}
+
+export async function setAuditIncharge(propertyId: string, userId: string, userName?: string | null): Promise<void> {
+  if (!propertyId || !userId) return;
+  if (!hasSupabaseEnv) {
+    const map = readLocalAI();
+    map[propertyId] = { user_id: userId, user_name: userName ?? null };
+    writeLocalAI(map);
+    return;
+  }
+  try {
+    // Prefer SECURITY DEFINER RPC first
+    const { error: rpcErr } = await supabase.rpc('set_audit_incharge_v1', {
+      p_property_id: propertyId,
+      p_user_id: userId,
+      p_user_name: userName ?? null,
+    } as any);
+    if (rpcErr) throw rpcErr;
+  } catch (rpcFailed) {
+    const payload = { property_id: propertyId, user_id: userId, user_name: userName ?? null } as any;
+    // upsert by unique(property_id)
+    try {
+      const { error } = await supabase.from('audit_incharge').upsert(payload, { onConflict: 'property_id' });
+      if (error) throw error;
+    } catch (e) {
+      // Save locally if remote blocked (e.g., not admin)
+      const map = readLocalAI();
+      map[propertyId] = { user_id: userId, user_name: userName ?? null };
+      writeLocalAI(map);
+    }
+  }
+}
+
+export async function listAuditInchargeForUser(userId: string): Promise<string[]> {
+  if (!userId) return [];
+  if (!hasSupabaseEnv) {
+    const map = readLocalAI();
+    return Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
+  }
+  try {
+    const { data, error } = await supabase.from('audit_incharge').select('property_id').eq('user_id', userId);
+    if (error) throw error;
+    const remote = (data || []).map((r: any) => String(r.property_id));
+    // Merge with local fallback in case some writes were saved locally
+    const map = readLocalAI();
+    const local = Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
+    return Array.from(new Set([...remote, ...local]));
+  } catch (e) {
+    // Fallback to local on error
+    const map = readLocalAI();
+    return Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
+  }
+}
+
+export async function setAuditInchargeForUser(userId: string, userName: string | null, propertyIds: string[]): Promise<void> {
+  if (!userId) return;
+  const uniq = Array.from(new Set((propertyIds || []).map(String)));
+  if (!hasSupabaseEnv) {
+    const map = readLocalAI();
+    // Remove prior assignments for this user not in list
+    Object.keys(map).forEach((pid) => {
+      if (String(map[pid].user_id) === String(userId) && !uniq.includes(String(pid))) {
+        delete map[pid];
+      }
+    });
+    // Upserts
+    uniq.forEach((pid) => { map[pid] = { user_id: userId, user_name: userName ?? map[pid]?.user_name ?? null }; });
+    writeLocalAI(map);
+    return;
+  }
+  try {
+    // Prefer SECURITY DEFINER RPC to handle set + cleanup atomically
+    const { error: rpcErr } = await supabase.rpc('set_audit_incharge_for_user_v1', {
+      p_user_id: userId,
+      p_user_name: userName ?? null,
+      p_property_ids: uniq,
+    } as any);
+    if (rpcErr) throw rpcErr;
+  } catch (e) {
+    try {
+      // Load current assignments for this user
+      const current = await listAuditInchargeForUser(userId);
+      const toAdd = uniq.filter((p) => !current.includes(p));
+      const toRemove = current.filter((p) => !uniq.includes(p));
+      // Upsert adds (reassigns if another user had it)
+      for (const pid of toAdd) {
+        const { error } = await supabase.from('audit_incharge').upsert({ property_id: pid, user_id: userId, user_name: userName ?? null }, { onConflict: 'property_id' });
+        if (error) throw error;
+      }
+      // Remove unselected assignments for this user
+      if (toRemove.length) {
+        const { error } = await supabase.from('audit_incharge').delete().eq('user_id', userId).in('property_id', toRemove);
+        if (error) throw error;
+      }
+    } catch {
+      // Fallback to local when remote blocked (e.g., RLS not allowing writes)
+      const map = readLocalAI();
+      // Remove prior assignments for this user not in list
+      Object.keys(map).forEach((pid) => {
+        if (String(map[pid].user_id) === String(userId) && !uniq.includes(String(pid))) {
+          delete map[pid];
+        }
+      });
+      // Upserts
+      uniq.forEach((pid) => { map[pid] = { user_id: userId, user_name: userName ?? map[pid]?.user_name ?? null }; });
+      writeLocalAI(map);
+    }
+  }
+}
+
 export async function createAuditReport(sessionId: string, generated_by?: string | null): Promise<AuditReport> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.rpc("create_audit_report_v1", { p_session_id: sessionId, p_generated_by: generated_by ?? null });

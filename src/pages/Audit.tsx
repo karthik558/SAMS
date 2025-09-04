@@ -13,6 +13,8 @@ import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartToo
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { isDemoMode } from "@/lib/demo";
+import { getCurrentUserId, canUserEdit } from "@/services/permissions";
+import { listAuditInchargeForUser, getAuditIncharge as fetchAuditIncharge } from "@/services/audit";
 import { listDepartments, type Department } from "@/services/departments";
 import { listProperties, type Property } from "@/services/properties";
 
@@ -25,6 +27,7 @@ export default function Audit() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string>("");
+  const [canAuditAdmin, setCanAuditAdmin] = useState<boolean>(false);
   const [auditOn, setAuditOn] = useState<boolean>(false);
   const [auditFreq, setAuditFreq] = useState<3 | 6>(3);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -46,6 +49,10 @@ export default function Audit() {
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
   // When viewing a specific report (including history), resolve its session's property id for display
   const [viewPropertyId, setViewPropertyId] = useState<string>("");
+  // Auditor Incharge for selected property (read-only in this page)
+  const [inchargeUserId, setInchargeUserId] = useState<string>("");
+  const [inchargeUserName, setInchargeUserName] = useState<string>("");
+  const [myId, setMyId] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -53,6 +60,11 @@ export default function Audit() {
         const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
         const user = raw ? JSON.parse(raw) : null;
         setRole((user?.role || '').toLowerCase());
+        try {
+          const uid = getCurrentUserId();
+          const allowed = uid ? await canUserEdit(uid, 'audit') : null;
+          setCanAuditAdmin(Boolean(allowed));
+        } catch { setCanAuditAdmin(false); }
         const dept = user?.department || "";
         setDepartment(dept);
         const active = await isAuditActive();
@@ -61,8 +73,35 @@ export default function Audit() {
         setDepartments(deps);
         try {
           const props = await listProperties();
-          setProperties(props as Property[]);
+          // Property-scope restriction: non-admins see only properties where they are incharge
+          let filtered = props as Property[];
+          try {
+            let uid = getCurrentUserId();
+            if (!uid) {
+              try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
+            }
+            setMyId(uid || "");
+            const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
+            if (!isAdmin) {
+              if (uid) {
+                const mine = await listAuditInchargeForUser(uid);
+                filtered = (props as Property[]).filter(p => mine.includes(String(p.id)));
+              } else {
+                filtered = [];
+              }
+            }
+          } catch {}
+          setProperties(filtered);
         } catch {}
+        // Load incharge for selected property (if any)
+        try {
+          const pid = localStorage.getItem('active_audit_property_id') || '';
+          if (pid) {
+            const ai = await fetchAuditIncharge(String(pid));
+            if (ai) { setInchargeUserId(ai.user_id); setInchargeUserName(ai.user_name || ""); }
+            else { setInchargeUserId(""); setInchargeUserName(""); }
+          }
+        } catch { setInchargeUserId(""); setInchargeUserName(""); }
         if (active) {
           const sess = await getActiveSession();
           const sid = sess?.id || "";
@@ -104,12 +143,59 @@ export default function Audit() {
             setSummary(sum);
             // Also load sessions and recent reports even while active
             try {
-              const rec = await listRecentAuditReports(20);
+              let rec = await listRecentAuditReports(20);
+              // Restrict recent reports to incharge-owned properties for non-admins
+              try {
+                let uid = getCurrentUserId();
+                if (!uid) {
+                  try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
+                }
+                const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
+                if (!isAdmin) {
+                  if (uid) {
+                    const mine = await listAuditInchargeForUser(uid);
+                    if (mine?.length) {
+                      const filtered: typeof rec = [] as any;
+                      for (const r of rec) {
+                        try {
+                          const sess = await getSessionById(r.session_id);
+                          const pid = (sess as any)?.property_id;
+                          if (pid && mine.includes(String(pid))) filtered.push(r);
+                        } catch {}
+                      }
+                      rec = filtered;
+                    } else {
+                      rec = [] as any;
+                    }
+                  } else {
+                    rec = [] as any;
+                  }
+                }
+              } catch {}
               setRecentReports(rec);
               try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
               if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
               const sessList = await listSessions(20);
-              setSessions(sessList);
+              // Filter sessions to allowed properties for non-admins
+              try {
+                let uid = getCurrentUserId();
+                if (!uid) {
+                  try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
+                }
+                const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
+                if (!isAdmin) {
+                  if (uid) {
+                    const mine = await listAuditInchargeForUser(uid);
+                    setSessions(sessList.filter((s: any) => s?.property_id && mine.includes(String(s.property_id))));
+                  } else {
+                    setSessions([]);
+                  }
+                } else {
+                  setSessions(sessList);
+                }
+              } catch {
+                setSessions(sessList);
+              }
             } catch {}
           }
         } else {
@@ -173,6 +259,20 @@ export default function Audit() {
     })();
   }, []);
 
+  // When selected property changes, refresh incharge info and persist selection
+  useEffect(() => {
+    (async () => {
+      const pid = String(selectedPropertyId || '');
+      try { if (pid) localStorage.setItem('active_audit_property_id', pid); } catch {}
+      if (!pid) { setInchargeUserId(''); setInchargeUserName(''); return; }
+      try {
+        const ai = await fetchAuditIncharge(pid);
+        if (ai) { setInchargeUserId(ai.user_id); setInchargeUserName(ai.user_name || ""); }
+        else { setInchargeUserId(''); setInchargeUserName(''); }
+      } catch { setInchargeUserId(''); setInchargeUserName(''); }
+    })();
+  }, [selectedPropertyId]);
+
   // Reload rows when admin changes selected department
   useEffect(() => {
     (async () => {
@@ -198,7 +298,7 @@ export default function Audit() {
         setLoading(false);
       }
     })();
-  }, [adminDept, role, sessionId]);
+  }, [adminDept, role, sessionId, selectedPropertyId]);
 
   const saveProgress = async () => {
     const dep = role === 'admin' ? adminDept : department;
@@ -262,14 +362,20 @@ export default function Audit() {
         )}
       </div>
 
-      {/* Admin Control Panel */}
-      {role === 'admin' && (
+  {/* Admin Control Panel */}
+  {(role === 'admin' || canAuditAdmin || (inchargeUserId && (() => {
+      try { const me = JSON.parse(localStorage.getItem('auth_user')||'null'); return me?.id && String(me.id)===String(inchargeUserId); } catch { return false; }
+    })())) && (
         <Card>
           <CardHeader>
             <CardTitle>Admin Controls</CardTitle>
             <CardDescription>Start/stop sessions and monitor progress.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Show current incharge info */}
+            {selectedPropertyId && (inchargeUserId || inchargeUserName) && (
+              <div className="text-sm text-muted-foreground">Incharge: <span className="font-medium text-foreground">{inchargeUserName || inchargeUserId}</span></div>
+            )}
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
               <div className="space-y-1">
                 <Label>Frequency</Label>

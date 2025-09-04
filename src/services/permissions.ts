@@ -1,7 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
-export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings';
+export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings' | 'audit';
 
 export type UserPermission = {
   id?: string;
@@ -167,6 +167,7 @@ export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e:
     users: { v: false, e: false },
     reports: { v: false, e: false },
     settings: { v: false, e: false },
+    audit: { v: false, e: false },
   };
   if (role === 'admin') {
     Object.keys(base).forEach((k) => {
@@ -179,6 +180,8 @@ export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e:
   base.qrcodes = { v: true, e: true };
   base.reports = { v: true, e: false };
   base.settings = { v: true, e: false };
+  // Audit visibility for managers is handled by runtime conditions (active session/reports),
+  // not by defaults. Admins can grant explicit audit perms via overrides.
     // users remains false by default, but can be elevated via overrides
   } else {
     // user

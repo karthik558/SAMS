@@ -53,6 +53,7 @@ import { listDepartments, createDepartment, type Department } from "@/services/d
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
+import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/userDeptAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
@@ -166,19 +167,21 @@ export default function Users() {
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [inchargePropertyIds, setInchargePropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
+  const [editInchargePropertyIds, setEditInchargePropertyIds] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<Department[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
   // Per-page permissions
-  const allPages: PageKey[] = ['assets','properties','qrcodes','users','reports','settings'];
-  const [permView, setPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
-  const [permEdit, setPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
-  const [ePermView, setEPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
-  const [ePermEdit, setEPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+  const allPages: PageKey[] = ['assets','properties','qrcodes','users','reports','settings','audit'];
+  const [permView, setPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
+  const [permEdit, setPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
+  const [ePermView, setEPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
+  const [ePermEdit, setEPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
 
   // Edit form fields
   const [eFirstName, setEFirstName] = useState("");
@@ -346,6 +349,12 @@ export default function Users() {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
         await setUserPermissions(created.id, payloadPerms);
       } catch {}
+      // Persist Auditor Incharge assignments
+      try {
+        if (inchargePropertyIds.length) {
+          await setAuditInchargeForUser(created.id, created.name || null, inchargePropertyIds);
+        }
+      } catch {}
       setUsers((prev) => [created, ...prev]);
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
@@ -380,13 +389,19 @@ export default function Users() {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
         await setUserPermissions(local.id, payloadPerms);
       } catch {}
+      // Local Auditor Incharge fallback
+      try {
+        if (inchargePropertyIds.length) {
+          await setAuditInchargeForUser(local.id, local.name || null, inchargePropertyIds);
+        }
+      } catch {}
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
     }
     setIsAddUserOpen(false);
     resetForm();
     // Reset permission toggles
-    setPermView({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
-    setPermEdit({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false });
+  setPermView({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
+  setPermEdit({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
   };
 
   const openEditUser = async (user: AppUser) => {
@@ -414,6 +429,13 @@ export default function Users() {
       setEditSelectedPropertyIds(ids);
     } catch {
       setEditSelectedPropertyIds([]);
+    }
+    // Load properties where this user is Auditor Incharge
+    try {
+      const pids = await listAuditInchargeForUser(user.id);
+      setEditInchargePropertyIds(pids);
+    } catch {
+      setEditInchargePropertyIds([]);
     }
     try {
       const depts = await listUserDepartmentAccess(user.id);
@@ -490,6 +512,10 @@ export default function Users() {
       try {
         const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!ePermView[p], e: !!ePermEdit[p] }])) as any;
         await setUserPermissions(editingUser.id, payloadPerms);
+      } catch {}
+      // Persist Auditor Incharge assignments (admin only UI but safe to call)
+      try {
+        await setAuditInchargeForUser(editingUser.id, updated?.name || null, editInchargePropertyIds);
       } catch {}
       toast({ title: "User updated", description: `${name} has been saved.` });
       setIsEditUserOpen(false);
@@ -645,7 +671,7 @@ export default function Users() {
               <div className="space-y-2">
                 <Label>Page Permissions</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(['assets','properties','qrcodes','users','reports','settings'] as PageKey[]).map((p) => (
+                  {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[]).map((p) => (
                     <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
                       <div className="text-sm font-medium capitalize">{p}</div>
                       <div className="flex items-center gap-3">
@@ -730,6 +756,56 @@ export default function Users() {
                           Clear selection
                         </DropdownMenuItem>
                       </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              {/* Auditor Incharge - Dropdown multi-select (admin only) */}
+              <div className="space-y-2">
+                <Label>Auditor Incharge (by Property)</Label>
+                {authRole !== 'admin' && (
+                  <div className="text-xs text-muted-foreground">Admin only</div>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
+                      <span className="truncate text-left flex-1 min-w-0">
+                        {inchargePropertyIds.length > 0
+                          ? (() => {
+                              const map = new Map(properties.map(p => [p.id, p.name] as const));
+                              const names = inchargePropertyIds.map(id => map.get(id) || id);
+                              const preview = names.slice(0, 2).join(", ");
+                              const extra = names.length - 2;
+                              const label = preview.length > 24 ? `${names.length} selected` : preview;
+                              return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                            })()
+                          : "Select incharge properties"}
+                      </span>
+                      <MoreHorizontal className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                      const checked = inchargePropertyIds.includes(p.id);
+                      return (
+                        <DropdownMenuItem
+                          key={p.id}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            if (authRole !== 'admin') return;
+                            const next = new Set(inchargePropertyIds);
+                            if (checked) next.delete(p.id); else next.add(p.id);
+                            setInchargePropertyIds(Array.from(next));
+                          }}
+                          className="gap-2 w-full"
+                        >
+                          <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
+                          <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
                     )}
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1032,11 +1108,11 @@ export default function Users() {
                 </SelectContent>
               </Select>
             </div>
-            {/* Page Permissions (edit) */}
+      {/* Page Permissions (edit) */}
             <div className="space-y-2">
               <Label>Page Permissions</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {(['assets','properties','qrcodes','users','reports','settings'] as PageKey[]).map((p) => (
+        {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[]).map((p) => (
                   <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
                     <div className="text-sm font-medium capitalize">{p}</div>
                     <div className="flex items-center gap-3">
@@ -1120,6 +1196,56 @@ export default function Users() {
                         Clear selection
                       </DropdownMenuItem>
                     </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            {/* Auditor Incharge - Dropdown multi-select (edit; admin only) */}
+            <div className="space-y-2">
+              <Label>Auditor Incharge (by Property)</Label>
+              {authRole !== 'admin' && (
+                <div className="text-xs text-muted-foreground">Admin only</div>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
+                    <span className="truncate text-left flex-1 min-w-0">
+                      {editInchargePropertyIds.length > 0
+                        ? (() => {
+                            const map = new Map(properties.map(p => [p.id, p.name] as const));
+                            const names = editInchargePropertyIds.map(id => map.get(id) || id);
+                            const preview = names.slice(0, 2).join(", ");
+                            const extra = names.length - 2;
+                            const label = preview.length > 24 ? `${names.length} selected` : preview;
+                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                          })()
+                        : "Select incharge properties"}
+                    </span>
+                    <MoreHorizontal className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                    const checked = editInchargePropertyIds.includes(p.id);
+                    return (
+                      <DropdownMenuItem
+                        key={p.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          if (authRole !== 'admin') return;
+                          const next = new Set(editInchargePropertyIds);
+                          if (checked) next.delete(p.id); else next.add(p.id);
+                          setEditInchargePropertyIds(Array.from(next));
+                        }}
+                        className="gap-2 w-full"
+                      >
+                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
+                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
