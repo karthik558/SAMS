@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listApprovals } from "@/services/approvals";
-import { isAuditActive } from "@/services/audit";
+import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 
 const baseNav = [
@@ -50,6 +50,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [userDept, setUserDept] = useState<string>("");
   const [auditActive, setAuditActive] = useState<boolean>(false);
   const [hasAuditReports, setHasAuditReports] = useState<boolean>(false);
+  const [auditPendingCount, setAuditPendingCount] = useState<number>(0);
   useEffect(() => {
     (async () => {
       try {
@@ -61,11 +62,29 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     })();
   }, []);
 
-  // Check whether an audit session is active
+  // Check whether an audit session is active and if the current user needs to act
   useEffect(() => {
     (async () => {
-      try { setAuditActive(await isAuditActive()); } catch { setAuditActive(false); }
+      let active = false;
+      try { active = await isAuditActive(); setAuditActive(active); } catch { active = false; setAuditActive(false); }
       try { setHasAuditReports(localStorage.getItem('has_audit_reports') === '1'); } catch {}
+      // Determine if the user (manager) has a pending assignment for the active session
+      try {
+        if (!active) { setAuditPendingCount(0); return; }
+        let role = ""; let dept = "";
+        try {
+          const raw = localStorage.getItem('auth_user');
+          if (raw) { const u = JSON.parse(raw); role = (u?.role || '').toLowerCase(); dept = (u?.department || '') || ''; }
+        } catch {}
+        if (role !== 'manager' || !dept) { setAuditPendingCount(0); return; }
+        const sess = await getActiveSession();
+        if (!sess?.id) { setAuditPendingCount(0); return; }
+        const asg = await getAssignment(sess.id, dept);
+        const pending = (((asg as any)?.status || 'pending') !== 'submitted');
+        setAuditPendingCount(pending ? 1 : 0);
+      } catch {
+        setAuditPendingCount(0);
+      }
     })();
   }, [location.pathname]);
 
@@ -200,6 +219,11 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       {item.name === "Approvals" && pendingApprovals > 0 && (
                         <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                           {pendingApprovals}
+                        </span>
+                      )}
+                      {item.name === "Audit" && auditPendingCount > 0 && (
+                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                          {auditPendingCount}
                         </span>
                       )}
                     </span>
