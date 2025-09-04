@@ -44,6 +44,8 @@ export default function Audit() {
   const [detailDept, setDetailDept] = useState<string>("");
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  // When viewing a specific report (including history), resolve its session's property id for display
+  const [viewPropertyId, setViewPropertyId] = useState<string>("");
 
   useEffect(() => {
     (async () => {
@@ -230,6 +232,21 @@ export default function Audit() {
     })();
   }, [latestReport?.id, latestReport?.session_id]);
 
+  // Resolve property for the currently viewed report's session
+  useEffect(() => {
+    (async () => {
+      try {
+        const sid = latestReport?.session_id || null;
+        if (!sid) { setViewPropertyId(""); return; }
+        const sess = await getSessionById(sid);
+        const pid = (sess as any)?.property_id || "";
+        setViewPropertyId(String(pid || ""));
+      } catch {
+        setViewPropertyId("");
+      }
+    })();
+  }, [latestReport?.session_id]);
+
   return (
     <div className="space-y-6">
       <div className="print:hidden space-y-6">
@@ -383,7 +400,9 @@ export default function Audit() {
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
-                  a.download = `audit-reviews-${sessionId || 'latest'}.csv`;
+                  const pid = (viewPropertyId || selectedPropertyId || '').toString();
+                  const propSlug = pid ? `-${pid}` : '';
+                  a.download = `audit-reviews-${sessionId || 'latest'}${propSlug}.csv`;
                   document.body.appendChild(a);
                   a.click();
                   document.body.removeChild(a);
@@ -421,7 +440,15 @@ export default function Audit() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
                   <div className="text-sm text-muted-foreground">
-                    {latestReport ? `Generated at ${new Date(latestReport.generated_at).toLocaleString()}` : `Reports available: ${recentReports.length}`}
+                    {(() => {
+                      if (!latestReport) return `Reports available: ${recentReports.length}`;
+                      const pid = viewPropertyId || selectedPropertyId;
+                      const propLabel = pid ? (() => {
+                        const p = (properties || []).find(pp => String(pp.id) === String(pid));
+                        return p ? `${p.name} (${p.id})` : pid;
+                      })() : null;
+                      return `Generated at ${new Date(latestReport.generated_at).toLocaleString()}${propLabel ? ` • Property: ${propLabel}` : ''}`;
+                    })()}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => window.print()}>Print</Button>
@@ -439,12 +466,12 @@ export default function Audit() {
                       {latestReport?.generated_at && (
                         <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
                       )}
-                      {(selectedPropertyId) && (
-                        <div className="text-xs text-muted-foreground">Property: {(() => {
-                          const p = (properties || []).find(pp => String(pp.id) === String(selectedPropertyId));
-                          return p ? `${p.name} (${p.id})` : selectedPropertyId;
-                        })()}</div>
-                      )}
+                      {(() => {
+                        const pid = viewPropertyId || selectedPropertyId;
+                        if (!pid) return null;
+                        const p = (properties || []).find(pp => String(pp.id) === String(pid));
+                        return <div className="text-xs text-muted-foreground">Property: {p ? `${p.name} (${p.id})` : pid}</div>;
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -749,7 +776,15 @@ export default function Audit() {
   <Card className="print:hidden">
         <CardHeader>
           <CardTitle>Review Items</CardTitle>
-          <CardDescription>{role === 'admin' ? 'Admin review for selected department' : 'Mark each asset as verified, missing, or damaged. Add comments if needed.'}</CardDescription>
+          <CardDescription>
+            {role === 'admin' ? 'Admin review for selected department' : 'Mark each asset as verified, missing, or damaged. Add comments if needed.'}
+            {(() => {
+              const pid = viewPropertyId || selectedPropertyId;
+              if (!pid) return null;
+              const p = (properties || []).find(pp => String(pp.id) === String(pid));
+              return <span className="ml-2 text-muted-foreground">• Property: {p ? `${p.name} (${p.id})` : pid}</span>;
+            })()}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -813,7 +848,15 @@ export default function Audit() {
           <CardContent>
             <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
               <div className="text-sm text-muted-foreground">
-                {latestReport ? `Generated at ${new Date(latestReport.generated_at).toLocaleString()}` : `Reports available: ${recentReports.length}`}
+                {(() => {
+                  if (!latestReport) return `Reports available: ${recentReports.length}`;
+                  const pid = viewPropertyId || selectedPropertyId;
+                  const propLabel = pid ? (() => {
+                    const p = (properties || []).find(pp => String(pp.id) === String(pid));
+                    return p ? `${p.name} (${p.id})` : pid;
+                  })() : null;
+                  return `Generated at ${new Date(latestReport.generated_at).toLocaleString()}${propLabel ? ` • Property: ${propLabel}` : ''}`;
+                })()}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => window.print()}>Print</Button>
@@ -833,6 +876,12 @@ export default function Audit() {
                     {latestReport?.generated_at && (
                       <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
                     )}
+                    {(() => {
+                      const pid = viewPropertyId || selectedPropertyId;
+                      if (!pid) return null;
+                      const p = (properties || []).find(pp => String(pp.id) === String(pid));
+                      return <div className="text-xs text-muted-foreground">Property: {p ? `${p.name} (${p.id})` : pid}</div>;
+                    })()}
                   </div>
                 </div>
               </div>
