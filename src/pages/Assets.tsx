@@ -153,6 +153,10 @@ export default function Assets() {
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const [range, setRange] = useState<DateRange>();
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
+  // Saved views & bulk actions
+  const [savedView, setSavedView] = useState<string>('all');
+  const [bulkProperty, setBulkProperty] = useState<string>('');
+  const [bulkCondition, setBulkCondition] = useState<string>('');
   const prefs = useTablePreferences("assets");
   const columnDefs: ColumnDef[] = [
     { key: "select", label: "Select", always: true },
@@ -667,7 +671,7 @@ export default function Assets() {
     // Date range filter: use purchaseDate when available, else fallback to created_at
     const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
     const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-    let matchesDate = true;
+  let matchesDate = true;
     if (range?.from) {
       const start = toStartOfDay(range.from);
       const end = toEndOfDay(range.to ?? range.from);
@@ -679,8 +683,27 @@ export default function Assets() {
         matchesDate = false;
       }
     }
-    
-  return matchesSearch && matchesType && matchesProperty && matchesDepartment && matchesDate;
+    // Saved views filter
+    let matchesSaved = true;
+    if (savedView === 'expiring-30' || savedView === 'expiring-90') {
+      const days = savedView === 'expiring-30' ? 30 : 90;
+      if (asset.expiryDate) {
+        const now = new Date();
+        const limit = new Date();
+        limit.setDate(limit.getDate() + days);
+        const exp = new Date(asset.expiryDate);
+        matchesSaved = exp >= now && exp <= limit;
+      } else {
+        matchesSaved = false;
+      }
+    } else if (savedView === 'needing-audit') {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const pd = asset.purchaseDate ? new Date(asset.purchaseDate) : null;
+      matchesSaved = !!(pd && pd < oneYearAgo && String(asset.status || '').toLowerCase().includes('active'));
+    }
+  
+  return matchesSearch && matchesType && matchesProperty && matchesDepartment && matchesDate && matchesSaved;
   });
 
   const sortedAssets = [...filteredAssets].sort((a, b) => {
@@ -991,6 +1014,18 @@ export default function Assets() {
               </Button>
 
               <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
+              {/* Saved Views */}
+              <Select value={savedView} onValueChange={setSavedView}>
+                <SelectTrigger className="w-full md:w-48">
+                  <SelectValue placeholder="Saved view" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All assets</SelectItem>
+                  <SelectItem value="needing-audit">Needing audit</SelectItem>
+                  <SelectItem value="expiring-30">Expiring in 30 days</SelectItem>
+                  <SelectItem value="expiring-90">Expiring in 90 days</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -999,7 +1034,98 @@ export default function Assets() {
   {selectedIds.size > 0 && (
           <div className="flex items-center justify-between gap-2 p-3 bg-muted/50 border rounded-md">
             <div className="text-sm">{selectedIds.size} selected</div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap items-center">
+              {/* Bulk assign property */}
+              <div className="flex items-center gap-2">
+                <Select value={bulkProperty} onValueChange={setBulkProperty}>
+                  <SelectTrigger className="w-48"><SelectValue placeholder="Assign property" /></SelectTrigger>
+                  <SelectContent>
+                    {propertyOptions.map((pid) => (
+                      <SelectItem key={pid} value={pid}>{propsById[pid]?.name || pid}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!bulkProperty}
+                  onClick={async () => {
+                    const ids = Array.from(selectedIds);
+                    if (!ids.length || !bulkProperty) return;
+                    try {
+                      await Promise.all(ids.map(async (id) => {
+                        try { await updateAsset(id, { property: bulkProperty, property_id: bulkProperty } as any); }
+                        catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, property: bulkProperty, property_id: bulkProperty } : a)); }
+                      }));
+                      toast.success('Property assigned');
+                    } catch { toast.error('Failed to assign property'); }
+                  }}
+                >Apply</Button>
+              </div>
+              {/* Bulk change condition */}
+              <div className="flex items-center gap-2">
+                <Select value={bulkCondition} onValueChange={setBulkCondition}>
+                  <SelectTrigger className="w-44"><SelectValue placeholder="Change condition" /></SelectTrigger>
+                  <SelectContent>
+                    {['Excellent','Good','Fair','Poor','Broken'].map(c => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!bulkCondition}
+                  onClick={async () => {
+                    const ids = Array.from(selectedIds);
+                    if (!ids.length || !bulkCondition) return;
+                    try {
+                      await Promise.all(ids.map(async (id) => {
+                        try { await updateAsset(id, { condition: bulkCondition } as any); }
+                        catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, condition: bulkCondition } : a)); }
+                      }));
+                      toast.success('Condition updated');
+                    } catch { toast.error('Failed to update condition'); }
+                  }}
+                >Apply</Button>
+              </div>
+              {/* Export selected */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const ids = new Set(selectedIds);
+                  const rows = sortedAssets.filter(a => ids.has(a.id)).map(a => ({
+                    id: a.id,
+                    name: a.name,
+                    type: a.type,
+                    property: propsById[a.property]?.name || a.property,
+                    department: a.department || '',
+                    quantity: a.quantity,
+                    serialNumber: a.serialNumber || '',
+                    condition: a.condition || '',
+                    status: a.status,
+                    purchaseDate: a.purchaseDate || '',
+                    expiryDate: a.expiryDate || '',
+                    location: a.location || '',
+                    description: (a.description || '').toString().replace(/\n/g,' '),
+                  }));
+                  if (!rows.length) { toast.info('Nothing selected'); return; }
+                  const cols = Object.keys(rows[0]);
+                  const header = cols.join(',');
+                  const lines = rows.map(r => cols.map(c => {
+                    const v = (r[c as keyof typeof r] ?? '').toString().replace(/"/g,'""');
+                    return /[",\n]/.test(v) ? `"${v}"` : v;
+                  }).join(','));
+                  const csv = [header, ...lines].join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url; a.download = `assets_selection_${new Date().toISOString().slice(0,10)}.csv`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+              >Export Selection</Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -1068,7 +1194,6 @@ export default function Assets() {
                       </TableHead>
                     )}
                     {isVisible('name') && <TableHead>Name</TableHead>}
-                    {isVisible('description') && <TableHead>Description</TableHead>}
                     {isVisible('type') && <TableHead>Type</TableHead>}
                     {isVisible('property') && <TableHead>Property</TableHead>}
                     {isVisible('department') && <TableHead>Department</TableHead>}
@@ -1077,6 +1202,7 @@ export default function Assets() {
                     {isVisible('purchaseDate') && <TableHead>Purchase Date</TableHead>}
                     {isVisible('status') && <TableHead>Status</TableHead>}
                     {isVisible('approval') && <TableHead>Approval</TableHead>}
+                    {isVisible('serial') && <TableHead>Serial</TableHead>}
                     {isVisible('description') && <TableHead>Description</TableHead>}
                     {isVisible('actions') && <TableHead>Actions</TableHead>}
                 </TableRow>
@@ -1098,7 +1224,6 @@ export default function Assets() {
                     </TableCell>)}
                     {isVisible('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
                     {isVisible('name') && <TableCell>{asset.name}</TableCell>}
-                    {isVisible('description') && <TableCell>{asset.description || '-'}</TableCell>}
                     {isVisible('type') && <TableCell>{asset.type}</TableCell>}
                     {isVisible('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
                     {isVisible('department') && <TableCell>{asset.department || '-'}</TableCell>}
@@ -1127,6 +1252,7 @@ export default function Assets() {
                         )}
                       </TableCell>
                     )}
+                    {isVisible('serial') && <TableCell>{asset.serialNumber || '-'}</TableCell>}
                     {isVisible('description') && <TableCell>{asset.description || '-'}</TableCell>}
                     {isVisible('actions') && (
                     <TableCell>
@@ -1432,3 +1558,6 @@ export default function Assets() {
     </div>
   );
 }
+
+// Utility to convert a string into a color (HSL format)
+// (removed thumbnail color helper)
