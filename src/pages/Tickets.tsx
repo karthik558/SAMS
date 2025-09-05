@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type React from "react";
 import { isDemoMode } from "@/lib/demo";
 import { createTicket, listTickets, updateTicket, listTicketEvents, type Ticket } from "@/services/tickets";
 import { listUsers, type AppUser } from "@/services/users";
@@ -15,6 +16,11 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { listTicketComments, addTicketComment, type TicketComment } from "@/services/ticketComments";
+import { listAttachments, uploadAttachment, removeAttachment, type TicketAttachment } from "@/services/ticketAttachments";
 
 export default function Tickets() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -30,6 +36,10 @@ export default function Tickets() {
   const [targetRole, setTargetRole] = useState<'admin' | 'manager'>('admin');
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
+  const [layout, setLayout] = useState<'list' | 'board'>('list');
+  const [commentText, setCommentText] = useState<Record<string, string>>({});
+  const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
+  const [attachments, setAttachments] = useState<Record<string, TicketAttachment[]>>({});
 
   useEffect(() => {
     (async () => {
@@ -143,6 +153,13 @@ export default function Tickets() {
       const evs = await listTicketEvents(id);
       setEvents(s => ({ ...s, [id]: evs.map(e => ({ id: e.id, createdAt: e.createdAt, author: e.author, message: e.message, eventType: e.eventType })) }));
     }
+    // Lazy load comments & attachments the first time we expand
+    if (!comments[id]) {
+      try { const list = await listTicketComments(id); setComments((s)=>({ ...s, [id]: list })); } catch {}
+    }
+    if (!attachments[id]) {
+      try { const list = await listAttachments(id); setAttachments((s)=>({ ...s, [id]: list })); } catch {}
+    }
   };
 
   // Current actor details (used by filters and permissions)
@@ -184,6 +201,18 @@ export default function Tickets() {
     if (key.includes('@')) return key;
     return userMap[key]?.label || key;
   };
+  const initials = (nameOrEmail: string) => {
+    try {
+      const s = (nameOrEmail || '').trim();
+      if (!s) return '?';
+      const at = s.indexOf('@');
+      const base = at > 0 ? s.slice(0, at) : s;
+      const parts = base.split(/[\s._-]+/).filter(Boolean);
+      const first = (parts[0] || base)[0] || '?';
+      const second = parts.length > 1 ? (parts[1][0] || '') : '';
+      return (first + second).toUpperCase();
+    } catch { return '?'; }
+  };
   const assignToMe = async (id: string) => {
     const assignee = currentActorEmail || currentActorId;
     if (!assignee) { toast.error('Cannot determine your user identity.'); return; }
@@ -200,6 +229,72 @@ export default function Tickets() {
   const fmt = (iso?: string | null) => {
     if (!iso) return '—';
     try { const d = new Date(iso); return d.toLocaleString(); } catch { return iso as string; }
+  };
+  const slaBadge = (t: Ticket) => {
+    if (!t.slaDueAt) return null;
+    let label = '';
+    let color = 'bg-muted text-foreground';
+    try {
+      const now = Date.now();
+      const due = new Date(t.slaDueAt).getTime();
+      const diffMs = due - now;
+      const abs = Math.abs(diffMs);
+      const hrs = Math.floor(abs / 3600000);
+      const mins = Math.floor((abs % 3600000) / 60000);
+      if (diffMs < 0) {
+        label = `Overdue ${hrs}h ${mins}m`;
+        color = 'bg-red-100 text-red-800 border-red-200';
+      } else if (diffMs <= 24 * 3600000) {
+        label = `Due in ${hrs}h ${mins}m`;
+        color = 'bg-amber-100 text-amber-900 border-amber-200';
+      } else {
+        const days = Math.ceil(diffMs / (24*3600000));
+        label = `Due in ${days}d`;
+        color = 'bg-emerald-100 text-emerald-900 border-emerald-200';
+      }
+    } catch { label = fmt(t.slaDueAt); }
+    return <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${color}`}>SLA: {label}</span>;
+  };
+  const addComment = async (id: string) => {
+    const msg = (commentText[id] || '').trim();
+    if (!msg) return;
+    try {
+      const c = await addTicketComment(id, msg);
+      setComments(s => ({ ...s, [id]: [...(s[id]||[]), c] }));
+      setCommentText(s => ({ ...s, [id]: '' }));
+    } catch { toast.error('Failed to add comment'); }
+  };
+  const onUpload = async (id: string, file?: File) => {
+    if (!file) return;
+    try {
+      const att = await uploadAttachment(id, file);
+      setAttachments(s => ({ ...s, [id]: [...(s[id]||[]), att] }));
+      toast.success('Attachment uploaded');
+    } catch { toast.error('Upload failed'); }
+  };
+
+  // Kanban helpers
+  const columns: { key: Ticket["status"]; label: string }[] = [
+    { key: 'open', label: 'Open' },
+    { key: 'in_progress', label: 'In Progress' },
+    { key: 'resolved', label: 'Resolved' },
+    { key: 'closed', label: 'Closed' },
+  ];
+  const grouped = useMemo(() => {
+    const map: Record<string, Ticket[]> = { open: [], in_progress: [], resolved: [], closed: [] };
+    for (const t of filteredItems) map[t.status].push(t);
+    return map as Record<Ticket['status'], Ticket[]>;
+  }, [filteredItems]);
+  const onDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData('text/plain', id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const onDropTo = (e: React.DragEvent, status: Ticket['status']) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain');
+    if (!id) return;
+    if (status === 'closed') { openCloseDialog(id); return; }
+    setStatus(id, status);
   };
 
   return (
@@ -249,59 +344,160 @@ export default function Tickets() {
                 </TabsList>
               </Tabs>
             </div>
-            <DateRangePicker value={range} onChange={setRange} />
+            <div className="flex items-center gap-3">
+              <DateRangePicker value={range} onChange={setRange} />
+              <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)}>
+                <ToggleGroupItem value="list">List</ToggleGroupItem>
+                <ToggleGroupItem value="board">Board</ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {filteredItems.map(t => (
-            <div key={t.id} className="border rounded p-4 bg-card">
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="font-medium flex items-center gap-2">
-                    <span>{t.id}</span>
-                    <span className="text-foreground/80">•</span>
-                    <span>{t.title}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">To: {t.targetRole}</span>
-                    <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Status: {t.status}</span>
-                    <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Assignee: {assigneeLabel(t)}</span>
-                    <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Priority: {t.priority || 'medium'}</span>
-                    <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">SLA: {fmt(t.slaDueAt)}</span>
-                  </div>
-                  <div className="text-xs text-muted-foreground">Created by: {t.createdBy} • {fmt(t.createdAt)}</div>
-                  <div className="text-sm text-foreground mt-2 whitespace-pre-wrap">{t.description}</div>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex gap-2">
-                    {t.status !== 'closed' && canChangeStatus(t) && (
-                      <>
-                        <Button size="sm" variant={t.status==='open' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'open')}>Open</Button>
-                        <Button size="sm" variant={t.status==='in_progress' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'in_progress')}>In Progress</Button>
-                        <Button size="sm" variant={t.status==='resolved' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'resolved')}>Resolved</Button>
-                        <Button size="sm" variant="outline" onClick={() => openCloseDialog(t.id)}>Closed</Button>
-                      </>
-                    )}
-                    {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
-                      <Button size="sm" variant="outline" onClick={() => assignToMe(t.id)}>Assign to me</Button>
-                    )}
-                    <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>Log</Button>
-                  </div>
-                </div>
-              </div>
-              {expanded[t.id] && (
-                <div className="mt-3 border-t pt-2 text-xs space-y-1">
-                  {(events[t.id] || []).map(e => (
-                    <div key={e.id} className="flex items-start gap-2">
-                      <span className="text-muted-foreground w-52 shrink-0">{fmt(e.createdAt)} • {e.author}</span>
-                      <span>{e.eventType}: {e.message}</span>
+          {layout === 'list' ? (
+            filteredItems.map(t => (
+              <div key={t.id} className="border rounded p-4 bg-card">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="font-medium flex items-center gap-2">
+                      <span>{t.id}</span>
+                      <span className="text-foreground/80">•</span>
+                      <span>{t.title}</span>
                     </div>
-                  ))}
-                  {!events[t.id]?.length && <div className="text-muted-foreground">No events yet.</div>}
+                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">To: {t.targetRole}</span>
+                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Status: {t.status}</span>
+                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Priority: {t.priority || 'medium'}</span>
+                      {slaBadge(t)}
+                      <span className="inline-flex items-center gap-2 rounded border px-1.5 py-0.5">
+                        <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
+                        <span>Assignee: {assigneeLabel(t)}</span>
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">Created by: {t.createdBy} • {fmt(t.createdAt)}</div>
+                    <div className="text-sm text-foreground mt-2 whitespace-pre-wrap">{t.description}</div>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <div className="flex gap-2">
+                      {t.status !== 'closed' && canChangeStatus(t) && (
+                        <>
+                          <Button size="sm" variant={t.status==='open' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'open')}>Open</Button>
+                          <Button size="sm" variant={t.status==='in_progress' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'in_progress')}>In Progress</Button>
+                          <Button size="sm" variant={t.status==='resolved' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'resolved')}>Resolved</Button>
+                          <Button size="sm" variant="outline" onClick={() => openCloseDialog(t.id)}>Closed</Button>
+                        </>
+                      )}
+                      {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
+                        <Button size="sm" variant="outline" onClick={() => assignToMe(t.id)}>Assign to me</Button>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>Log</Button>
+                    </div>
+                  </div>
                 </div>
-              )}
+                {expanded[t.id] && (
+                  <div className="mt-3 border-t pt-3 space-y-3">
+                    <div className="text-xs space-y-1">
+                      {(events[t.id] || []).map(e => (
+                        <div key={e.id} className="flex items-start gap-2">
+                          <span className="text-muted-foreground w-52 shrink-0">{fmt(e.createdAt)} • {e.author}</span>
+                          <span>{e.eventType}: {e.message}</span>
+                        </div>
+                      ))}
+                      {!events[t.id]?.length && <div className="text-muted-foreground">No events yet.</div>}
+                    </div>
+                    <div className="text-xs space-y-2">
+                      <div className="font-medium">Comments</div>
+                      <div className="space-y-1">
+                        {(comments[t.id]||[]).map(c => (
+                          <div key={c.id} className="flex items-start gap-2">
+                            <span className="text-muted-foreground w-52 shrink-0">{fmt(c.createdAt)} • {c.author}</span>
+                            <span>{c.message}</span>
+                          </div>
+                        ))}
+                        <div className="flex items-center gap-2">
+                          <Input placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
+                          <Button size="sm" onClick={() => addComment(t.id)}>Post</Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs space-y-2">
+                      <div className="font-medium">Attachments</div>
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap gap-2">
+                          {(attachments[t.id]||[]).map(a => (
+                            <a key={a.id} className="inline-flex items-center gap-1 rounded border px-2 py-1 hover:bg-muted" href={a.url} target="_blank" rel="noreferrer">
+                              <span className="truncate max-w-[160px]" title={a.name}>{a.name}</span>
+                            </a>
+                          ))}
+                        </div>
+                        <div>
+                          <input id={`file-${t.id}`} type="file" className="hidden" onChange={(e)=> onUpload(t.id, e.target.files?.[0])} />
+                          <Button size="sm" variant="outline" onClick={() => document.getElementById(`file-${t.id}`)?.click()}>Upload</Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {columns.map(col => (
+                <div key={col.key} className="rounded border bg-background">
+                  <div className="px-3 py-2 border-b bg-muted/50 text-sm font-medium flex items-center justify-between">
+                    <span>{col.label}</span>
+                    <Badge variant="secondary">{grouped[col.key].length}</Badge>
+                  </div>
+                  <div
+                    className="p-2 min-h-[200px] space-y-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => onDropTo(e, col.key)}
+                  >
+                    {grouped[col.key].map(t => (
+                      <div
+                        key={t.id}
+                        className="rounded border bg-card p-3 shadow-sm cursor-grab"
+                        draggable={t.status !== 'closed' && canChangeStatus(t)}
+                        onDragStart={(e) => onDragStart(e, t.id)}
+                      >
+                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
+                          <span>{t.id}</span>
+                          <span className="inline-flex items-center gap-1">
+                            <Badge variant="outline">{t.priority || 'medium'}</Badge>
+                          </span>
+                        </div>
+                        <div className="font-medium text-sm">{t.title}</div>
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          <span className="inline-flex items-center gap-2 text-xs">
+                            <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
+                            <span className="truncate max-w-[140px]">{assigneeLabel(t)}</span>
+                          </span>
+                          <span className="text-xs">{slaBadge(t)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
+                            <Button size="sm" variant="outline" onClick={() => assignToMe(t.id)}>Assign to me</Button>
+                          )}
+                          <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>Log</Button>
+                        </div>
+                        {expanded[t.id] && (
+                          <div className="mt-2 border-t pt-2 text-[11px] space-y-1">
+                            {(events[t.id] || []).map(e => (
+                              <div key={e.id} className="flex items-start gap-2">
+                                <span className="text-muted-foreground w-40 shrink-0">{fmt(e.createdAt)} • {e.author}</span>
+                                <span>{e.eventType}: {e.message}</span>
+                              </div>
+                            ))}
+                            {!events[t.id]?.length && <div className="text-muted-foreground">No events yet.</div>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </CardContent>
       </Card>
 

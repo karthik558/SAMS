@@ -92,6 +92,52 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
   return payload;
 }
 
+// Direct notification to a specific user (by user_id). Useful for @mentions or ticket assignment updates.
+export async function addUserNotification(
+  userId: string,
+  input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean }
+): Promise<Notification> {
+  const payload: Notification = {
+    id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
+    title: input.title,
+    message: input.message,
+    type: input.type,
+    read: input.read ?? false,
+    created_at: new Date().toISOString(),
+  };
+  if (!isDemoMode() && hasSupabaseEnv) {
+    try {
+      let user_name: string | null = null;
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        if (raw) { const u = JSON.parse(raw); user_name = u?.name || u?.email || u?.id || null; }
+      } catch {}
+      const { data, error } = await supabase
+        .from('notifications')
+        .insert({
+          id: payload.id,
+          title: payload.title,
+          message: payload.message,
+          type: payload.type,
+          read: payload.read,
+          created_at: payload.created_at,
+          user_id: userId,
+          user_name,
+        })
+        .select("id, title, message, type, read, created_at")
+        .single();
+      if (error) throw error;
+      return data as Notification;
+    } catch (e) {
+      console.warn('addUserNotification failed, falling back to localStorage', e);
+    }
+  }
+  const list = loadLocal();
+  const updated = [payload, ...list];
+  saveLocal(updated);
+  return payload;
+}
+
 // Helper: read current actor name/email for attribution
 function getActorName(): string | null {
   try {
