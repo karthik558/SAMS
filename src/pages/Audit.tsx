@@ -53,6 +53,8 @@ export default function Audit() {
   const [inchargeUserId, setInchargeUserId] = useState<string>("");
   const [inchargeUserName, setInchargeUserName] = useState<string>("");
   const [myId, setMyId] = useState<string>("");
+  // Per-department totals to compute progress rings
+  const [deptTotals, setDeptTotals] = useState<Record<string, number>>({});
 
   useEffect(() => {
     (async () => {
@@ -141,6 +143,19 @@ export default function Audit() {
             setProgress(prog);
             const sum = await getDepartmentReviewSummary(sid);
             setSummary(sum);
+            // Compute per-department totals for progress rings
+            try {
+              const totals: Record<string, number> = {};
+              for (const d of deps) {
+                try {
+                  const assets = await listDepartmentAssets(d.name, (pid || undefined));
+                  totals[d.name] = (assets || []).length;
+                } catch {
+                  totals[d.name] = 0;
+                }
+              }
+              setDeptTotals(totals);
+            } catch {}
             // Also load sessions and recent reports even while active
             try {
               let rec = await listRecentAuditReports(20);
@@ -203,6 +218,7 @@ export default function Audit() {
           setRows([]);
           setProgress(null);
           setSummary({});
+          setDeptTotals({});
           // Load recent reports across sessions (persisted history)
           try {
             const rec = await listRecentAuditReports(20);
@@ -248,6 +264,18 @@ export default function Audit() {
                   setProgress(prog);
                   const sum = await getDepartmentReviewSummary(sess.id);
                   setSummary(sum);
+                  try {
+                    const totals: Record<string, number> = {};
+                    for (const d of deps) {
+                      try {
+                        const assets = await listDepartmentAssets(d.name, (pid || undefined));
+                        totals[d.name] = (assets || []).length;
+                      } catch {
+                        totals[d.name] = 0;
+                      }
+                    }
+                    setDeptTotals(totals);
+                  } catch {}
                 }
               }
             } catch (e) { console.error(e); }
@@ -352,14 +380,33 @@ export default function Audit() {
       <div className="print:hidden space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
         <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
-        {(auditOn && selectedPropertyId) && (
-          <div className="text-sm text-muted-foreground">
-            Property: <span className="font-medium text-foreground">{(() => {
-              const p = (properties || []).find(pp => String(pp.id) === String(selectedPropertyId));
-              return p ? `${p.name} (${p.id})` : selectedPropertyId;
-            })()}</span>
-          </div>
-        )}
+        {/* Incharge banner + property filter at top */}
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="text-sm text-muted-foreground">
+                <div className="font-medium text-foreground">Property</div>
+                <div className="flex items-center gap-2">
+                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} disabled={auditOn}>
+                    <SelectTrigger className="w-[260px]">
+                      <SelectValue placeholder="Select a property" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {properties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {auditOn && <span className="text-xs text-muted-foreground">(Locked while session is active)</span>}
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                <div className="font-medium text-foreground">Auditor Incharge</div>
+                <div>{inchargeUserName || inchargeUserId || '—'}</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
   {/* Admin Control Panel */}
@@ -376,7 +423,7 @@ export default function Audit() {
             {selectedPropertyId && (inchargeUserId || inchargeUserName) && (
               <div className="text-sm text-muted-foreground">Incharge: <span className="font-medium text-foreground">{inchargeUserName || inchargeUserId}</span></div>
             )}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
               <div className="space-y-1">
                 <Label>Frequency</Label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -384,7 +431,7 @@ export default function Audit() {
                   <Button variant={auditFreq === 6 ? 'default' : 'outline'} size="sm" onClick={() => setAuditFreq(6)}>Every 6 months</Button>
                 </div>
               </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
+    <div className="flex items-center gap-2 w-full md:w-auto">
                 {!auditOn ? (
                   <Button className="w-full md:w-auto" onClick={async () => {
                     try {
@@ -460,6 +507,26 @@ export default function Audit() {
                     }
                   }}>Stop Audit</Button>
                 )}
+                {!auditOn && (
+                  <Button className="w-full md:w-auto" variant="secondary" onClick={async () => {
+                    try {
+                      const sess = await getActiveSession();
+                      if (!sess || !sess.id) { toast.info('No active session to resume'); return; }
+                      setAuditOn(true);
+                      setSessionId(sess.id);
+                      const pid = (sess as any)?.property_id || '';
+                      if (pid) { setSelectedPropertyId(String(pid)); try { localStorage.setItem('active_audit_property_id', String(pid)); } catch {} }
+                      try { localStorage.setItem('active_audit_session_id', String(sess.id)); } catch {}
+                      try {
+                        const prog = await getProgress(sess.id, departments.map(d => d.name));
+                        setProgress(prog);
+                      } catch {}
+                    } catch (e) {
+                      console.error(e);
+                      toast.error('Failed to resume');
+                    }
+                  }}>Resume</Button>
+                )}
               </div>
             </div>
             {/* Property selection for property-scoped auditing */}
@@ -518,7 +585,31 @@ export default function Audit() {
             </div>
 
             {Object.keys(summary).length > 0 && (
-              <div className="overflow-auto print:hidden">
+              <div className="overflow-auto print:hidden space-y-4">
+                {/* Department progress rings */}
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                  {Object.entries(summary).map(([dept, s]) => {
+                    const reviewed = (s?.verified || 0) + (s?.missing || 0) + (s?.damaged || 0);
+                    const total = Math.max(0, Number(deptTotals[dept] || 0));
+                    const pct = total > 0 ? Math.min(100, Math.round((reviewed / total) * 100)) : 0;
+                    const radius = 32; const circ = 2 * Math.PI * radius; const dash = (pct/100) * circ;
+                    return (
+                      <Card key={dept}>
+                        <CardContent className="p-4 flex items-center gap-3">
+                          <svg width="80" height="80" className="shrink-0">
+                            <circle cx="40" cy="40" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="8" />
+                            <circle cx="40" cy="40" r={radius} fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray={`${dash} ${circ-dash}`} strokeLinecap="round" transform="rotate(-90 40 40)" />
+                            <text x="40" y="44" textAnchor="middle" fontSize="14" fill="currentColor">{pct}%</text>
+                          </svg>
+                          <div className="space-y-1">
+                            <div className="font-medium">{dept}</div>
+                            <div className="text-xs text-muted-foreground">{reviewed} of {total || '—'} reviewed</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>

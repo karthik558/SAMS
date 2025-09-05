@@ -1,6 +1,7 @@
 import { StatCard } from "@/components/ui/stat-card";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
+import { MyAudits } from "@/components/dashboard/MyAudits";
 import { Package, Building2, Users, AlertTriangle, TrendingUp, QrCode, Shapes } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -245,8 +246,9 @@ const Index = () => {
           <div className="lg:col-span-2">
             <DashboardCharts />
           </div>
-          <div className="min-h-0">
+          <div className="min-h-0 space-y-4">
             <RecentActivity />
+            <MyAudits />
           </div>
         </div>
 
