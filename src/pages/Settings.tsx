@@ -296,17 +296,17 @@ export default function Settings() {
       />
 
       <Tabs defaultValue="security" className="space-y-6">
-  <TabsList className={`grid w-full ${role === 'admin' ? 'grid-cols-2 sm:grid-cols-3 md:grid-cols-3' : 'grid-cols-2'}`}>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
+  <TabsList className={`w-full overflow-x-auto flex-nowrap bg-muted/50 backdrop-blur supports-[backdrop-filter]:bg-muted/60 rounded-md p-1 flex gap-1 justify-start ${role === 'admin' ? 'md:grid md:grid-cols-3 md:overflow-visible md:flex-none' : 'md:grid md:grid-cols-2 md:overflow-visible md:flex-none'}`}>
+          <TabsTrigger value="notifications" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
             <Bell className="h-4 w-4" />
             <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
+          <TabsTrigger value="security" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
           {role === 'admin' && (
-            <TabsTrigger value="departments" className="flex items-center gap-2">
+            <TabsTrigger value="departments" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Departments</span>
             </TabsTrigger>
