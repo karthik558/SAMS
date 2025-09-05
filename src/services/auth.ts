@@ -103,6 +103,19 @@ export async function mfaActivateTotp(factorId: string, code: string): Promise<v
   if (vErr) throw vErr;
 }
 
+// Unenroll TOTP factor (disable MFA). If factorId not provided, use the first TOTP factor.
+export async function mfaUnenrollTotp(factorId?: string): Promise<void> {
+  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
+  let fid = factorId;
+  if (!fid) {
+    const f = await listMfaFactors();
+    fid = f.totp[0]?.id;
+  }
+  if (!fid) return; // nothing to unenroll
+  const { error } = await (supabase as any).auth.mfa.unenroll({ factorId: fid });
+  if (error) throw error;
+}
+
 export async function logout(): Promise<void> {
   if (!hasSupabaseEnv) return;
   try {

@@ -15,7 +15,7 @@ import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSet
 import { listUsers } from "@/services/users";
 import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
-import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp } from "@/services/auth";
+import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp, mfaChallenge, mfaVerify, mfaUnenrollTotp } from "@/services/auth";
 import PageHeader from "@/components/layout/PageHeader";
 // Audit controls have moved to the main Audit page
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
@@ -48,6 +48,8 @@ export default function Settings() {
   const [mfaFactorId, setMfaFactorId] = useState<string>("");
   const [mfaCode, setMfaCode] = useState<string>("");
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaDisableOtp, setMfaDisableOtp] = useState<string>("");
+  const [mfaDisableChallengeId, setMfaDisableChallengeId] = useState<string>("");
 
   // Load settings
   useEffect(() => {
@@ -240,6 +242,50 @@ export default function Settings() {
     }
   }
 
+  async function beginDisableMfa() {
+    try {
+      setMfaLoading(true);
+      // list factors to get the current totp factor id
+      const f = await listMfaFactors();
+      const fid = f.totp[0]?.id;
+      if (!fid) {
+        toast({ title: "No MFA found", description: "There's no authenticator configured.", variant: "destructive" });
+        return;
+      }
+      // Start a challenge to verify ownership before disabling
+      const ch = await mfaChallenge(fid);
+      setMfaFactorId(fid);
+      setMfaDisableChallengeId(ch.challengeId);
+      setMfaDisableOtp("");
+      toast({ title: "Enter code to disable", description: "Enter a 6-digit code from your authenticator to disable MFA." });
+    } catch (e: any) {
+      toast({ title: "Cannot start disable flow", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
+  async function confirmDisableMfa() {
+    if (!mfaFactorId) return;
+    try {
+      setMfaLoading(true);
+      // If we have an active challenge and code, verify first
+      if (mfaDisableChallengeId && mfaDisableOtp.trim().length === 6) {
+        await mfaVerify(mfaFactorId, mfaDisableChallengeId, mfaDisableOtp.trim(), currentUserEmail || "");
+      }
+      await mfaUnenrollTotp(mfaFactorId);
+      setMfaEnrolled(false);
+      setMfaDisableChallengeId("");
+      setMfaDisableOtp("");
+      setMfaFactorId("");
+      toast({ title: "MFA disabled", description: "Authenticator app unenrolled." });
+    } catch (e: any) {
+      toast({ title: "Disable failed", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
   return (
   <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
@@ -373,11 +419,17 @@ export default function Settings() {
                   <Badge variant={mfaEnrolled ? "default" : "outline"} className="font-medium">
                     {mfaEnrolled ? "Enabled" : "Not Enrolled"}
                   </Badge>
-                  {!mfaEnrolled && (
+                  {!mfaEnrolled ? (
                     <Button onClick={startTotpEnrollment} disabled={mfaLoading} className="whitespace-nowrap">
                       <Plus className="h-4 w-4 mr-2" />
                       Enable MFA
                     </Button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Button variant="destructive" onClick={beginDisableMfa} disabled={mfaLoading} className="whitespace-nowrap">
+                        Disable MFA
+                      </Button>
+                    </div>
                   )}
                 </div>
 
@@ -397,6 +449,17 @@ export default function Settings() {
                           </Button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {mfaEnrolled && mfaDisableChallengeId && (
+                  <div className="mt-4">
+                    <Label className="font-medium">Confirm Disable</Label>
+                    <p className="text-sm text-muted-foreground">Enter a 6-digit code from your authenticator to confirm disabling MFA.</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input placeholder="000000" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaDisableOtp} onChange={(e) => setMfaDisableOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
+                      <Button variant="destructive" onClick={confirmDisableMfa} disabled={mfaLoading || mfaDisableOtp.length !== 6}>Confirm</Button>
                     </div>
                   </div>
                 )}
