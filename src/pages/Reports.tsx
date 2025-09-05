@@ -34,6 +34,7 @@ import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
 import { listDepartments, type Department } from "@/services/departments";
 import { listSessions, listReviewsForSession, type AuditSession } from "@/services/audit";
+import { listTickets, type Ticket } from "@/services/tickets";
 import {
   Table,
   TableBody,
@@ -95,6 +96,10 @@ const reportTypes = [
 ];
 
 export default function Reports() {
+  // Identify user & role early (used for defaults below)
+  const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })() as any;
+  const role: string = (currentUser?.role || '').toLowerCase();
+  const myDept: string | null = currentUser?.department ?? null;
   const [selectedReportType, setSelectedReportType] = useState("");
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
@@ -128,9 +133,10 @@ export default function Reports() {
   const [apDepartments, setApDepartments] = useState<Department[]>([]);
   const [apDeptFilter, setApDeptFilter] = useState<string>('ALL');
   const [showApprovalsLog, setShowApprovalsLog] = useState<boolean>(false);
-  const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })() as any;
-  const role: string = (currentUser?.role || '').toLowerCase();
-  const myDept: string | null = currentUser?.department ?? null;
+  // Tickets Report state
+  const [tkScope, setTkScope] = useState<string>(() => (role === 'admin' ? 'all' : 'mine-received'));
+  const [tkFrom, setTkFrom] = useState<Date | undefined>();
+  const [tkTo, setTkTo] = useState<Date | undefined>();
 
   // Load properties, item types, and recent reports
   // When Supabase is enabled, pull live data; else use light fallbacks
@@ -202,6 +208,74 @@ export default function Reports() {
       }
     })();
   }, [role, myDept, apDeptFilter]);
+
+  // Export Tickets CSV (role-aware)
+  const exportTicketsCsv = async () => {
+    try {
+      const id = (currentUser?.id || '').toString();
+      const email = (currentUser?.email || '').toString();
+      const scope = tkScope;
+      const tasks: Promise<Ticket[]>[] = [];
+      if (scope === 'mine-received') {
+        if (id) tasks.push(listTickets({ assignee: id }));
+        if (email && email !== id) tasks.push(listTickets({ assignee: email }));
+      } else if (scope === 'mine-raised') {
+        if (id) tasks.push(listTickets({ createdBy: id }));
+        if (email && email !== id) tasks.push(listTickets({ createdBy: email }));
+      } else if (scope === 'all') {
+        tasks.push(listTickets({}));
+      } else if (scope === 'target-admin') {
+        tasks.push(listTickets({ targetRole: 'admin' as any }));
+      } else if (scope === 'target-manager') {
+        tasks.push(listTickets({ targetRole: 'manager' as any }));
+      } else {
+        tasks.push(listTickets({}));
+      }
+      const results = (await Promise.all(tasks)).flat();
+      // de-duplicate by id
+      const map = new Map<string, Ticket>();
+      results.forEach(t => { map.set(t.id, t); });
+      const list = Array.from(map.values());
+      // date filter on createdAt
+      const from = tkFrom ? new Date(new Date(tkFrom).setHours(0,0,0,0)) : null;
+      const to = tkTo ? new Date(new Date(tkTo).setHours(23,59,59,999)) : null;
+      const inRange = (iso?: string | null) => {
+        if (!from && !to) return true;
+        if (!iso) return false;
+        const d = new Date(iso);
+        if (from && d < from) return false;
+        if (to && d > to) return false;
+        return true;
+      };
+      const filtered = list.filter(t => inRange(t.createdAt)).sort((a,b) => (a.createdAt < b.createdAt ? 1 : -1));
+      if (!filtered.length) { toast.info('No tickets found for the selected filters'); return; }
+      const rows = filtered.map(t => ({
+        id: t.id,
+        title: t.title,
+        description: (t.description || '').toString().replace(/\n/g, ' '),
+        status: t.status,
+        targetRole: t.targetRole,
+        priority: t.priority || 'medium',
+        assignee: t.assignee || '',
+        createdBy: t.createdBy,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt || '',
+        slaDueAt: t.slaDueAt || '',
+        closeNote: t.closeNote || '',
+      }));
+      const nameParts = ['Tickets Report'];
+      if (scope === 'mine-received') nameParts.push('(Received by me)');
+      else if (scope === 'mine-raised') nameParts.push('(Raised by me)');
+      else if (scope === 'target-admin') nameParts.push('(Target: Admin)');
+      else if (scope === 'target-manager') nameParts.push('(Target: Manager)');
+      const name = `${nameParts.join(' ')} - ${new Date().toISOString().slice(0,10)}`;
+      downloadCsvFromRows(name, rows);
+      toast.success('Tickets report downloaded');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export tickets');
+    }
+  };
 
   const handleGenerateReport = async () => {
     if (!selectedReportType) {
@@ -1153,6 +1227,44 @@ export default function Reports() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Tickets Report (Managers/Admins) */}
+        {(role === 'admin' || role === 'manager') && (
+          <Card id="tickets-report">
+            <CardHeader>
+              <CardTitle>Tickets Report</CardTitle>
+              <CardDescription>Export tickets with scope and date filters</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-48">
+                  <Select value={tkScope} onValueChange={setTkScope}>
+                    <SelectTrigger><SelectValue placeholder="Scope" /></SelectTrigger>
+                    <SelectContent>
+                      {/* Manager scopes */}
+                      <SelectItem value="mine-received">Received by me</SelectItem>
+                      <SelectItem value="mine-raised">Raised by me</SelectItem>
+                      {/* Admin extra scopes */}
+                      {role === 'admin' && (
+                        <>
+                          <SelectItem value="all">All (everyone)</SelectItem>
+                          <SelectItem value="target-admin">Target: Admin</SelectItem>
+                          <SelectItem value="target-manager">Target: Manager</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <DateRangePicker value={{ from: tkFrom, to: tkTo }} onChange={(r) => { setTkFrom(r.from); setTkTo(r.to); }} />
+                </div>
+                <Button variant="outline" size="sm" onClick={exportTicketsCsv}>
+                  <Download className="h-4 w-4 mr-2" /> Export CSV
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Approvals Log (restricted to admin/manager) */}
         {(role === 'admin' || role === 'manager') && showApprovalsLog && (
