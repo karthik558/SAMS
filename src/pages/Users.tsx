@@ -275,6 +275,10 @@ export default function Users() {
     });
   }, [users, searchTerm, roleFilter, statusFilter]);
 
+  // Inline validation helpers
+  const emailInvalid = useMemo(() => (email.trim().length > 0 && !/^\S+@\S+\.\S+$/.test(email.trim())), [email]);
+  const addRequiredMissing = useMemo(() => (!firstName.trim() || !lastName.trim() || !email.trim() || !role), [firstName, lastName, email, role]);
+
   const resetForm = () => {
     setFirstName("");
     setLastName("");
@@ -567,46 +571,84 @@ export default function Users() {
         actions={
           <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
-      <Button className="w-full sm:w-auto" disabled={authRole !== 'admin'}>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[96vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogContent className="w-[96vw] sm:max-w-xl md:max-w-2xl lg:max-w-4xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
                 Create a new user account for the system
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 flex-1 overflow-y-auto pr-1 no-scrollbar">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {authRole !== 'admin' && (
+              <div className="mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+                You have view-only access. Contact an administrator to add users.
+              </div>
+            )}
+            {/* Summary chips */}
+            <div className="px-1 pb-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                Properties: <span className="font-medium text-foreground">{selectedPropertyIds.length}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                Departments: <span className="font-medium text-foreground">{selectedDepartments.length}</span>
+              </span>
+            </div>
+            {/* Quick preview header for clarity */}
+            <div className="flex items-center gap-3 border rounded-md p-3 bg-muted/30">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-muted text-foreground font-medium">
+                  {getInitials(`${firstName} ${lastName}`.trim())}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{`${firstName} ${lastName}`.trim() || 'New User'}</p>
+                <p className="text-xs text-muted-foreground truncate">{email || 'email@company.com'}</p>
+              </div>
+              {role && (
+                <div className="ml-auto">
+                  <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role)}</Badge>
+                </div>
+              )}
+            </div>
+            <div className="space-y-4 md:space-y-3 flex-1 overflow-y-auto px-2 sm:px-3 md:px-4 pb-4 no-scrollbar">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
                 <div className="space-y-2">
-          <Label htmlFor="firstName">First Name</Label>
-          <Input id="firstName" placeholder="Abc" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+          <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
+          <Input id="firstName" placeholder="Abc" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={authRole !== 'admin'} />
+          {!firstName.trim() && (<p className="text-xs text-destructive">First name is required.</p>)}
                 </div>
                 <div className="space-y-2">
-          <Label htmlFor="lastName">Last Name</Label>
-          <Input id="lastName" placeholder="Abc" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+          <Label htmlFor="lastName">Last Name <span className="text-destructive">*</span></Label>
+          <Input id="lastName" placeholder="Abc" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={authRole !== 'admin'} />
+          {!lastName.trim() && (<p className="text-xs text-destructive">Last name is required.</p>)}
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="abc@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+                <Input id="email" type="email" placeholder="abc@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={authRole !== 'admin'} />
+                {(!email.trim()) && (<p className="text-xs text-destructive">Email is required.</p>)}
+                {emailInvalid && (<p className="text-xs text-destructive">Enter a valid email address.</p>)}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={authRole !== 'admin'} />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
                 <div className="space-y-2">
                   <Label htmlFor="password">{mustChangePassword ? "Temporary Password" : "Password"}</Label>
-                  <Input id="password" type="password" placeholder={mustChangePassword ? "Set a temporary password" : "Set a password"} value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <Input id="password" type="password" placeholder={mustChangePassword ? "Set a temporary password" : "Set a password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={authRole !== 'admin'} />
                   <p className="text-xs text-muted-foreground">{mustChangePassword ? "User will be asked to change this on first login." : "This will be the user's password."}</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select value={role} onValueChange={setRole}>
+                  <Label htmlFor="role">Role <span className="text-destructive">*</span></Label>
+                  <Select value={role} onValueChange={setRole} disabled={authRole !== 'admin'}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -616,13 +658,14 @@ export default function Users() {
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
                   </Select>
+                  {!role && (<p className="text-xs text-destructive">Role is required.</p>)}
                 </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="department">Department</Label>
                 <div className="flex gap-2">
                   <div className="flex-1">
-                    <Select value={department} onValueChange={setDepartment}>
+                    <Select value={department} onValueChange={setDepartment} disabled={authRole !== 'admin'}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select dept" />
                       </SelectTrigger>
@@ -635,7 +678,7 @@ export default function Users() {
                   </div>
                   <Dialog open={newDeptModalOpen} onOpenChange={setNewDeptModalOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" type="button">New</Button>
+                      <Button variant="outline" type="button" disabled={authRole !== 'admin'}>New</Button>
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
@@ -677,11 +720,11 @@ export default function Users() {
                       <div className="text-sm font-medium capitalize">{p}</div>
                       <div className="flex items-center gap-3">
                         <label className="flex items-center gap-2 text-xs">
-                          <Checkbox checked={!!permView[p]} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
+                          <Checkbox checked={!!permView[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
                           View
                         </label>
                         <label className="flex items-center gap-2 text-xs">
-                          <Checkbox checked={!!permEdit[p]} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
+                          <Checkbox checked={!!permEdit[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
                           Edit
                         </label>
                       </div>
@@ -695,7 +738,7 @@ export default function Users() {
                 <Label>Property Access</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
+                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
                       <span className="truncate text-left flex-1 min-w-0">
                         {selectedPropertyIds.length > 0
                           ? (() => {
@@ -726,7 +769,7 @@ export default function Users() {
                           }}
                           className="gap-2 w-full"
                         >
-                          <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                          <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
                           <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
                         </DropdownMenuItem>
                       );
@@ -891,11 +934,11 @@ export default function Users() {
                 <Label htmlFor="mustChange">Require password change on first login</Label>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddUserOpen(false)}>
+            <DialogFooter className="border-t mt-4 pt-4 justify-end">
+              <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddUser}>
+              <Button type="button" onClick={handleAddUser} disabled={authRole !== 'admin' || addRequiredMissing || emailInvalid}>
                 <UserPlus className="h-4 w-4 mr-2" />
                 Add User
               </Button>
@@ -926,8 +969,16 @@ export default function Users() {
                 className="pl-10"
               />
             </div>
-            
-            <div className="flex gap-2">
+            {/* Quick role filters */}
+            <div className="flex gap-2 overflow-x-auto no-scrollbar">
+              {['all','admin','manager','user'].map((r) => (
+                <Button key={r} variant={roleFilter === r ? 'default' : 'outline'} size="sm" onClick={() => setRoleFilter(r)} className="whitespace-nowrap">
+                  {r === 'all' ? 'All' : toTitle(r)}
+                </Button>
+              ))}
+            </div>
+
+            <div className="hidden sm:flex gap-2">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
                 <SelectTrigger className="w-32">
                   <Filter className="h-4 w-4 mr-2" />
@@ -962,83 +1013,130 @@ export default function Users() {
             </div>
           ) : (
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[200px]">User</TableHead>
-                  <TableHead className="hidden md:table-cell">Role</TableHead>
-                  <TableHead className="hidden lg:table-cell">Department</TableHead>
-                  <TableHead className="hidden sm:table-cell">Status</TableHead>
-                  <TableHead className="hidden xl:table-cell">Last Login</TableHead>
-                  <TableHead className="w-[70px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
-                            <AvatarImage src={user.avatar_url} alt={user.name} />
-                          )}
-                          <AvatarFallback className="bg-muted text-foreground font-medium">
-                            {getInitials(user.name)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium">{user.name}</p>
-                          <p className="text-xs text-muted-foreground">{user.email}</p>
+            {/* Desktop table */}
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[200px]">User</TableHead>
+                    <TableHead className="hidden md:table-cell">Role</TableHead>
+                    <TableHead className="hidden lg:table-cell">Department</TableHead>
+                    <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead className="hidden xl:table-cell">Last Login</TableHead>
+                    <TableHead className="w-[70px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
+                              <AvatarImage src={user.avatar_url} alt={user.name} />
+                            )}
+                            <AvatarFallback className="bg-muted text-foreground font-medium">
+                              {getInitials(user.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">{user.name}</p>
+                            <p className="text-xs text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        <Badge variant={getRoleBadgeVariant(user.role)}>
+                          {user.role === "Admin" && <Shield className="h-3 w-3 mr-1" />}
+                          {user.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {user.department ?? "-"}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <StatusChip status={user.status} />
+                      </TableCell>
+                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                        {user.last_login ? (() => { try { return format(new Date(user.last_login), 'PP p'); } catch { return '-'; } })() : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {authRole === 'admin' && (
+                            <DropdownMenuItem onClick={() => openEditUser(user)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                            )}
+                            {authRole === 'admin' && (
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteUser(user.id, user.name)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            {/* Mobile cards */}
+            <div className="sm:hidden space-y-2">
+              {filteredUsers.map((user) => (
+                <Card key={user.id}>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
+                          <AvatarImage src={user.avatar_url} alt={user.name} />
+                        )}
+                        <AvatarFallback className="bg-muted text-foreground font-medium">
+                          {getInitials(user.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium truncate">{user.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xxs">{user.role}</Badge>
+                          <StatusChip status={user.status} />
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant={getRoleBadgeVariant(user.role)}>
-                        {user.role === "Admin" && <Shield className="h-3 w-3 mr-1" />}
-                        {user.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {user.department ?? "-"}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <StatusChip status={user.status} />
-                    </TableCell>
-                    <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                      {user.last_login ? (() => { try { return format(new Date(user.last_login), 'PP p'); } catch { return '-'; } })() : '-'}
-                    </TableCell>
-                    <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          <Button size="sm" variant="outline"><MoreHorizontal className="h-4 w-4" /></Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           {authRole === 'admin' && (
-                          <DropdownMenuItem onClick={() => openEditUser(user)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditUser(user)}>
+                              <Edit className="h-4 w-4 mr-2" /> Edit
+                            </DropdownMenuItem>
                           )}
                           {authRole === 'admin' && (
-                            <DropdownMenuItem 
-                              onClick={() => handleDeleteUser(user.id, user.name)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
+                            <DropdownMenuItem onClick={() => handleDeleteUser(user.id, user.name)} className="text-destructive">
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete
                             </DropdownMenuItem>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-        </TableBody>
-            </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-      )}
+          )}
           
       {filteredUsers.length === 0 && !loading && (
             <div className="text-center py-8">
