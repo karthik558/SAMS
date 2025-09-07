@@ -1,4 +1,4 @@
-import { Bell, Search, User, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon } from "lucide-react";
+import { Bell, Search, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import CommandPalette from "@/components/layout/CommandPalette";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -33,6 +34,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [highlight, setHighlight] = useState(0);
   const [globalResults, setGlobalResults] = useState<{ nav: any[]; assets: any[]; properties: any[]; users: any[]; qrcodes: any[]; tickets: any[]; approvals: any[] }>({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
   const [searching, setSearching] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -96,6 +98,8 @@ export function Header({ onMenuClick }: HeaderProps) {
       }
     })();
   }, []);
+
+  // (Removed context chips near search per request)
 
   const unreadCount = useMemo(() => {
     return notifications.filter(n => !n.read).length;
@@ -167,45 +171,17 @@ export function Header({ onMenuClick }: HeaderProps) {
   navigate(path);
   };
 
-  // Debounced global search for entities (Supabase only)
+  // Keyboard shortcut for command palette
   useEffect(() => {
-    const q = search.trim();
-    if (!hasSupabaseEnv || q.length < 2) {
-      setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const like = `%${q}%`;
-        const [assets, properties, users, qrcodes, tickets, approvals] = await Promise.all([
-          supabase.from('assets').select('id,name,type,property,serial_number,department,location,description').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},property.ilike.${like},serial_number.ilike.${like},department.ilike.${like},location.ilike.${like},description.ilike.${like}`).limit(5),
-          supabase.from('properties').select('id,name,type,status').or(`id.ilike.${like},name.ilike.${like},type.ilike.${like},status.ilike.${like}`).limit(5),
-          supabase.from('app_users').select('name,email,role,department').or(`name.ilike.${like},email.ilike.${like},role.ilike.${like},department.ilike.${like}`).limit(5),
-          supabase.from('qr_codes').select('id,asset_id,property,generated_date').or(`id.ilike.${like},asset_id.ilike.${like},property.ilike.${like}`).limit(5),
-          supabase.from('tickets').select('id,title,status,assignee,created_by,priority,target_role').or(`id.ilike.${like},title.ilike.${like},status.ilike.${like},assignee.ilike.${like},created_by.ilike.${like},priority.ilike.${like},target_role.ilike.${like}`).limit(5),
-          supabase.from('approvals').select('id,asset_id,status,department').or(`id.ilike.${like},asset_id.ilike.${like},status.ilike.${like},department.ilike.${like}`).limit(5),
-        ]);
-        setGlobalResults({
-          nav: [],
-          assets: assets.data || [],
-          properties: properties.data || [],
-          users: users.data || [],
-          qrcodes: qrcodes.data || [],
-          tickets: tickets.data || [],
-          approvals: approvals.data || [],
-        });
-      } catch (e) {
-        // ignore errors silently; keep nav-only
-        setGlobalResults({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
-      } finally {
-        setSearching(false);
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
       }
-    }, 250);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [search]);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
     <header className="h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -222,54 +198,12 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search pages, assets, properties, users..."
+              placeholder="Search pages and actions… (⌘K)"
               className="pl-10 bg-muted/50 h-9"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); setHighlight(0); }}
-              onFocus={() => setSearchOpen(true)}
-              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-              onKeyDown={(e) => {
-                if (!unifiedResults.length) return;
-                if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight(h => Math.min(h+1, unifiedResults.length-1)); }
-                else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight(h => Math.max(h-1, 0)); }
-                else if (e.key === 'Enter') { e.preventDefault(); goTo(unifiedResults[highlight].path); }
-              }}
+              readOnly
+              onFocus={() => setPaletteOpen(true)}
+              onClick={() => setPaletteOpen(true)}
             />
-            {searchOpen && unifiedResults.length > 0 && (
-              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md overflow-hidden">
-                {/* Grouped results */}
-                {(() => {
-                  const groups: Record<string, Array<typeof unifiedResults[number]>> = {};
-                  for (const r of unifiedResults) {
-                    if (!groups[r.group]) groups[r.group] = [];
-                    groups[r.group].push(r);
-                  }
-                  const order = ['Pages','Assets','Properties','Users','QR Codes','Tickets'];
-                  return order.filter(g => groups[g]?.length).map((g) => (
-                    <div key={g}>
-                      <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-muted-foreground bg-muted/40">{g}</div>
-                      {groups[g].map((item, idx0) => {
-                        const idx = unifiedResults.findIndex(x => x.key === item.key);
-                        return (
-                          <button
-                            key={item.key}
-                            className={`w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground ${idx===highlight ? 'bg-accent/60' : ''}`}
-                            onMouseDown={(e) => { e.preventDefault(); goTo(item.path); }}
-                            onMouseEnter={() => setHighlight(idx)}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate">{item.label}</span>
-                              <span className="ml-2 text-[10px] text-muted-foreground">{item.path}</span>
-                            </div>
-                            {item.sub && <div className="text-xs text-muted-foreground truncate">{item.sub}</div>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ));
-                })()}
-              </div>
-            )}
           </div>
         </div>
 
@@ -416,6 +350,8 @@ export function Header({ onMenuClick }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+      {/* Command Palette */}
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} role={authUser?.role || null} />
     </header>
   );
 }
