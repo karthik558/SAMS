@@ -2,6 +2,8 @@ import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { addNotification, addRoleNotification } from "@/services/notifications";
 import { listUsers } from "@/services/users";
+// property-aware assignee filtering helpers
+import { listUserPropertyAccess } from "@/services/userAccess";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -18,6 +20,8 @@ export type Ticket = {
   createdBy: string;
   createdAt: string; // ISO
   updatedAt?: string | null;
+  // New: property scoping for tickets
+  propertyId?: string | null;
 };
 
 const TABLE = "tickets";
@@ -160,49 +164,85 @@ export async function listTickets(filter?: Partial<Pick<Ticket, "status" | "assi
   ));
 }
 
-export async function createTicket(input: {
+export type NewTicketInput = {
   title: string;
   description: string;
-  targetRole: 'admin' | 'manager';
+  // Optional when assignee chosen; derived from assignee role if omitted
+  targetRole?: 'admin' | 'manager';
   createdBy: string;
   status?: TicketStatus;
   assignee?: string | null;
   priority?: "low" | "medium" | "high" | "urgent";
   slaDueAt?: string | null;
-}): Promise<Ticket> {
-  // Derive default assignee when not provided: pick an active user with that role
-  async function pickDefaultAssignee(role: 'admin' | 'manager'): Promise<string | null> {
+  // New: property context for routing/visibility
+  propertyId: string;
+};
+
+// List candidate assignees for a property:
+// - Managers who have access to the property
+// - Admins (always listed, labeled as Admin)
+export async function listAssigneesForProperty(propertyId: string): Promise<Array<{ id: string; label: string; role: 'admin' | 'manager' }>> {
+  const users = await listUsers();
+  const norm = (s: string) => (s || '').toLowerCase();
+  const managers = users.filter(u => norm(u.role) === 'manager' && norm(u.status) !== 'inactive');
+  const admins = users.filter(u => norm(u.role) === 'admin' && norm(u.status) !== 'inactive');
+  let allowedManagerIds = new Set<string>();
+  if (hasSupabaseEnv) {
     try {
-      if (isDemoMode()) return role === 'admin' ? 'admin@sams.demo' : 'manager@sams.demo';
-      if (!hasSupabaseEnv) return null;
-      const users = await listUsers();
-      const candidates = users.filter(u => (u.role || '').toLowerCase() === role && (u.status || '').toLowerCase() !== 'inactive');
-      // Prefer most recently active
-      const sorted = candidates.sort((a,b) => {
-        const ta = a.last_login ? Date.parse(a.last_login) : 0;
-        const tb = b.last_login ? Date.parse(b.last_login) : 0;
-        return tb - ta;
-      });
-  const chosen = sorted[0] || candidates[0];
-  return chosen ? (chosen.email || chosen.id || null) : null;
+      const { data, error } = await supabase.from('user_property_access').select('user_id').eq('property_id', propertyId);
+      if (!error) {
+        allowedManagerIds = new Set<string>((data || []).map((r: any) => String(r.user_id)));
+      }
     } catch {
-      return null;
+      // fall through to per-user check
     }
   }
-  const derivedAssignee = input.assignee ?? await pickDefaultAssignee(input.targetRole);
+  // If we couldn't build the set remotely, check per-user (fallback)
+  if (allowedManagerIds.size === 0) {
+    for (const m of managers) {
+      try {
+        const props = await listUserPropertyAccess(m.id);
+        if (props.includes(propertyId)) allowedManagerIds.add(m.id);
+      } catch {}
+    }
+  }
+  const out: Array<{ id: string; label: string; role: 'admin' | 'manager' }> = [];
+  managers.forEach(m => {
+    if (allowedManagerIds.has(m.id)) out.push({ id: m.id, label: m.name || m.email || m.id, role: 'manager' });
+  });
+  admins.forEach(a => { out.push({ id: a.id, label: (a.name || a.email || a.id) + ' (Admin)', role: 'admin' }); });
+  return out;
+}
+
+export async function createTicket(input: NewTicketInput): Promise<Ticket> {
+  // Derive default assignee when not provided: pick an active user with that role
+  async function pickDefaultAssignee(opts: { propertyId: string; role?: 'admin' | 'manager' }): Promise<{ assignee: string | null; targetRole: 'admin' | 'manager' }> {
+    try {
+      const candidates = await listAssigneesForProperty(opts.propertyId);
+      // If caller specified role, filter to that; else prefer manager for the property
+      const filtered = opts.role ? candidates.filter(c => c.role === opts.role) : candidates.filter(c => c.role === 'manager');
+      const chosen = filtered[0] || candidates[0];
+      return { assignee: chosen ? chosen.id : null, targetRole: (chosen?.role || 'manager') };
+    } catch {
+      return { assignee: null, targetRole: opts.role || 'manager' };
+    }
+  }
+  const picked = input.assignee ? { assignee: input.assignee, targetRole: input.targetRole || 'manager' } : await pickDefaultAssignee({ propertyId: input.propertyId, role: input.targetRole });
+  const targetRoleFinal: 'admin' | 'manager' = (input.targetRole || picked.targetRole || 'manager');
   const payload: Ticket = {
     id: `TCK-${Math.floor(Math.random()*900000+100000)}`,
     title: input.title,
     description: input.description,
-    targetRole: input.targetRole,
+    targetRole: targetRoleFinal,
     status: input.status ?? "open",
-    assignee: derivedAssignee,
+    assignee: picked.assignee ?? null,
     priority: input.priority ?? "medium",
     slaDueAt: input.slaDueAt ?? null,
     createdBy: input.createdBy,
     createdAt: new Date().toISOString(),
   // leave updatedAt undefined so DB default/trigger can set it
   updatedAt: undefined,
+  propertyId: input.propertyId,
   };
   if (isDemoMode()) {
     seedDemoTicketsOnce();
@@ -391,6 +431,7 @@ function toCamel(row: any): Ticket {
     createdBy: row.created_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? null,
+    propertyId: row.property_id ?? null,
   };
 }
 
@@ -409,6 +450,7 @@ function toSnake(input: Partial<Ticket>) {
     created_by: input.createdBy,
     created_at: input.createdAt,
     updated_at: input.updatedAt,
+    property_id: input.propertyId ?? null,
   };
   if (Object.prototype.hasOwnProperty.call(input, 'assignee')) {
     // Allow setting to null explicitly when caller intends to unassign

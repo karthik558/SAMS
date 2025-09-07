@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
 import { isDemoMode } from "@/lib/demo";
-import { createTicket, listTickets, updateTicket, listTicketEvents, type Ticket } from "@/services/tickets";
+import { createTicket, listTickets, updateTicket, listTicketEvents, listAssigneesForProperty, type Ticket } from "@/services/tickets";
 import { listUsers, type AppUser } from "@/services/users";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { listTicketComments, addTicketComment, type TicketComment } from "@/services/ticketComments";
 import { listAttachments, uploadAttachment, removeAttachment, type TicketAttachment } from "@/services/ticketAttachments";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
+import { listProperties } from "@/services/properties";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 export default function Tickets() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -35,7 +37,12 @@ export default function Tickets() {
   const [closeNote, setCloseNote] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [targetRole, setTargetRole] = useState<'admin' | 'manager'>('admin');
+  // Property-aware assignment
+  const [propertyId, setPropertyId] = useState<string>("");
+  const [propertyOpts, setPropertyOpts] = useState<Array<{ id: string; name: string }>>([]);
+  const [assigneeId, setAssigneeId] = useState<string>("");
+  const [assigneeOpts, setAssigneeOpts] = useState<Array<{ id: string; label: string }>>([]);
+  const [assigneeRoleMap, setAssigneeRoleMap] = useState<Record<string, 'admin' | 'manager'>>({});
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
   const [layout, setLayout] = useState<'list' | 'board'>('list');
@@ -102,25 +109,54 @@ export default function Tickets() {
         toast.info('Supabase not configured or unreachable; tickets are saved locally.');
       }
   setInitialLoading(false);
+      // Load accessible properties for current user and populate options
+      try {
+        const accessible = await getAccessiblePropertyIdsForCurrentUser();
+        const allProps = await listProperties();
+        const filtered = allProps.filter(p => accessible.size === 0 || accessible.has(String(p.id)));
+        setPropertyOpts(filtered.map(p => ({ id: p.id, name: p.name })));
+        if (filtered[0]) setPropertyId(filtered[0].id);
+      } catch {}
+
     })();
   }, []);
 
+  // Refresh assignee options when property changes
+  useEffect(() => {
+    (async () => {
+      if (!propertyId) { setAssigneeOpts([]); setAssigneeRoleMap({}); setAssigneeId(""); return; }
+      try {
+        const list = await listAssigneesForProperty(propertyId);
+        setAssigneeOpts(list.map(a => ({ id: a.id, label: a.label })));
+        const map: Record<string, 'admin' | 'manager'> = {};
+        list.forEach(a => { map[a.id] = a.role; });
+        setAssigneeRoleMap(map);
+        setAssigneeId("");
+      } catch {
+        setAssigneeOpts([]);
+        setAssigneeRoleMap({});
+      }
+    })();
+  }, [propertyId]);
+
   const add = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!title.trim() || !description.trim()) return;
+    if (!title.trim() || !description.trim() || !propertyId) { toast.error('Please enter title, description, and select a property.'); return; }
     setCreating(true);
     const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })();
     const createdBy = (currentUser?.email || currentUser?.id || 'user');
     const tempId = `temp_${Date.now()}`;
-    const optimistic: Ticket = { id: tempId, title: title.trim(), description: description.trim(), targetRole, createdBy, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: 'open', assignee: null, priority, slaDueAt: null, closeNote: null } as any;
+    const optimistic: Ticket = { id: tempId, title: title.trim(), description: description.trim(), targetRole: (assigneeId ? (assigneeRoleMap[assigneeId] || 'manager') : 'manager'), createdBy, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: 'open', assignee: assigneeId || null, priority, slaDueAt: null, closeNote: null, propertyId } as any;
     setItems((s) => [optimistic, ...s]);
     toast.message('Creating ticket…');
     try {
-      const t = await createTicket({ title: title.trim(), description: description.trim(), targetRole, createdBy, priority });
+      const t = await createTicket({ title: title.trim(), description: description.trim(), createdBy, priority, propertyId, assignee: assigneeId || null, targetRole: assigneeId ? assigneeRoleMap[assigneeId] : undefined });
       setItems((s) => [t, ...s.filter(i => i.id !== tempId)]);
       setTitle("");
       setDescription("");
       setPriority('medium');
+      setAssigneeId("");
+      // keep property selected
       const fallback = localStorage.getItem('tickets_fallback_reason');
       if (hasSupabaseEnv && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
     } catch (err) {
@@ -337,13 +373,22 @@ export default function Tickets() {
       <Card>
         <CardHeader><CardTitle>New Ticket</CardTitle></CardHeader>
         <CardContent className="grid gap-3">
-          <div className="grid gap-3 md:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-6">
             <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className="md:col-span-2" />
-            <Select value={targetRole} onValueChange={(v) => setTargetRole(v as 'admin' | 'manager')}>
-              <SelectTrigger className="w-full"><SelectValue placeholder="Target" /></SelectTrigger>
+            <Select value={propertyId} onValueChange={(v) => setPropertyId(v)}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Property" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
+                {propertyOpts.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.id} • {p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={assigneeId} onValueChange={(v) => setAssigneeId(v)}>
+              <SelectTrigger className="w-full"><SelectValue placeholder="Assign to (Managers for property, or Admin)" /></SelectTrigger>
+              <SelectContent>
+                {assigneeOpts.map(a => (
+                  <SelectItem key={a.id} value={a.id}>{a.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={priority} onValueChange={(v) => setPriority(v as any)}>
@@ -355,7 +400,7 @@ export default function Tickets() {
                 <SelectItem value="urgent">Urgent</SelectItem>
               </SelectContent>
             </Select>
-            <Button onClick={add}>Create</Button>
+            <Button onClick={add} disabled={!propertyId || creating}>{creating ? 'Creating…' : 'Create'}</Button>
           </div>
           <Textarea
             placeholder="Describe the issue in detail..."
