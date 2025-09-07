@@ -90,6 +90,10 @@ export default function Properties() {
   const [properties, setProperties] = useState<any[]>(mockProperties);
   const isSupabase = hasSupabaseEnv;
   const [role, setRole] = useState<string>("");
+  // UI state: filters and search
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -291,11 +295,19 @@ export default function Properties() {
   };
 
   // Derived helpers for UI rendering
-  const maxAssets = Math.max(1, ...properties.map((p: any) => Number(p.assetCount) || 0));
-  const inactiveCount = properties.filter(p => (p.status || "").toLowerCase() === "inactive").length;
+  const filtered = properties.filter((p) => {
+    const term = search.trim().toLowerCase();
+    const matchesTerm = !term || [p.name, p.address, p.id, p.type, p.manager].some((v: any) => (v || "").toString().toLowerCase().includes(term));
+    const matchesType = typeFilter === 'all' || (p.type || '').toString().toLowerCase() === typeFilter;
+    const matchesStatus = statusFilter === 'all' || (p.status || '').toString().toLowerCase() === statusFilter;
+    return matchesTerm && matchesType && matchesStatus;
+  });
+  
+  const maxAssets = Math.max(1, ...filtered.map((p: any) => Number(p.assetCount) || 0));
+  const inactiveCount = filtered.filter(p => (p.status || "").toLowerCase() === "inactive").length;
   const typeCounts = (() => {
     const map = new Map<string, number>();
-    for (const p of properties) {
+    for (const p of filtered) {
       const t = p.type || "Other";
       map.set(t, (map.get(t) || 0) + 1);
     }
@@ -315,7 +327,7 @@ export default function Properties() {
 
   const assetsByType = (() => {
     const map = new Map<string, number>();
-    for (const p of properties) {
+    for (const p of filtered) {
       const t = p.type || "Other";
       const count = Number(p.assetCount) || 0;
       map.set(t, (map.get(t) || 0) + count);
@@ -373,6 +385,41 @@ export default function Properties() {
           }
         />
 
+        {/* Toolbar */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div className="relative flex-1 min-w-[220px]">
+                <Input placeholder="Search properties, IDs, addresses…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    <SelectItem value="office">Office</SelectItem>
+                    <SelectItem value="storage">Storage</SelectItem>
+                    <SelectItem value="manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="site office">Site Office</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
     {/* Stats */}
   <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -380,7 +427,7 @@ export default function Properties() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Properties</p>
-                  <p className="text-2xl font-bold">{properties.length}</p>
+                  <p className="text-2xl font-bold">{filtered.length}</p>
                 </div>
                 <Building2 className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -392,9 +439,7 @@ export default function Properties() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Active Properties</p>
-                  <p className="text-2xl font-bold text-success">
-                    {properties.filter(p => p.status === "Active").length}
-                  </p>
+                  <p className="text-2xl font-bold text-success">{filtered.filter(p => p.status === "Active").length}</p>
                 </div>
                 <MapPin className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -406,9 +451,7 @@ export default function Properties() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Assets</p>
-                  <p className="text-2xl font-bold">
-                    {properties.reduce((sum, prop) => sum + prop.assetCount, 0)}
-                  </p>
+                  <p className="text-2xl font-bold">{filtered.reduce((sum, prop) => sum + (Number(prop.assetCount) || 0), 0)}</p>
                 </div>
                 <Package className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -433,25 +476,26 @@ export default function Properties() {
 
         {/* Properties Grid */}
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {properties.map((property) => {
+          {filtered.map((property) => {
             const pct = Math.max(0, Math.min(100, Math.round((Number(property.assetCount) || 0) / maxAssets * 100)));
             return (
               <Card
                 key={property.id}
-                className="group relative border-border/70 hover:border-primary/30 hover:shadow-md transition-colors duration-200 rounded-xl overflow-hidden bg-card hover:bg-card/90"
+                className="group relative rounded-xl overflow-hidden bg-card/95 border border-border/70 hover:border-primary/30 shadow-sm hover:shadow-md transition-all"
               >
+                <div className="h-1.5 bg-gradient-to-r from-primary/60 via-primary/40 to-transparent" />
                 <CardHeader className="pb-0">
                   <div className="flex items-start gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 group-hover:bg-primary/15">
                       <Building2 className="h-5 w-5" />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <CardTitle className="text-base md:text-[1.05rem] truncate">{property.name}</CardTitle>
+                        <CardTitle className="text-base md:text-[1.05rem] truncate group-hover:text-primary transition-colors">{property.name}</CardTitle>
                         {getStatusBadge(property.status)}
                       </div>
                       <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5">{property.id}</span>
+                        <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 bg-muted/40">{property.id}</span>
                         <Badge variant="outline" className="px-2 py-0.5 text-[11px]">{property.type}</Badge>
                       </div>
                     </div>
