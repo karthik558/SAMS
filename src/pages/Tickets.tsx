@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Ticket as TicketIcon } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
@@ -21,6 +22,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { listTicketComments, addTicketComment, type TicketComment } from "@/services/ticketComments";
 import { listAttachments, uploadAttachment, removeAttachment, type TicketAttachment } from "@/services/ticketAttachments";
+import { PageSkeleton } from "@/components/ui/page-skeletons";
 
 export default function Tickets() {
   const [items, setItems] = useState<Ticket[]>([]);
@@ -40,6 +42,13 @@ export default function Tickets() {
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
   const [attachments, setAttachments] = useState<Record<string, TicketAttachment[]>>({});
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
+  const [assigning, setAssigning] = useState<Record<string, boolean>>({});
+  const [closing, setClosing] = useState(false);
+  const [posting, setPosting] = useState<Record<string, boolean>>({});
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -88,41 +97,58 @@ export default function Tickets() {
         [...createdById, ...createdByEmail].forEach(t => mapMerge.set(t.id, t));
         setItems(Array.from(mapMerge.values()));
       }
-      const fallback = localStorage.getItem('tickets_fallback_reason');
+  const fallback = localStorage.getItem('tickets_fallback_reason');
       if (!hasSupabaseEnv || fallback) {
         toast.info('Supabase not configured or unreachable; tickets are saved locally.');
       }
+  setInitialLoading(false);
     })();
   }, []);
 
-  const add = async () => {
-    if (!title || !description) return;
+  const add = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!title.trim() || !description.trim()) return;
+    setCreating(true);
     const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })();
     const createdBy = (currentUser?.email || currentUser?.id || 'user');
-    const t = await createTicket({ title, description, targetRole, createdBy, priority });
-    setItems((s) => [t, ...s]);
-    setTitle("");
-    setDescription("");
-    setPriority('medium');
-  const fallback = localStorage.getItem('tickets_fallback_reason');
-  if (hasSupabaseEnv && !fallback) {
-      toast.success('Ticket created');
-    } else {
-      toast.info('Ticket saved locally (Supabase not configured)');
+    const tempId = `temp_${Date.now()}`;
+    const optimistic: Ticket = { id: tempId, title: title.trim(), description: description.trim(), targetRole, createdBy, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), status: 'open', assignee: null, priority, slaDueAt: null, closeNote: null } as any;
+    setItems((s) => [optimistic, ...s]);
+    toast.message('Creating ticket…');
+    try {
+      const t = await createTicket({ title: title.trim(), description: description.trim(), targetRole, createdBy, priority });
+      setItems((s) => [t, ...s.filter(i => i.id !== tempId)]);
+      setTitle("");
+      setDescription("");
+      setPriority('medium');
+      const fallback = localStorage.getItem('tickets_fallback_reason');
+      if (hasSupabaseEnv && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
+    } catch (err) {
+      setItems((s) => s.filter(i => i.id !== tempId));
+      toast.error('Failed to create ticket');
+    } finally {
+      setCreating(false);
     }
   };
 
   const setStatus = async (id: string, status: Ticket["status"]) => {
+    const prev = items.find(i => i.id === id)?.status;
+    setUpdatingStatus(s => ({ ...s, [id]: true }));
+    setItems((s) => s.map(i => i.id === id ? { ...i, status } : i));
     try {
       const t = await updateTicket(id, { status });
       if (t) setItems((s) => s.map(i => i.id === id ? t : i));
+      toast.success(`Marked as ${status.replace('_',' ')}`);
     } catch (e: any) {
+      setItems((s) => s.map(i => i.id === id ? { ...i, status: prev as any } : i));
       const msg = (e?.message || '').toString();
       if (msg.includes('NOT_AUTHORIZED')) {
         toast.error('Only the assigned person can change the status.');
       } else {
         toast.error('Failed to update status.');
       }
+    } finally {
+      setUpdatingStatus(s => ({ ...s, [id]: false }));
     }
   };
 
@@ -217,13 +243,20 @@ export default function Tickets() {
     const assignee = currentActorEmail || currentActorId;
     if (!assignee) { toast.error('Cannot determine your user identity.'); return; }
     try {
+      setAssigning(s => ({ ...s, [id]: true }));
+      const prev = items.find(i => i.id === id)?.assignee;
+      setItems((s) => s.map(i => i.id === id ? { ...i, assignee } : i));
       const t = await updateTicket(id, { assignee });
       if (t) {
         setItems((s) => s.map(i => i.id === id ? t : i));
         toast.success('Assigned to you.');
       }
     } catch {
+      const prev = items.find(i => i.id === id)?.assignee;
+      setItems((s) => s.map(i => i.id === id ? { ...i, assignee: prev || null } : i));
       toast.error('Failed to assign.');
+    } finally {
+      setAssigning(s => ({ ...s, [id]: false }));
     }
   };
   const fmt = (iso?: string | null) => {
@@ -337,24 +370,26 @@ export default function Tickets() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
               <CardTitle>Tickets</CardTitle>
-              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
                 <TabsList>
-                  <TabsTrigger value="received">Received</TabsTrigger>
-                  <TabsTrigger value="raised">Raised</TabsTrigger>
+          <TabsTrigger value="received" aria-label="Received tickets">Received</TabsTrigger>
+          <TabsTrigger value="raised" aria-label="Raised tickets">Raised</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
             <div className="flex items-center gap-3">
               <DateRangePicker value={range} onChange={setRange} />
               <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)}>
-                <ToggleGroupItem value="list">List</ToggleGroupItem>
-                <ToggleGroupItem value="board">Board</ToggleGroupItem>
+                <ToggleGroupItem value="list" aria-label="List view">List</ToggleGroupItem>
+                <ToggleGroupItem value="board" aria-label="Board view">Board</ToggleGroupItem>
               </ToggleGroup>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {layout === 'list' ? (
+          {initialLoading ? (
+            <PageSkeleton />
+          ) : layout === 'list' ? (
             filteredItems.map(t => (
               <div key={t.id} className="border rounded p-4 bg-card">
                 <div className="flex items-start justify-between gap-3">
@@ -381,10 +416,10 @@ export default function Tickets() {
                     <div className="flex gap-2">
                       {t.status !== 'closed' && canChangeStatus(t) && (
                         <>
-                          <Button size="sm" variant={t.status==='open' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'open')}>Open</Button>
-                          <Button size="sm" variant={t.status==='in_progress' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'in_progress')}>In Progress</Button>
-                          <Button size="sm" variant={t.status==='resolved' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'resolved')}>Resolved</Button>
-                          <Button size="sm" variant="outline" onClick={() => openCloseDialog(t.id)}>Closed</Button>
+                          <Button aria-label={`Mark ticket ${t.id} open`} size="sm" variant={t.status==='open' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'open')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'Open'}</Button>
+                          <Button aria-label={`Mark ticket ${t.id} in progress`} size="sm" variant={t.status==='in_progress' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'in_progress')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'In Progress'}</Button>
+                          <Button aria-label={`Mark ticket ${t.id} resolved`} size="sm" variant={t.status==='resolved' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'resolved')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'Resolved'}</Button>
+                          <Button aria-label={`Close ticket ${t.id}`} size="sm" variant="outline" onClick={() => openCloseDialog(t.id)} disabled={!!updatingStatus[t.id]}>Closed</Button>
                         </>
                       )}
                       {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
@@ -415,8 +450,8 @@ export default function Tickets() {
                           </div>
                         ))}
                         <div className="flex items-center gap-2">
-                          <Input placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
-                          <Button size="sm" onClick={() => addComment(t.id)}>Post</Button>
+                          <Input aria-label={`Add comment to ticket ${t.id}`} placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
+                          <Button aria-label={`Post comment on ticket ${t.id}`} size="sm" onClick={() => addComment(t.id)} disabled={posting[t.id] || !(commentText[t.id]||'').trim()}>{posting[t.id] ? 'Posting…' : 'Post'}</Button>
                         </div>
                       </div>
                     </div>
@@ -432,7 +467,7 @@ export default function Tickets() {
                         </div>
                         <div>
                           <input id={`file-${t.id}`} type="file" className="hidden" onChange={(e)=> onUpload(t.id, e.target.files?.[0])} />
-                          <Button size="sm" variant="outline" onClick={() => document.getElementById(`file-${t.id}`)?.click()}>Upload</Button>
+                          <Button aria-label={`Upload attachment to ticket ${t.id}`} size="sm" variant="outline" onClick={() => document.getElementById(`file-${t.id}`)?.click()} disabled={uploading[t.id]}>{uploading[t.id] ? 'Uploading…' : 'Upload'}</Button>
                         </div>
                       </div>
                     </div>
@@ -516,8 +551,8 @@ export default function Tickets() {
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCloseDialogOpen(false)}>Cancel</Button>
-            <Button onClick={confirmClose}>Close Ticket</Button>
+            <Button variant="outline" onClick={() => setCloseDialogOpen(false)} disabled={closing}>Cancel</Button>
+            <Button aria-label="Confirm close ticket" onClick={confirmClose} disabled={closing}>{closing ? 'Closing…' : 'Close Ticket'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -59,6 +59,7 @@ import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/us
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -904,7 +905,7 @@ export default function Users() {
         }
       />
 
-      <Card>
+  <Card>
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -955,6 +956,11 @@ export default function Users() {
         </CardHeader>
         
         <CardContent>
+          {loading ? (
+            <div className="space-y-4" aria-busy="true" aria-live="polite">
+              <TableSkeleton rows={8} />
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -1029,11 +1035,12 @@ export default function Users() {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
+        </TableBody>
             </Table>
           </div>
+      )}
           
-          {filteredUsers.length === 0 && !loading && (
+      {filteredUsers.length === 0 && !loading && (
             <div className="text-center py-8">
               <User className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
               <p className="text-muted-foreground">No users found</p>

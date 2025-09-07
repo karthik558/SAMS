@@ -16,6 +16,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusChip from "@/components/ui/status-chip";
+import { PageSkeleton } from "@/components/ui/page-skeletons";
 
 export default function Approvals() {
   const [items, setItems] = useState<ApprovalRequest[]>([]);
@@ -226,7 +227,7 @@ export default function Approvals() {
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {loading ? <div>Loading…</div> : (Array.isArray(visibleItems) && visibleItems.length) ? visibleItems.map(a => {
+          {loading ? <PageSkeleton /> : (Array.isArray(visibleItems) && visibleItems.length) ? visibleItems.map(a => {
             const actionLabel = (a?.action ? String(a.action).toUpperCase() : 'REQUEST');
             const assetLabel = a?.assetId || '-';
             const requestedBy = a?.requestedBy || '-';
