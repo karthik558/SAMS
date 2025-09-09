@@ -953,7 +953,13 @@ export default function Assets() {
                     onCheckedChange={(checked) => {
                       const on = !!checked;
                       setDeptAll(on);
-                      if (on) setDeptFilter(visibleDeptOptions);
+                      if (on) {
+                        // Selecting "All" selects every visible department
+                        setDeptFilter(visibleDeptOptions);
+                      } else {
+                        // Unselecting "All" should clear every selection
+                        setDeptFilter([]);
+                      }
                     }}
                   >
                     All Departments
