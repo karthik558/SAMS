@@ -201,6 +201,10 @@ export default function Properties() {
   };
 
   const handleEditProperty = (propertyId: string) => {
+    if ((role || '').toLowerCase() !== 'admin') {
+      toast.error("Only admins can edit properties");
+      return;
+    }
     setEditingId(propertyId);
     const p = properties.find((x: any) => x.id === propertyId);
     if (p) {
@@ -217,6 +221,10 @@ export default function Properties() {
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
+    if ((role || '').toLowerCase() !== 'admin') {
+      toast.error("Only admins can delete properties");
+      return;
+    }
     const ok = window.confirm(`Are you sure you want to delete property ${propertyId}? This action cannot be undone.`);
     if (!ok) return;
     try {
@@ -559,8 +567,8 @@ export default function Properties() {
                     <p className="text-[11px] text-muted-foreground">Manager: <span className="text-foreground/90 font-medium">{property.manager}</span></p>
                   ) : null}
 
-                  {/* Actions */}
-                  {canEditPage && (
+                  {/* Actions (admin-only) */}
+                  {role === 'admin' && (
                     <div className="flex gap-2 pt-1">
                       <Button size="sm" variant="outline" onClick={() => handleEditProperty(property.id)} className="gap-2">
                         <Edit className="h-4 w-4" /> Edit
