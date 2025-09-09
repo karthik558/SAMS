@@ -414,6 +414,27 @@ export default function Assets() {
     })();
   }, [assets.length]);
 
+  // Asset scope for stats: restrict to accessible properties for non-admins
+  const scopedAssets = useMemo(() => {
+    const isAdmin = (role || '').toLowerCase() === 'admin';
+    if (isAdmin) return assets;
+    if (accessibleProps && accessibleProps.size) {
+      return assets.filter(a => accessibleProps.has(String((a as any).property_id || (a as any).property)));
+    }
+    return assets;
+  }, [assets, accessibleProps, role]);
+
+  // Stats source: apply selected Property filter to the scoped assets so cards reflect chosen properties
+  const statsAssets = useMemo(() => {
+    if (!scopedAssets.length) return scopedAssets;
+    if (filterProperty === 'all') return scopedAssets;
+    const needle = String(filterProperty || '').toLowerCase();
+    return scopedAssets.filter((a: any) => {
+      const pid = String(a?.property_id || a?.property || '').toLowerCase();
+      return pid === needle;
+    });
+  }, [scopedAssets, filterProperty]);
+
   if (loadingUI && isSupabase) {
     return <PageSkeleton />;
   }
@@ -874,12 +895,12 @@ export default function Assets() {
 
   {/* Stats Cards (derived from current assets state) */}
   <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <Card>
+    <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Assets</p>
-                  <p className="text-2xl font-bold">{assets.length}</p>
+  <p className="text-2xl font-bold">{statsAssets.length}</p>
                 </div>
                 <Package className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -892,7 +913,7 @@ export default function Assets() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Active</p>
                   <p className="text-2xl font-bold text-success">
-                    {assets.filter(a => a.status === "Active").length}
+                    {statsAssets.filter(a => a.status === "Active").length}
                   </p>
                 </div>
                 <Building2 className="h-8 w-8 text-muted-foreground" />
@@ -906,7 +927,7 @@ export default function Assets() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Expiring Soon</p>
                   <p className="text-2xl font-bold text-warning">
-                    {assets.filter(a => a.status === "Expiring Soon").length}
+                    {statsAssets.filter(a => a.status === "Expiring Soon").length}
                   </p>
                 </div>
                 <AlertTriangle className="h-8 w-8 text-muted-foreground" />
@@ -920,7 +941,7 @@ export default function Assets() {
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total Quantity</p>
                   <p className="text-2xl font-bold">
-                    {assets.reduce((sum, asset) => sum + Number(asset.quantity || 0), 0)}
+                    {statsAssets.reduce((sum, asset) => sum + Number(asset.quantity || 0), 0)}
                   </p>
                 </div>
                 <Calendar className="h-8 w-8 text-muted-foreground" />

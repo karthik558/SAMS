@@ -14,6 +14,7 @@ import { isDemoMode, demoStats } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
 import { listAssets } from "@/services/assets";
 import { listProperties } from "@/services/properties";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listUsers } from "@/services/users";
 import { listQRCodes } from "@/services/qrcodes";
 import { downloadAssetTemplate, importAssetsFromFile } from "@/services/bulkImport";
@@ -45,13 +46,29 @@ const Index = () => {
     (async () => {
       try {
     const uiTimer = setTimeout(() => setLoadingUI(true), 100); // ensure skeleton visible if slow
-        const [assets, properties, users, qrs] = await Promise.all([
+        const [assetsRaw, propertiesRaw, users, qrs] = await Promise.all([
           listAssets().catch(() => [] as any[]),
           listProperties().catch(() => [] as any[]),
           listUsers().catch(() => [] as any[]),
           listQRCodes().catch(() => [] as any[]),
         ]);
-        const expiringSoon = (assets as any[]).filter(a => {
+        // Scope by user access for non-admins
+        let assets: any[] = assetsRaw;
+        let properties: any[] = propertiesRaw;
+        try {
+          const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
+          const u = raw ? JSON.parse(raw) : null;
+          const isAdmin = String(u?.role || '').toLowerCase() === 'admin';
+          if (!isAdmin) {
+            const allowed = await getAccessiblePropertyIdsForCurrentUser();
+            if (allowed && allowed.size) {
+              properties = properties.filter((p: any) => allowed.has(String(p.id)));
+              const allowedIds = new Set(Array.from(allowed));
+              assets = assets.filter((a: any) => allowedIds.has(String(a.property_id || a.property)));
+            }
+          }
+        } catch {}
+  const expiringSoon = (assets as any[]).filter(a => {
           if (!a.expiryDate) return false;
           const d = new Date(a.expiryDate);
           const now = new Date();
@@ -61,7 +78,7 @@ const Index = () => {
         setCounts({ assets: assets.length, properties: properties.length, users: users.length, expiring: expiringSoon });
 
         // Derived metrics
-        const totalQuantity = (assets as any[]).reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
+  const totalQuantity = (assets as any[]).reduce((sum, a) => sum + (Number(a.quantity) || 0), 0);
         const assetTypes = (() => {
           try {
             const set = new Set<string>();

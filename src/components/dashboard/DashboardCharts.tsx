@@ -21,6 +21,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets, getDemoProperties } from "@/lib/demo";
 import { listAssets, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 const palette = [
   "hsl(217, 91%, 60%)",
@@ -39,6 +40,8 @@ function monthLabel(d: Date) {
 export function DashboardCharts() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
+  const [role, setRole] = useState<string>("");
+  const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isDemoMode()) {
@@ -63,16 +66,52 @@ export function DashboardCharts() {
     })();
   }, []);
 
+  // Load role and accessible property IDs for current user
+  useEffect(() => {
+    try {
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
+      const r = raw ? (JSON.parse(raw).role || "") : "";
+      setRole(String(r || '').toLowerCase());
+    } catch {}
+    (async () => {
+      try {
+        const ids = await getAccessiblePropertyIdsForCurrentUser();
+        setAccessibleProps(ids);
+      } catch {
+        setAccessibleProps(new Set());
+      }
+    })();
+  }, []);
+
+  // Scope visible properties and assets for non-admins
+  const visibleProperties = useMemo(() => {
+    if (role === 'admin') return properties;
+    if (accessibleProps && accessibleProps.size) return properties.filter(p => accessibleProps.has(String(p.id)));
+    return properties;
+  }, [role, properties, accessibleProps]);
+
+  const scopedAssets = useMemo(() => {
+    if (role === 'admin') return assets;
+    if (accessibleProps && accessibleProps.size) {
+      return assets.filter((a: any) => {
+        const pid = String(a?.property_id || a?.property || "");
+        return pid ? accessibleProps.has(pid) : false;
+      });
+    }
+    return assets;
+  }, [role, assets, accessibleProps]);
+
   const activePropertyIds = useMemo(() => {
-    const list = properties || [];
+    const list = visibleProperties || [];
     return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
-  }, [properties]);
+  }, [visibleProperties]);
 
   // Asset Distribution by Type
   const chartAssetsByType = useMemo(() => {
     const map = new Map<string, number>();
-    for (const a of assets) {
-      if (activePropertyIds.size && a.property && !activePropertyIds.has(a.property)) continue;
+    for (const a of scopedAssets) {
+      const pid = String((a as any).property_id || (a as any).property || "");
+      if (activePropertyIds.size && pid && !activePropertyIds.has(pid)) continue;
       const key = a.type || "Other";
       map.set(key, (map.get(key) || 0) + 1);
     }
@@ -87,7 +126,7 @@ export function DashboardCharts() {
       list = [...top, { name: 'Other', value: other }];
     }
     return list.map((item, idx) => ({ ...item, color: palette[idx % palette.length] }));
-  }, [assets, activePropertyIds]);
+  }, [scopedAssets, activePropertyIds]);
 
   // Purchase Trends (last 6 months purchases count)
   const chartPurchaseTrend = useMemo(() => {
@@ -100,18 +139,19 @@ export function DashboardCharts() {
       months.push({ key: monthLabel(d), start, end });
     }
     return months.map(m => {
-      const purchases = assets.filter(a => a.purchaseDate && new Date(a.purchaseDate) >= m.start && new Date(a.purchaseDate) < m.end).length;
+      const purchases = scopedAssets.filter(a => a.purchaseDate && new Date(a.purchaseDate) >= m.start && new Date(a.purchaseDate) < m.end).length;
       return { month: m.key, purchases };
     });
-  }, [assets]);
+  }, [scopedAssets]);
 
   // Assets by Property
-  const propsById = useMemo(() => Object.fromEntries(properties.map(p => [p.id, p])), [properties]);
+  const propsById = useMemo(() => Object.fromEntries(visibleProperties.map(p => [p.id, p])), [visibleProperties]);
   const chartPropertyAssets = useMemo(() => {
     const map = new Map<string, number>();
-    for (const a of assets) {
-      if (activePropertyIds.size && a.property && !activePropertyIds.has(a.property)) continue;
-      const key = a.property || "Unknown";
+    for (const a of scopedAssets) {
+      const pid = String((a as any).property_id || (a as any).property || "");
+      if (activePropertyIds.size && pid && !activePropertyIds.has(pid)) continue;
+      const key = pid || "Unknown";
       map.set(key, (map.get(key) || 0) + 1);
     }
     // Sort by count desc and take top N, grouping the rest as "Other"
@@ -123,7 +163,7 @@ export function DashboardCharts() {
     const top = entries.slice(0, TOP);
     const otherTotal = entries.slice(TOP).reduce((sum, e) => sum + e.assets, 0);
     return [...top, { pid: "__OTHER__", name: "Other", assets: otherTotal }];
-  }, [assets, activePropertyIds, propsById]);
+  }, [scopedAssets, activePropertyIds, propsById]);
 
   // Asset Expiry Tracking (last 6 months: expired vs expiring counts per month)
   const chartExpiryData = useMemo(() => {
@@ -138,7 +178,7 @@ export function DashboardCharts() {
     return months.map(m => {
       let expired = 0;
       let expiring = 0;
-      for (const a of assets) {
+      for (const a of scopedAssets) {
         if (!a.expiryDate) continue;
         const ed = new Date(a.expiryDate);
         if (ed >= m.start && ed <= m.end) {
@@ -147,9 +187,9 @@ export function DashboardCharts() {
       }
       return { month: m.label, expired, expiring };
     });
-  }, [assets]);
+  }, [scopedAssets]);
 
-  const hasData = hasSupabaseEnv && assets.length > 0;
+  const hasData = (scopedAssets.length > 0);
 
   return (
     <div className="grid gap-4 sm:gap-5 md:gap-6 md:grid-cols-2">
