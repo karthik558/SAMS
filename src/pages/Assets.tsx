@@ -153,6 +153,24 @@ export default function Assets() {
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const [range, setRange] = useState<DateRange>();
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
+  // Bulk action scoping: restrict property assignment options for managers
+  const bulkPropertyOptions = useMemo(() => {
+    if (role === 'admin') return propertyOptions;
+    if (role === 'manager') {
+      // Only properties the manager can access
+      if (accessibleProps && accessibleProps.size) {
+        return propertyOptions.filter((pid) => accessibleProps.has(String(pid)));
+      }
+      return [] as string[];
+    }
+    // Users cannot assign property via bulk actions
+    return [] as string[];
+  }, [role, propertyOptions, accessibleProps]);
+
+  // Ensure selected bulkProperty remains valid when options/role change
+  useEffect(() => {
+    if (bulkProperty && !bulkPropertyOptions.includes(bulkProperty)) setBulkProperty('');
+  }, [bulkPropertyOptions]);
   // Saved views & bulk actions
   const [savedView, setSavedView] = useState<string>('all');
   const [bulkProperty, setBulkProperty] = useState<string>('');
@@ -1042,59 +1060,68 @@ export default function Assets() {
             <div className="text-sm">{selectedIds.size} selected</div>
             <div className="flex gap-2 flex-wrap items-center">
               {/* Bulk assign property */}
-              <div className="flex items-center gap-2">
-                <Select value={bulkProperty} onValueChange={setBulkProperty}>
-                  <SelectTrigger className="w-48"><SelectValue placeholder="Assign property" /></SelectTrigger>
-                  <SelectContent>
-                    {propertyOptions.map((pid) => (
-                      <SelectItem key={pid} value={pid}>{propsById[pid]?.name || pid}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!bulkProperty}
-                  onClick={async () => {
-                    const ids = Array.from(selectedIds);
-                    if (!ids.length || !bulkProperty) return;
-                    try {
-                      await Promise.all(ids.map(async (id) => {
-                        try { await updateAsset(id, { property: bulkProperty, property_id: bulkProperty } as any); }
-                        catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, property: bulkProperty, property_id: bulkProperty } : a)); }
-                      }));
-                      toast.success('Property assigned');
-                    } catch { toast.error('Failed to assign property'); }
-                  }}
-                >Apply</Button>
-              </div>
+              {(role === 'admin' || role === 'manager') && (
+                <div className="flex items-center gap-2">
+                  <Select value={bulkProperty} onValueChange={setBulkProperty}>
+                    <SelectTrigger className="w-48"><SelectValue placeholder="Assign property" /></SelectTrigger>
+                    <SelectContent>
+                      {bulkPropertyOptions.map((pid) => (
+                        <SelectItem key={pid} value={pid}>{propsById[pid]?.name || pid}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!bulkProperty}
+                    onClick={async () => {
+                      const ids = Array.from(selectedIds);
+                      if (!ids.length || !bulkProperty) return;
+                      // Enforce access guard for managers on the Apply action as well
+                      if (role === 'manager' && !bulkPropertyOptions.includes(bulkProperty)) {
+                        toast.error('You do not have access to assign to this property');
+                        return;
+                      }
+                      try {
+                        await Promise.all(ids.map(async (id) => {
+                          try { await updateAsset(id, { property: bulkProperty, property_id: bulkProperty } as any); }
+                          catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, property: bulkProperty, property_id: bulkProperty } : a)); }
+                        }));
+                        toast.success('Property assigned');
+                      } catch { toast.error('Failed to assign property'); }
+                    }}
+                  >Apply</Button>
+                </div>
+              )}
               {/* Bulk change condition */}
-              <div className="flex items-center gap-2">
-                <Select value={bulkCondition} onValueChange={setBulkCondition}>
-                  <SelectTrigger className="w-44"><SelectValue placeholder="Change condition" /></SelectTrigger>
-                  <SelectContent>
-                    {['Excellent','Good','Fair','Poor','Broken'].map(c => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!bulkCondition}
-                  onClick={async () => {
-                    const ids = Array.from(selectedIds);
-                    if (!ids.length || !bulkCondition) return;
-                    try {
-                      await Promise.all(ids.map(async (id) => {
-                        try { await updateAsset(id, { condition: bulkCondition } as any); }
-                        catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, condition: bulkCondition } : a)); }
-                      }));
-                      toast.success('Condition updated');
-                    } catch { toast.error('Failed to update condition'); }
-                  }}
-                >Apply</Button>
-              </div>
+              {role !== 'user' && (
+                <div className="flex items-center gap-2">
+                  <Select value={bulkCondition} onValueChange={setBulkCondition}>
+                    <SelectTrigger className="w-44"><SelectValue placeholder="Change condition" /></SelectTrigger>
+                    <SelectContent>
+                      {['Excellent','Good','Fair','Poor','Broken'].map(c => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!bulkCondition}
+                    onClick={async () => {
+                      const ids = Array.from(selectedIds);
+                      if (!ids.length || !bulkCondition) return;
+                      try {
+                        await Promise.all(ids.map(async (id) => {
+                          try { await updateAsset(id, { condition: bulkCondition } as any); }
+                          catch { setAssets((prev) => prev.map(a => a.id === id ? { ...a, condition: bulkCondition } : a)); }
+                        }));
+                        toast.success('Condition updated');
+                      } catch { toast.error('Failed to update condition'); }
+                    }}
+                  >Apply</Button>
+                </div>
+              )}
               {/* Export selected */}
               <Button
                 variant="outline"
