@@ -230,6 +230,23 @@ export default function Assets() {
     return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
   }, [propsById]);
 
+  // Property options visible in filter, respecting access for non-admins
+  const visiblePropertyOptions = useMemo(() => {
+    const base = propertyOptions;
+    if (role === 'admin') return base;
+    if (accessibleProps && accessibleProps.size) {
+      return base.filter(pid => accessibleProps.has(String(pid)));
+    }
+    return [] as string[];
+  }, [propertyOptions, accessibleProps, role]);
+
+  // Keep property filter valid when visible options change
+  useEffect(() => {
+    if (filterProperty !== 'all' && !visiblePropertyOptions.includes(filterProperty)) {
+      setFilterProperty('all');
+    }
+  }, [visiblePropertyOptions]);
+
   // Open Add form if navigated with ?new=1
   useEffect(() => {
     if (searchParams.get("new") === "1") setShowAddForm(true);
@@ -950,7 +967,7 @@ export default function Assets() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Properties</SelectItem>
-                  {propertyOptions.map((p) => (
+                  {visiblePropertyOptions.map((p) => (
                     <SelectItem key={p} value={p}>{p}</SelectItem>
                   ))}
                 </SelectContent>

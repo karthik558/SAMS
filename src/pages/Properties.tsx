@@ -28,6 +28,7 @@ import { listProperties, deleteProperty as sbDeleteProperty, createProperty as s
 import { listAssets, type Asset } from "@/services/assets";
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList, PieChart, Pie, Cell } from "recharts";
@@ -90,6 +91,7 @@ export default function Properties() {
   const [properties, setProperties] = useState<any[]>(mockProperties);
   const isSupabase = hasSupabaseEnv;
   const [role, setRole] = useState<string>("");
+  const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   // UI state: filters and search
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -171,6 +173,18 @@ export default function Properties() {
       }
     })();
   }, [isSupabase]);
+
+  // Load accessible property ids for current user (used to filter visibility for non-admins)
+  useEffect(() => {
+    (async () => {
+      try {
+        const ids = await getAccessiblePropertyIdsForCurrentUser();
+        setAccessibleProps(ids);
+      } catch {
+        setAccessibleProps(new Set());
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     try {
@@ -295,7 +309,14 @@ export default function Properties() {
   };
 
   // Derived helpers for UI rendering
-  const filtered = properties.filter((p) => {
+  // Restrict visible properties for non-admins when access list is available
+  const visibleProperties = (() => {
+    if (role === 'admin') return properties;
+    if (accessibleProps && accessibleProps.size) return properties.filter(p => accessibleProps.has(String(p.id)));
+    return properties;
+  })();
+
+  const filtered = visibleProperties.filter((p) => {
     const term = search.trim().toLowerCase();
     const matchesTerm = !term || [p.name, p.address, p.id, p.type, p.manager].some((v: any) => (v || "").toString().toLowerCase().includes(term));
     const matchesType = typeFilter === 'all' || (p.type || '').toString().toLowerCase() === typeFilter;
