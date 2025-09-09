@@ -1033,10 +1033,8 @@ export default function Assets() {
                           setDeptFilter((prev) => {
                             const set = new Set(prev);
                             if (checked) set.add(d); else set.delete(d);
-                            const next = Array.from(set);
-                            // if all selected, toggle back to All
-                            if (next.length === visibleDeptOptions.length) setDeptAll(true);
-                            return next;
+                            // Do not auto-toggle "All" when all are selected; keep explicit user control
+                            return Array.from(set);
                           });
                         }}
                       >
