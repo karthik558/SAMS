@@ -6,6 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { listProperties, type Property } from "@/services/properties";
+import { listItemTypes } from "@/services/itemTypes";
+import { listDepartments, type Department } from "@/services/departments";
+import { listUserDepartmentAccess } from "@/services/userDeptAccess";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
+import { isDemoMode } from "@/lib/demo";
 import { type Asset } from "@/services/assets";
 
 type Props = {
@@ -17,14 +22,47 @@ type Props = {
 
 export default function RequestEditModal({ open, asset, onClose, onSubmitted }: Props) {
   const [propsList, setPropsList] = useState<Property[]>([]);
+  const [itemTypes, setItemTypes] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allowedDeptNames, setAllowedDeptNames] = useState<string[] | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<Record<string, any>>({});
   const [notes, setNotes] = useState<string>("");
 
   useEffect(() => {
     (async () => {
-      try { const ps = await listProperties(); setPropsList(ps); } catch {}
+      try {
+        const ps = await listProperties();
+        setPropsList(ps);
+      } catch {}
+      try {
+        const types = await listItemTypes();
+        const list = types.map(t => t.name);
+        const cur = (asset?.type || '').toString();
+        setItemTypes(cur && !list.includes(cur) ? [...list, cur] : list);
+      } catch {}
+      try {
+        const ds = await listDepartments();
+        setDepartments(ds);
+      } catch {}
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        const cu = raw ? JSON.parse(raw) : null;
+        setCurrentUser(cu);
+        if (cu?.id) {
+          try { const list = await listUserDepartmentAccess(cu.id); setAllowedDeptNames(Array.isArray(list) ? list : []); }
+          catch { setAllowedDeptNames([]); }
+        } else {
+          setAllowedDeptNames(null);
+        }
+      } catch {}
+      try {
+        const ids = await getAccessiblePropertyIdsForCurrentUser();
+        setAccessibleProps(ids);
+      } catch { setAccessibleProps(new Set()); }
     })();
-  }, []);
+  }, [asset?.type]);
 
   useEffect(() => {
     if (!asset) return;
@@ -32,6 +70,7 @@ export default function RequestEditModal({ open, asset, onClose, onSubmitted }: 
       name: asset.name || "",
       type: asset.type || "",
       property: asset.property || "",
+  department: (asset as any).department || "",
       quantity: asset.quantity ?? 1,
       purchaseDate: asset.purchaseDate || "",
       expiryDate: asset.expiryDate || "",
@@ -60,6 +99,14 @@ export default function RequestEditModal({ open, asset, onClose, onSubmitted }: 
     return Object.keys(patch).map(k => ({ key: k, before: (asset as any)[k], after: (patch as any)[k] }));
   }, [asset, form]);
 
+  // Restrict property list for non-admins (managers/users) if accessible set is available
+  const visibleProperties: Property[] = useMemo(() => {
+    const role = (currentUser?.role || '').toLowerCase();
+    if (role === 'admin') return propsList;
+    if (accessibleProps && accessibleProps.size) return propsList.filter(p => accessibleProps.has(String(p.id)));
+    return propsList;
+  }, [propsList, accessibleProps, currentUser]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl">
@@ -75,14 +122,43 @@ export default function RequestEditModal({ open, asset, onClose, onSubmitted }: 
               </div>
               <div className="space-y-2">
                 <Label>Type</Label>
-                <Input value={form.type} onChange={e => setField('type', e.target.value)} />
+                <Select value={form.type} onValueChange={v => setField('type', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {itemTypes.map(t => (<SelectItem key={t} value={t}>{t}</SelectItem>))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Property</Label>
                 <Select value={form.property} onValueChange={v => setField('property', v)}>
                   <SelectTrigger><SelectValue placeholder="Select property" /></SelectTrigger>
                   <SelectContent>
-                    {propsList.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
+                    {visibleProperties.map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Department</Label>
+                <Select value={form.department || ''} onValueChange={v => setField('department', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectContent>
+                    {(() => {
+                      const role = (currentUser?.role || '').toLowerCase();
+                      let list: Department[] = [];
+                      if (role === 'admin') {
+                        list = departments || [];
+                      } else {
+                        const effective = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
+                        const set = new Set(effective.map((n: string) => n.toLowerCase()));
+                        list = (departments || []).filter((d) => set.has((d.name || '').toLowerCase()));
+                        const cur = (form.department || '').toString();
+                        if (cur && !list.find(d => (d.name || '').toLowerCase() === cur.toLowerCase())) {
+                          list = [{ id: 'cur', name: cur } as any, ...list];
+                        }
+                      }
+                      return list.map(d => (<SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>));
+                    })()}
                   </SelectContent>
                 </Select>
               </div>
@@ -146,7 +222,7 @@ export default function RequestEditModal({ open, asset, onClose, onSubmitted }: 
             if (!asset) return;
             // Build patch
             const patch: Record<string, any> = {};
-            const keys = ["name","type","property","quantity","purchaseDate","expiryDate","poNumber","condition","location"] as const;
+            const keys = ["name","type","property","department","quantity","purchaseDate","expiryDate","poNumber","condition","location"] as const;
             let changed = 0;
             for (const k of keys) {
               const b = (asset as any)[k] ?? "";
