@@ -54,6 +54,7 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
+import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinalApproverPropsForUser, setFinalApproverPropsForEmail } from "@/services/finalApprover";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/userDeptAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
@@ -169,9 +170,11 @@ export default function Users() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [inchargePropertyIds, setInchargePropertyIds] = useState<string[]>([]);
+  const [approverPropertyIds, setApproverPropertyIds] = useState<string[]>([]);
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
   const [editInchargePropertyIds, setEditInchargePropertyIds] = useState<string[]>([]);
+  const [editApproverPropertyIds, setEditApproverPropertyIds] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<Department[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
@@ -360,6 +363,20 @@ export default function Users() {
           await setAuditInchargeForUser(created.id, created.name || null, inchargePropertyIds);
         }
       } catch {}
+      // Persist Final Approver assignments (if any)
+      try {
+        if (approverPropertyIds.length) {
+          try {
+            if (created.email) {
+              await setFinalApproverPropsForEmail(created.email, created.name || null, approverPropertyIds);
+            } else {
+              await setFinalApproverPropsForUser(created.id, created.name || null, approverPropertyIds);
+            }
+          } catch (e: any) {
+            toast({ title: "Final Approver not saved", description: e?.message || "Could not persist Final Approver assignments.", variant: "destructive" });
+          }
+        }
+      } catch {}
       setUsers((prev) => [created, ...prev]);
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
@@ -400,6 +417,7 @@ export default function Users() {
           await setAuditInchargeForUser(local.id, local.name || null, inchargePropertyIds);
         }
       } catch {}
+  // Final Approver assignments are Supabase-only. No local fallback.
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
     }
     setIsAddUserOpen(false);
@@ -441,6 +459,13 @@ export default function Users() {
       setEditInchargePropertyIds(pids);
     } catch {
       setEditInchargePropertyIds([]);
+    }
+    // Load properties where this user is Final Approver
+    try {
+  const pids2 = user?.email ? await listFinalApproverPropsForEmail(user.email) : await listFinalApproverPropsForUser(user.id);
+      setEditApproverPropertyIds(pids2);
+    } catch {
+      setEditApproverPropertyIds([]);
     }
     try {
       const depts = await listUserDepartmentAccess(user.id);
@@ -521,6 +546,18 @@ export default function Users() {
       // Persist Auditor Incharge assignments (admin only UI but safe to call)
       try {
         await setAuditInchargeForUser(editingUser.id, updated?.name || null, editInchargePropertyIds);
+      } catch {}
+      // Persist Final Approver assignments
+      try {
+        try {
+          if (editingUser.email) {
+            await setFinalApproverPropsForEmail(editingUser.email, updated?.name || null, editApproverPropertyIds);
+          } else {
+            await setFinalApproverPropsForUser(editingUser.id, updated?.name || null, editApproverPropertyIds);
+          }
+        } catch (e: any) {
+          toast({ title: "Final Approver not saved", description: e?.message || "Could not persist Final Approver assignments.", variant: "destructive" });
+        }
       } catch {}
       toast({ title: "User updated", description: `${name} has been saved.` });
       setIsEditUserOpen(false);
@@ -715,7 +752,9 @@ export default function Users() {
               <div className="space-y-2">
                 <Label>Page Permissions</Label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[]).map((p) => (
+                  {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
+                    .filter((p) => !(p === 'audit' && (role || '').toLowerCase() === 'user'))
+                    .map((p) => (
                     <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
                       <div className="text-sm font-medium capitalize">{p}</div>
                       <div className="flex items-center gap-3">
@@ -732,6 +771,56 @@ export default function Users() {
                   ))}
                 </div>
                 <p className="text-xs text-muted-foreground">Role provides baseline; these are additional per-user overrides.</p>
+              </div>
+              {/* Final Approver (by Property) - visible for Manager/Admin target role only */}
+              <div className="space-y-2">
+                <Label>Final Approver (by Property)</Label>
+                {((role || '').toLowerCase() !== 'manager' && (role || '').toLowerCase() !== 'admin') && (
+                  <div className="text-xs text-muted-foreground">Visible for Manager/Admin only</div>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin' || !(['manager','admin'].includes((role || '').toLowerCase()))}>
+                      <span className="truncate text-left flex-1 min-w-0">
+                        {approverPropertyIds.length > 0
+                          ? (() => {
+                              const map = new Map(properties.map(p => [p.id, p.name] as const));
+                              const names = approverPropertyIds.map(id => map.get(id) || id);
+                              const preview = names.slice(0, 2).join(", ");
+                              const extra = names.length - 2;
+                              const label = preview.length > 24 ? `${names.length} selected` : preview;
+                              return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                            })()
+                          : "Select approver properties"}
+                      </span>
+                      <MoreHorizontal className="h-4 w-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                      const checked = approverPropertyIds.includes(p.id);
+                      return (
+                        <DropdownMenuItem
+                          key={p.id}
+                          onSelect={(e) => {
+                            e.preventDefault();
+                            if (authRole !== 'admin' || !(['manager','admin'].includes((role || '').toLowerCase()))) return;
+                            const next = new Set(approverPropertyIds);
+                            if (checked) next.delete(p.id); else next.add(p.id);
+                            setApproverPropertyIds(Array.from(next));
+                          }}
+                          className="gap-2 w-full"
+                        >
+                          <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin' || !(['manager','admin'].includes((role || '').toLowerCase()))} onCheckedChange={() => {}} />
+                          <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
+                        </DropdownMenuItem>
+                      );
+                    })}
+                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               {/* Property Access - Dropdown multi-select */}
               <div className="space-y-2">
@@ -1217,7 +1306,9 @@ export default function Users() {
             <div className="space-y-2">
               <Label>Page Permissions</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[]).map((p) => (
+        {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
+          .filter((p) => !(p === 'audit' && (eRole || '').toLowerCase() === 'user'))
+          .map((p) => (
                   <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
                     <div className="text-sm font-medium capitalize">{p}</div>
                     <div className="flex items-center gap-3">
@@ -1234,6 +1325,56 @@ export default function Users() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">Overrides apply on top of role defaults.</p>
+            </div>
+            {/* Final Approver (by Property) - edit; visible for Manager/Admin target role only */}
+            <div className="space-y-2">
+              <Label>Final Approver (by Property)</Label>
+              {((eRole || '').toLowerCase() !== 'manager' && (eRole || '').toLowerCase() !== 'admin') && (
+                <div className="text-xs text-muted-foreground">Visible for Manager/Admin only</div>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))}>
+                    <span className="truncate text-left flex-1 min-w-0">
+                      {editApproverPropertyIds.length > 0
+                        ? (() => {
+                            const map = new Map(properties.map(p => [p.id, p.name] as const));
+                            const names = editApproverPropertyIds.map(id => map.get(id) || id);
+                            const preview = names.slice(0, 2).join(", ");
+                            const extra = names.length - 2;
+                            const label = preview.length > 24 ? `${names.length} selected` : preview;
+                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
+                          })()
+                        : "Select approver properties"}
+                    </span>
+                    <MoreHorizontal className="h-4 w-4 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                    const checked = editApproverPropertyIds.includes(p.id);
+                    return (
+                      <DropdownMenuItem
+                        key={p.id}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          if (authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))) return;
+                          const next = new Set(editApproverPropertyIds);
+                          if (checked) next.delete(p.id); else next.add(p.id);
+                          setEditApproverPropertyIds(Array.from(next));
+                        }}
+                        className="gap-2 w-full"
+                      >
+                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))} onCheckedChange={() => {}} />
+                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
+                      </DropdownMenuItem>
+                    );
+                  })}
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {/* Property Access - Dropdown multi-select (edit) */}
             <div className="space-y-2">

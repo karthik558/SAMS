@@ -44,7 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 import { listDepartments } from "@/services/departments";
@@ -53,6 +53,7 @@ import { listItemTypes } from "@/services/itemTypes";
 import { createQRCode, updateQRCode, type QRCode as SbQRCode } from "@/services/qrcodes";
 import { submitApproval, listApprovals, type ApprovalRequest } from "@/services/approvals";
 import RequestEditModal from "@/components/assets/RequestEditModal";
+import { listFinalApproverPropsForUser } from "@/services/finalApprover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { composeQrWithLabel, composeQrGridSheet, composeQrA4Sheet, LABEL_PRESETS, printImagesAsLabels } from "@/lib/qr";
 import QRCode from "qrcode";
@@ -151,6 +152,7 @@ export default function Assets() {
   const [approvalsByAsset, setApprovalsByAsset] = useState<Record<string, ApprovalRequest | undefined>>({});
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
+  const [approverPropIds, setApproverPropIds] = useState<Set<string>>(new Set());
   const [range, setRange] = useState<DateRange>();
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
   // Bulk action scoping: restrict property assignment options for managers
@@ -171,6 +173,23 @@ export default function Assets() {
   useEffect(() => {
     if (bulkProperty && !bulkPropertyOptions.includes(bulkProperty)) setBulkProperty('');
   }, [bulkPropertyOptions]);
+  // Load final-approver property ids for current user (Supabase-auth when configured)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!hasSupabaseEnv) { setApproverPropIds(new Set()); return; }
+        const { data, error } = await supabase.auth.getUser();
+        if (error) throw error;
+        const user = data?.user;
+        const uid = (user?.id || user?.email || '').toString();
+        if (!uid) { setApproverPropIds(new Set()); return; }
+        const list = await listFinalApproverPropsForUser(uid);
+        setApproverPropIds(new Set((list || []).map(String)));
+      } catch {
+        setApproverPropIds(new Set());
+      }
+    })();
+  }, []);
   // Saved views & bulk actions
   const [savedView, setSavedView] = useState<string>('all');
   const [bulkProperty, setBulkProperty] = useState<string>('');
@@ -563,7 +582,9 @@ export default function Assets() {
   };
 
   const handleEditAsset = (asset: any) => {
-    if (role !== 'admin') return; // only admin can edit
+    const pid = getAssetPropertyId(asset);
+    const canApproverEdit = approverPropIds.has(pid);
+    if (!(role === 'admin' || canApproverEdit)) return;
     setSelectedAsset(asset);
     setShowAddForm(true);
   };
@@ -612,6 +633,15 @@ export default function Assets() {
     }
     setSelectedAsset(asset);
     setShowQRGenerator(true);
+  };
+
+  // Resolve property id for an asset (supports demo where only name is present)
+  const getAssetPropertyId = (a: any): string => {
+    const pid = a?.property_id ? String(a.property_id) : '';
+    if (pid) return pid;
+    const name = String(a?.property || '');
+    const by = propsByName[name];
+    return by?.id ? String(by.id) : name;
   };
   // Utility to parse prefix + numeric suffix from an asset id (e.g., AST-001 -> prefix 'AST-', num 1, width 3)
   const parseId = (id: string): { prefix: string; num: number; width: number } | null => {
@@ -1211,8 +1241,14 @@ export default function Assets() {
                     const id = Array.from(selectedIds)[0];
                     const target = assets.find(a => a.id === id);
                     if (!target) { toast.error('Asset not found'); return; }
-                    setRequestEditAsset(target);
-                    setRequestEditOpen(true);
+                    const pid = getAssetPropertyId(target);
+                    if (approverPropIds.has(pid)) {
+                      setSelectedAsset(target);
+                      setShowAddForm(true);
+                    } else {
+                      setRequestEditAsset(target);
+                      setRequestEditOpen(true);
+                    }
                   }}
                   disabled={selectedIds.size !== 1}
                 >
@@ -1326,7 +1362,7 @@ export default function Assets() {
                     {isVisible('actions') && (
                     <TableCell>
                       <div className="flex gap-2">
-                        {role === 'admin' && (
+                        {(role === 'admin' || approverPropIds.has(String(asset.property_id || asset.property || ''))) && (
                         <Button
                           size="sm"
                           variant="outline"
