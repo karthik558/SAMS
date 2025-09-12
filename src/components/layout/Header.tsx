@@ -1,5 +1,5 @@
 import { Bell, Search, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +119,33 @@ export function Header({ onMenuClick }: HeaderProps) {
     { label: 'Settings', path: `${prefix}/settings`, roles: ['admin'] },
   ].filter(i => i.roles.includes(roleLower as any) || roleLower === '');
 
+  // Resolve a navigation target for a notification (component scope)
+  function getNotificationTarget(n: Notification): string {
+    const type = (n.type || '').toLowerCase();
+    const getTicketId = () => {
+      const m1 = (n.title || '').match(/TCK-\d+/);
+      const m2 = (n.message || '').match(/TCK-\d+/);
+      return (m1?.[0] || m2?.[0]) || null;
+    };
+    if (type.startsWith('ticket')) {
+      const id = getTicketId();
+      const path = id ? `/tickets?id=${encodeURIComponent(id)}` : '/tickets';
+      return isDemoMode() ? `/demo${path}` : path;
+    }
+    if (type === 'qr') {
+      // Try to navigate to the specific asset if ID present like "AST-001"
+      const m = (n.message || '').match(/\b([A-Z]+-\d+)\b/);
+      const assetId = m?.[1];
+      const path = assetId ? `/assets/${assetId}` : '/qr-codes';
+      // Asset details route is global (no /demo prefix)
+      return assetId ? path : (isDemoMode() ? `/demo${path}` : path);
+    }
+    if (type === 'report') { return isDemoMode() ? '/demo/reports' : '/reports'; }
+    if (type === 'system') { return isDemoMode() ? '/demo' : '/'; }
+    // Fallback
+    return isDemoMode() ? '/demo' : '/';
+  }
+
   // Build unified list for keyboard navigation
   const unifiedResults = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -135,7 +162,9 @@ export function Header({ onMenuClick }: HeaderProps) {
       { terms: ['tickets','ticket','maintenance'], label: 'Tickets', path: navItems.find(i=>i.label==='Tickets')?.path || '/tickets' },
       { terms: ['approvals','approval','requests'], label: 'Approvals', path: navItems.find(i=>i.label==='Approvals')?.path || '/approvals' },
       { terms: ['audit','audits'], label: 'Audit', path: navItems.find(i=>i.label==='Audit')?.path || '/audit' },
-    ];
+  ];
+  
+  
     const synMatches = q
       ? synonyms.filter(s => s.terms.some(t => q.includes(t)))
       : [];
@@ -266,17 +295,26 @@ export function Header({ onMenuClick }: HeaderProps) {
               {notifications.length === 0 ? (
                 <div className="p-3 text-sm text-muted-foreground">No notifications</div>
               ) : (
-                notifications.slice(0, 12).map((n) => (
-                  <DropdownMenuItem key={n.id} className="py-3">
-                    <div className="flex flex-col gap-1">
-                      <p className="text-sm font-medium break-words">{n.title || n.type}</p>
-                      <p className="text-xs text-muted-foreground break-words">{n.message}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {n.type.replace(/_/g, " ")} • {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </DropdownMenuItem>
-                ))
+                notifications.slice(0, 12).map((n) => {
+                  const to = getNotificationTarget(n);
+                  return (
+                    <DropdownMenuItem key={n.id} className="py-0 px-0">
+                      <Link
+                        to={to}
+                        className="block w-full px-2 py-3 hover:bg-accent rounded-sm"
+                        onClick={() => setNotifOpen(false)}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <p className="text-sm font-medium break-words">{n.title || n.type}</p>
+                          <p className="text-xs text-muted-foreground break-words">{n.message}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {n.type.replace(/_/g, " ")} • {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
+                          </p>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })
               )}
             </DropdownMenuContent>
           </DropdownMenu>

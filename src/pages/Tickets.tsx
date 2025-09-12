@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import type React from "react";
 import { isDemoMode } from "@/lib/demo";
 import { createTicket, listTickets, updateTicket, listTicketEvents, listAssigneesForProperty, type Ticket } from "@/services/tickets";
@@ -26,6 +27,7 @@ import { listProperties } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 export default function Tickets() {
+  const location = useLocation();
   const [items, setItems] = useState<Ticket[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [events, setEvents] = useState<Record<string, { id: string; createdAt: string; author: string; message: string; eventType: string }[]>>({});
@@ -137,6 +139,26 @@ export default function Tickets() {
       }
     })();
   }, [propertyId]);
+
+  // If navigated with a ticket id (e.g., /tickets?id=TCK-123456), auto-expand and scroll to it.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const focusId = params.get('id');
+    if (!focusId || items.length === 0) return;
+    const t = items.find(i => i.id === focusId);
+    if (!t) return;
+    // If the ticket is closed and closed are hidden, switch to show only closed so it is visible
+    if (t.status === 'closed') {
+      // Delay to next tick to avoid filtering race on initial load
+      setTimeout(() => setShowClosedOnly(true), 0);
+    }
+    setExpanded(s => ({ ...s, [focusId]: true }));
+    // Smooth scroll into view if present in DOM
+    setTimeout(() => {
+      const el = document.getElementById(`ticket-${focusId}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, [location.search, items]);
 
   const add = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -509,7 +531,7 @@ export default function Tickets() {
             <PageSkeleton />
           ) : layout === 'list' ? (
             filteredItems.map(t => (
-              <div key={t.id} className="border rounded p-4 bg-card">
+              <div key={t.id} id={`ticket-${t.id}`} className="border rounded p-4 bg-card">
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
                     <div className="font-medium flex items-center gap-2">
@@ -598,6 +620,7 @@ export default function Tickets() {
                     {grouped[col.key].map(t => (
                       <div
                         key={t.id}
+                        id={`ticket-${t.id}`}
                         className="rounded border bg-card p-3 shadow-sm cursor-grab"
                         draggable={t.status !== 'closed' && canChangeStatus(t)}
                         onDragStart={(e) => onDragStart(e, t.id)}
