@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId } from "@/services/permissions";
+import { playNotificationSound } from "@/lib/sound";
 import { listUsers } from "@/services/users";
 
 export type Notification = {
@@ -48,7 +49,10 @@ export async function listNotifications(limit = 50): Promise<Notification[]> {
   return loadLocal().slice(0, limit);
 }
 
-export async function addNotification(input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean }): Promise<Notification> {
+export async function addNotification(
+  input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
+  opts?: { silent?: boolean }
+): Promise<Notification> {
   const payload: Notification = {
     id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
     title: input.title,
@@ -81,6 +85,8 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
         .select("id, title, message, type, read, created_at")
         .single();
       if (error) throw error;
+      // Local side-effect: play sound once notification is recorded remotely
+      try { if (!opts?.silent) playNotificationSound(); } catch {}
       return data as Notification;
     } catch (e) {
       console.warn("notifications insert failed, using localStorage", e);
@@ -89,13 +95,15 @@ export async function addNotification(input: Omit<Notification, "id" | "read" | 
   const list = loadLocal();
   const updated = [payload, ...list];
   saveLocal(updated);
+  try { if (!opts?.silent) playNotificationSound(); } catch {}
   return payload;
 }
 
 // Direct notification to a specific user (by user_id). Useful for @mentions or ticket assignment updates.
 export async function addUserNotification(
   userId: string,
-  input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean }
+  input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
+  opts?: { silent?: boolean }
 ): Promise<Notification> {
   const payload: Notification = {
     id: `NTF-${Math.floor(Math.random()*900000+100000)}`,
@@ -127,6 +135,7 @@ export async function addUserNotification(
         .select("id, title, message, type, read, created_at")
         .single();
       if (error) throw error;
+      try { if (!opts?.silent) playNotificationSound(); } catch {}
       return data as Notification;
     } catch (e) {
       console.warn('addUserNotification failed, falling back to localStorage', e);
@@ -135,6 +144,7 @@ export async function addUserNotification(
   const list = loadLocal();
   const updated = [payload, ...list];
   saveLocal(updated);
+  try { if (!opts?.silent) playNotificationSound(); } catch {}
   return payload;
 }
 
@@ -152,11 +162,12 @@ function getActorName(): string | null {
 // When Supabase is available, inserts one row per recipient user_id so it respects per-user RLS.
 export async function addRoleNotification(
   input: Omit<Notification, "id" | "read" | "created_at"> & { read?: boolean },
-  role: 'admin' | 'manager'
+  role: 'admin' | 'manager',
+  opts?: { silent?: boolean }
 ): Promise<void> {
   // In demo or without Supabase, fall back to a single local notification (best-effort)
   if (!hasSupabaseEnv || isDemoMode()) {
-    await addNotification(input);
+    await addNotification(input, opts);
     return;
   }
   try {
@@ -168,7 +179,7 @@ export async function addRoleNotification(
         p_type: input.type,
         p_role: role,
       } as any);
-      if (!rpcError) return;
+      if (!rpcError) { try { if (!opts?.silent) playNotificationSound(); } catch {} ; return; }
       console.warn('RPC add_notifications_for_role_v1 failed, attempting client-side insert...', rpcError);
     } catch (e) {
       console.warn('RPC add_notifications_for_role_v1 not available, attempting client-side insert...', e);
@@ -195,9 +206,11 @@ export async function addRoleNotification(
     // Insert in one batch
     const { error } = await supabase.from(table).insert(rows);
     if (error) throw error;
+    // The sender gets a local beep as feedback that notifications were sent
+    try { if (!opts?.silent) playNotificationSound(); } catch {}
   } catch (e) {
     console.warn('addRoleNotification failed, falling back to single notification', e);
-    await addNotification(input);
+    await addNotification(input, opts);
   }
 }
 

@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
+import { initNotificationSound } from '@/lib/sound'
 import './index.css'
 
 // Apply saved theme (or system preference) before React renders to avoid flash
@@ -25,4 +26,5 @@ try {
 	}
 } catch {}
 
+try { initNotificationSound(); } catch {}
 createRoot(document.getElementById("root")!).render(<App />);

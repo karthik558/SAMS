@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listAssets, type Asset } from "@/services/assets";
+import { playNotificationSound } from "@/lib/sound";
 
 export type AuditSession = {
   id: string;
@@ -48,10 +49,12 @@ export async function startAuditSession(freq: 3 | 6, initiated_by?: string | nul
   try {
     const { data, error } = await supabase.rpc("start_audit_session_v2", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null, p_property_id: property_id ?? null });
     if (error) throw error;
+    try { playNotificationSound(); } catch {}
     return data as any;
   } catch (e) {
     const { data, error } = await supabase.rpc("start_audit_session_v1", { p_frequency_months: freq, p_initiated_by: initiated_by ?? null });
     if (error) throw error;
+    try { playNotificationSound(); } catch {}
     return data as any;
   }
 }

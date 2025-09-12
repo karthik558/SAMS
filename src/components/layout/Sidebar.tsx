@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
+import { listTickets } from "@/services/tickets";
 import { listApprovals } from "@/services/approvals";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
@@ -51,6 +52,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [auditActive, setAuditActive] = useState<boolean>(false);
   const [hasAuditReports, setHasAuditReports] = useState<boolean>(false);
   const [auditPendingCount, setAuditPendingCount] = useState<number>(0);
+  const [ticketNewCount, setTicketNewCount] = useState<number>(0);
+  const [ticketPendingCount, setTicketPendingCount] = useState<number>(0);
   useEffect(() => {
     (async () => {
       try {
@@ -114,6 +117,45 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           setPendingApprovals(0);
         }
       } catch {}
+    })();
+  }, [location.pathname]);
+
+  // Load ticket badges: red = new open for my role; yellow = assigned to me and in progress/resolved
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        const u = raw ? JSON.parse(raw) : null;
+        const role = ((u?.role || '') as string).toLowerCase();
+        const meId = u?.id as string | undefined;
+        const meEmail = u?.email as string | undefined;
+        // Red badge: open tickets for my role
+        if (role === 'admin' || role === 'manager') {
+          try {
+            const roleTickets = await listTickets({ targetRole: role as any });
+            const openCount = (roleTickets || []).filter(t => t.status === 'open').length;
+            setTicketNewCount(openCount);
+          } catch { setTicketNewCount(0); }
+        } else {
+          setTicketNewCount(0);
+        }
+        // Yellow badge: tickets assigned to me that are not closed and not open (i.e., in progress or awaiting resolution)
+        const assignedLists: any[][] = [];
+        try { if (meId) assignedLists.push(await listTickets({ assignee: meId })); } catch {}
+        try { if (meEmail && meEmail !== meId) assignedLists.push(await listTickets({ assignee: meEmail })); } catch {}
+        const seen = new Set<string>();
+        const mine = assignedLists.flat().filter((t) => {
+          if (!t?.id) return false;
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        });
+        const pendingMine = mine.filter(t => t.status === 'in_progress' || t.status === 'resolved');
+        setTicketPendingCount(pendingMine.length);
+      } catch {
+        setTicketNewCount(0);
+        setTicketPendingCount(0);
+      }
     })();
   }, [location.pathname]);
 
@@ -228,6 +270,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       {item.name === "Audit" && auditPendingCount > 0 && (
                         <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                           {auditPendingCount}
+                        </span>
+                      )}
+                      {item.name === "Tickets" && ticketNewCount > 0 && (
+                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                          {ticketNewCount}
+                        </span>
+                      )}
+                      {item.name === "Tickets" && ticketPendingCount > 0 && (
+                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-foreground">
+                          {ticketPendingCount}
                         </span>
                       )}
                     </span>

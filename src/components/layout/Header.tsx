@@ -86,9 +86,9 @@ export function Header({ onMenuClick }: HeaderProps) {
           if (!cleared) {
             // Seed 3 notifications; store to local service storage
             await clearAllNotifications();
-            await addNotification({ title: 'Welcome to the SAMS Demo', message: 'Explore the app with sample data. Changes are not saved.', type: 'system' });
-            await addNotification({ title: 'QR generated', message: 'QR for AST-005 is ready to download.', type: 'qr' });
-            await addNotification({ title: 'Report ready', message: 'Monthly Asset Report has been generated.', type: 'report' });
+            await addNotification({ title: 'Welcome to the SAMS Demo', message: 'Explore the app with sample data. Changes are not saved.', type: 'system' }, { silent: true });
+            await addNotification({ title: 'QR generated', message: 'QR for AST-005 is ready to download.', type: 'qr' }, { silent: true });
+            await addNotification({ title: 'Report ready', message: 'Monthly Asset Report has been generated.', type: 'report' }, { silent: true });
           }
         }
         const data = await listNotifications(50);
