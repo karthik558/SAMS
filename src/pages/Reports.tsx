@@ -225,7 +225,7 @@ export default function Reports() {
         if (hasSupabaseEnv || isDemoMode()) {
           const sess = await listSessions(25);
           // Scope sessions by allowed property for non-admins
-          const sessScoped = (isAdmin || !allowed.size) ? (sess || []) : (sess || []).filter((s: any) => s?.property_id && allowed.has(String(s.property_id)));
+          const sessScoped = isAdmin ? (sess || []) : (sess || []).filter((s: any) => s?.property_id && allowed.has(String(s.property_id)));
           setAuditSessions(sessScoped);
         }
       } catch (e) {

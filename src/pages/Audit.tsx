@@ -9,12 +9,14 @@ import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
+import { listAssets, type Asset } from "@/services/assets";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { isDemoMode } from "@/lib/demo";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import { listAuditInchargeForUser, getAuditIncharge as fetchAuditIncharge } from "@/services/audit";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listDepartments, type Department } from "@/services/departments";
 import { listProperties, type Property } from "@/services/properties";
 
@@ -55,6 +57,65 @@ export default function Audit() {
   const [myId, setMyId] = useState<string>("");
   // Per-department totals to compute progress rings
   const [deptTotals, setDeptTotals] = useState<Record<string, number>>({});
+
+  // Build and print a PDF with all department submissions for a session
+  async function exportAuditSessionPdf(sessionId: string) {
+    try {
+      if (!sessionId) return;
+      const reviews = await listReviewsForSession(sessionId).catch(() => [] as AuditReview[]);
+      if (!reviews.length) { toast.info('No data to export for this session'); return; }
+      let assets: Asset[] = [];
+      try { assets = await listAssets(); } catch {}
+      const aById = new Map<string, Asset>((assets || []).map(a => [String(a.id), a]));
+      // Group by department
+      const byDept = new Map<string, AuditReview[]>();
+      for (const r of reviews) {
+        const d = (r.department || '').toString() || 'Unknown';
+        if (!byDept.has(d)) byDept.set(d, []);
+        byDept.get(d)!.push(r);
+      }
+      // Build HTML
+      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+      const normalizedBase = (base || '').replace(/\/$/, '');
+      const logoSrc = `${normalizedBase}/favicon.png`;
+      const parts: string[] = [];
+      // Summary across departments
+      const totals = reviews.reduce((acc: Record<string, number>, r) => { const k = String(r.status||'').toLowerCase(); acc[k] = (acc[k]||0)+1; return acc; }, {});
+      parts.push(`<div class="summary"><span class="chip ok">Verified: ${totals['verified']||0}</span><span class="chip warn">Damaged: ${totals['damaged']||0}</span><span class="chip err">Missing: ${totals['missing']||0}</span></div>`);
+      for (const [dept, rows] of byDept.entries()) {
+        parts.push(`<h2 class="section">Department: ${dept}</h2>`);
+        const cols = ['asset_id','asset_name','property','status','comment','updated_at'];
+        const thead = `<tr>${cols.map(c=>`<th>${c.replace('_',' ').toUpperCase()}</th>`).join('')}</tr>`;
+        const tbody = rows.map(r => {
+          const a = aById.get(String(r.asset_id));
+          const name = a?.name || '';
+          const prop = (a as any)?.property || '';
+          const status = String(r.status || '').toLowerCase();
+          const bg = status === 'missing' ? '#fee2e2' : (status === 'damaged' ? '#fef3c7' : 'transparent');
+          const fw = status === 'missing' ? '600' : 'normal';
+          return `<tr style="background:${bg};font-weight:${fw};"><td class="mono">${r.asset_id}</td><td>${name}</td><td>${prop}</td><td>${r.status}</td><td>${r.comment||''}</td><td>${r.updated_at||''}</td></tr>`;
+        }).join('');
+        parts.push(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
+      }
+      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Audit Session ${sessionId}</title>
+      <style>@page{size:A4;margin:14mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px} .brand img{height:28px;width:28px;object-fit:contain} .meta{color:#666;font-size:12px;margin-bottom:8px} .summary{display:flex;gap:8px;margin:8px 0 12px} .chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(0,0,0,0.08)} .chip.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0} .chip.warn{background:#fffbeb;color:#92400e;border-color:#fde68a} .chip.err{background:#fef2f2;color:#991b1b;border-color:#fecaca} .section{margin:16px 0 8px;font-size:15px} table{border-collapse:collapse;width:100%;font-size:12px} th,td{padding:8px;border-bottom:1px solid #eee;text-align:left} .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:11px}</style>
+      </head><body>
+      <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>Audit Review — Session ${sessionId}</h1></div>
+      <div class="meta">Generated at ${new Date().toLocaleString()}</div>
+      ${parts.join('')}
+      </body></html>`;
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed'; iframe.style.right = '0'; iframe.style.bottom = '0'; iframe.style.width = '0'; iframe.style.height = '0'; iframe.style.border = '0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow?.document;
+      doc?.open(); doc?.write(html); doc?.close();
+      const trigger = () => { try { iframe.contentWindow?.focus(); setTimeout(() => iframe.contentWindow?.print(), 50); } finally { setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1000); } };
+      setTimeout(trigger, 200);
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to export PDF');
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -159,29 +220,21 @@ export default function Audit() {
             // Also load sessions and recent reports even while active
             try {
               let rec = await listRecentAuditReports(20);
-              // Restrict recent reports to incharge-owned properties for non-admins
+              // Restrict recent reports by user property access for non-admins
               try {
-                let uid = getCurrentUserId();
-                if (!uid) {
-                  try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
-                }
                 const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
                 if (!isAdmin) {
-                  if (uid) {
-                    const mine = await listAuditInchargeForUser(uid);
-                    if (mine?.length) {
-                      const filtered: typeof rec = [] as any;
-                      for (const r of rec) {
-                        try {
-                          const sess = await getSessionById(r.session_id);
-                          const pid = (sess as any)?.property_id;
-                          if (pid && mine.includes(String(pid))) filtered.push(r);
-                        } catch {}
-                      }
-                      rec = filtered;
-                    } else {
-                      rec = [] as any;
+                  const allowed = await getAccessiblePropertyIdsForCurrentUser();
+                  if (allowed && allowed.size) {
+                    const filtered: typeof rec = [] as any;
+                    for (const r of rec) {
+                      try {
+                        const sess = await getSessionById(r.session_id);
+                        const pid = (sess as any)?.property_id;
+                        if (pid && allowed.has(String(pid))) filtered.push(r);
+                      } catch {}
                     }
+                    rec = filtered;
                   } else {
                     rec = [] as any;
                   }
@@ -193,15 +246,11 @@ export default function Audit() {
               const sessList = await listSessions(20);
               // Filter sessions to allowed properties for non-admins
               try {
-                let uid = getCurrentUserId();
-                if (!uid) {
-                  try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
-                }
                 const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
                 if (!isAdmin) {
-                  if (uid) {
-                    const mine = await listAuditInchargeForUser(uid);
-                    setSessions(sessList.filter((s: any) => s?.property_id && mine.includes(String(s.property_id))));
+                  const allowed = await getAccessiblePropertyIdsForCurrentUser();
+                  if (allowed && allowed.size) {
+                    setSessions(sessList.filter((s: any) => s?.property_id && allowed.has(String(s.property_id))));
                   } else {
                     setSessions([]);
                   }
@@ -221,13 +270,43 @@ export default function Audit() {
           setDeptTotals({});
           // Load recent reports across sessions (persisted history)
           try {
-            const rec = await listRecentAuditReports(20);
+            let rec = await listRecentAuditReports(20);
+            // Restrict recent reports by user property access for non-admins
+            try {
+              const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
+              if (!isAdmin) {
+                const allowed = await getAccessiblePropertyIdsForCurrentUser();
+                if (allowed && allowed.size) {
+                  const filtered: typeof rec = [] as any;
+                  for (const r of rec) {
+                    try {
+                      const sess = await getSessionById(r.session_id);
+                      const pid = (sess as any)?.property_id;
+                      if (pid && allowed.has(String(pid))) filtered.push(r);
+                    } catch {}
+                  }
+                  rec = filtered;
+                } else {
+                  rec = [] as any;
+                }
+              }
+            } catch {}
             setRecentReports(rec);
             try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
             // If no local latest picked, show the most recent one
             if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
             const sess = await listSessions(20);
-            setSessions(sess);
+            // Filter sessions to allowed properties for non-admins
+            try {
+              const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
+              if (!isAdmin) {
+                const allowed = await getAccessiblePropertyIdsForCurrentUser();
+                if (allowed && allowed.size) setSessions(sess.filter((s: any) => s?.property_id && allowed.has(String(s.property_id))));
+                else setSessions([]);
+              } else {
+                setSessions(sess);
+              }
+            } catch { setSessions(sess); }
           } catch {}
             // Fallback: if we have a locally tracked active session ID, try to restore it
             try {
@@ -633,7 +712,7 @@ export default function Audit() {
               </div>
             )}
 
-            {(latestReport || recentReports.length > 0) && (
+            {role === 'admin' && (latestReport || recentReports.length > 0) && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
                   <div className="text-sm text-muted-foreground">
@@ -916,8 +995,8 @@ export default function Audit() {
                                   </TableCell>
                                   <TableCell>
                                     <div className="flex gap-2">
-                                      <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); } } catch {} }}>View</Button>
-                                      <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
+                          <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); try { const sess = await getSessionById(rep.session_id); const pid = (sess as any)?.property_id || ''; setViewPropertyId(String(pid||'')); } catch {} try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} } } catch {} }}>View</Button>
+                              <Button size="sm" variant="outline" onClick={() => { try { exportAuditSessionPdf(r.session_id); } catch {} }}>Export PDF</Button>
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -1056,8 +1135,7 @@ export default function Audit() {
                 })()}
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => window.print()}>Print</Button>
-                <Button variant="outline" onClick={() => window.print()}>Export PDF</Button>
+                <Button variant="outline" onClick={() => { try { if (latestReport) exportAuditSessionPdf(latestReport.session_id); } catch {} }}>Export PDF</Button>
               </div>
             </div>
             {/* Printable report area */}
@@ -1211,47 +1289,43 @@ export default function Audit() {
                   </CardContent>
                 </Card>
               )}
+              {recentReports.length > 0 && (
+                <Card className="mt-4">
+                  <CardHeader>
+                    <CardTitle>Audit History</CardTitle>
+                    <CardDescription>Recent audit reports for your properties</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Generated By</TableHead>
+                            <TableHead className="w-32">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {recentReports.map(r => (
+                            <TableRow key={r.id}>
+                              <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
+                              <TableCell>{r.generated_by || '-'}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} } } catch {} }}>View</Button>
+                                  <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </div>
-            {/* History actions (non-print) */}
-            <div className="mt-6 print:hidden">
-              <div className="overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Generated By</TableHead>
-                      <TableHead>Submissions</TableHead>
-                      <TableHead>Damaged</TableHead>
-                      <TableHead className="w-32">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(recentReports || []).map(r => {
-                      const p = r.payload || {};
-                      const totals = p.totals || {};
-                      const subs = p.submissions || {};
-                      const damaged = Number(totals.damaged || 0);
-                      return (
-                        <TableRow key={r.id}>
-                          <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
-                          <TableCell>{r.generated_by || '-'}</TableCell>
-                          <TableCell>{Number(subs.submitted || 0)} / {Number(subs.total || 0)}</TableCell>
-                          <TableCell>
-                            <span className={damaged > 0 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>{damaged}</span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); window.scrollTo({ top: 0, behavior: 'smooth' }); } } catch {} }}>View</Button>
-                              <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
+            {/* Removed duplicate bottom Audit History list for managers */}
           </CardContent>
         </Card>
       )}
