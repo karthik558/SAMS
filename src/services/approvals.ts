@@ -31,6 +31,7 @@ export type ApprovalEvent = {
 
 const TABLE = "approvals";
 const LS_KEY = "approvals";
+const EV_LS_KEY = "approval_events";
 
 function loadLocal(): ApprovalRequest[] {
   try {
@@ -43,6 +44,13 @@ function loadLocal(): ApprovalRequest[] {
 
 function saveLocal(list: ApprovalRequest[]) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {}
+}
+
+function loadLocalEvents(): ApprovalEvent[] {
+  try { return JSON.parse(localStorage.getItem(EV_LS_KEY) || '[]') as ApprovalEvent[]; } catch { return []; }
+}
+function saveLocalEvents(list: ApprovalEvent[]) {
+  try { localStorage.setItem(EV_LS_KEY, JSON.stringify(list)); } catch {}
 }
 
 export async function resyncApprovalDepartments(): Promise<{ updated: number; total: number; errors: number; }> {
@@ -308,7 +316,7 @@ export async function listApprovalEvents(approvalId: string): Promise<ApprovalEv
         .eq('approval_id', approvalId)
         .order('created_at', { ascending: true });
       if (error) throw error;
-      return (data ?? []).map(ev => ({
+      const remote = (data ?? []).map(ev => ({
         id: ev.id,
         approvalId: ev.approval_id,
         eventType: ev.event_type,
@@ -316,22 +324,55 @@ export async function listApprovalEvents(approvalId: string): Promise<ApprovalEv
         author: ev.author ?? null,
         createdAt: ev.created_at,
       }));
+      // Merge with any local fallback events (e.g., when inserts were blocked by RLS)
+      const local = loadLocalEvents().filter(ev => ev.approvalId === approvalId);
+      return [...remote, ...local].sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
     } catch (e) {
       console.warn('approval_events query failed', e);
     }
   }
-  // No local storage for events; return empty
-  return [];
+  // Local fallback
+  return loadLocalEvents().filter(ev => ev.approvalId === approvalId).sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
 }
 
 // Add a comment event on an approval (used for per-field diff notes)
 export async function addApprovalComment(approvalId: string, author: string, field: string, message: string): Promise<void> {
-  if (!hasSupabaseEnv) {
-    throw new Error('Supabase not configured; comments are unavailable.');
-  }
   const msg = `${field}: ${message}`;
-  const { error } = await supabase.from('approval_events').insert({ approval_id: approvalId, event_type: 'comment', author, message: msg });
-  if (error) throw error;
+  // Try remote first when available
+  if (hasSupabaseEnv) {
+    try {
+      // Prefer SECURITY DEFINER RPC if present (handles missing parent row and RLS)
+      try {
+        const { error: rpcError } = await supabase.rpc('add_approval_event_v1', {
+          p_approval_id: approvalId,
+          p_event_type: 'comment',
+          p_author: author,
+          p_message: msg,
+          p_comments: msg,
+        } as any);
+        if (!rpcError) return;
+        // If RPC not deployed or failed, fall back to direct insert
+      } catch (e) {
+        // Fall through to direct insert
+      }
+      const { error } = await supabase.from('approval_events').insert({ approval_id: approvalId, event_type: 'comment', author, message: msg });
+      if (!error) return;
+      throw error;
+    } catch (e) {
+      console.warn('addApprovalComment remote insert failed, falling back to local', e);
+    }
+  }
+  // Local fallback: persist event so UI can show the comment
+  const ev: ApprovalEvent = {
+    id: `AEV-${Math.floor(Math.random()*900000+100000)}`,
+    approvalId,
+    eventType: 'comment',
+    author,
+    message: msg,
+    createdAt: new Date().toISOString(),
+  };
+  const list = loadLocalEvents();
+  saveLocalEvents([...list, ev]);
 }
 
 function toCamel(row: any): ApprovalRequest {
