@@ -45,6 +45,7 @@ export default function Tickets() {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
   const [layout, setLayout] = useState<'list' | 'board'>('list');
+  const [template, setTemplate] = useState<'none' | 'create_user'>('none');
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
@@ -430,11 +431,46 @@ export default function Tickets() {
             </Select>
             <Button onClick={add} disabled={!propertyId || creating}>{creating ? 'Creating…' : 'Create'}</Button>
           </div>
+          <div className="flex items-center justify-between gap-3">
+            <Label htmlFor="template">Insert template</Label>
+            <Select
+              value={template}
+              onValueChange={(v) => {
+                const val = (v as 'none' | 'create_user');
+                if (val === 'create_user') {
+                  if (!title.trim()) setTitle('Create User');
+                  const tpl = [
+                    'Create User Request',
+                    '',
+                    '| Field           | Value                  |',
+                    '|-----------------|------------------------|',
+                    '| Email           | user@example.com       |',
+                    '| Full name       | FirstN LastN           |',
+                    '| Department      | Engineering            |',
+                    '| Property Access | Property 1, Property 2 |',
+                    '',
+                    'Additional notes:',
+                    '-',
+                  ].join('\n');
+                  setDescription(tpl);
+                }
+                // Reset selector back to none for a lightweight UX
+                setTemplate('none');
+              }}
+            >
+              <SelectTrigger id="template" className="w-56">
+                <SelectValue placeholder="Choose Template" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="create_user">Create User</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Textarea
             placeholder="Describe the issue in detail..."
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="min-h-28 resize-y"
+            className="min-h-48 resize-y"
           />
         </CardContent>
       </Card>
