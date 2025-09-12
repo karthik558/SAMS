@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, no-empty */
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,6 @@ import {
   FileBarChart, 
   Download, 
   CalendarIcon, 
-  Filter, 
   BarChart3,
   FileText,
   ChevronDown
@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { listProperties, type Property } from "@/services/properties";
-import { listItemTypes } from "@/services/itemTypes";
+import { listItemTypes, type ItemType } from "@/services/itemTypes";
 import { listReports, createReport, clearReports, type Report } from "@/services/reports";
 import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
@@ -35,6 +35,7 @@ import { listApprovals, type ApprovalRequest } from "@/services/approvals";
 import { listDepartments, type Department } from "@/services/departments";
 import { listSessions, listReviewsForSession, type AuditSession } from "@/services/audit";
 import { listTickets, type Ticket } from "@/services/tickets";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import {
   Table,
   TableBody,
@@ -95,10 +96,21 @@ const reportTypes = [
   }
 ];
 
+type CurrentUser = { id?: string; email?: string; name?: string; fullName?: string; role?: string; department?: string | null };
+
 export default function Reports() {
   // Identify user & role early (used for defaults below)
-  const currentUser = (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; } })() as any;
+  const currentUser: CurrentUser = (() => {
+    try {
+      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+      return raw ? JSON.parse(raw) as CurrentUser : {} as CurrentUser;
+    } catch {
+      // ignore parse errors
+      return {} as CurrentUser;
+    }
+  })();
   const role: string = (currentUser?.role || '').toLowerCase();
+  const isAdminRole = (role || '').includes('admin');
   const myDept: string | null = currentUser?.department ?? null;
   const [selectedReportType, setSelectedReportType] = useState("");
   const [dateFrom, setDateFrom] = useState<Date>();
@@ -115,6 +127,8 @@ export default function Reports() {
   const [deptForReport, setDeptForReport] = useState<string>("ALL");
   const [auditSessions, setAuditSessions] = useState<AuditSession[]>([]);
   const [selectedAuditSessionId, setSelectedAuditSessionId] = useState<string>("");
+  // Allowed property scope for non-admins
+  const [allowedProps, setAllowedProps] = useState<Set<string>>(new Set());
   // Quick Generate dialog state for Audit Review Report
   const [auditQuickOpen, setAuditQuickOpen] = useState<boolean>(false);
   const [qrSessionId, setQrSessionId] = useState<string>("");
@@ -125,6 +139,22 @@ export default function Reports() {
   const [rrFrom, setRrFrom] = useState<Date | undefined>();
   const [rrTo, setRrTo] = useState<Date | undefined>();
 
+  // Scope recent reports to current user (non-admin) and allowed properties.
+  const scopeRecentReports = (reports: Report[] | null | undefined, allowed: Set<string>): Report[] => {
+    const list = Array.isArray(reports) ? reports : [];
+    // Treat as admin if role indicates admin OR if no property restrictions are recorded
+    const treatAsAdmin = isAdminRole || (allowed && allowed.size === 0);
+    if (treatAsAdmin) return list;
+    const uid = String(currentUser?.id || '');
+    const email = String(currentUser?.email || '');
+    const name = String(currentUser?.name || currentUser?.fullName || '');
+    const me = (v: unknown) => {
+      const s = String(v || '');
+      return !!s && (s === uid || s === email || s === name);
+    };
+    return list.filter((r) => (me((r as any).created_by_id) || me((r as any).created_by)) && (!((r as any).filter_property) || allowed.has(String((r as any).filter_property))));
+  };
+
   // Approvals Log state (admin/manager only)
   const [approvalsAll, setApprovalsAll] = useState<ApprovalRequest[] | null>(null);
   const [apStatus, setApStatus] = useState<'all'|'pending'|'approved'|'rejected'>('all');
@@ -134,7 +164,7 @@ export default function Reports() {
   const [apDeptFilter, setApDeptFilter] = useState<string>('ALL');
   const [showApprovalsLog, setShowApprovalsLog] = useState<boolean>(false);
   // Tickets Report state
-  const [tkScope, setTkScope] = useState<string>(() => (role === 'admin' ? 'all' : 'mine-received'));
+  const [tkScope, setTkScope] = useState<string>(() => (isAdminRole ? 'all' : 'mine-received'));
   const [tkFrom, setTkFrom] = useState<Date | undefined>();
   const [tkTo, setTkTo] = useState<Date | undefined>();
 
@@ -142,24 +172,32 @@ export default function Reports() {
   // When Supabase is enabled, pull live data; else use light fallbacks
   useEffect(() => {
     (async () => {
+      // Load allowed property IDs for current user
+      const isAdmin = isAdminRole;
+      let allowed = new Set<string>();
+      try { if (!isAdmin) allowed = await getAccessiblePropertyIdsForCurrentUser(); } catch { /* ignore */ }
+      setAllowedProps(allowed);
       try {
+
     if (hasSupabaseEnv || isDemoMode()) {
           const [props, types] = await Promise.all([
             listProperties().catch(() => []),
             listItemTypes().catch(() => []),
           ]);
-          setProperties(props as Property[]);
-          setItemTypes((types as any[]).map(t => t.name));
+          const propsScoped = (isAdmin || !allowed.size) ? (props as Property[]) : (props as Property[]).filter(p => allowed.has(String(p.id)));
+          setProperties(propsScoped);
+          setItemTypes((types as ItemType[]).map(t => t.name));
           // Preload assets for downloads/export
           try {
-      const assets = await listAssets();
-            setAssetsCache(assets as Asset[]);
+            const assets = await listAssets();
+            const assetsScoped = (isAdmin || !allowed.size) ? (assets as Asset[]) : (assets as Asset[]).filter(a => allowed.has(String(a.property || a.property_id || '')));
+            setAssetsCache(assetsScoped);
           } catch { /* ignore */ }
           // Load departments for admin Approvals Log filter and for department-wise reports
           try {
             const depts = await listDepartments() as Department[];
             setDepartments(depts);
-            if (role === 'admin') setApDepartments(depts);
+            if (isAdminRole) setApDepartments(depts);
           } catch { /* ignore */ }
         } else {
           setProperties([
@@ -175,7 +213,7 @@ export default function Reports() {
       try {
   if (hasSupabaseEnv || isDemoMode()) {
           const reports = await listReports();
-          setRecentReports(reports);
+          setRecentReports(scopeRecentReports(reports, allowed));
         } else {
           setRecentReports(null);
         }
@@ -186,7 +224,9 @@ export default function Reports() {
       try {
         if (hasSupabaseEnv || isDemoMode()) {
           const sess = await listSessions(25);
-          setAuditSessions(sess || []);
+          // Scope sessions by allowed property for non-admins
+          const sessScoped = (isAdmin || !allowed.size) ? (sess || []) : (sess || []).filter((s: any) => s?.property_id && allowed.has(String(s.property_id)));
+          setAuditSessions(sessScoped);
         }
       } catch (e) {
         console.error(e);
@@ -199,7 +239,7 @@ export default function Reports() {
   useEffect(() => {
     (async () => {
       try {
-        const dept = role === 'admin' ? (apDeptFilter === 'ALL' ? null : apDeptFilter) : (role === 'manager' ? (myDept || null) : null);
+        const dept = isAdminRole ? (apDeptFilter === 'ALL' ? null : apDeptFilter) : (role === 'manager' ? (myDept || null) : null);
         const list = await listApprovals(undefined, dept as any, undefined);
         setApprovalsAll(list);
       } catch (e) {
@@ -326,7 +366,7 @@ export default function Reports() {
             reports = [top, ...reports.slice(1) as any];
           }
         } catch {}
-        setRecentReports(reports);
+        setRecentReports(scopeRecentReports(reports as any, allowedProps));
         // Log activity that a report was generated
         try {
           const rname = `${reportTypes.find(r => r.id === selectedReportType)?.name}${reportData.department ? ` - ${reportData.department}` : ''}`;
@@ -349,10 +389,12 @@ export default function Reports() {
             else downloadCsvFromRows(name, rows);
           } else { toast.info('No reviews found for that selection'); }
         } else {
-          const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+          const assetsAll = assetsCache ?? await listAssets().catch(() => [] as Asset[]);
+          const isAdmin = isAdminRole;
+          const assets = (isAdmin || !allowedProps.size) ? (assetsAll as Asset[]) : (assetsAll as Asset[]).filter(a => allowedProps.has(String(a.property || a.property_id || '')));
           const rows = buildRows({
             type: selectedReportType,
-            assets: assets as any[],
+            assets: assets as Asset[],
             dateFrom,
             dateTo,
             department: reportData.department,
@@ -398,12 +440,14 @@ export default function Reports() {
         setAuditQuickOpen(true);
         return;
       } else {
-        const assets = assetsCache ?? await listAssets().catch(() => [] as any);
+        const assetsAll = assetsCache ?? await listAssets().catch(() => [] as Asset[]);
+        const isAdmin = isAdminRole;
+        const assets = (isAdmin || !allowedProps.size) ? (assetsAll as Asset[]) : (assetsAll as Asset[]).filter(a => allowedProps.has(String(a.property || a.property_id || '')));
         setAssetsCache(Array.isArray(assets) ? assets : []);
         // Build rows
         const rows = buildRows({
           type: reportType,
-          assets: assets as any[],
+          assets: assets as Asset[],
           dateFrom: undefined,
           dateTo: undefined,
           department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? undefined : deptForReport) : undefined,
@@ -425,9 +469,9 @@ export default function Reports() {
             filter_department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? null : deptForReport) : null,
             filter_property: null,
             filter_asset_type: null,
-            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
-            created_by_id: (currentUser?.id || null) as any,
-          } as any);
+            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null),
+            created_by_id: (currentUser?.id || null),
+          });
           let reports = await listReports();
           try {
             if (reports && reports.length) {
@@ -440,7 +484,7 @@ export default function Reports() {
               reports = [top, ...reports.slice(1) as any];
             }
           } catch {}
-          setRecentReports(reports);
+          setRecentReports(scopeRecentReports(reports, allowedProps));
         } catch (e) { /* ignore logging failure */ }
       }
       toast.success(`${report?.name} generated`);
@@ -475,11 +519,11 @@ export default function Reports() {
             filter_department: dep || null,
             filter_property: propId || null,
             filter_asset_type: null,
-            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null) as any,
-            created_by_id: (currentUser?.id || null) as any,
-          } as any);
-          let reports = await listReports();
-          setRecentReports(reports);
+            created_by: (currentUser?.name || currentUser?.fullName || currentUser?.email || currentUser?.id || null),
+            created_by_id: (currentUser?.id || null),
+          });
+          const reports = await listReports();
+          setRecentReports(scopeRecentReports(reports, allowedProps));
         } catch {}
       }
       // Persist choices into main filters for consistency
@@ -589,11 +633,11 @@ export default function Reports() {
     const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const normalizedBase = (base || '').replace(/\/$/, '');
     const logoSrc = `${normalizedBase}/favicon.png`;
-    const html = `<!doctype html><html><head><meta charset=\"utf-8\"/><title>${name}</title>
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${name}</title>
     <style>@page{size:A4;margin:16mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 12px} table{border-collapse:collapse;width:100%;font-size:12px} .meta{color:#666;font-size:12px;margin-bottom:8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:8px} .brand img{height:28px;width:28px;object-fit:contain}</style>
     </head><body>
-    <div class=\"brand\"><img src='${logoSrc}' onerror=\"this.src='/favicon.ico'\" alt='logo' /><h1>${name}</h1></div>
-    <div class=\"meta\">Generated at ${new Date().toLocaleString()}</div>
+    <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>${name}</h1></div>
+    <div class="meta">Generated at ${new Date().toLocaleString()}</div>
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
     </body></html>`;
     const iframe = document.createElement('iframe');
@@ -632,7 +676,10 @@ export default function Reports() {
           updated_at: r.updated_at || ''
         };
       });
-    const rows2 = rows.filter(r => !propertyId || String(r.property_id || '') === String(propertyId));
+    // If a specific property is selected, apply it; otherwise, for non-admins apply allowed property scoping
+    const isAdmin = isAdminRole;
+    const rows2Unscoped = rows.filter(r => !propertyId || String(r.property_id || '') === String(propertyId));
+    const rows2 = (isAdmin || propertyId || !allowedProps.size) ? rows2Unscoped : rows2Unscoped.filter(r => allowedProps.has(String(r.property_id || '')));
       // Put issues first to make them prominent
       const order = { missing: 0, damaged: 1, verified: 2 } as any;
     return rows2.sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
@@ -660,11 +707,11 @@ export default function Reports() {
     const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const normalizedBase = (base || '').replace(/\/$/, '');
     const logoSrc = `${normalizedBase}/favicon.png`;
-    const html = `<!doctype html><html><head><meta charset=\"utf-8\"/><title>${name}</title>
+    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${name}</title>
     <style>@page{size:A4;margin:16mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 8px} table{border-collapse:collapse;width:100%;font-size:12px} .meta{color:#666;font-size:12px;margin-bottom:8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px} .brand img{height:28px;width:28px;object-fit:contain} .summary{display:flex;gap:8px;margin:8px 0 12px} .chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(0,0,0,0.08)} .chip.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0} .chip.warn{background:#fffbeb;color:#92400e;border-color:#fde68a} .chip.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}</style>
     </head><body>
-    <div class=\"brand\"><img src='${logoSrc}' onerror=\"this.src='/favicon.ico'\" alt='logo' /><h1>${name}</h1></div>
-    <div class=\"meta\">Generated at ${new Date().toLocaleString()}</div>
+    <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>${name}</h1></div>
+    <div class="meta">Generated at ${new Date().toLocaleString()}</div>
     ${summary}
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
     </body></html>`;
@@ -845,7 +892,7 @@ export default function Reports() {
           description="Generate comprehensive reports for audit and analysis"
           actions={
             <div className="flex gap-2 flex-col sm:flex-row w-full sm:w-auto">
-              {(role === 'admin' || role === 'manager') && (
+              {(isAdminRole || role === 'manager') && (
                 <Button
                   className="gap-2 w-full sm:w-auto"
                   variant="outline"
@@ -1127,7 +1174,7 @@ export default function Reports() {
                     />
                   </div>
                 )}
-                {role === 'admin' && (
+                {isAdminRole && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1139,7 +1186,7 @@ export default function Reports() {
                         // Refetch to verify cleared server-side
                         try {
                           const fresh = await listReports();
-                          setRecentReports(fresh);
+                          setRecentReports(scopeRecentReports(fresh as any, allowedProps));
                           if (!fresh || fresh.length === 0) {
                             toast.success('Recent report logs cleared');
                           } else {
@@ -1229,7 +1276,7 @@ export default function Reports() {
         </Card>
 
         {/* Tickets Report (Managers/Admins) */}
-        {(role === 'admin' || role === 'manager') && (
+        {(isAdminRole || role === 'manager') && (
           <Card id="tickets-report">
             <CardHeader>
               <CardTitle>Tickets Report</CardTitle>
@@ -1245,7 +1292,7 @@ export default function Reports() {
                       <SelectItem value="mine-received">Received by me</SelectItem>
                       <SelectItem value="mine-raised">Raised by me</SelectItem>
                       {/* Admin extra scopes */}
-                      {role === 'admin' && (
+                      {isAdminRole && (
                         <>
                           <SelectItem value="all">All (everyone)</SelectItem>
                           <SelectItem value="target-admin">Target: Admin</SelectItem>
@@ -1267,7 +1314,7 @@ export default function Reports() {
         )}
 
         {/* Approvals Log (restricted to admin/manager) */}
-        {(role === 'admin' || role === 'manager') && showApprovalsLog && (
+        {(isAdminRole || role === 'manager') && showApprovalsLog && (
           <Card id="approvals-log">
             <CardHeader>
               <CardTitle>Approvals Log</CardTitle>
@@ -1286,7 +1333,7 @@ export default function Reports() {
                     </SelectContent>
                   </Select>
                 </div>
-                {role === 'admin' ? (
+                {isAdminRole ? (
                   <div className="w-48">
                     <Select value={apDeptFilter} onValueChange={setApDeptFilter}>
                       <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>

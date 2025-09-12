@@ -23,6 +23,7 @@ import { logActivity } from "@/services/activity";
 import { addNotification } from "@/services/notifications";
 import { listProperties, type Property } from "@/services/properties";
 import { listAssets, type Asset } from "@/services/assets";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -90,6 +91,7 @@ export default function QRCodes() {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetSearch, setAssetSearch] = useState("");
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [allowedProps, setAllowedProps] = useState<Set<string>>(new Set());
   const [purging, setPurging] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -133,15 +135,27 @@ export default function QRCodes() {
   setCanEditPage(allowed === null ? baseline : allowed);
       } catch { setCanEditPage(true); }
     })();
-  (async () => {
+    (async () => {
       try {
+        // Determine role and allowed properties
+        let isAdmin = false;
+        try {
+          const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
+          const u = raw ? JSON.parse(raw) : null;
+          isAdmin = String(u?.role || '').toLowerCase() === 'admin';
+        } catch {}
+        let allowed = new Set<string>();
+        try { if (!isAdmin) allowed = await getAccessiblePropertyIdsForCurrentUser(); } catch {}
+        setAllowedProps(allowed);
+
         if (isDemoMode() || hasSupabaseEnv) {
           const [data, props, allAssets] = await Promise.all([
             listQRCodes(),
             listProperties().catch(() => [] as Property[]),
             listAssets().catch(() => [] as Asset[]),
           ]);
-          const mapped = data.map(d => ({
+          // Scope QR codes to allowed properties for non-admins
+          const mappedAll = data.map(d => ({
             id: d.id,
             assetId: d.assetId,
             assetName: d.assetName || d.assetId,
@@ -151,13 +165,20 @@ export default function QRCodes() {
             status: d.status,
             printed: d.printed,
           }));
+          const mapped = (isAdmin || !allowed.size)
+            ? mappedAll
+            : mappedAll.filter(q => q.property && allowed.has(String(q.property)));
           setCodes(mapped.sort((a,b) => (a.generatedDate < b.generatedDate ? 1 : -1)));
           if (props?.length) {
-            setProperties(props);
-            setPropsById(Object.fromEntries(props.map(p => [p.id, p])));
-            setPropsByName(Object.fromEntries(props.map(p => [p.name, p])));
+            const propsScoped = (isAdmin || !allowed.size) ? props : props.filter(p => allowed.has(String(p.id)));
+            setProperties(propsScoped);
+            setPropsById(Object.fromEntries(propsScoped.map(p => [p.id, p])));
+            setPropsByName(Object.fromEntries(propsScoped.map(p => [p.name, p])));
           }
-          if (allAssets?.length) setAssets(allAssets);
+          if (allAssets?.length) {
+            const assetsScoped = (isAdmin || !allowed.size) ? allAssets : allAssets.filter(a => allowed.has(String((a as any).property || (a as any).property_id)));
+            setAssets(assetsScoped);
+          }
         } else {
           // Fallback properties for local mode
           const fallback: Property[] = [
@@ -166,9 +187,11 @@ export default function QRCodes() {
             { id: "PROP-003", name: "Branch Office", type: "Office", status: "Active", address: null, manager: null } as any,
             { id: "PROP-004", name: "Factory", type: "Manufacturing", status: "Active", address: null, manager: null } as any,
           ];
-          setProperties(fallback);
-          setPropsById(Object.fromEntries(fallback.map(p => [p.id, p])));
-          setPropsByName(Object.fromEntries(fallback.map(p => [p.name, p])));
+          // In local mode, also scope by allowed if present
+          const localAllowed = allowed.size ? fallback.filter(p => allowed.has(String(p.id))) : fallback;
+          setProperties(localAllowed);
+          setPropsById(Object.fromEntries(localAllowed.map(p => [p.id, p])));
+          setPropsByName(Object.fromEntries(localAllowed.map(p => [p.name, p])));
         }
     // Data load complete
     setLoadingUI(false);
@@ -341,6 +364,8 @@ export default function QRCodes() {
     let list = assets.filter(a => !assetIdsWithQR.has(a.id));
     // Exclude disabled properties if we know them
     if (activePropertyIds.size) list = list.filter(a => !a.property || activePropertyIds.has(a.property));
+    // Scope by allowed properties if present (non-admins)
+    if (allowedProps.size) list = list.filter(a => !a.property || allowedProps.has(String(a.property)));
     // Basic search by name or id
     if (assetSearch.trim()) {
       const q = assetSearch.toLowerCase();
