@@ -55,6 +55,7 @@ const Index = () => {
         // Scope by user access for non-admins
         let assets: any[] = assetsRaw;
         let properties: any[] = propertiesRaw;
+        let qrsScoped: any[] = qrs as any[];
         try {
           const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
           const u = raw ? JSON.parse(raw) : null;
@@ -65,6 +66,8 @@ const Index = () => {
               properties = properties.filter((p: any) => allowed.has(String(p.id)));
               const allowedIds = new Set(Array.from(allowed));
               assets = assets.filter((a: any) => allowedIds.has(String(a.property_id || a.property)));
+              // Scope QR codes to allowed property ids as well
+              qrsScoped = (qrs as any[]).filter((q: any) => allowedIds.has(String(q.property)));
             }
           }
         } catch {}
@@ -98,9 +101,9 @@ const Index = () => {
         const endPrevMonth = new Date(year, month, 1);
         const monthlyPurchases = (assets as any[]).filter(a => a.purchaseDate && new Date(a.purchaseDate) >= startThisMonth && new Date(a.purchaseDate) < startNextMonth).length;
         const monthlyPurchasesPrev = (assets as any[]).filter(a => a.purchaseDate && new Date(a.purchaseDate) >= startPrevMonth && new Date(a.purchaseDate) < endPrevMonth).length;
-        const codesTotal = (qrs as any[]).length;
-        const codesReady = (qrs as any[]).filter((q: any) => !q.printed).length;
-  setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady, assetTypes });
+        const codesTotal = (qrsScoped as any[]).length;
+        const codesReady = (qrsScoped as any[]).filter((q: any) => !q.printed).length;
+        setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady, assetTypes });
   clearTimeout(uiTimer);
   setLoadingUI(false);
       } catch (e) {

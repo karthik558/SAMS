@@ -6,6 +6,7 @@ import { ClipboardCheck } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listSessions, getSessionById, isAuditActive, getProgress } from "@/services/audit";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 type Row = { id: string; property?: string | null; startedAt?: string | null; status: string; submitted?: string };
 
@@ -18,9 +19,27 @@ export function MyAudits() {
       try {
         const active = await isAuditActive().catch(() => false);
         let rows: Row[] = [];
+        // Determine if current user is admin; non-admins should see only their allowed properties
+        let isAdmin = false;
+        let allowed: Set<string> = new Set();
+        try {
+          const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+          const u = raw ? JSON.parse(raw) : null;
+          isAdmin = String(u?.role || '').toLowerCase() === 'admin';
+          if (!isAdmin) {
+            allowed = await getAccessiblePropertyIdsForCurrentUser();
+          }
+        } catch {}
         try {
           const list = await listSessions(10);
-          rows = (list || []).map((s: any) => ({ id: s.id, property: s.property_id ?? null, startedAt: s.started_at ?? s.created_at ?? null, status: s.is_active ? 'Active' : 'Ended' }));
+          rows = (list || [])
+            .map((s: any) => ({ id: s.id, property: s.property_id ?? null, startedAt: s.started_at ?? s.created_at ?? null, status: s.is_active ? 'Active' : 'Ended' }))
+            .filter((r) => {
+              if (isAdmin) return true;
+              // For non-admins, only show sessions scoped to allowed properties
+              if (!r.property) return false;
+              return allowed.has(String(r.property));
+            });
         } catch {}
         // Add currently active (if not already in list)
         if (active) {
@@ -30,7 +49,8 @@ export function MyAudits() {
               const sess = await getSessionById(sid);
               if (sess) {
                 const row = { id: sess.id, property: (sess as any)?.property_id ?? null, startedAt: (sess as any)?.started_at ?? null, status: 'Active' };
-                if (!rows.find(r => r.id === row.id)) rows.unshift(row);
+                const allowRow = isAdmin || (row.property && allowed.has(String(row.property)));
+                if (allowRow && !rows.find(r => r.id === row.id)) rows.unshift(row);
               }
             }
           } catch {}
