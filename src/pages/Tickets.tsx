@@ -45,6 +45,7 @@ export default function Tickets() {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
   const [layout, setLayout] = useState<'list' | 'board'>('list');
+  const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
   const [initialLoading, setInitialLoading] = useState(true);
@@ -235,6 +236,12 @@ export default function Tickets() {
     } else {
       base = base.filter(t => ids.some(v => String(t.createdBy) === v));
     }
+    if (showClosedOnly) {
+      base = base.filter(t => t.status === 'closed');
+    } else {
+      // Hide closed by default
+      base = base.filter(t => t.status !== 'closed');
+    }
     if (!range?.from) return base;
     const start = new Date(range.from.getFullYear(), range.from.getMonth(), range.from.getDate()).getTime();
     const to = range.to ?? range.from;
@@ -243,7 +250,7 @@ export default function Tickets() {
       const ts = t?.createdAt ? new Date(t.createdAt).getTime() : NaN;
       return !isNaN(ts) && ts >= start && ts <= end;
     });
-  }, [items, range, viewMode, currentActorId, currentActorEmail]);
+  }, [items, range, viewMode, currentActorId, currentActorEmail, showClosedOnly]);
 
   // Helpers
   const canChangeStatus = (t: Ticket) => {
@@ -325,9 +332,9 @@ export default function Tickets() {
       case 'in_progress':
         return 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800';
       case 'resolved':
-        return 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800';
+        return 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:border-sky-800';
       case 'closed':
-        return 'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700';
+        return 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800';
       default:
         return 'bg-muted text-foreground dark:bg-muted dark:text-foreground';
     }
@@ -443,8 +450,17 @@ export default function Tickets() {
                 </TabsList>
               </Tabs>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <DateRangePicker value={range} onChange={setRange} />
+              <Button
+                variant={showClosedOnly ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowClosedOnly(v => !v)}
+                aria-pressed={showClosedOnly}
+                aria-label="Toggle closed-only filter"
+              >
+                {showClosedOnly ? 'Closed only' : 'Show closed'}
+              </Button>
               <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)}>
                 <ToggleGroupItem value="list" aria-label="List view">List</ToggleGroupItem>
                 <ToggleGroupItem value="board" aria-label="Board view">Board</ToggleGroupItem>
