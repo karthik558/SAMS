@@ -21,7 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { listTicketComments, addTicketComment, type TicketComment } from "@/services/ticketComments";
-import { listAttachments, uploadAttachment, removeAttachment, type TicketAttachment } from "@/services/ticketAttachments";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { listProperties } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -48,14 +47,12 @@ export default function Tickets() {
   const [layout, setLayout] = useState<'list' | 'board'>('list');
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
-  const [attachments, setAttachments] = useState<Record<string, TicketAttachment[]>>({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
   const [assigning, setAssigning] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState(false);
   const [posting, setPosting] = useState<Record<string, boolean>>({});
-  const [uploading, setUploading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
@@ -215,12 +212,9 @@ export default function Tickets() {
       const evs = await listTicketEvents(id);
       setEvents(s => ({ ...s, [id]: evs.map(e => ({ id: e.id, createdAt: e.createdAt, author: e.author, message: e.message, eventType: e.eventType })) }));
     }
-    // Lazy load comments & attachments the first time we expand
+    // Lazy load comments the first time we expand
     if (!comments[id]) {
       try { const list = await listTicketComments(id); setComments((s)=>({ ...s, [id]: list })); } catch {}
-    }
-    if (!attachments[id]) {
-      try { const list = await listAttachments(id); setAttachments((s)=>({ ...s, [id]: list })); } catch {}
     }
   };
 
@@ -324,23 +318,50 @@ export default function Tickets() {
     } catch { label = fmt(t.slaDueAt); }
     return <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${color}`}>SLA: {label}</span>;
   };
+  const statusColor = (status: Ticket["status"]) => {
+    switch (status) {
+      case 'open':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-800';
+      case 'in_progress':
+        return 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800';
+      case 'resolved':
+        return 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800';
+      case 'closed':
+        return 'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700';
+      default:
+        return 'bg-muted text-foreground dark:bg-muted dark:text-foreground';
+    }
+  };
+  const priorityColor = (priority: NonNullable<Ticket["priority"]>) => {
+    switch (priority) {
+      case 'low':
+        return 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
+      case 'medium':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-800';
+      case 'high':
+        return 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800';
+      case 'urgent':
+        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800';
+      default:
+        return 'bg-muted text-foreground dark:bg-muted dark:text-foreground';
+    }
+  };
   const addComment = async (id: string) => {
     const msg = (commentText[id] || '').trim();
     if (!msg) return;
+    // Prevent commenting on closed tickets
+    const ticket = items.find(i => i.id === id);
+    if (ticket?.status === 'closed') {
+      toast.error('Ticket is closed; comments are disabled.');
+      return;
+    }
     try {
       const c = await addTicketComment(id, msg);
       setComments(s => ({ ...s, [id]: [...(s[id]||[]), c] }));
       setCommentText(s => ({ ...s, [id]: '' }));
     } catch { toast.error('Failed to add comment'); }
   };
-  const onUpload = async (id: string, file?: File) => {
-    if (!file) return;
-    try {
-      const att = await uploadAttachment(id, file);
-      setAttachments(s => ({ ...s, [id]: [...(s[id]||[]), att] }));
-      toast.success('Attachment uploaded');
-    } catch { toast.error('Upload failed'); }
-  };
+  
 
   // Kanban helpers
   const columns: { key: Ticket["status"]; label: string }[] = [
@@ -446,8 +467,8 @@ export default function Tickets() {
                     </div>
                     <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
                       <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">To: {t.targetRole}</span>
-                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Status: {t.status}</span>
-                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">Priority: {t.priority || 'medium'}</span>
+                      <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${statusColor(t.status)}`}>Status: {t.status}</span>
+                      <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${priorityColor(t.priority || 'medium')}`}>Priority: {t.priority || 'medium'}</span>
                       {slaBadge(t)}
                       <span className="inline-flex items-center gap-2 rounded border px-1.5 py-0.5">
                         <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
@@ -494,28 +515,17 @@ export default function Tickets() {
                             <span>{c.message}</span>
                           </div>
                         ))}
-                        <div className="flex items-center gap-2">
-                          <Input aria-label={`Add comment to ticket ${t.id}`} placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
-                          <Button aria-label={`Post comment on ticket ${t.id}`} size="sm" onClick={() => addComment(t.id)} disabled={posting[t.id] || !(commentText[t.id]||'').trim()}>{posting[t.id] ? 'Posting…' : 'Post'}</Button>
-                        </div>
+                        {t.status !== 'closed' ? (
+                          <div className="flex items-center gap-2">
+                            <Input aria-label={`Add comment to ticket ${t.id}`} placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
+                            <Button aria-label={`Post comment on ticket ${t.id}`} size="sm" onClick={() => addComment(t.id)} disabled={posting[t.id] || !(commentText[t.id]||'').trim()}>{posting[t.id] ? 'Posting…' : 'Post'}</Button>
+                          </div>
+                        ) : (
+                          <div className="text-muted-foreground">Ticket is closed. Comments are disabled.</div>
+                        )}
                       </div>
                     </div>
-                    <div className="text-xs space-y-2">
-                      <div className="font-medium">Attachments</div>
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap gap-2">
-                          {(attachments[t.id]||[]).map(a => (
-                            <a key={a.id} className="inline-flex items-center gap-1 rounded border px-2 py-1 hover:bg-muted" href={a.url} target="_blank" rel="noreferrer">
-                              <span className="truncate max-w-[160px]" title={a.name}>{a.name}</span>
-                            </a>
-                          ))}
-                        </div>
-                        <div>
-                          <input id={`file-${t.id}`} type="file" className="hidden" onChange={(e)=> onUpload(t.id, e.target.files?.[0])} />
-                          <Button aria-label={`Upload attachment to ticket ${t.id}`} size="sm" variant="outline" onClick={() => document.getElementById(`file-${t.id}`)?.click()} disabled={uploading[t.id]}>{uploading[t.id] ? 'Uploading…' : 'Upload'}</Button>
-                        </div>
-                      </div>
-                    </div>
+                    
                   </div>
                 )}
               </div>
