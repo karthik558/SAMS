@@ -4,11 +4,11 @@
 	<p>Centralized asset lifecycle, tracking, and auditing for modern operations</p>
 	<p>
 		<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
-			<img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
+			<img src="https://img.shields.io/badge/Live%20Demo-Open-2ea44f?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
 		</a>
 		&nbsp;
 		<a href="#overview">
-			<img src="https://img.shields.io/badge/100%25%20OPEN%20SOURCE-YES-brightgreen?style=for-the-badge" alt="100% Open Source" />
+			<img src="https://img.shields.io/badge/Open%20Source-100%25-2962FF?style=for-the-badge&logo=github&logoColor=white" alt="100% Open Source" />
 		</a>
 	</p>
 </div>
