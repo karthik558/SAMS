@@ -10,6 +10,7 @@ import Reports from "@/pages/Reports";
 import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import Newsletter from "@/pages/Newsletter";
 import { demoAuthKeys } from "@/lib/demo";
 
 function DemoRequireAuth({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export default function DemoAppRouter() {
           <Route path="reports" element={<Reports />} />
           <Route path="approvals" element={<Approvals />} />
           <Route path="tickets" element={<Tickets />} />
+          <Route path="newsletter" element={<Newsletter />} />
           <Route path="users" element={<Users />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
