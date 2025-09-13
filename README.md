@@ -23,11 +23,15 @@ SAMS streamlines the full lifecycle of physical assets across properties and dep
 
 - [Key Capabilities](#key-capabilities)
 - [Modules](#modules)
+- [Tickets](#tickets)
+- [Announcements-newsletter](#announcements-newsletter)
+- [Notifications--deep-links](#notifications--deep-links)
 - [Benefits](#benefits)
 - [Who It’s For](#who-its-for)
 - [Security and Access](#security-and-access)
 - [Printing and Labels](#printing-and-labels)
 - [Reliability and Offline](#reliability-and-offline)
+- [Supabase Setup — Newsletter](#supabase-setup--newsletter)
 - [Live Demo](#live-demo)
 - [Request a Demo](#request-a-demo)
 - [Browser and Device Support](#browser-and-device-support)
@@ -59,6 +63,19 @@ SAMS streamlines the full lifecycle of physical assets across properties and dep
 	- Column chooser with user preferences persisted across sessions
 	- Mobile-friendly layouts and responsive interactions
 
+- Ticketing and collaboration
+	- Create, assign, and track maintenance tickets across properties
+	- List and Kanban (board) views with drag-to-change status
+	- Color-coded status and priority pills; SLA badge
+	- Closed-only toggle; closed tickets lock replies by design
+	- Deep-links from notifications open the exact ticket and auto-expand details
+
+- Announcements and release notes
+	- Sidebar “Announcement” card with quick preview and modal “Read more”
+	- Full “Status & Updates” page with searchable timeline/cards
+	- Predefined categories (Bug, API Down, Fixed, Resolved, Maintenance, Update) with badges
+	- Admins can create, edit, delete posts (Supabase-backed with local fallback)
+
 - Governance and controls
 	- Role-based access with gated actions and views
 	- Approval workflow indicators for controlled changes
@@ -78,8 +95,38 @@ SAMS streamlines the full lifecycle of physical assets across properties and dep
 - Assets: searchable table, QR generation, bulk actions, and exports
 - Properties: directory, health, and status controls
 - QR Codes: history, preview, downloads, print, and reprint
+- Tickets: create/assign, list and board, status/SLA, comments
+- Announcements: sidebar card + full page with categories and search
 - Reports: configurable outputs for operations and audit
 - Settings and Users: administrative controls and permissions
+
+## Tickets
+
+Role-aware ticket management for maintenance and requests.
+
+- Create tickets with property, assignee, priority, and target role
+- Board and list views with drag-and-drop status updates
+- Color-coded status and priority; SLA badge on deadlines
+- Closed-only filter; closed tickets cannot receive new comments
+- Notification deep-links expand the target ticket when opened
+
+## Announcements (Newsletter)
+
+Keep all users informed about changes, maintenance, and releases.
+
+- Sidebar Announcement card shows the latest post with a compact preview
+- “Read more” opens a modal; “View all” goes to the full page
+- Full page supports search, category badges, and admin CRUD
+- Predefined categories with colors: Bug (red), API Down (red), Fixed (green), Resolved (green), Maintenance (amber), Update (blue)
+- Supabase-backed with local fallback and demo seeding
+
+## Notifications & Deep Links
+
+The bell menu lists recent notifications. Clicking navigates directly to the relevant view:
+
+- Tickets: opens `/tickets?id=TCK-…` and auto-expands the ticket
+- QR: opens the asset details if an asset id is present, otherwise QR Codes
+- Reports/System: opens the corresponding page
 
 ## Benefits
 
@@ -162,4 +209,3 @@ This project is open source under a permissive license.
 ## Code of Conduct
 
 All contributors are expected to uphold a professional and respectful environment.
-
