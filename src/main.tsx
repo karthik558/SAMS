@@ -27,4 +27,19 @@ try {
 } catch {}
 
 try { initNotificationSound(); } catch {}
-createRoot(document.getElementById("root")!).render(<App />);
+const rootEl = document.getElementById("root")!;
+createRoot(rootEl).render(<App />);
+
+// Hide preloader once the current frame renders
+try {
+	const hide = () => {
+		const el = document.getElementById('preloader');
+		if (!el) return;
+		el.classList.add('preloader-hide');
+		// remove from DOM after transition to avoid tab order/click issues
+		setTimeout(() => { try { el.parentElement?.removeChild(el); } catch {} }, 300);
+	};
+	// Use requestAnimationFrame to ensure DOM is ready and initial paint has occurred
+	if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(() => hide());
+	else setTimeout(hide, 0);
+} catch {}
