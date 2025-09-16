@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { listAssets, type Asset } from "@/services/assets";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -19,6 +19,10 @@ import { listAuditInchargeForUser, getAuditIncharge as fetchAuditIncharge } from
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import { listDepartments, type Department } from "@/services/departments";
 import { listProperties, type Property } from "@/services/properties";
+import { verifyAssetViaScan, listMyScansForSession } from "@/services/auditScans";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useRef } from "react";
+import { BrowserMultiFormatReader } from "@zxing/browser";
 
 type Row = { id: string; name: string; status: "verified" | "missing" | "damaged"; comment: string };
 
@@ -57,6 +61,119 @@ export default function Audit() {
   const [myId, setMyId] = useState<string>("");
   // Per-department totals to compute progress rings
   const [deptTotals, setDeptTotals] = useState<Record<string, number>>({});
+  // Scan UI state
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanStatus, setScanStatus] = useState<"verified" | "damaged">("verified");
+  const [scanAssetId, setScanAssetId] = useState<string>("");
+  const [scanBusy, setScanBusy] = useState(false);
+  const [myScans, setMyScans] = useState<Array<{ id: string; asset_id: string; status: "verified"|"damaged"; scanned_at: string }>>([]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const [scanActive, setScanActive] = useState(false);
+
+  const stopScan = () => {
+    try { (readerRef.current as any)?.reset?.(); } catch {}
+    // stop any active stream
+    if (videoRef.current && videoRef.current.srcObject) {
+      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
+      tracks.forEach(t => t.stop());
+      videoRef.current.srcObject = null;
+    }
+    setScanActive(false);
+  };
+
+  const resolveAssetId = (text: string): string | null => {
+    try {
+      if (!text) return null;
+      if (/^https?:\/\//i.test(text)) {
+        const url = new URL(text);
+        const m = url.pathname.match(/\/assets\/([^/?#]+)/i);
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      if (/^\//.test(text)) {
+        const m = text.match(/\/assets\/([^/?#]+)/i);
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+      // Plain asset id fallback
+      return text.trim();
+    } catch { return null; }
+  };
+
+  const startScan = async () => {
+    setScanAssetId("");
+    setScanActive(false);
+    try {
+      // Ensure getUserMedia polyfill for older browsers (Safari)
+      try {
+        const navAny = navigator as any;
+        if (!navigator.mediaDevices) (navigator as any).mediaDevices = {};
+        if (!navigator.mediaDevices.getUserMedia) {
+          navigator.mediaDevices.getUserMedia = (constraints: MediaStreamConstraints) => {
+            const getUserMedia = navAny.getUserMedia || navAny.webkitGetUserMedia || navAny.mozGetUserMedia;
+            if (!getUserMedia) {
+              return Promise.reject(new Error('getUserMedia not supported'));
+            }
+            return new Promise((resolve, reject) => getUserMedia.call(navigator, constraints, resolve, reject));
+          };
+        }
+      } catch {}
+
+      const isSecure = (window as any).isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
+      if (!isSecure) {
+        toast.info('Camera requires HTTPS or localhost. Please open over https://');
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        toast.error('Camera API not available on this device/browser');
+        return;
+      }
+      if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader();
+      try {
+        await readerRef.current.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } } },
+          videoRef.current!,
+          (result, err) => {
+            if (result) {
+              const text = result.getText();
+              const id = resolveAssetId(text || '');
+              if (id) {
+                setScanAssetId(String(id));
+                stopScan();
+              }
+            }
+          }
+        );
+      } catch (e: any) {
+        // Fallback: try specific device (first camera)
+        try {
+          const devices = await (BrowserMultiFormatReader as any).listVideoInputDevices?.() || [];
+          const deviceId = devices[0]?.deviceId;
+          if (!deviceId) throw e;
+          await readerRef.current.decodeFromVideoDevice(
+            deviceId,
+            videoRef.current!,
+            (result, err) => {
+              if (result) {
+                const text = result.getText();
+                const id = resolveAssetId(text || '');
+                if (id) { setScanAssetId(String(id)); stopScan(); }
+              }
+            }
+          );
+        } catch (err: any) {
+          const name = err?.name || '';
+          const msg = name === 'NotAllowedError'
+            ? 'Camera permission denied. Allow access in browser settings.'
+            : (name === 'NotFoundError' ? 'No camera found on this device.' : (err?.message || 'Failed to start camera'));
+          toast.error(msg);
+          return;
+        }
+      }
+      setScanActive(true);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || 'Failed to start camera');
+    }
+  };
 
   // Build and print a PDF with all department submissions for a session
   async function exportAuditSessionPdf(sessionId: string) {
@@ -366,6 +483,13 @@ export default function Audit() {
     })();
   }, []);
 
+  // Load my scan history when session becomes available
+  useEffect(() => {
+    (async () => {
+      try { if (!sessionId) { setMyScans([]); return; } const rows = await listMyScansForSession(sessionId); setMyScans(rows.map(r => ({ id: r.id, asset_id: r.asset_id, status: r.status, scanned_at: r.scanned_at }))); } catch { setMyScans([]); }
+    })();
+  }, [sessionId]);
+
   // When selected property changes, refresh incharge info and persist selection
   useEffect(() => {
     (async () => {
@@ -661,6 +785,9 @@ export default function Audit() {
                   URL.revokeObjectURL(url);
                 } catch (e: any) { toast.error(e?.message || 'Export failed'); }
               }}>Export CSV</Button>
+              {auditOn && !(assignmentStatus === 'submitted' && role !== 'admin') && (
+                <Button onClick={() => { setScanOpen(true); setTimeout(() => { try { startScan(); } catch {} }, 200); }} className="gap-2"><QrCode className="h-4 w-4" /> Scan QR</Button>
+              )}
             </div>
 
             {Object.keys(summary).length > 0 && (
@@ -1051,7 +1178,12 @@ export default function Audit() {
   {sessionId && (
   <Card className="print:hidden">
         <CardHeader>
-          <CardTitle>Review Items</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle>Review Items</CardTitle>
+            {auditOn && !(assignmentStatus === 'submitted' && role !== 'admin') && (
+              <Button size="sm" variant="secondary" className="gap-2" onClick={() => { setScanOpen(true); setTimeout(() => { try { startScan(); } catch {} }, 200); }}><Camera className="h-4 w-4" /> Scan QR</Button>
+            )}
+          </div>
           <CardDescription>
             {role === 'admin' ? 'Admin review for selected department' : 'Mark each asset as verified, missing, or damaged. Add comments if needed.'}
             {(() => {
@@ -1108,6 +1240,32 @@ export default function Audit() {
             <div className="flex justify-end gap-2 mt-4">
               <Button variant="outline" onClick={saveProgress}>Save</Button>
               <Button onClick={submit} disabled={submitting || !rows.length}>Submit</Button>
+            </div>
+          )}
+          {/* My scan history */}
+          {myScans.length > 0 && (
+            <div className="mt-6">
+              <Label>My recent scans</Label>
+              <div className="mt-2 overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>When</TableHead>
+                      <TableHead>Asset</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {myScans.map(s => (
+                      <TableRow key={s.id}>
+                        <TableCell className="text-xs text-muted-foreground">{new Date(s.scanned_at).toLocaleString()}</TableCell>
+                        <TableCell className="font-mono text-xs">{s.asset_id}</TableCell>
+                        <TableCell className={s.status === 'damaged' ? 'text-yellow-600' : 'text-emerald-600'}>{s.status}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </CardContent>
@@ -1329,6 +1487,56 @@ export default function Audit() {
           </CardContent>
         </Card>
       )}
+      {/* Scan modal */}
+  <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (v) { setTimeout(() => { try { startScan(); } catch {} }, 200); } else { stopScan(); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> Scan asset QR</DialogTitle>
+            <DialogDescription>Point your camera at the asset QR. Pick a status and save.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="relative aspect-square bg-black/80 rounded-md overflow-hidden">
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] aspect-square border-2 border-primary/60 rounded-lg" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant={scanStatus==='verified' ? 'default' : 'outline'} className="gap-2" onClick={() => setScanStatus('verified')}><CheckCircle2 className="h-4 w-4" /> Verified</Button>
+              <Button variant={scanStatus==='damaged' ? 'destructive' : 'outline'} className="gap-2" onClick={() => setScanStatus('damaged')}><TriangleAlert className="h-4 w-4" /> Damaged</Button>
+            </div>
+            <div className="text-sm text-muted-foreground">Scanned asset: <span className="font-mono text-foreground">{scanAssetId || '—'}</span></div>
+          </div>
+          <DialogFooter className="gap-2">
+            {!scanActive && <Button onClick={startScan} className="gap-2"><Camera className="h-4 w-4" /> Start</Button>}
+            {scanActive && <Button variant="outline" onClick={stopScan}>Stop</Button>}
+            <Button disabled={!scanAssetId || scanBusy} onClick={async () => {
+              if (!sessionId || !scanAssetId) return;
+              try {
+                setScanBusy(true);
+                await verifyAssetViaScan({ sessionId, assetId: scanAssetId, status: scanStatus });
+                toast.success(`Marked ${scanAssetId} as ${scanStatus}`);
+                // Refresh rows and my scans
+                try {
+                  const dep = role === 'admin' ? adminDept : department;
+                  if (dep) {
+                    const prior = await getReviewsFor(sessionId, dep);
+                    setRows(prev => prev.map(rr => {
+                      const r = prior.find(p => p.asset_id === rr.id);
+                      return r && rr.id === scanAssetId ? { ...rr, status: r.status as any } : rr;
+                    }));
+                  }
+                } catch {}
+                try { const hist = await listMyScansForSession(sessionId); setMyScans(hist.map(r => ({ id: r.id, asset_id: r.asset_id, status: r.status, scanned_at: r.scanned_at }))); } catch {}
+                setScanAssetId("");
+                try { if (sessionId) { const sum = await getDepartmentReviewSummary(sessionId); setSummary(sum); } } catch {}
+              } catch (e: any) {
+                toast.error(e?.message || 'Failed to verify');
+              } finally { setScanBusy(false); }
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
