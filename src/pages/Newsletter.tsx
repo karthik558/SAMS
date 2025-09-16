@@ -22,6 +22,7 @@ export default function Newsletter() {
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<NewsletterCategory[]>([]);
   const [category, setCategory] = useState<string>('update');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Read role to enable admin actions
   const role = (() => {
@@ -134,6 +135,8 @@ export default function Newsletter() {
             <div className="space-y-3">
               {filtered.map((p) => {
                 const s = statusOf(p);
+                const expanded = expandedId === p.id;
+                const isLong = (p.body?.length || 0) > 320 || (p.body || '').split(/\n/).length > 6;
                 return (
                   <div key={p.id} className="rounded-lg border bg-card p-4">
                     <div className="flex items-start justify-between gap-3">
@@ -153,8 +156,23 @@ export default function Newsletter() {
                         </div>
                       )}
                     </div>
-                    <div className="mt-2 text-[13.5px] leading-6 text-foreground whitespace-pre-wrap">
-                      {p.body}
+                    <div className="mt-2">
+                      <div className={[
+                        "text-[13.5px] leading-6 text-foreground whitespace-pre-wrap relative",
+                        (!expanded && isLong) ? "max-h-32 md:max-h-40 overflow-hidden pr-2" : ""
+                      ].join(' ')}>
+                        {p.body}
+                        {(!expanded && isLong) && (
+                          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                        )}
+                      </div>
+                      {isLong && (
+                        <div className="mt-2 flex justify-end">
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setExpandedId(expanded ? null : p.id)}>
+                            {expanded ? 'Show less' : 'Read more'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
