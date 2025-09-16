@@ -9,7 +9,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
-import { listAssets, type Asset } from "@/services/assets";
+import { listAssets, getAssetById, type Asset } from "@/services/assets";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ import { listDepartments, type Department } from "@/services/departments";
 import { listProperties, type Property } from "@/services/properties";
 import { verifyAssetViaScan, listMyScansForSession } from "@/services/auditScans";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useRef } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
@@ -66,10 +67,12 @@ export default function Audit() {
   const [scanStatus, setScanStatus] = useState<"verified" | "damaged">("verified");
   const [scanAssetId, setScanAssetId] = useState<string>("");
   const [scanBusy, setScanBusy] = useState(false);
+  const [scanAssetName, setScanAssetName] = useState<string>("");
   const [myScans, setMyScans] = useState<Array<{ id: string; asset_id: string; status: "verified"|"damaged"; scanned_at: string }>>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const [scanActive, setScanActive] = useState(false);
+  const [scanComment, setScanComment] = useState("");
 
   const stopScan = () => {
     try { (readerRef.current as any)?.reset?.(); } catch {}
@@ -97,6 +100,20 @@ export default function Audit() {
       // Plain asset id fallback
       return text.trim();
     } catch { return null; }
+  };
+
+  const setScannedAsset = async (id: string) => {
+    try {
+      setScanAssetId(id);
+      // Try local rows first
+      const local = rows.find(r => String(r.id) === String(id));
+      if (local?.name) { setScanAssetName(local.name); return; }
+      // Fallback: fetch from API
+      const asset = await getAssetById(String(id));
+      setScanAssetName(asset?.name || "");
+    } catch {
+      setScanAssetName("");
+    }
   };
 
   const startScan = async () => {
@@ -135,10 +152,7 @@ export default function Audit() {
             if (result) {
               const text = result.getText();
               const id = resolveAssetId(text || '');
-              if (id) {
-                setScanAssetId(String(id));
-                stopScan();
-              }
+              if (id) { setScannedAsset(String(id)); stopScan(); }
             }
           }
         );
@@ -155,7 +169,7 @@ export default function Audit() {
               if (result) {
                 const text = result.getText();
                 const id = resolveAssetId(text || '');
-                if (id) { setScanAssetId(String(id)); stopScan(); }
+                if (id) { setScannedAsset(String(id)); stopScan(); }
               }
             }
           );
@@ -1488,7 +1502,7 @@ export default function Audit() {
         </Card>
       )}
       {/* Scan modal */}
-  <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (v) { setTimeout(() => { try { startScan(); } catch {} }, 200); } else { stopScan(); } }}>
+  <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (v) { setTimeout(() => { try { startScan(); } catch {} }, 200); } else { stopScan(); setScanAssetId(""); setScanAssetName(""); setScanComment(""); } }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> Scan asset QR</DialogTitle>
@@ -1505,7 +1519,11 @@ export default function Audit() {
               <Button variant={scanStatus==='verified' ? 'default' : 'outline'} className="gap-2" onClick={() => setScanStatus('verified')}><CheckCircle2 className="h-4 w-4" /> Verified</Button>
               <Button variant={scanStatus==='damaged' ? 'destructive' : 'outline'} className="gap-2" onClick={() => setScanStatus('damaged')}><TriangleAlert className="h-4 w-4" /> Damaged</Button>
             </div>
-            <div className="text-sm text-muted-foreground">Scanned asset: <span className="font-mono text-foreground">{scanAssetId || '—'}</span></div>
+            <div className="text-sm text-muted-foreground">Scanned asset: <span className="font-mono text-foreground">{scanAssetId || '—'}</span>{scanAssetId && (<span> — <span className="text-foreground">{scanAssetName || 'Unknown'}</span></span>)}</div>
+            <div className="space-y-2">
+              <Label>Optional note</Label>
+              <Textarea placeholder="Add a note (e.g., issue observed, location)" value={scanComment} onChange={(e) => setScanComment(e.target.value)} disabled={!scanAssetId || scanBusy} />
+            </div>
           </div>
           <DialogFooter className="gap-2">
             {!scanActive && <Button onClick={startScan} className="gap-2"><Camera className="h-4 w-4" /> Start</Button>}
@@ -1514,21 +1532,27 @@ export default function Audit() {
               if (!sessionId || !scanAssetId) return;
               try {
                 setScanBusy(true);
-                await verifyAssetViaScan({ sessionId, assetId: scanAssetId, status: scanStatus });
+                await verifyAssetViaScan({ sessionId, assetId: scanAssetId, status: scanStatus, comment: scanComment || null });
                 toast.success(`Marked ${scanAssetId} as ${scanStatus}`);
                 // Refresh rows and my scans
                 try {
                   const dep = role === 'admin' ? adminDept : department;
                   if (dep) {
+                    // Optimistic update for the scanned row
+                    setRows(prev => prev.map(rr => rr.id === scanAssetId ? { ...rr, status: scanStatus, comment: scanComment } : rr));
+                    // Sync from server to ensure comment/status match authoritative values
                     const prior = await getReviewsFor(sessionId, dep);
                     setRows(prev => prev.map(rr => {
+                      if (rr.id !== scanAssetId) return rr;
                       const r = prior.find(p => p.asset_id === rr.id);
-                      return r && rr.id === scanAssetId ? { ...rr, status: r.status as any } : rr;
+                      return r ? { ...rr, status: r.status as any, comment: r.comment || '' } : rr;
                     }));
                   }
                 } catch {}
                 try { const hist = await listMyScansForSession(sessionId); setMyScans(hist.map(r => ({ id: r.id, asset_id: r.asset_id, status: r.status, scanned_at: r.scanned_at }))); } catch {}
                 setScanAssetId("");
+                setScanAssetName("");
+                setScanComment("");
                 try { if (sessionId) { const sum = await getDepartmentReviewSummary(sessionId); setSummary(sum); } } catch {}
               } catch (e: any) {
                 toast.error(e?.message || 'Failed to verify');
