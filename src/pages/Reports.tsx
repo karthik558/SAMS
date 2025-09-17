@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-empty */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -844,6 +844,77 @@ export default function Reports() {
     }).sort((a,b) => (new Date(b.requestedAt).getTime()) - (new Date(a.requestedAt).getTime()));
   })();
 
+  const reportSummary = useMemo(() => {
+    const list = Array.isArray(recentReports) ? recentReports : [];
+    let completed = 0;
+    let latest = 0;
+    list.forEach((entry: any) => {
+      const status = String(entry?.status || 'completed').toLowerCase();
+      if (status === 'completed' || status === 'complete' || status === 'done') completed += 1;
+      const stamp = entry?.created_at || entry?.createdAt || entry?.createdAtUtc || entry?.createdDate;
+      if (stamp) {
+        const value = new Date(stamp).getTime();
+        if (!Number.isNaN(value) && value > latest) latest = value;
+      }
+    });
+    const total = list.length;
+    const pending = Math.max(total - completed, 0);
+    const lastGeneratedLabel = latest ? new Date(latest).toLocaleString() : '—';
+    return { total, completed, pending, lastGeneratedLabel };
+  }, [recentReports]);
+
+  const pendingApprovalsCount = useMemo(() => {
+    return approvalsFiltered.filter((approval) => {
+      const status = String(approval.status || '').toLowerCase();
+      return status.includes('pending');
+    }).length;
+  }, [approvalsFiltered]);
+
+  const activeAuditSessions = useMemo(() => {
+    return auditSessions.filter((session) => Boolean(session?.is_active)).length;
+  }, [auditSessions]);
+
+  const heroTiles = useMemo(() => {
+    return [
+      {
+        key: 'generated',
+        label: 'Reports Generated',
+        value: reportSummary.total.toLocaleString(),
+        hint: reportSummary.total
+          ? `Last generated ${reportSummary.lastGeneratedLabel}`
+          : 'Create your first report to populate this feed',
+        icon: FileBarChart,
+        iconClass: 'text-primary',
+      },
+      {
+        key: 'completed',
+        label: 'Completed Reports',
+        value: reportSummary.completed.toLocaleString(),
+        hint: reportSummary.pending
+          ? `${reportSummary.pending.toLocaleString()} pending`
+          : 'No pending reports',
+        icon: Download,
+        iconClass: 'text-emerald-500 dark:text-emerald-400',
+      },
+      {
+        key: 'approvals',
+        label: 'Pending Approvals',
+        value: pendingApprovalsCount.toLocaleString(),
+        hint: pendingApprovalsCount ? 'Awaiting review' : 'All approvals up to date',
+        icon: FileText,
+        iconClass: 'text-amber-500 dark:text-amber-400',
+      },
+      {
+        key: 'audits',
+        label: 'Active Audit Sessions',
+        value: activeAuditSessions.toLocaleString(),
+        hint: `${auditSessions.length.toLocaleString()} total sessions`,
+        icon: BarChart3,
+        iconClass: 'text-sky-500 dark:text-sky-400',
+      },
+    ];
+  }, [reportSummary, pendingApprovalsCount, activeAuditSessions, auditSessions]);
+
   const exportApprovalsCsv = () => {
     try {
       const rows = approvalsFiltered.map(a => ({
@@ -883,70 +954,108 @@ export default function Reports() {
     }
   };
 
+  const toggleApprovalsLog = () => {
+    setShowApprovalsLog((prev) => {
+      const next = !prev;
+      if (!prev) {
+        setTimeout(() => {
+          const el = document.getElementById('approvals-log');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 120);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-6" id="reports-top">
-        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Reports" }]} />
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Reports" }]} />
+
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
         <PageHeader
           icon={FileBarChart}
-          title="Reports & Analytics"
-          description="Generate comprehensive reports for audit and analysis"
+          title="Reports & Insights"
+          description="Generate compliance-ready exports, enrich audit reviews, and keep your teams informed."
           actions={
-            <div className="flex gap-2 flex-col sm:flex-row w-full sm:w-auto">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               {(isAdminRole || role === 'manager') && (
                 <Button
-                  className="gap-2 w-full sm:w-auto"
+                  className="gap-2"
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setShowApprovalsLog((v) => !v);
-                    setTimeout(() => {
-                      const el = document.getElementById('approvals-log');
-                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 0);
-                  }}
+                  onClick={toggleApprovalsLog}
                 >
                   <FileText className="h-4 w-4" /> Approvals Log
                 </Button>
               )}
-              <Button onClick={handleGenerateReport} className="gap-2 w-full sm:w-auto" size="sm">
-                <Download className="h-4 w-4" />
-                Generate Report
+              <Button onClick={handleGenerateReport} className="gap-2" size="sm">
+                <Download className="h-4 w-4" /> Generate Report
               </Button>
             </div>
           }
         />
+      </div>
 
-        {/* Quick Report Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {heroTiles.map((tile) => (
+          <div key={tile.key} className="rounded-xl border border-border/40 bg-card p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">{tile.label}</p>
+                <p className="mt-1 text-2xl font-semibold text-foreground">{tile.value}</p>
+              </div>
+              <tile.icon className={`h-5 w-5 ${tile.iconClass}`} />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">{tile.hint}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Report Cards */}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {reportTypes.map((report) => (
-            <Card key={report.id} className="hover:shadow-medium transition-shadow cursor-pointer">
-        <CardHeader className="pb-2">
-                <div className="flex items-start justify-between">
-                  <div>
-            <CardTitle className="text-base flex items-center gap-2">
-                      <report.icon className="h-5 w-5" />
-                      {report.name}
-                    </CardTitle>
-            <CardDescription className="mt-1 text-xs">
+            <Card
+              key={report.id}
+              className="rounded-2xl border border-border/60 bg-card shadow-sm transition hover:shadow-md"
+            >
+              <CardHeader className="flex flex-col gap-3 pb-2">
+                <div className="flex items-start gap-3">
+                  <span className="rounded-full bg-primary/10 p-2 text-primary">
+                    <report.icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <CardTitle className="text-base text-foreground">{report.name}</CardTitle>
+                    <CardDescription className="mt-1 text-xs text-muted-foreground">
                       {report.description}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-          <CardContent className="pt-0">
+              <CardContent className="flex flex-col gap-2 pt-0 sm:flex-row sm:items-center">
                 <Button
                   onClick={() => handleQuickReport(report.id)}
-            variant="secondary"
-            size="sm"
-            className="w-full gap-2"
+                  variant="secondary"
+                  size="sm"
+                  className="w-full gap-2"
                 >
-                  <Download className="h-4 w-4" />
-                  Quick Generate
+                  <Download className="h-4 w-4" /> Quick Generate
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => {
+                    setSelectedReportType(report.id);
+                    const el = document.getElementById('custom-report-generator');
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  Configure
                 </Button>
               </CardContent>
             </Card>
           ))}
-        </div>
+      </div>
 
         {/* Quick Generate — Audit Review Picker */}
         <Dialog open={auditQuickOpen} onOpenChange={setAuditQuickOpen}>
@@ -1006,7 +1115,7 @@ export default function Reports() {
         </Dialog>
 
         {/* Custom Report Generator */}
-        <Card>
+        <Card id="custom-report-generator" className="rounded-2xl border border-border/60 bg-card shadow-sm">
           <CardHeader>
             <CardTitle>Custom Report Generator</CardTitle>
             <CardDescription>
@@ -1147,7 +1256,7 @@ export default function Reports() {
         </Card>
 
         {/* Recent Reports */}
-        <Card>
+        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
           <CardHeader>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1277,7 +1386,7 @@ export default function Reports() {
 
         {/* Tickets Report (Managers/Admins) */}
         {(isAdminRole || role === 'manager') && (
-          <Card id="tickets-report">
+          <Card id="tickets-report" className="rounded-2xl border border-border/60 bg-card shadow-sm">
             <CardHeader>
               <CardTitle>Tickets Report</CardTitle>
               <CardDescription>Export tickets with scope and date filters</CardDescription>
@@ -1315,7 +1424,7 @@ export default function Reports() {
 
         {/* Approvals Log (restricted to admin/manager) */}
         {(isAdminRole || role === 'manager') && showApprovalsLog && (
-          <Card id="approvals-log">
+          <Card id="approvals-log" className="rounded-2xl border border-border/60 bg-card shadow-sm">
             <CardHeader>
               <CardTitle>Approvals Log</CardTitle>
               <CardDescription>Department-scoped approvals with status and date filters</CardDescription>
@@ -1401,7 +1510,7 @@ export default function Reports() {
         )}
 
         {(!hasSupabaseEnv) && (
-          <Card className="border-warning/50 bg-warning/5">
+          <Card className="rounded-2xl border border-warning/50 bg-warning/10 shadow-sm">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
                 <FileBarChart className="h-6 w-6 text-warning shrink-0" />

@@ -596,7 +596,9 @@ export default function Audit() {
     <div className="space-y-6">
       <div className="print:hidden space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
-        <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+          <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+        </div>
         {/* Incharge banner + property filter at top */}
         <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">

@@ -702,28 +702,30 @@ export default function QRCodes() {
         </Dialog>
 
     <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "QR Codes" }]} />
-    <PageHeader
-      icon={QrCode}
-      title="QR Code Management"
-      description="Generate, manage, and print QR codes for asset tracking"
-      actions={
-        <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-            <QrCode className="h-4 w-4" />
-            Generate New QR Code
-          </Button>
-          <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-            <Printer className="h-4 w-4" />
-            Bulk Print
-          </Button>
-          {role==='admin' && (
-            <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
-              {purging ? 'Clearing…' : 'Clear All'}
+    <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+      <PageHeader
+        icon={QrCode}
+        title="QR Code Management"
+        description="Generate, manage, and print QR codes for asset tracking"
+        actions={
+          <div className="flex gap-2 flex-wrap">
+            <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+              <QrCode className="h-4 w-4" />
+              Generate New QR Code
             </Button>
-          )}
-        </div>
-      }
-    />
+            <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+              <Printer className="h-4 w-4" />
+              Bulk Print
+            </Button>
+            {role==='admin' && (
+              <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
+                {purging ? 'Clearing…' : 'Clear All'}
+              </Button>
+            )}
+          </div>
+        }
+      />
+    </div>
         <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           {qrHighlights.map((item) => (
             <MetricCard

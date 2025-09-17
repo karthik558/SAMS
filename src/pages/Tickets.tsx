@@ -591,7 +591,13 @@ export default function Tickets() {
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Tickets" }]} />
-      <PageHeader icon={TicketIcon} title="Maintenance Tickets" />
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+        <PageHeader
+          icon={TicketIcon}
+          title="Maintenance Tickets"
+          description="Monitor, triage, and resolve maintenance issues across your properties"
+        />
+      </div>
       <section className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard

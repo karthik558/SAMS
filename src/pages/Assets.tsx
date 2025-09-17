@@ -952,27 +952,29 @@ export default function Assets() {
     <div className="space-y-6">
         {/* Header with breadcrumbs */}
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
-        <PageHeader
-          icon={Package}
-          title="Asset Management"
-          description="Track and manage all your organization's assets"
-          actions={
-            <div className="flex gap-2">
-              <Button variant={prefs.dense ? "secondary" : "outline"} size="sm" onClick={() => prefs.setDense(d => !d)}>
-                {prefs.dense ? "Comfortable" : "Compact"}
-              </Button>
-              <ColumnChooser
-                columns={columnDefs}
-                visible={prefs.visibleCols}
-                onChange={prefs.setVisibleCols}
-              />
-              <Button onClick={() => setShowAddForm(true)} className="gap-2" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
-                <Plus className="h-4 w-4" />
-                Add Asset
-              </Button>
-            </div>
-          }
-        />
+        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+          <PageHeader
+            icon={Package}
+            title="Asset Management"
+            description="Track and manage all your organization's assets"
+            actions={
+              <div className="flex gap-2">
+                <Button variant={prefs.dense ? "secondary" : "outline"} size="sm" onClick={() => prefs.setDense(d => !d)}>
+                  {prefs.dense ? "Comfortable" : "Compact"}
+                </Button>
+                <ColumnChooser
+                  columns={columnDefs}
+                  visible={prefs.visibleCols}
+                  onChange={prefs.setVisibleCols}
+                />
+                <Button onClick={() => setShowAddForm(true)} className="gap-2" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+                  <Plus className="h-4 w-4" />
+                  Add Asset
+                </Button>
+              </div>
+            }
+          />
+        </div>
 
         <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
           {assetHighlights.map((item) => (

@@ -650,63 +650,64 @@ export default function Users() {
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
-      <PageHeader
-        icon={User}
-        title="User Management"
-        description="Manage user accounts, roles, and permissions"
-        actions={
-          <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            className={cn(
-              "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
-            )}
-          >
-            <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>
-                Create a new user account for the system
-              </DialogDescription>
-            </DialogHeader>
-            {authRole !== 'admin' && (
-              <div className="mx-2 mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground sm:mx-4 md:mx-8 lg:mx-12">
-                You have view-only access. Contact an administrator to add users.
-              </div>
-            )}
-            {/* Summary chips */}
-            <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
-              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                Properties: <span className="font-medium text-foreground">{selectedPropertyIds.length}</span>
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
-                Departments: <span className="font-medium text-foreground">{selectedDepartments.length}</span>
-              </span>
-            </div>
-            {/* Quick preview header for clarity */}
-            <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-muted text-foreground font-medium">
-                  {getInitials(`${firstName} ${lastName}`.trim())}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{`${firstName} ${lastName}`.trim() || 'New User'}</p>
-                <p className="text-xs text-muted-foreground truncate">{email || 'email@company.com'}</p>
-              </div>
-              {role && (
-                <div className="ml-auto">
-                  <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role)}</Badge>
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+        <PageHeader
+          icon={User}
+          title="User Management"
+          description="Manage user accounts, roles, and permissions"
+          actions={
+            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add User
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                className={cn(
+                  "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
+                )}
+              >
+                <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
+                  <DialogTitle>Add New User</DialogTitle>
+                  <DialogDescription>
+                    Create a new user account for the system
+                  </DialogDescription>
+                </DialogHeader>
+                {authRole !== 'admin' && (
+                  <div className="mx-2 mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground sm:mx-4 md:mx-8 lg:mx-12">
+                    You have view-only access. Contact an administrator to add users.
+                  </div>
+                )}
+                {/* Summary chips */}
+                <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
+                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                    Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                    Properties: <span className="font-medium text-foreground">{selectedPropertyIds.length}</span>
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                    Departments: <span className="font-medium text-foreground">{selectedDepartments.length}</span>
+                  </span>
                 </div>
-              )}
-            </div>
+                {/* Quick preview header for clarity */}
+                <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="bg-muted text-foreground font-medium">
+                      {getInitials(`${firstName} ${lastName}`.trim())}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{`${firstName} ${lastName}`.trim() || 'New User'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{email || 'email@company.com'}</p>
+                  </div>
+                  {role && (
+                    <div className="ml-auto">
+                      <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role)}</Badge>
+                    </div>
+                  )}
+                </div>
             <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-4 sm:px-4 md:space-y-3 md:px-8 lg:px-12 lg:pb-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
                 <div className="space-y-2">
@@ -1085,10 +1086,11 @@ export default function Users() {
                 Add User
               </Button>
             </DialogFooter>
-          </DialogContent>
-  </Dialog>
-        }
-      />
+              </DialogContent>
+            </Dialog>
+          }
+        />
+      </div>
 
       <Card className="border border-border/60 shadow-sm backdrop-blur">
         <CardHeader className="space-y-4">

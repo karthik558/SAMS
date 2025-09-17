@@ -133,7 +133,7 @@ export default function Newsletter() {
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Dashboard', to: '/' }, { label: 'Newsletter' }]} />
 
-      <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 shadow-sm sm:p-8">
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
         <PageHeader
           icon={Megaphone}
           title="Status & Updates"

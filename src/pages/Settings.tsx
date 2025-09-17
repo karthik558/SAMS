@@ -289,11 +289,13 @@ export default function Settings() {
   return (
   <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
-      <PageHeader
-        icon={SettingsIcon}
-        title="Settings"
-        description="Manage your SAMS preferences and system configuration"
-      />
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+        <PageHeader
+          icon={SettingsIcon}
+          title="Settings"
+          description="Manage your SAMS preferences and system configuration"
+        />
+      </div>
 
       <Tabs defaultValue="security" className="space-y-6">
   <TabsList className={`w-full overflow-x-auto flex-nowrap bg-muted/50 backdrop-blur supports-[backdrop-filter]:bg-muted/60 rounded-md p-1 flex gap-1 justify-start ${role === 'admin' ? 'md:grid md:grid-cols-3 md:overflow-visible md:flex-none' : 'md:grid md:grid-cols-2 md:overflow-visible md:flex-none'}`}>

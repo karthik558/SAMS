@@ -295,7 +295,13 @@ export default function Approvals() {
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Approvals" }]} />
-      <PageHeader icon={ClipboardCheck} title="Approvals" />
+      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+        <PageHeader
+          icon={ClipboardCheck}
+          title="Approvals"
+          description="Review asset requests and keep decision workflows moving"
+        />
+      </div>
       <section className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard

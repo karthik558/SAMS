@@ -451,17 +451,19 @@ export default function Properties() {
   return (
     <div className="space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
-        <PageHeader
-          icon={Building2}
-          title="Property Management"
-          description="Manage properties and related assets"
-          actions={
-            <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
-              <Plus className="h-4 w-4" />
-              Add New Property
-            </Button>
-          }
-        />
+        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
+          <PageHeader
+            icon={Building2}
+            title="Property Management"
+            description="Manage properties and related assets"
+            actions={
+              <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
+                <Plus className="h-4 w-4" />
+                Add New Property
+              </Button>
+            }
+          />
+        </div>
 
         {/* Toolbar */}
         <Card>
