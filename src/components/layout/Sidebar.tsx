@@ -202,7 +202,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       className={cn(
         "group/sidebar relative h-full overflow-hidden border-r border-border transition-[width] duration-300 ease-in-out",
         "bg-sidebar",
-        isMobile ? "w-full" : collapsed ? "w-16" : "w-72",
+        isMobile ? "w-full" : collapsed ? "w-16" : "w-64",
         className
       )}
     >
