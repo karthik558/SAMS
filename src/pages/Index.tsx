@@ -563,7 +563,7 @@ const Index = () => {
               <FileText className="h-4 w-4" />
               Generate Report
             </Button>
-            <Button variant="ghost" onClick={() => handleQuickAction("Bulk Import")} className="hidden gap-2 px-3 sm:inline-flex">
+            <Button variant="outline" onClick={() => handleQuickAction("Bulk Import")} className="gap-2 px-3">
               <Download className="h-4 w-4" />
               Bulk Import
             </Button>
