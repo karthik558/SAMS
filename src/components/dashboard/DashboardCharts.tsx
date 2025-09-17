@@ -15,8 +15,11 @@ import {
   Area,
   AreaChart,
   LabelList,
+  Legend,
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets, getDemoProperties } from "@/lib/demo";
 import { listAssets, type Asset } from "@/services/assets";
@@ -72,7 +75,9 @@ export function DashboardCharts() {
       const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem("auth_user");
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole(String(r || '').toLowerCase());
-    } catch {}
+    } catch {
+      // ignore role parsing errors
+    }
     (async () => {
       try {
         const ids = await getAccessiblePropertyIdsForCurrentUser();
@@ -144,6 +149,14 @@ export function DashboardCharts() {
     });
   }, [scopedAssets]);
 
+  const chartPurchaseTrendExtended = useMemo(() => {
+    let runningTotal = 0;
+    return chartPurchaseTrend.map((point) => {
+      runningTotal += point.purchases;
+      return { ...point, runningTotal };
+    });
+  }, [chartPurchaseTrend]);
+
   // Assets by Property
   const propsById = useMemo(() => Object.fromEntries(visibleProperties.map(p => [p.id, p])), [visibleProperties]);
   const chartPropertyAssets = useMemo(() => {
@@ -191,17 +204,69 @@ export function DashboardCharts() {
 
   const hasData = (scopedAssets.length > 0);
 
+  const totalAssetsCount = useMemo(() => {
+    return chartAssetsByType.reduce((sum, item) => sum + (item.value || 0), 0);
+  }, [chartAssetsByType]);
+
+  const topAssetType = useMemo(() => {
+    if (!chartAssetsByType.length) return null;
+    return chartAssetsByType.reduce((best, item) => (item.value > (best?.value ?? -1) ? item : best), chartAssetsByType[0]);
+  }, [chartAssetsByType]);
+
+  const purchaseSummary = useMemo(() => {
+    const total = chartPurchaseTrend.reduce((sum, item) => sum + (item.purchases || 0), 0);
+    const current = chartPurchaseTrend.length ? chartPurchaseTrend[chartPurchaseTrend.length - 1].purchases : 0;
+    return { total, current };
+  }, [chartPurchaseTrend]);
+
+  const topProperty = useMemo(() => {
+    if (!chartPropertyAssets.length) return null;
+    return chartPropertyAssets.reduce((best, item) => (item.assets > (best?.assets ?? -1) ? item : best), chartPropertyAssets[0]);
+  }, [chartPropertyAssets]);
+
+  const expirySummary = useMemo(() => {
+    return chartExpiryData.reduce(
+      (acc, item) => ({ expiring: acc.expiring + (item.expiring || 0), expired: acc.expired + (item.expired || 0) }),
+      { expiring: 0, expired: 0 }
+    );
+  }, [chartExpiryData]);
+
   return (
     <div className="grid gap-4 sm:gap-5 md:gap-6 md:grid-cols-2">
       {/* Asset Distribution Pie Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Asset Distribution by Type</CardTitle>
-          <CardDescription className="text-sm">
-            Current breakdown of assets across different categories
-          </CardDescription>
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <CardHeader className="flex flex-col gap-3 pb-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base text-foreground">Asset Distribution by Type</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
+              onClick={() => window.location.assign('/assets')}
+            >
+              View assets
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              Total assets
+              <span className="ml-1 text-foreground">{totalAssetsCount.toLocaleString()}</span>
+            </Badge>
+            {topAssetType && totalAssetsCount ? (
+              <Badge variant="outline" className="bg-muted/30 font-medium">
+                Top type
+                <span className="ml-1 text-foreground">
+                  {topAssetType.name} ({Math.round(((topAssetType.value || 0) / totalAssetsCount) * 100)}%)
+                </span>
+              </Badge>
+            ) : null}
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              Types
+              <span className="ml-1 text-foreground">{chartAssetsByType.length}</span>
+            </Badge>
+          </div>
           <div className="relative">
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
@@ -248,7 +313,7 @@ export function DashboardCharts() {
             )}
           </div>
           {/* Legend */}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+          <div className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
             {(hasData ? chartAssetsByType : []).map((item, index, arr) => {
               const total = arr.reduce((s, x) => s + (x.value || 0), 0) || 1;
               const pct = Math.round(((item.value || 0) / total) * 100);
@@ -262,27 +327,44 @@ export function DashboardCharts() {
               );
             })}
           </div>
-        </CardContent>
+      </CardContent>
       </Card>
 
       {/* Purchase Trend Line Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Purchase Trends</CardTitle>
-          <CardDescription className="text-sm">
-            Monthly asset purchases and their total value
-          </CardDescription>
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <CardHeader className="flex flex-col gap-3 pb-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base text-foreground">Purchase Trends</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
+              onClick={() => window.location.assign('/reports')}
+            >
+              View reports
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={hasData ? chartPurchaseTrend : []} margin={{ top: 8, right: 12, left: 12, bottom: 8 }}>
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              6‑month total
+              <span className="ml-1 text-foreground">{purchaseSummary.total.toLocaleString()}</span>
+            </Badge>
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              Latest month
+              <span className="ml-1 text-foreground">{purchaseSummary.current.toLocaleString()}</span>
+            </Badge>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={hasData ? chartPurchaseTrendExtended : []} margin={{ top: 16, right: 20, left: 12, bottom: 12 }}>
               <defs>
                 <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.06} />
+                  <stop offset="100%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.05} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.4)" />
               <XAxis
                 dataKey="month"
                 stroke="hsl(var(--muted-foreground))"
@@ -291,6 +373,16 @@ export function DashboardCharts() {
                 tickLine={{ stroke: 'hsl(var(--border))' }}
               />
               <YAxis
+                yAxisId="left"
+                stroke="hsl(var(--muted-foreground))"
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+                allowDecimals={false}
+              />
+              <YAxis
+                yAxisId="right"
+                orientation="right"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                 axisLine={{ stroke: 'hsl(var(--border))' }}
@@ -308,13 +400,34 @@ export function DashboardCharts() {
                 }}
                 labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
                 itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                formatter={(value: any) => [value, 'Purchases']}
+                formatter={(value: number, name: string) => {
+                  return name === 'runningTotal'
+                    ? [value.toLocaleString(), 'Cumulative']
+                    : [value.toLocaleString(), 'Purchases'];
+                }}
+              />
+              <Legend
+                verticalAlign="top"
+                height={32}
+                iconType="plainline"
+                formatter={(value: string) => (value === 'runningTotal' ? 'Cumulative purchases' : 'Monthly purchases')}
               />
               <Area
+                yAxisId="left"
                 type="monotone"
                 dataKey="purchases"
                 stroke="hsl(199, 89%, 48%)"
+                strokeWidth={2}
                 fill="url(#purchaseGrad)"
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="runningTotal"
+                stroke="hsl(142, 76%, 36%)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -322,14 +435,33 @@ export function DashboardCharts() {
       </Card>
 
       {/* Property Assets Bar Chart (horizontal, top-N with gradient) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Assets by Property</CardTitle>
-          <CardDescription className="text-sm">
-            Asset distribution across different properties
-          </CardDescription>
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <CardHeader className="flex flex-col gap-3 pb-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base text-foreground">Assets by Property</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
+              onClick={() => window.location.assign('/properties')}
+            >
+              Manage properties
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4 pt-4">
+          {topProperty && (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant="outline" className="bg-muted/30 font-medium">
+                Top property
+                <span className="ml-1 text-foreground">{topProperty.name}</span>
+              </Badge>
+              <Badge variant="outline" className="bg-muted/30 font-medium">
+                Assets
+                <span className="ml-1 text-foreground">{topProperty.assets.toLocaleString()}</span>
+              </Badge>
+            </div>
+          )}
           <ResponsiveContainer width="100%" height={260}>
             <BarChart
               data={hasData ? chartPropertyAssets.map(x => ({ property: x.name, assets: x.assets })) : []}
@@ -374,18 +506,35 @@ export function DashboardCharts() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
-        </CardContent>
+      </CardContent>
       </Card>
 
       {/* Expiry Tracking (stacked area with gradients) */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Asset Expiry Tracking</CardTitle>
-          <CardDescription className="text-sm">
-            Monthly view of expired and expiring assets
-          </CardDescription>
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <CardHeader className="flex flex-col gap-3 pb-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base text-foreground">Asset Expiry Tracking</CardTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
+              onClick={() => window.location.assign('/assets')}
+            >
+              View expiring list
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4 pt-4">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              Expiring soon
+              <span className="ml-1 text-foreground">{expirySummary.expiring.toLocaleString()}</span>
+            </Badge>
+            <Badge variant="outline" className="bg-muted/30 font-medium">
+              Already expired
+              <span className="ml-1 text-foreground">{expirySummary.expired.toLocaleString()}</span>
+            </Badge>
+          </div>
           <ResponsiveContainer width="100%" height={240}>
             <AreaChart data={hasData ? chartExpiryData : []} margin={{ top: 10, right: 12, left: 12, bottom: 10 }}>
               <defs>
