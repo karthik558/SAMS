@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import MetricCard from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
@@ -62,6 +61,7 @@ import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, me
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
+import { cn } from "@/lib/utils";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -658,24 +658,28 @@ export default function Users() {
           <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Add User
             </Button>
           </DialogTrigger>
-          <DialogContent className="w-[96vw] sm:max-w-xl md:max-w-2xl lg:max-w-4xl max-h-[90vh] flex flex-col">
-            <DialogHeader>
+          <DialogContent
+            className={cn(
+              "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
+            )}
+          >
+            <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
               <DialogTitle>Add New User</DialogTitle>
               <DialogDescription>
                 Create a new user account for the system
               </DialogDescription>
             </DialogHeader>
             {authRole !== 'admin' && (
-              <div className="mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <div className="mx-2 mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground sm:mx-4 md:mx-8 lg:mx-12">
                 You have view-only access. Contact an administrator to add users.
               </div>
             )}
             {/* Summary chips */}
-            <div className="px-1 pb-2 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
               <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
                 Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
               </span>
@@ -687,7 +691,7 @@ export default function Users() {
               </span>
             </div>
             {/* Quick preview header for clarity */}
-            <div className="flex items-center gap-3 border rounded-md p-3 bg-muted/30">
+            <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-muted text-foreground font-medium">
                   {getInitials(`${firstName} ${lastName}`.trim())}
@@ -703,7 +707,7 @@ export default function Users() {
                 </div>
               )}
             </div>
-            <div className="space-y-4 md:space-y-3 flex-1 overflow-y-auto px-2 sm:px-3 md:px-4 pb-4 no-scrollbar">
+            <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-4 sm:px-4 md:space-y-3 md:px-8 lg:px-12 lg:pb-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
                 <div className="space-y-2">
           <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
@@ -1072,7 +1076,7 @@ export default function Users() {
                 <Label htmlFor="mustChange">Require password change on first login</Label>
               </div>
             </div>
-            <DialogFooter className="border-t mt-4 pt-4 justify-end">
+            <DialogFooter className="gap-2 border-t border-border/60 bg-muted/10 px-2 pb-4 pt-4 sm:px-4 md:px-8 md:pb-6 lg:px-12 lg:pb-12">
               <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
                 Cancel
               </Button>
@@ -1086,7 +1090,7 @@ export default function Users() {
         }
       />
 
-  <Card>
+      <Card className="border border-border/60 shadow-sm backdrop-blur">
         <CardHeader className="space-y-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1096,10 +1100,27 @@ export default function Users() {
               </CardDescription>
             </div>
           </div>
-          
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="relative flex-1 sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {userHighlights.map((item) => {
+              const Icon = item.icon;
+              return (
+                <span
+                  key={item.key}
+                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
+                >
+                  <Icon className={cn("h-3.5 w-3.5", item.iconClassName)} />
+                  <span className="font-medium text-foreground/90">{item.title}</span>
+                  <span className={cn("text-foreground", item.valueClassName)}>{item.value}</span>
+                </span>
+              );
+            })}
+          </div>
+        </CardHeader>
+
+        <CardContent className="space-y-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="relative w-full lg:max-w-sm">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search users..."
                 value={searchTerm}
@@ -1107,34 +1128,40 @@ export default function Users() {
                 className="pl-10"
               />
             </div>
-            {/* Quick role filters */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar">
-              {['all','admin','manager','user'].map((r) => (
-                <Button key={r} variant={roleFilter === r ? 'default' : 'outline'} size="sm" onClick={() => setRoleFilter(r)} className="whitespace-nowrap">
+
+            <div className="flex flex-wrap items-center gap-2 overflow-x-auto no-scrollbar">
+              {['all', 'admin', 'manager', 'user'].map((r) => (
+                <Button
+                  key={r}
+                  variant={roleFilter === r ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setRoleFilter(r)}
+                  className="whitespace-nowrap"
+                >
                   {r === 'all' ? 'All' : toTitle(r)}
                 </Button>
               ))}
             </div>
 
-            <div className="hidden sm:flex gap-2">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:w-auto sm:items-center sm:justify-end">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger className="w-32">
+                <SelectTrigger className="w-full sm:w-32">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue />
+                  <SelectValue placeholder="Role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="end">
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="manager">Manager</SelectItem>
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
-              
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue placeholder="Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent align="end">
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="inactive">Inactive</SelectItem>
@@ -1142,143 +1169,156 @@ export default function Users() {
               </Select>
             </div>
           </div>
-        </CardHeader>
-        
-        <CardContent>
+
           {loading ? (
             <div className="space-y-4" aria-busy="true" aria-live="polite">
               <TableSkeleton rows={8} />
             </div>
           ) : (
-          <div className="overflow-x-auto">
-            {/* Desktop table */}
-            <div className="hidden sm:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[200px]">User</TableHead>
-                    <TableHead className="hidden md:table-cell">Role</TableHead>
-                    <TableHead className="hidden lg:table-cell">Department</TableHead>
-                    <TableHead className="hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="hidden xl:table-cell">Last Login</TableHead>
-                    <TableHead className="w-[70px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
-                              <AvatarImage src={user.avatar_url} alt={user.name} />
-                            )}
-                            <AvatarFallback className="bg-muted text-foreground font-medium">
-                              {getInitials(user.name)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="space-y-1">
-                            <p className="text-sm font-medium">{user.name}</p>
-                            <p className="text-xs text-muted-foreground">{user.email}</p>
+            <div className="overflow-x-auto">
+              {/* Desktop table */}
+              <div className="hidden sm:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[200px]">User</TableHead>
+                      <TableHead className="hidden md:table-cell">Role</TableHead>
+                      <TableHead className="hidden lg:table-cell">Department</TableHead>
+                      <TableHead className="hidden sm:table-cell">Status</TableHead>
+                      <TableHead className="hidden xl:table-cell">Last Login</TableHead>
+                      <TableHead className="w-[70px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
+                                <AvatarImage src={user.avatar_url} alt={user.name} />
+                              )}
+                              <AvatarFallback className="bg-muted text-foreground font-medium">
+                                {getInitials(user.name)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="space-y-1">
+                              <p className="text-sm font-medium">{user.name}</p>
+                              <p className="text-xs text-muted-foreground">{user.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <Badge variant={getRoleBadgeVariant(user.role)}>
+                            {user.role === "Admin" && <Shield className="h-3 w-3 mr-1" />}
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          {user.department ?? "-"}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <StatusChip status={user.status} />
+                        </TableCell>
+                        <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
+                          {user.last_login
+                            ? (() => {
+                                try {
+                                  return format(new Date(user.last_login), 'PP p');
+                                } catch {
+                                  return '-';
+                                }
+                              })()
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {authRole === 'admin' && (
+                                <DropdownMenuItem onClick={() => openEditUser(user)}>
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                              )}
+                              {authRole === 'admin' && (
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteUser(user.id, user.name)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              {/* Mobile cards */}
+              <div className="sm:hidden space-y-2">
+                {filteredUsers.map((user) => (
+                  <Card key={user.id}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
+                            <AvatarImage src={user.avatar_url} alt={user.name} />
+                          )}
+                          <AvatarFallback className="bg-muted text-foreground font-medium">
+                            {getInitials(user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">{user.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <Badge variant={getRoleBadgeVariant(user.role)} className="text-xxs">
+                              {user.role}
+                            </Badge>
+                            <StatusChip status={user.status} />
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant={getRoleBadgeVariant(user.role)}>
-                          {user.role === "Admin" && <Shield className="h-3 w-3 mr-1" />}
-                          {user.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {user.department ?? "-"}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <StatusChip status={user.status} />
-                      </TableCell>
-                      <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">
-                        {user.last_login ? (() => { try { return format(new Date(user.last_login), 'PP p'); } catch { return '-'; } })() : '-'}
-                      </TableCell>
-                      <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
+                            <Button size="sm" variant="outline">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {authRole === 'admin' && (
-                            <DropdownMenuItem onClick={() => openEditUser(user)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditUser(user)}>
+                                <Edit className="h-4 w-4 mr-2" /> Edit
+                              </DropdownMenuItem>
                             )}
                             {authRole === 'admin' && (
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 onClick={() => handleDeleteUser(user.id, user.name)}
-                                className="text-destructive focus:text-destructive"
+                                className="text-destructive"
                               >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            {/* Mobile cards */}
-            <div className="sm:hidden space-y-2">
-              {filteredUsers.map((user) => (
-                <Card key={user.id}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        {user.avatar_url && !String(user.avatar_url).includes('placeholder') && (
-                          <AvatarImage src={user.avatar_url} alt={user.name} />
-                        )}
-                        <AvatarFallback className="bg-muted text-foreground font-medium">
-                          {getInitials(user.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{user.name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <Badge variant={getRoleBadgeVariant(user.role)} className="text-xxs">{user.role}</Badge>
-                          <StatusChip status={user.status} />
-                        </div>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline"><MoreHorizontal className="h-4 w-4" /></Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {authRole === 'admin' && (
-                            <DropdownMenuItem onClick={() => openEditUser(user)}>
-                              <Edit className="h-4 w-4 mr-2" /> Edit
-                            </DropdownMenuItem>
-                          )}
-                          {authRole === 'admin' && (
-                            <DropdownMenuItem onClick={() => handleDeleteUser(user.id, user.name)} className="text-destructive">
-                              <Trash2 className="h-4 w-4 mr-2" /> Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
-          </div>
           )}
-          
-      {filteredUsers.length === 0 && !loading && (
-            <div className="text-center py-8">
-              <User className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+
+          {filteredUsers.length === 0 && !loading && (
+            <div className="py-8 text-center">
+              <User className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
               <p className="text-muted-foreground">No users found</p>
             </div>
           )}
@@ -1287,12 +1327,51 @@ export default function Users() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
-        <DialogContent className="w-[96vw] sm:max-w-3xl md:max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent
+          className={cn(
+            "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
+          )}
+        >
+          <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
             <DialogTitle>Edit User</DialogTitle>
             <DialogDescription>Update user details and access</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 flex-1 overflow-y-auto pr-1 no-scrollbar">
+          {/* Summary chips */}
+          <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
+            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+              Role: <Badge variant={getRoleBadgeVariant(mapRole(eRole))}>{mapRole(eRole) || '—'}</Badge>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+              Properties: <span className="font-medium text-foreground">{editSelectedPropertyIds.length}</span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+              Departments: <span className="font-medium text-foreground">{editSelectedDepartments.length}</span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+              Status: <Badge variant={getStatusBadgeVariant(eStatus)}>{toTitle(eStatus)}</Badge>
+            </span>
+          </div>
+          {/* Preview */}
+          <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
+            <Avatar className="h-10 w-10">
+              {editingUser?.avatar_url && !String(editingUser.avatar_url).includes('placeholder') ? (
+                <AvatarImage src={editingUser.avatar_url} alt={editingUser.name} />
+              ) : (
+                <AvatarFallback className="bg-muted text-foreground font-medium">
+                  {getInitials(`${eFirstName} ${eLastName}`.trim() || editingUser?.name)}
+                </AvatarFallback>
+              )}
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{`${eFirstName} ${eLastName}`.trim() || editingUser?.name || 'User'}</p>
+              <p className="text-xs text-muted-foreground truncate">{eEmail || editingUser?.email || 'email@company.com'}</p>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              <Badge variant={getRoleBadgeVariant(mapRole(eRole))}>{mapRole(eRole)}</Badge>
+              <StatusChip status={toTitle(eStatus)} />
+            </div>
+          </div>
+          <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-4 sm:px-4 md:space-y-3 md:px-8 lg:px-12 lg:pb-12">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="efirstName">First Name</Label>
@@ -1339,17 +1418,40 @@ export default function Users() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="estatus">Status</Label>
-              <Select value={eStatus} onValueChange={setEStatus}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="estatus">Status</Label>
+                <Select value={eStatus} onValueChange={setEStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="etemp">Set Password</Label>
+                <Input
+                  id="etemp"
+                  type="password"
+                  placeholder="Leave blank to keep unchanged"
+                  value={ePassword}
+                  onChange={(e) => setEPassword(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Updates the user's password in the backend.</p>
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    id="emust"
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={eMustChange}
+                    onChange={(e) => setEMustChange(e.target.checked)}
+                  />
+                  <Label htmlFor="emust">Require password change on next login</Label>
+                </div>
+              </div>
             </div>
       {/* Page Permissions (edit) */}
             <div className="space-y-2">
@@ -1621,16 +1723,7 @@ export default function Users() {
               </DropdownMenu>
             </div>
           </div>
-          <div className="space-y-2 pt-2">
-            <Label htmlFor="etemp">Set Password</Label>
-            <Input id="etemp" type="password" placeholder="Leave blank to keep unchanged" value={ePassword} onChange={(e) => setEPassword(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Updates the user's password in the backend.</p>
-            <div className="flex items-center space-x-2">
-              <input id="emust" type="checkbox" className="h-4 w-4" checked={eMustChange} onChange={(e) => setEMustChange(e.target.checked)} />
-              <Label htmlFor="emust">Require password change on next login</Label>
-            </div>
-          </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/10 px-2 pb-4 pt-4 sm:px-4 md:px-8 md:pb-6 lg:px-12 lg:pb-12">
             <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveEditUser}>
               <Edit className="h-4 w-4 mr-2" />
@@ -1639,21 +1732,6 @@ export default function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* User Stats Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {userHighlights.map((item) => (
-          <MetricCard
-            key={item.key}
-            icon={item.icon}
-            title={item.title}
-            value={item.value}
-            caption={item.caption}
-            iconClassName={item.iconClassName}
-            valueClassName={item.valueClassName}
-          />
-        ))}
-      </div>
     </div>
   );
 }
