@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import MetricCard from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
@@ -36,9 +37,9 @@ import {
   UserPlus,
   Shield,
   User,
+  Users as UsersIcon,
   Mail,
   Phone,
-  Calendar,
   Filter
 } from "lucide-react";
 import { format } from "date-fns";
@@ -277,6 +278,54 @@ export default function Users() {
       return matchesSearch && matchesRole && matchesStatus;
     });
   }, [users, searchTerm, roleFilter, statusFilter]);
+
+  const userHighlights = useMemo(() => {
+    const totalUsers = users.length;
+    const activeUsers = users.filter((u) => (u.status || "").toLowerCase() === "active").length;
+    const adminCount = users.filter((u) => (u.role || "").toLowerCase() === "admin").length;
+    const departmentCount = new Set(
+      users
+        .map((u) => (u.department || "").trim())
+        .filter(Boolean)
+    ).size;
+
+    return [
+      {
+        key: 'total',
+        title: 'Total Users',
+        icon: User,
+        value: totalUsers.toLocaleString(),
+        caption: 'Accounts in the system',
+        iconClassName: 'text-primary',
+      },
+      {
+        key: 'active',
+        title: 'Active Users',
+        icon: UserPlus,
+        value: activeUsers.toLocaleString(),
+        caption: 'Currently enabled',
+        iconClassName: 'text-emerald-500 dark:text-emerald-400',
+        valueClassName: activeUsers ? 'text-primary' : undefined,
+      },
+      {
+        key: 'admins',
+        title: 'Admins',
+        icon: Shield,
+        value: adminCount.toLocaleString(),
+        caption: 'Users with full access',
+        iconClassName: 'text-amber-500 dark:text-amber-400',
+        valueClassName: adminCount ? 'text-destructive' : undefined,
+      },
+      {
+        key: 'departments',
+        title: 'Departments',
+        icon: UsersIcon,
+        value: departmentCount.toLocaleString(),
+        caption: 'Active department records',
+        iconClassName: 'text-sky-500 dark:text-sky-400',
+      },
+    ];
+  }, [users]);
 
   // Inline validation helpers
   const emailInvalid = useMemo(() => (email.trim().length > 0 && !/^\S+@\S+\.\S+$/.test(email.trim())), [email]);
@@ -1592,64 +1641,18 @@ export default function Users() {
       </Dialog>
 
       {/* User Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Users</p>
-                <p className="text-2xl font-bold">{users.length}</p>
-              </div>
-              <User className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active Users</p>
-                <p className="text-2xl font-bold text-primary">
-                  {users.filter(u => u.status === "Active").length}
-                </p>
-              </div>
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-primary"></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Admins</p>
-                <p className="text-2xl font-bold text-destructive">
-                  {users.filter(u => u.role === "Admin").length}
-                </p>
-              </div>
-              <Shield className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Departments</p>
-                <p className="text-2xl font-bold">
-                  {new Set(users.map(u => u.department || "")).size}
-                </p>
-              </div>
-              <div className="h-8 w-8 rounded-full bg-accent flex items-center justify-center">
-                <Calendar className="h-4 w-4 text-accent-foreground" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {userHighlights.map((item) => (
+          <MetricCard
+            key={item.key}
+            icon={item.icon}
+            title={item.title}
+            value={item.value}
+            caption={item.caption}
+            iconClassName={item.iconClassName}
+            valueClassName={item.valueClassName}
+          />
+        ))}
       </div>
     </div>
   );

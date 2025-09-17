@@ -2,9 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
+import MetricCard from "@/components/ui/metric-card";
 import { Building2, Plus, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isDemoMode } from "@/lib/demo";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -334,6 +335,49 @@ export default function Properties() {
   
   const maxAssets = Math.max(1, ...filtered.map((p: any) => Number(p.assetCount) || 0));
   const inactiveCount = filtered.filter(p => (p.status || "").toLowerCase() === "inactive").length;
+  const propertyHighlights = useMemo(() => {
+    const totalProperties = filtered.length;
+    const activeProperties = filtered.filter((p) => (p.status || "").toLowerCase() === "active").length;
+    const inactiveProperties = filtered.filter((p) => (p.status || "").toLowerCase() === "inactive").length;
+    const totalAssetsCount = filtered.reduce((sum, prop) => sum + (Number(prop.assetCount) || 0), 0);
+
+    return [
+      {
+        key: 'total',
+        title: 'Total Properties',
+        icon: Building2,
+        value: totalProperties.toLocaleString(),
+        caption: 'Properties in current view',
+        iconClassName: 'text-primary',
+      },
+      {
+        key: 'active',
+        title: 'Active Properties',
+        icon: MapPin,
+        value: activeProperties.toLocaleString(),
+        caption: 'Open and operating',
+        iconClassName: 'text-emerald-500 dark:text-emerald-400',
+        valueClassName: activeProperties ? 'text-success' : undefined,
+      },
+      {
+        key: 'assets',
+        title: 'Total Assets',
+        icon: Package,
+        value: totalAssetsCount.toLocaleString(),
+        caption: 'Assets across properties',
+        iconClassName: 'text-sky-500 dark:text-sky-400',
+      },
+      {
+        key: 'inactive',
+        title: 'Inactive Properties',
+        icon: AlertTriangle,
+        value: inactiveProperties.toLocaleString(),
+        caption: 'Temporarily offline',
+        iconClassName: 'text-amber-500 dark:text-amber-400',
+        valueClassName: inactiveProperties ? 'text-destructive' : undefined,
+      },
+    ];
+  }, [filtered]);
   const typeCounts = (() => {
     const map = new Map<string, number>();
     for (const p of filtered) {
@@ -449,58 +493,18 @@ export default function Properties() {
           </CardContent>
         </Card>
 
-    {/* Stats */}
-  <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Properties</p>
-                  <p className="text-2xl font-bold">{filtered.length}</p>
-                </div>
-                <Building2 className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active Properties</p>
-                  <p className="text-2xl font-bold text-success">{filtered.filter(p => p.status === "Active").length}</p>
-                </div>
-                <MapPin className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Assets</p>
-                  <p className="text-2xl font-bold">{filtered.reduce((sum, prop) => sum + (Number(prop.assetCount) || 0), 0)}</p>
-                </div>
-                <Package className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* New: Inactive Properties */}
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Inactive Properties</p>
-                  <p className="text-2xl font-bold text-destructive">{inactiveCount}</p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-
-          
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {propertyHighlights.map((item) => (
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value}
+              caption={item.caption}
+              iconClassName={item.iconClassName}
+              valueClassName={item.valueClassName}
+            />
+          ))}
         </div>
 
         {/* Properties Grid */}

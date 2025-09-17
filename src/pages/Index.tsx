@@ -40,6 +40,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Line } from "recharts";
+import MetricCard from "@/components/ui/metric-card";
 
 type TicketSummary = {
   total: number;
@@ -570,16 +571,14 @@ const Index = () => {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {heroHighlights.map((item) => (
-            <Card key={item.key} className="border border-border/50 bg-background/90 shadow-none">
-              <CardContent className="space-y-3 p-5">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <item.icon className={`h-4 w-4 ${item.iconClass}`} />
-                  <span>{item.title}</span>
-                </div>
-                <div className="text-3xl font-semibold tracking-tight">{item.value.toLocaleString()}</div>
-                <p className="text-xs text-muted-foreground">{item.caption}</p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value.toLocaleString()}
+              caption={item.caption}
+              iconClassName={item.iconClass}
+            />
           ))}
         </div>
       </section>

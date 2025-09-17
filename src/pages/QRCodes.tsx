@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import StatusChip from "@/components/ui/status-chip";
+import MetricCard from "@/components/ui/metric-card";
 import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon } from "lucide-react";
 import {
   Select,
@@ -490,6 +491,54 @@ export default function QRCodes() {
     return matchesSearch && matchesProperty && matchesStatus && matchesDate;
   });
 
+  const qrHighlights = useMemo(() => {
+    const total = filteredQRCodes.length;
+    const printedCount = filteredQRCodes.filter((qr) => qr.printed).length;
+    const readyCount = filteredQRCodes.filter((qr) => !qr.printed).length;
+    const propertyCount = new Set(
+      filteredQRCodes
+        .map((qr) => propertyCodeOf(qr.property) || qr.property)
+        .filter(Boolean)
+    ).size;
+
+    return [
+      {
+        key: 'total',
+        title: 'Total QR Codes',
+        icon: QrCode,
+        value: total.toLocaleString(),
+        caption: 'Codes in current view',
+        iconClassName: 'text-primary',
+      },
+      {
+        key: 'printed',
+        title: 'Printed',
+        icon: Printer,
+        value: printedCount.toLocaleString(),
+        caption: 'Already deployed',
+        iconClassName: 'text-emerald-500 dark:text-emerald-400',
+        valueClassName: printedCount ? 'text-success' : undefined,
+      },
+      {
+        key: 'ready',
+        title: 'Ready to Print',
+        icon: Package,
+        value: readyCount.toLocaleString(),
+        caption: 'Waiting for labels',
+        iconClassName: 'text-amber-500 dark:text-amber-400',
+        valueClassName: readyCount ? 'text-warning' : undefined,
+      },
+      {
+        key: 'properties',
+        title: 'Properties Covered',
+        icon: Building2,
+        value: propertyCount.toLocaleString(),
+        caption: 'Locations with QR codes',
+        iconClassName: 'text-sky-500 dark:text-sky-400',
+      },
+    ];
+  }, [filteredQRCodes, propsById, propsByName]);
+
   // Sorting
   const sortedQRCodes = useMemo(() => {
     const arr = [...filteredQRCodes];
@@ -603,61 +652,18 @@ export default function QRCodes() {
         </div>
       }
     />
-    {/* Stats */}
-  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total QR Codes</p>
-                  <p className="text-2xl font-bold">{filteredQRCodes.length}</p>
-                </div>
-                <QrCode className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Printed</p>
-                  <p className="text-2xl font-bold text-success">
-                    {codes.filter(qr => qr.printed).length}
-                  </p>
-                </div>
-                <Printer className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Ready to Print</p>
-                  <p className="text-2xl font-bold text-warning">
-                    {codes.filter(qr => !qr.printed).length}
-                  </p>
-                </div>
-                <Package className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Properties</p>
-                  <p className="text-2xl font-bold">
-                    {new Set(codes.map(qr => qr.property)).size}
-                  </p>
-                </div>
-                <Building2 className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
+          {qrHighlights.map((item) => (
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value}
+              caption={item.caption}
+              iconClassName={item.iconClassName}
+              valueClassName={item.valueClassName}
+            />
+          ))}
         </div>
 
         {/* Filters and Search */}

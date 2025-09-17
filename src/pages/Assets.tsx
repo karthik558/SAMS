@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
+import MetricCard from "@/components/ui/metric-card";
 import { 
   Package, 
   Search, 
@@ -17,7 +18,6 @@ import {
   Trash2, 
   QrCode,
   Calendar,
-  Building2,
   AlertTriangle,
   ShieldCheck
 } from "lucide-react";
@@ -453,6 +453,50 @@ export default function Assets() {
       return pid === needle;
     });
   }, [scopedAssets, filterProperty]);
+
+  const assetHighlights = useMemo(() => {
+    const total = statsAssets.length;
+    const active = statsAssets.filter((a: any) => String(a.status).toLowerCase() === 'active').length;
+    const expiringSoon = statsAssets.filter((a: any) => String(a.status).toLowerCase() === 'expiring soon').length;
+    const quantity = statsAssets.reduce((sum, asset) => sum + Number((asset as any).quantity || 0), 0);
+
+    return [
+      {
+        key: 'total',
+        title: 'Total Assets',
+        icon: Package,
+        value: total.toLocaleString(),
+        caption: 'Assets currently in view',
+        iconClassName: 'text-primary',
+      },
+      {
+        key: 'active',
+        title: 'Active Assets',
+        icon: ShieldCheck,
+        value: active.toLocaleString(),
+        caption: 'In service today',
+        iconClassName: 'text-emerald-500 dark:text-emerald-400',
+        valueClassName: active ? 'text-success' : undefined,
+      },
+      {
+        key: 'expiring',
+        title: 'Expiring Soon',
+        icon: AlertTriangle,
+        value: expiringSoon.toLocaleString(),
+        caption: 'Due within 30 days',
+        iconClassName: 'text-amber-500 dark:text-amber-400',
+        valueClassName: expiringSoon ? 'text-warning' : undefined,
+      },
+      {
+        key: 'quantity',
+        title: 'Total Quantity',
+        icon: Calendar,
+        value: quantity.toLocaleString(),
+        caption: 'Units across tracked assets',
+        iconClassName: 'text-sky-500 dark:text-sky-400',
+      },
+    ];
+  }, [statsAssets]);
 
   if (loadingUI && isSupabase) {
     return <PageSkeleton />;
@@ -923,61 +967,18 @@ export default function Assets() {
           }
         />
 
-  {/* Stats Cards (derived from current assets state) */}
-  <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
-    <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Assets</p>
-  <p className="text-2xl font-bold">{statsAssets.length}</p>
-                </div>
-                <Package className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Active</p>
-                  <p className="text-2xl font-bold text-success">
-                    {statsAssets.filter(a => a.status === "Active").length}
-                  </p>
-                </div>
-                <Building2 className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Expiring Soon</p>
-                  <p className="text-2xl font-bold text-warning">
-                    {statsAssets.filter(a => a.status === "Expiring Soon").length}
-                  </p>
-                </div>
-                <AlertTriangle className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Quantity</p>
-                  <p className="text-2xl font-bold">
-                    {statsAssets.reduce((sum, asset) => sum + Number(asset.quantity || 0), 0)}
-                  </p>
-                </div>
-                <Calendar className="h-8 w-8 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
+          {assetHighlights.map((item) => (
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value}
+              caption={item.caption}
+              iconClassName={item.iconClassName}
+              valueClassName={item.valueClassName}
+            />
+          ))}
         </div>
 
         {/* Filters and Search */}
