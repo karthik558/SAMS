@@ -106,6 +106,9 @@ const Index = () => {
   const assignmentShare = ticketSummary.total ? Math.round((ticketSummary.assignedToMe / ticketSummary.total) * 100) : 0;
   const backlogActive = ticketSummary.open + ticketSummary.inProgress;
   const monthlyChange = describeMonthlyChange(metrics.monthlyPurchases, metrics.monthlyPurchasesPrev);
+  const hour = new Date().getHours();
+  const salutation = hour < 12 ? 'Good Morning' : hour >= 18 ? 'Good Evening' : 'Good Afternoon';
+  const greeting = `${salutation}${firstName ? `, ${firstName}` : ''}`;
 
   const heroHighlights = useMemo(() => {
     const readyDelta = Math.max(metrics.codesTotal - metrics.codesReady, 0);
@@ -547,11 +550,8 @@ const Index = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
-              {`Welcome back${firstName ? `, ${firstName}` : ""}`}
+              {greeting}
             </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-              Monitor portfolio health, triage tickets, and keep assets up to date from one place.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2">
@@ -584,60 +584,14 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Asset Quantity
-            </CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-2xl font-semibold tracking-tight">
-              {metrics.totalQuantity.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Across {counts.assets.toLocaleString()} assets
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Monthly Purchases
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="text-2xl font-semibold tracking-tight">
-              {metrics.monthlyPurchases.toLocaleString()}
-            </div>
-            <Badge
-              variant="outline"
-              className={`w-fit border-transparent ${monthlyChange.isPositive ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300" : "bg-amber-500/15 text-amber-600 dark:text-amber-200"}`}
-            >
-              {monthlyChange.label}
-            </Badge>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              QR Codes Generated
-            </CardTitle>
-            <QrCode className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <div className="text-2xl font-semibold tracking-tight">
-              {metrics.codesTotal.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Ready for print: {metrics.codesReady.toLocaleString()}
-            </p>
-          </CardContent>
-        </Card>
+      <section className="grid gap-4 xl:grid-cols-3">
+        <div className="space-y-4 xl:col-span-2">
+          <DashboardCharts />
+        </div>
+        <div className="space-y-4">
+          <RecentActivity />
+          <MyAudits />
+        </div>
       </section>
 
       <section className="space-y-4">
@@ -764,16 +718,6 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
-        </div>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <div className="space-y-4 xl:col-span-2">
-          <DashboardCharts />
-        </div>
-        <div className="space-y-4">
-          <RecentActivity />
-          <MyAudits />
         </div>
       </section>
 
