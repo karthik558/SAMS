@@ -19,7 +19,8 @@ import {
   QrCode,
   Calendar,
   AlertTriangle,
-  ShieldCheck
+  ShieldCheck,
+  Users
 } from "lucide-react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -528,6 +529,12 @@ export default function Assets() {
     return p ? p.id : val;
   };
 
+  const propertyDisplayName = (val: string) => {
+    if (propsById[val]) return propsById[val].name || val;
+    const p = propsByName[val];
+    return p ? p.name : val;
+  };
+
   // Sanitize a code by removing non-alphanumeric and uppercasing
   const sanitizeCode = (s: string) => (s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
@@ -982,15 +989,13 @@ export default function Assets() {
         </div>
 
         {/* Filters and Search */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Asset Inventory</CardTitle>
-            <CardDescription>
-              Search and filter your asset inventory
-            </CardDescription>
+        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="space-y-1 pb-4">
+            <CardTitle className="text-lg font-semibold">Asset Inventory</CardTitle>
+            <CardDescription>Search, segment, and sort your asset catalogue</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:flex-wrap">
+          <CardContent className="space-y-4 pt-0">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-wrap">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -1123,7 +1128,7 @@ export default function Assets() {
 
         {/* Bulk actions bar (visible when any selected) */}
   {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between gap-2 p-3 bg-muted/50 border rounded-md">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/90 px-4 py-3 shadow-sm">
             <div className="text-sm">{selectedIds.size} selected</div>
             <div className="flex gap-2 flex-wrap items-center">
               {/* Bulk assign property */}
@@ -1262,10 +1267,21 @@ export default function Assets() {
         )}
 
         {/* Assets Table */}
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-              <Table dense={prefs.dense} stickyHeader stickyFirstCol>
+        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="flex flex-col gap-1 px-6 py-5">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold">Asset Catalogue</CardTitle>
+                <CardDescription>All assets that match the filters and scope above</CardDescription>
+              </div>
+              <div className="text-xs text-muted-foreground md:text-right">
+                Showing {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-0 pb-0">
+            <div className="overflow-x-auto border-t border-border/60">
+              <Table dense={prefs.dense} stickyHeader stickyFirstCol className="text-sm">
               <TableHeader>
                 <TableRow>
                     {isVisible('select') && (
@@ -1315,7 +1331,7 @@ export default function Assets() {
               </TableHeader>
               <TableBody>
         {sortedAssets.map((asset) => (
-                  <TableRow key={asset.id}>
+                  <TableRow key={asset.id} className="transition-colors hover:bg-muted/35">
                     {isVisible('select') && (
                     <TableCell className="w-10">
                       <Checkbox
@@ -1329,11 +1345,53 @@ export default function Assets() {
                       />
                     </TableCell>)}
                     {isVisible('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
-                    {isVisible('name') && <TableCell>{asset.name}</TableCell>}
-                    {isVisible('type') && <TableCell>{asset.type}</TableCell>}
-                    {isVisible('property') && <TableCell>{displayPropertyCode(asset.property)}</TableCell>}
-                    {isVisible('department') && <TableCell>{asset.department || '-'}</TableCell>}
-                    {isVisible('qty') && <TableCell>{asset.quantity}</TableCell>}
+                    {isVisible('name') && (
+                      <TableCell>
+                        <span className="font-medium text-foreground/90 leading-5">
+                          {asset.name || asset.id}
+                        </span>
+                      </TableCell>
+                    )}
+                    {isVisible('type') && (
+                      <TableCell>
+                        {asset.type ? (
+                          <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+                            <Package className="h-3.5 w-3.5" />
+                            <span className="font-medium text-foreground/80">{asset.type}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isVisible('property') && (
+                      <TableCell>
+                        <div className="flex flex-col gap-0.5 text-sm">
+                          <span className="font-medium text-foreground/90">{propertyDisplayName(String(asset.property))}</span>
+                          <span className="text-[11px] text-muted-foreground">{displayPropertyCode(String(asset.property))}</span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {isVisible('department') && (
+                      <TableCell>
+                        {asset.department ? (
+                          <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+                            <Users className="h-3.5 w-3.5" />
+                            <span className="font-medium text-foreground/80">{asset.department}</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    )}
+                    {isVisible('qty') && (
+                      <TableCell>
+                        <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
+                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                          {asset.quantity}
+                        </span>
+                      </TableCell>
+                    )}
                     {isVisible('location') && <TableCell>{asset.location || '-'}</TableCell>}
                     {isVisible('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}
                     {isVisible('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
