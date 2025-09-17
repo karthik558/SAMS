@@ -32,6 +32,19 @@ import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  LabelList,
+} from "recharts";
 
 // Mock data for QR codes
 const mockQRCodes = [
@@ -94,7 +107,7 @@ export default function QRCodes() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [allowedProps, setAllowedProps] = useState<Set<string>>(new Set());
   const [purging, setPurging] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [previewMeta, setPreviewMeta] = useState<{ assetId: string; assetName: string } | null>(null);
@@ -539,6 +552,65 @@ export default function QRCodes() {
     ];
   }, [filteredQRCodes, propsById, propsByName]);
 
+  const qrMonthlyTrend = useMemo(() => {
+    const map = new Map<string, { label: string; generated: number; sort: number }>();
+    filteredQRCodes.forEach((qr) => {
+      const generatedAt = qr.generatedDate ? new Date(qr.generatedDate) : null;
+      if (!generatedAt || Number.isNaN(generatedAt.getTime())) return;
+      const key = `${generatedAt.getFullYear()}-${String(generatedAt.getMonth() + 1).padStart(2, '0')}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          label: generatedAt.toLocaleString(undefined, { month: 'short', year: '2-digit' }),
+          generated: 0,
+          sort: generatedAt.getFullYear() * 100 + generatedAt.getMonth(),
+        });
+      }
+      map.get(key)!.generated += 1;
+    });
+    return Array.from(map.values())
+      .sort((a, b) => a.sort - b.sort)
+      .slice(-6);
+  }, [filteredQRCodes]);
+
+  const qrStatusChart = useMemo(() => {
+    const printed = filteredQRCodes.filter((qr) => qr.printed).length;
+    const ready = filteredQRCodes.length - printed;
+    return [
+      {
+        key: 'printed',
+        label: 'Printed',
+        value: printed,
+        fill: '#22c55e',
+      },
+      {
+        key: 'ready',
+        label: 'Ready to Print',
+        value: ready,
+        fill: '#f59e0b',
+      },
+    ];
+  }, [filteredQRCodes]);
+
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-md border border-border/70 bg-card/95 px-3 py-2 text-xs shadow-sm">
+        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
+        <div className="space-y-1">
+          {payload.map((entry: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-2">
+              {entry?.color ? (
+                <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+              ) : null}
+              <span className="text-muted-foreground">{entry.name}</span>
+              <span className="font-medium text-foreground">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Sorting
   const sortedQRCodes = useMemo(() => {
     const arr = [...filteredQRCodes];
@@ -652,7 +724,7 @@ export default function QRCodes() {
         </div>
       }
     />
-        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           {qrHighlights.map((item) => (
             <MetricCard
               key={item.key}
@@ -665,6 +737,58 @@ export default function QRCodes() {
             />
           ))}
         </div>
+
+        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <CardHeader className="space-y-1">
+            <CardTitle>QR Code Insights</CardTitle>
+            <CardDescription>Recent trends and status breakdowns</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 lg:grid-cols-[1.4fr,1fr]">
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                <h3 className="text-sm font-semibold text-muted-foreground mb-3">Monthly generation trend</h3>
+                <div className="h-48 sm:h-56">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={qrMonthlyTrend} margin={{ top: 12, right: 16, left: 8, bottom: 12 }}>
+                      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} />
+                      <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                      <Bar dataKey="generated" radius={[6, 6, 0, 0]} fill="hsl(var(--primary))">
+                        <LabelList dataKey="generated" position="top" className="text-xs font-medium" fill="hsl(var(--foreground))" />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground">Status mix</h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={qrStatusChart} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={4}>
+                        {qrStatusChart.map((entry) => (
+                          <Cell key={entry.key} fill={entry.fill} />
+                        ))}
+                        <LabelList dataKey="value" position="outside" className="text-[11px] font-medium" fill="hsl(var(--foreground))" />
+                      </Pie>
+                      <RechartsTooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                  {qrStatusChart.map((entry) => (
+                    <span key={entry.key} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />
+                      <span>{entry.label}</span>
+                      <span className="font-semibold text-foreground">{entry.value}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Filters and Search */}
         <Card>
@@ -697,8 +821,8 @@ export default function QRCodes() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:flex-wrap">
-              <div className="relative flex-1">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search by asset name or ID..."
@@ -707,9 +831,9 @@ export default function QRCodes() {
                   className="pl-10"
                 />
               </div>
-              
+
               <Select value={filterProperty} onValueChange={setFilterProperty}>
-                <SelectTrigger className="w-full md:w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Filter by property" />
                 </SelectTrigger>
                 <SelectContent>
@@ -719,9 +843,9 @@ export default function QRCodes() {
                   ))}
                 </SelectContent>
               </Select>
-              
+
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-full md:w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -732,7 +856,7 @@ export default function QRCodes() {
               </Select>
 
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-full md:w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Sort by date" />
                 </SelectTrigger>
                 <SelectContent>
@@ -741,9 +865,9 @@ export default function QRCodes() {
                 </SelectContent>
               </Select>
 
-              <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
+              <DateRangePicker className="w-full" value={range} onChange={setRange} />
 
-              <Button onClick={handleDownloadAll} variant="outline" className="gap-2 w-full sm:w-auto">
+              <Button onClick={handleDownloadAll} variant="outline" className="gap-2 w-full">
                 <Download className="h-4 w-4" />
                 Download All
               </Button>
@@ -766,7 +890,7 @@ export default function QRCodes() {
             <CardContent className="p-8 text-center text-sm text-muted-foreground">No QR codes match your filters. Clear filters or generate new codes.</CardContent>
           </Card>
         ) : viewMode === 'grid' ? (
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {sortedQRCodes.map((qrCode) => (
             <Card
               key={qrCode.id}
@@ -816,32 +940,32 @@ export default function QRCodes() {
                   </div>
 
                 {/* Actions */}
-          <div className="relative z-10 mt-1 grid grid-cols-1 sm:grid-cols-2 items-stretch gap-2 lg:flex lg:flex-wrap">
-                  {(role==='admin') && (
-         <Button
-                    size="sm"
-                    variant="outline"
-       onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}
-       className="gap-2 w-full md:w-full lg:w-auto"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    Regenerate
-                  </Button>
-                  )}
-                        <Button
-                    size="sm"
-                    variant="outline"
-       className="gap-2 w-full md:w-full lg:w-auto"
-                    onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}
-                  >
-                    <Download className="h-4 w-4" />
-                    Download
-                  </Button>
-        <Button
-                    size="sm"
-                    variant="outline"
-       className="gap-2 w-full md:w-full lg:w-auto"
-                    onClick={async () => {
+          <div className="relative z-10 mt-1 grid grid-cols-1 sm:grid-cols-2 items-stretch gap-2">
+            {(role==='admin') && (
+       <Button
+                  size="sm"
+                  variant="outline"
+      onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}
+      className="gap-2 w-full justify-center"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Regenerate
+                </Button>
+                )}
+                      <Button
+                  size="sm"
+                  variant="outline"
+      className="gap-2 w-full justify-center"
+                  onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+       <Button
+                  size="sm"
+                  variant="outline"
+      className="gap-2 w-full justify-center"
+                  onClick={async () => {
                       try {
                         let dataUrl = qrCode.imageUrl;
                         if (!dataUrl) dataUrl = await generateQrPng(qrCode);
@@ -869,8 +993,8 @@ export default function QRCodes() {
             ))}
           </div>
         ) : (
-    <div className="rounded-md border">
-            <Table>
+    <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
       <TableHead className="min-w-[160px]">Asset</TableHead>
@@ -904,12 +1028,12 @@ export default function QRCodes() {
                     <TableCell>
                       <div className="flex gap-2 flex-wrap">
                         {(role==='admin') && (
-                          <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}>
+                          <Button size="sm" variant="outline" className="w-full sm:w-auto justify-center" onClick={() => handleGenerateForAsset({ id: qrCode.assetId, name: qrCode.assetName || qrCode.assetId, property: qrCode.property })}>
                             Regenerate
                           </Button>
                         )}
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => openPreview(qrCode)}>Preview</Button>
-                        <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}>Download</Button>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto justify-center" onClick={() => openPreview(qrCode)}>Preview</Button>
+                        <Button size="sm" variant="outline" className="w-full sm:w-auto justify-center" onClick={() => { setDlSingleTarget(qrCode); setDlSingleFmt('png'); setDlSingleOpen(true); }}>Download</Button>
                       </div>
                     </TableCell>
                   </TableRow>
