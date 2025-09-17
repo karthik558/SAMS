@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { toast } from "sonner";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import PageHeader from "@/components/layout/PageHeader";
-import { Megaphone } from "lucide-react";
+import { Megaphone, Filter, Pencil, Trash2, Search } from "lucide-react";
 import { createNewsletterPost, deleteNewsletterPost, listAllNewsletterPosts, updateNewsletterPost, listNewsletterCategories, type NewsletterPost, type NewsletterCategory } from "@/services/newsletter";
 import { isDemoMode } from "@/lib/demo";
 
@@ -23,6 +23,8 @@ export default function Newsletter() {
   const [categories, setCategories] = useState<NewsletterCategory[]>([]);
   const [category, setCategory] = useState<string>('update');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   // Read role to enable admin actions
   const role = (() => {
@@ -65,7 +67,9 @@ export default function Newsletter() {
         try {
           const raw = isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : localStorage.getItem('auth_user');
           author = raw ? (JSON.parse(raw).email || JSON.parse(raw).name || null) : null;
-        } catch {}
+        } catch {
+          // ignore fallback author fetch errors
+        }
         const created = await createNewsletterPost({ title: title.trim(), body, published, author, category });
         setPosts(s => [created, ...s]);
         toast.success('Post created');
@@ -100,70 +104,175 @@ export default function Newsletter() {
 
   const filtered = posts.filter(p => {
     const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q) || (p.author||'').toLowerCase().includes(q);
+    const matchesQuery = !q || p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q) || (p.author || '').toLowerCase().includes(q);
+    const matchesCategory = selectedCategory === 'all' || (p.category || 'update') === selectedCategory;
+    const matchesStatus = statusFilter === 'all' || (statusFilter === 'published' ? p.published : !p.published);
+    return matchesQuery && matchesCategory && matchesStatus;
   });
+
+  const publishedCount = posts.filter((p) => p.published).length;
+  const draftCount = posts.length - publishedCount;
+  const lastUpdated = posts[0]?.created_at ? new Date(posts[0].created_at).toLocaleString() : '—';
+  const categoryFilters = [{ key: 'all', label: 'All' }, ...categories.map((c) => ({ key: c.key, label: c.label }))];
+  const statusFilters: Array<{ key: typeof statusFilter; label: string }> = [
+    { key: 'all', label: 'All' },
+    { key: 'published', label: 'Published' },
+    { key: 'draft', label: 'Drafts' },
+  ];
+  const categoryStats = useMemo(() => {
+    if (!categories.length) return [] as Array<{ key: string; label: string; hue: string; count: number }>;
+    return categories.map((c) => ({
+      key: c.key,
+      label: c.label,
+      hue: c.hue,
+      count: posts.filter((p) => (p.category || 'update') === c.key).length,
+    }));
+  }, [categories, posts]);
 
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: 'Dashboard', to: '/' }, { label: 'Newsletter' }]} />
-      <PageHeader icon={Megaphone} title="Status & Updates" />
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <CardTitle>Latest Updates</CardTitle>
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Search updates…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="h-9 w-56"
-              />
-              {isAdmin && (
-                <Button size="sm" onClick={openCreate}>New Post</Button>
-              )}
-            </div>
+      <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-6 shadow-sm sm:p-8">
+        <PageHeader
+          icon={Megaphone}
+          title="Status & Updates"
+          description="Broadcast release notes, maintenance windows, and success stories to keep everyone aligned."
+          actions={isAdmin ? <Button onClick={openCreate}>New Post</Button> : null}
+        />
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border/40 bg-background/90 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Posts</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{posts.length}</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No posts yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {filtered.map((p) => {
+          <div className="rounded-xl border border-border/40 bg-background/90 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Published</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{publishedCount}</p>
+          </div>
+          <div className="rounded-xl border border-border/40 bg-background/90 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Drafts</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{draftCount}</p>
+          </div>
+          <div className="rounded-xl border border-border/40 bg-background/90 p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Last Update</p>
+            <p className="mt-1 text-base font-medium text-foreground">{lastUpdated}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[2fr,1fr]">
+        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-foreground">Announcement Feed</CardTitle>
+                <CardDescription className="text-sm text-muted-foreground">
+                  Browse updates, filter by category, and surface the messages that matter most.
+                </CardDescription>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:w-64">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search updates…"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    className="h-10 w-full rounded-lg border-border/60 bg-background/80 pl-9"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  {statusFilters.map((option) => (
+                    <Button
+                      key={option.key}
+                      size="sm"
+                      variant={statusFilter === option.key ? 'default' : 'outline'}
+                      onClick={() => setStatusFilter(option.key)}
+                      className="h-9 px-3 text-xs"
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Filter className="h-3.5 w-3.5" />
+              <span>Filter by category:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                {categoryFilters.map((cat) => (
+                  <Button
+                    key={cat.key}
+                    size="sm"
+                    variant={selectedCategory === cat.key ? 'secondary' : 'ghost'}
+                    className="h-8 px-3 text-xs"
+                    onClick={() => setSelectedCategory(cat.key)}
+                  >
+                    {cat.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                Loading announcements…
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                Nothing to show yet. Try adjusting your filters or add a new update.
+              </div>
+            ) : (
+              filtered.map((p) => {
                 const s = statusOf(p);
                 const expanded = expandedId === p.id;
                 const isLong = (p.body?.length || 0) > 320 || (p.body || '').split(/\n/).length > 6;
                 return (
-                  <div key={p.id} className="rounded-lg border bg-card p-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <article
+                    key={p.id}
+                    className="group rounded-xl border border-border/50 bg-card/90 p-4 shadow-sm transition hover:border-border hover:shadow-md"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${s.cls}`}>{s.label}</span>
-                          <div className="font-medium text-foreground truncate max-w-[60ch]" title={p.title}>{p.title}</div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-xs font-medium ${s.cls}`}>
+                            {s.label}
+                          </span>
+                          {!p.published && (
+                            <span className="inline-flex items-center rounded border border-border/60 bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                              Draft
+                            </span>
+                          )}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
+                        <h3 className="mt-2 text-base font-semibold text-foreground line-clamp-2" title={p.title}>
+                          {p.title}
+                        </h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
                           {new Date(p.created_at).toLocaleString()} {p.author ? `• ${p.author}` : ''}
-                        </div>
+                        </p>
                       </div>
                       {isAdmin && (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button size="sm" variant="outline" onClick={() => openEdit(p)}>Edit</Button>
-                          <Button size="sm" variant="destructive" onClick={() => remove(p.id)}>Delete</Button>
+                        <div className="flex items-center gap-1">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" aria-label="Edit post" onClick={() => openEdit(p)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive"
+                            aria-label="Delete post"
+                            onClick={() => remove(p.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </div>
-                    <div className="mt-2">
-                      <div className={[
-                        "text-[13.5px] leading-6 text-foreground whitespace-pre-wrap relative",
-                        (!expanded && isLong) ? "max-h-32 md:max-h-40 overflow-hidden pr-2" : ""
-                      ].join(' ')}>
+                    <div className="mt-3 text-[13.5px] leading-6 text-foreground">
+                      <div className={`relative whitespace-pre-wrap ${(!expanded && isLong) ? 'max-h-32 overflow-hidden pr-4 md:max-h-40' : ''}`}>
                         {p.body}
-                        {(!expanded && isLong) && (
-                          <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-background via-background/80 to-transparent" />
+                        {!expanded && isLong && (
+                          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-card via-card/90 to-transparent" />
                         )}
                       </div>
                       {isLong && (
@@ -174,13 +283,62 @@ export default function Newsletter() {
                         </div>
                       )}
                     </div>
-                  </div>
+                  </article>
                 );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Category Overview</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                How your announcements are distributed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {categoryStats.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Categories will appear once they are created.</p>
+              ) : (
+                categoryStats.map((c) => (
+                  <div key={c.key} className="flex items-center justify-between rounded-lg border border-border/40 bg-muted/20 px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                      <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] ${hueBadge(c.hue)}`}>
+                        {c.label}
+                      </span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">{c.count}</span>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-semibold text-foreground">Publishing Tips</CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Keep updates concise and actionable.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-muted-foreground">
+              <ul className="space-y-2">
+                <li>✅ Lead with the outcome or impact in the first sentence.</li>
+                <li>🕒 Include timelines, owners, and next steps for incident-style posts.</li>
+                <li>🔖 Tag each update with a category so teams can filter quickly.</li>
+                <li>📬 Encourage stakeholders to subscribe to email alerts for critical changes.</li>
+              </ul>
+              {!isAdmin && (
+                <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  Need to publish an announcement? Contact an administrator or submit a ticket with your draft copy.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
