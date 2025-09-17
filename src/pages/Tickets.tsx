@@ -5,7 +5,7 @@ import { isDemoMode } from "@/lib/demo";
 import { createTicket, listTickets, updateTicket, listTicketEvents, listAssigneesForProperty, type Ticket } from "@/services/tickets";
 import { listUsers, type AppUser } from "@/services/users";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Ticket as TicketIcon } from "lucide-react";
+import MetricCard from "@/components/ui/metric-card";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
@@ -25,6 +26,21 @@ import { listTicketComments, addTicketComment, type TicketComment } from "@/serv
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { listProperties } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  LabelList,
+  LineChart,
+  Line,
+} from "recharts";
 
 export default function Tickets() {
   const location = useLocation();
@@ -319,6 +335,154 @@ export default function Tickets() {
       setAssigning(s => ({ ...s, [id]: false }));
     }
   };
+
+  const ticketMetrics = useMemo(() => {
+    const base = filteredItems;
+    const statusCounts: Record<Ticket['status'], number> = {
+      open: 0,
+      in_progress: 0,
+      resolved: 0,
+      closed: 0,
+    };
+    const priorityCounts: Record<'low' | 'medium' | 'high' | 'urgent', number> = {
+      low: 0,
+      medium: 0,
+      high: 0,
+      urgent: 0,
+    };
+    let totalAgeMs = 0;
+    let ageCount = 0;
+    let totalResolutionMs = 0;
+    let resolutionCount = 0;
+    const now = Date.now();
+
+    base.forEach((ticket) => {
+      statusCounts[ticket.status] += 1;
+      if (ticket.priority && priorityCounts[ticket.priority] !== undefined) {
+        priorityCounts[ticket.priority] += 1;
+      }
+
+      if (ticket.createdAt) {
+        const createdTs = new Date(ticket.createdAt).getTime();
+        if (!Number.isNaN(createdTs)) {
+          totalAgeMs += Math.max(0, now - createdTs);
+          ageCount += 1;
+          if ((ticket.status === 'resolved' || ticket.status === 'closed') && ticket.updatedAt) {
+            const resolvedTs = new Date(ticket.updatedAt).getTime();
+            if (!Number.isNaN(resolvedTs) && resolvedTs >= createdTs) {
+              totalResolutionMs += resolvedTs - createdTs;
+              resolutionCount += 1;
+            }
+          }
+        }
+      }
+    });
+
+    const total = base.length;
+    const completed = statusCounts.resolved + statusCounts.closed;
+    const backlog = statusCounts.open + statusCounts.in_progress;
+
+    return {
+      total,
+      statusCounts,
+      priorityCounts,
+      backlog,
+      completionRate: total ? Math.round((completed / total) * 100) : 0,
+      avgAgeHours: ageCount ? totalAgeMs / ageCount / (1000 * 60 * 60) : 0,
+      avgResolutionHours: resolutionCount ? totalResolutionMs / resolutionCount / (1000 * 60 * 60) : null,
+    };
+  }, [filteredItems]);
+
+  const statusChartData = useMemo(() => {
+    const colors: Record<Ticket['status'], string> = {
+      open: 'hsl(var(--warning))',
+      in_progress: 'hsl(var(--primary))',
+      resolved: 'hsl(var(--success))',
+      closed: 'hsl(var(--muted-foreground))',
+    };
+    return (Object.entries(ticketMetrics.statusCounts) as Array<[Ticket['status'], number]>).map(([key, value]) => ({
+      key,
+      label: key === 'in_progress' ? 'In Progress' : key.charAt(0).toUpperCase() + key.slice(1),
+      value,
+      fill: colors[key],
+    }));
+  }, [ticketMetrics.statusCounts]);
+
+  const priorityChartData = useMemo(() => {
+    const colors: Record<'low' | 'medium' | 'high' | 'urgent', string> = {
+      low: '#64748b',
+      medium: '#0ea5e9',
+      high: '#f59e0b',
+      urgent: '#ef4444',
+    };
+    return (Object.entries(ticketMetrics.priorityCounts) as Array<['low' | 'medium' | 'high' | 'urgent', number]>).map(([key, value]) => ({
+      key,
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+      value,
+      fill: colors[key],
+    }));
+  }, [ticketMetrics.priorityCounts]);
+
+  const monthlyTrend = useMemo(() => {
+    const map = new Map<string, { label: string; created: number; resolved: number; sort: number }>();
+    filteredItems.forEach((ticket) => {
+      const created = ticket.createdAt ? new Date(ticket.createdAt) : null;
+      if (created && !Number.isNaN(created.getTime())) {
+        const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}`;
+        const sort = created.getFullYear() * 100 + created.getMonth();
+        if (!map.has(key)) {
+          map.set(key, {
+            label: created.toLocaleString(undefined, { month: 'short', year: '2-digit' }),
+            created: 0,
+            resolved: 0,
+            sort,
+          });
+        }
+        map.get(key)!.created += 1;
+      }
+
+      if ((ticket.status === 'resolved' || ticket.status === 'closed') && ticket.updatedAt) {
+        const resolvedAt = new Date(ticket.updatedAt);
+        if (!Number.isNaN(resolvedAt.getTime())) {
+          const key = `${resolvedAt.getFullYear()}-${String(resolvedAt.getMonth() + 1).padStart(2, '0')}`;
+          const sort = resolvedAt.getFullYear() * 100 + resolvedAt.getMonth();
+          if (!map.has(key)) {
+            map.set(key, {
+              label: resolvedAt.toLocaleString(undefined, { month: 'short', year: '2-digit' }),
+              created: 0,
+              resolved: 0,
+              sort,
+            });
+          }
+          map.get(key)!.resolved += 1;
+        }
+      }
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => a.sort - b.sort)
+      .slice(-6);
+  }, [filteredItems]);
+
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-md border border-border/70 bg-card/95 px-3 py-2 text-xs shadow-sm">
+        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
+        <div className="space-y-1">
+          {payload.map((entry: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-2">
+              {entry?.color ? (
+                <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+              ) : null}
+              <span className="text-muted-foreground">{entry.name}</span>
+              <span className="font-medium text-foreground">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
   const fmt = (iso?: string | null) => {
     if (!iso) return '—';
     try { const d = new Date(iso); return d.toLocaleString(); } catch { return iso as string; }
@@ -417,10 +581,132 @@ export default function Tickets() {
     setStatus(id, status);
   };
 
+  const formatDuration = (hours: number | null | undefined) => {
+    if (hours == null || Number.isNaN(hours)) return '—';
+    if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m`;
+    if (hours < 24) return `${Math.round(hours)}h`;
+    return `${Math.round(hours / 24)}d`;
+  };
+
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Tickets" }]} />
       <PageHeader icon={TicketIcon} title="Maintenance Tickets" />
+      <section className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            icon={TicketIcon}
+            title="Tickets in View"
+            value={ticketMetrics.total.toLocaleString()}
+            caption="Filtered by mode, date, and closed toggle"
+          />
+          <MetricCard
+            icon={TicketIcon}
+            title="Active Backlog"
+            value={ticketMetrics.backlog.toLocaleString()}
+            caption="Open plus in-progress tickets"
+            iconClassName="text-amber-500 dark:text-amber-300"
+            valueClassName="text-amber-600 dark:text-amber-300"
+          />
+          <MetricCard
+            icon={TicketIcon}
+            title="Completion Rate"
+            value={`${ticketMetrics.completionRate}%`}
+            caption="Resolved or closed in the current view"
+            iconClassName="text-emerald-500 dark:text-emerald-300"
+            valueClassName="text-emerald-600 dark:text-emerald-300"
+          />
+          <MetricCard
+            icon={TicketIcon}
+            title="Avg Resolution"
+            value={formatDuration(ticketMetrics.avgResolutionHours)}
+            caption="Mean time from open to finished"
+            iconClassName="text-sky-500 dark:text-sky-300"
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.5fr,1fr]">
+          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-1">
+              <CardTitle>Status Overview</CardTitle>
+              <CardDescription>Tickets split across workflow stages</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={statusChartData} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {statusChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.fill} />
+                      ))}
+                      <LabelList dataKey="value" position="top" className="text-xs font-medium" fill="hsl(var(--foreground))" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-1">
+              <CardTitle>Priority Mix</CardTitle>
+              <CardDescription>Relative share of priorities in the filtered list</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 pb-4 space-y-4">
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={priorityChartData} dataKey="value" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                      {priorityChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.fill} />
+                      ))}
+                      <LabelList dataKey="value" position="outside" className="text-[11px] font-medium" fill="hsl(var(--foreground))" />
+                    </Pie>
+                    <RechartsTooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-2 px-6 text-xs text-muted-foreground">
+                {priorityChartData.map((entry) => (
+                  <span key={entry.key} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />
+                    <span>{entry.label}</span>
+                    <span className="font-semibold text-foreground">{entry.value}</span>
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {monthlyTrend.length ? (
+          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-1">
+              <CardTitle>Monthly Throughput</CardTitle>
+              <CardDescription>Created versus resolved tickets across the last six months</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyTrend} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} />
+                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip content={<ChartTooltip />} />
+                    <Line type="monotone" dataKey="created" name="Created" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="resolved" name="Resolved" stroke="hsl(var(--success))" strokeWidth={2} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
+      </section>
+
       <Card>
         <CardHeader><CardTitle>New Ticket</CardTitle></CardHeader>
         <CardContent className="grid gap-3">

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, addApprovalComment, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,20 @@ import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusChip from "@/components/ui/status-chip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
+import MetricCard from "@/components/ui/metric-card";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  PieChart,
+  Pie,
+  Cell,
+  LabelList,
+} from "recharts";
 
 export default function Approvals() {
   const [items, setItems] = useState<ApprovalRequest[]>([]);
@@ -183,10 +197,196 @@ export default function Approvals() {
     }
   };
 
+  const approvalMetrics = useMemo(() => {
+    const base = visibleItems;
+    const statusCounts: Record<'pending_manager' | 'pending_admin' | 'approved' | 'rejected', number> = {
+      pending_manager: 0,
+      pending_admin: 0,
+      approved: 0,
+      rejected: 0,
+    };
+    const departmentMap = new Map<string, number>();
+    let totalTurnaroundMs = 0;
+    let turnaroundCount = 0;
+
+    base.forEach((request) => {
+      statusCounts[request.status] = (statusCounts[request.status] || 0) + 1;
+      const dept = (request.department || '').trim() || 'Unassigned';
+      departmentMap.set(dept, (departmentMap.get(dept) || 0) + 1);
+
+      if (request.requestedAt && request.reviewedAt) {
+        const start = new Date(request.requestedAt).getTime();
+        const end = new Date(request.reviewedAt).getTime();
+        if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) {
+          totalTurnaroundMs += end - start;
+          turnaroundCount += 1;
+        }
+      }
+    });
+
+    return {
+      total: base.length,
+      statusCounts,
+      pending: statusCounts.pending_manager + statusCounts.pending_admin,
+      departmentCounts: Array.from(departmentMap.entries()),
+      avgTurnaroundHours: turnaroundCount ? totalTurnaroundMs / turnaroundCount / (1000 * 60 * 60) : null,
+    };
+  }, [visibleItems]);
+
+  const statusChartData = useMemo(() => {
+    const labels: Record<'pending_manager' | 'pending_admin' | 'approved' | 'rejected', string> = {
+      pending_manager: 'Pending • Manager',
+      pending_admin: 'Pending • Admin',
+      approved: 'Approved',
+      rejected: 'Rejected',
+    };
+    const fills: Record<'pending_manager' | 'pending_admin' | 'approved' | 'rejected', string> = {
+      pending_manager: '#f59e0b',
+      pending_admin: '#6366f1',
+      approved: '#22c55e',
+      rejected: '#ef4444',
+    };
+    return (Object.entries(approvalMetrics.statusCounts) as Array<['pending_manager' | 'pending_admin' | 'approved' | 'rejected', number]>).map(([key, value]) => ({
+      key,
+      label: labels[key],
+      value,
+      fill: fills[key],
+    }));
+  }, [approvalMetrics.statusCounts]);
+
+  const departmentChartData = useMemo(() => {
+    const palette = ['#6366f1', '#0ea5e9', '#22c55e', '#f97316', '#facc15', '#f43f5e'];
+    return approvalMetrics.departmentCounts
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, value], index) => ({
+        name,
+        value,
+        fill: palette[index % palette.length],
+      }));
+  }, [approvalMetrics.departmentCounts]);
+
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="rounded-md border border-border/70 bg-card/95 px-3 py-2 text-xs shadow-sm">
+        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
+        <div className="space-y-1">
+          {payload.map((entry: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-2">
+              {entry?.color ? (
+                <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+              ) : null}
+              <span className="text-muted-foreground">{entry.name}</span>
+              <span className="font-medium text-foreground">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const formatDuration = (hours: number | null | undefined) => {
+    if (hours == null || Number.isNaN(hours)) return '—';
+    if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m`;
+    if (hours < 24) return `${Math.round(hours)}h`;
+    return `${Math.round(hours / 24)}d`;
+  };
+
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Approvals" }]} />
       <PageHeader icon={ClipboardCheck} title="Approvals" />
+      <section className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            icon={ClipboardCheck}
+            title="Requests in View"
+            value={approvalMetrics.total.toLocaleString()}
+            caption="Filtered by role, status, and dates"
+          />
+          <MetricCard
+            icon={ClipboardCheck}
+            title="Pending Queue"
+            value={approvalMetrics.pending.toLocaleString()}
+            caption="Awaiting manager or admin decisions"
+            iconClassName="text-amber-500 dark:text-amber-300"
+            valueClassName="text-amber-600 dark:text-amber-300"
+          />
+          <MetricCard
+            icon={ClipboardCheck}
+            title="Avg Turnaround"
+            value={formatDuration(approvalMetrics.avgTurnaroundHours)}
+            caption="Completed requests with a decision timestamp"
+            iconClassName="text-sky-500 dark:text-sky-300"
+          />
+          <MetricCard
+            icon={ClipboardCheck}
+            title="Departments"
+            value={approvalMetrics.departmentCounts.length.toLocaleString()}
+            caption="Unique departments represented"
+            iconClassName="text-emerald-500 dark:text-emerald-300"
+          />
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.5fr,1fr]">
+          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-1">
+              <CardTitle>Status Breakdown</CardTitle>
+              <CardDescription>Where each approval currently sits in the workflow</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={statusChartData} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} />
+                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} interval={0} angle={-10} dy={12} />
+                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                      {statusChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.fill} />
+                      ))}
+                      <LabelList dataKey="value" position="top" className="text-xs font-medium" fill="hsl(var(--foreground))" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+            <CardHeader className="pb-1">
+              <CardTitle>Departments</CardTitle>
+              <CardDescription>Top departments contributing to the current queue</CardDescription>
+            </CardHeader>
+            <CardContent className="px-0 pb-4 space-y-4">
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={departmentChartData} dataKey="value" innerRadius={55} outerRadius={90} paddingAngle={3}>
+                      {departmentChartData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.fill} />
+                      ))}
+                      <LabelList dataKey="value" position="outside" className="text-[11px] font-medium" fill="hsl(var(--foreground))" />
+                    </Pie>
+                    <RechartsTooltip content={<ChartTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-2 px-6 text-xs text-muted-foreground">
+                {departmentChartData.slice(0, 5).map((entry) => (
+                  <span key={entry.name} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />
+                    <span>{entry.name}</span>
+                    <span className="font-semibold text-foreground">{entry.value}</span>
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
   <Card>
         <CardHeader>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
