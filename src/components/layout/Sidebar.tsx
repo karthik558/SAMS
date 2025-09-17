@@ -200,14 +200,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   return (
     <div
       className={cn(
-        "bg-background border-r border-border h-full transition-all duration-300 ease-in-out",
-        isMobile ? "w-full" : collapsed ? "w-16" : "w-64",
+        "group/sidebar relative h-full overflow-hidden border-r border-border transition-[width] duration-300 ease-in-out",
+        "bg-sidebar",
+        isMobile ? "w-full" : collapsed ? "w-16" : "w-72",
         className
       )}
     >
-      <div className="flex h-full flex-col">
+      <div className="relative z-10 flex h-full flex-col">
         {/* Header */}
-        <div className="flex h-14 md:h-16 items-center justify-between px-4 border-b border-border">
+        <div className="flex h-14 md:h-16 items-center justify-between border-b border-border/60 bg-sidebar px-4">
           {!collapsed && (
             <div className="flex items-center space-x-2">
               <Package className="h-8 w-8 text-primary" />
@@ -219,7 +220,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => setCollapsed(!collapsed)}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 rounded-full border border-sidebar-border/60 bg-sidebar-accent p-0 text-muted-foreground shadow-sm transition hover:bg-sidebar-accent/80 hover:text-foreground dark:border-border/60 dark:bg-sidebar-accent/70"
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -231,7 +232,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 p-2">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
           {(() => {
             let role: string = "";
             try {
@@ -289,10 +290,11 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   key={item.name}
                   to={href}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "group/nav flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
+                    collapsed ? "justify-center" : "justify-start",
                     isActive
-                      ? "bg-accent text-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/60"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/30 dark:bg-sidebar-primary/25 dark:text-foreground dark:ring-sidebar-ring/30"
+                      : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 hover:shadow-sm hover:ring-1 hover:ring-sidebar-ring/20 dark:hover:bg-sidebar-accent/60"
                   )}
                   onClick={onNavigate}
                 >
@@ -329,7 +331,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </nav>
 
         {/* Newsletter / Announcements */}
-        <div className="border-t border-border p-3">
+        <div className="border-t border-border/60 bg-sidebar p-4 dark:border-border dark:bg-transparent">
           {!collapsed && (
             <div className="space-y-2">
               <div className="text-xs font-semibold text-foreground">Announcement</div>
@@ -340,7 +342,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   const n = news[0];
                   return (
                     <div
-                      className="group block rounded-lg border bg-card p-2 hover:shadow-sm transition cursor-pointer"
+                      className="group block rounded-xl border border-sidebar-border/60 bg-card p-3 shadow-sm transition hover:border-sidebar-border hover:shadow-md dark:border-border/60 dark:bg-card/60"
                       onClick={() => setNewsOpen(true)}
                       role="button"
                       aria-label="Open latest announcement"
@@ -404,7 +406,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </Dialog>
 
         {/* Footer */}
-        <div className="border-t border-border p-4">
+        <div className="border-t border-border/60 p-4">
           {!collapsed && (
             <div className="text-xs text-muted-foreground">
               <p>© 2025{" "}

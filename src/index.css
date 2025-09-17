@@ -61,7 +61,7 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 16 52% 96%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
 
@@ -70,10 +70,10 @@ All colors MUST be HSL.
     --sidebar-primary-foreground: 0 0% 98%;
 
   /* Light mode sidebar hover/active background and text */
-  --sidebar-accent: 16 52% 90%; /* slightly deeper tint for contrast */
+  --sidebar-accent: 16 52% 92%; /* slightly deeper tint for contrast */
   --sidebar-accent-foreground: 240 5.9% 10%; /* strong readable text */
 
-    --sidebar-border: 220 13% 91%;
+    --sidebar-border: 20 24% 88%;
 
   --sidebar-ring: 16 52% 58%;
   }
