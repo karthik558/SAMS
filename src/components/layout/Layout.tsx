@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, Package, QrCode, ScanLine, Ticket } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,14 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
+  const mobileNavItems = [
+    { label: "Home", path: "/", icon: Home },
+    { label: "Assets", path: "/assets", icon: Package },
+    { label: "Scan", path: "/scan", icon: ScanLine },
+    { label: "QR", path: "/qr-codes", icon: QrCode },
+    { label: "Tickets", path: "/tickets", icon: Ticket },
+  ] as const;
 
   return (
     <div className="flex h-dvh bg-background">
@@ -39,25 +48,35 @@ export function Layout({ children }: LayoutProps) {
         </main>
         {/* Mobile bottom tab bar */}
         {isMobile && (
-          <nav className="sticky bottom-0 left-0 right-0 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="grid grid-cols-5 h-14">
-              {[
-                { label: 'Home', path: '/', icon: Home },
-                { label: 'Assets', path: '/assets', icon: Package },
-                { label: 'Scan', path: '/scan', icon: ScanLine },
-                { label: 'QR', path: '/qr-codes', icon: QrCode },
-                { label: 'Tickets', path: '/tickets', icon: Ticket },
-              ].map((item) => {
-                const active = pathname === item.path || pathname.startsWith(item.path + '/');
+          <nav className="sticky bottom-0 left-0 right-0 z-40 border-t border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            <div className="mx-auto flex max-w-2xl items-center px-2">
+              {mobileNavItems.map((item) => {
+                const active = pathname === item.path || pathname.startsWith(item.path + "/");
+                const Icon = item.icon;
                 return (
                   <button
                     key={item.path}
-                    className={`flex flex-col items-center justify-center text-xs gap-1 ${active ? 'text-primary' : 'text-muted-foreground'} hover:text-foreground`}
+                    type="button"
+                    className={cn(
+                      "relative flex flex-1 select-none flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
+                      "text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-background",
+                      active
+                        ? "text-primary"
+                        : "hover:text-foreground"
+                    )}
                     onClick={() => navigate(item.path)}
                     aria-label={item.label}
+                    aria-current={active ? "page" : undefined}
                   >
-                    <item.icon className="h-5 w-5" />
+                    <Icon className={cn("h-5 w-5 transition", active ? "text-primary" : "text-muted-foreground/80")} />
                     <span>{item.label}</span>
+                    <span
+                      className={cn(
+                        "pointer-events-none absolute -bottom-[2px] left-1/2 h-1 w-8 -translate-x-1/2 rounded-full bg-primary transition-all duration-200",
+                        active ? "opacity-100 scale-100" : "opacity-0 scale-75"
+                      )}
+                      aria-hidden="true"
+                    />
                   </button>
                 );
               })}
