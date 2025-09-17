@@ -959,14 +959,11 @@ export default function Assets() {
             description="Track and manage all your organization's assets"
             actions={
               <div className="flex gap-2">
-                <Button variant={prefs.dense ? "secondary" : "outline"} size="sm" onClick={() => prefs.setDense(d => !d)}>
-                  {prefs.dense ? "Comfortable" : "Compact"}
-                </Button>
-                <ColumnChooser
-                  columns={columnDefs}
-                  visible={prefs.visibleCols}
-                  onChange={prefs.setVisibleCols}
-                />
+              <ColumnChooser
+                columns={columnDefs}
+                visible={prefs.visibleCols}
+                onChange={prefs.setVisibleCols}
+              />
                 <Button onClick={() => setShowAddForm(true)} className="gap-2" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
                   <Plus className="h-4 w-4" />
                   Add Asset
@@ -1357,9 +1354,9 @@ export default function Assets() {
                     {isVisible('type') && (
                       <TableCell>
                         {asset.type ? (
-                          <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-                            <Package className="h-3.5 w-3.5" />
-                            <span className="font-medium text-foreground/80">{asset.type}</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
+                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="truncate whitespace-nowrap">{asset.type}</span>
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
@@ -1377,9 +1374,9 @@ export default function Assets() {
                     {isVisible('department') && (
                       <TableCell>
                         {asset.department ? (
-                          <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
-                            <Users className="h-3.5 w-3.5" />
-                            <span className="font-medium text-foreground/80">{asset.department}</span>
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
+                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span className="truncate whitespace-nowrap">{asset.department}</span>
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">-</span>
