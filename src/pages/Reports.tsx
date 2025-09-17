@@ -1344,7 +1344,8 @@ export default function Reports() {
                     </div>
                   );
                 }
-                return filtered.map((report: any, index: number) => (
+                const limited = rrRange === 'all' ? filtered.slice(0, 5) : filtered;
+                return limited.map((report: any, index: number) => (
                   <div key={report.id ?? index} className="flex items-center justify-between p-3 border border-border rounded-lg">
                     <div className="flex items-center gap-3">
                       <FileText className="h-5 w-5 text-muted-foreground" />
@@ -1379,6 +1380,21 @@ export default function Reports() {
                     </div>
                   </div>
                 ));
+              })()}
+              {(() => {
+                if (rrRange === 'all') {
+                  const total = (recentReports ?? []).length;
+                  if (total > 5) {
+                    return (
+                      <div className="pt-2 text-center">
+                        <Button variant="ghost" size="sm" onClick={() => setRrRange('7d')}>
+                          Show more
+                        </Button>
+                      </div>
+                    );
+                  }
+                }
+                return null;
               })()}
             </div>
           </CardContent>
