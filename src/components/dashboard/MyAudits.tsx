@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,7 @@ type Row = { id: string; property?: string | null; startedAt?: string | null; st
 export function MyAudits() {
   const [items, setItems] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     (async () => {
@@ -69,21 +71,35 @@ export function MyAudits() {
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <div>
-          <CardTitle>My Audits</CardTitle>
-          <CardDescription>Your recent and active audit sessions</CardDescription>
+    <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="flex items-start gap-2">
+          <span className="rounded-full bg-primary/10 p-2 text-primary">
+            <ClipboardCheck className="h-4 w-4" />
+          </span>
+          <div>
+            <CardTitle className="text-sm font-semibold text-foreground">My Audits</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground sm:text-sm">
+              Your recent and active audit sessions
+            </CardDescription>
+          </div>
         </div>
-        <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2 text-xs"
+          onClick={() => navigate(isDemoMode() ? "/demo/audit" : "/audit")}
+        >
+          View all
+        </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         {!items.length && !loading && (
           <p className="text-sm text-muted-foreground">No audits yet.</p>
         )}
         <div className="space-y-3">
           {items.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-2 rounded border p-2">
+            <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/30 p-3">
               <div className="min-w-0">
                 <div className="text-sm font-medium text-foreground truncate">Session {r.id}</div>
                 <div className="text-xs text-muted-foreground truncate">
@@ -94,9 +110,6 @@ export function MyAudits() {
               <Badge variant={r.status === 'Active' ? 'default' : 'secondary'}>{r.status}</Badge>
             </div>
           ))}
-        </div>
-        <div className="mt-3">
-          <Button variant="outline" size="sm" onClick={() => { try { window.location.href = '/audit'; } catch { } }}>Go to Audit</Button>
         </div>
       </CardContent>
     </Card>

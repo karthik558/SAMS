@@ -16,6 +16,7 @@ import {
   Download,
   FileText,
   Upload,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ import { listQRCodes } from "@/services/qrcodes";
 import type { QRCode } from "@/services/qrcodes";
 import { downloadAssetTemplate, importAssetsFromFile } from "@/services/bulkImport";
 import { listTickets, type Ticket } from "@/services/tickets";
+import { listNewsletterPosts, type NewsletterPost } from "@/services/newsletter";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DashboardSkeleton } from "@/components/ui/page-skeletons";
@@ -70,6 +72,35 @@ const emptyTicketSummary: TicketSummary = {
   averageResolutionHours: null,
 };
 
+const announcementHueClasses: Record<string, string> = {
+  red: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800',
+  emerald: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800',
+  amber: 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800',
+  blue: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-800',
+  sky: 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:border-sky-800',
+  zinc: 'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700',
+  default: 'bg-muted text-foreground border-border/60',
+};
+
+const announcementCategoryMeta: Record<string, { label: string; hue: string }> = {
+  bug: { label: 'Bug', hue: 'red' },
+  api_down: { label: 'API Down', hue: 'red' },
+  fixed: { label: 'Fixed', hue: 'emerald' },
+  resolved: { label: 'Resolved', hue: 'emerald' },
+  maintenance: { label: 'Maintenance', hue: 'amber' },
+  update: { label: 'Update', hue: 'blue' },
+};
+
+const getAnnouncementBadge = (category?: string) => {
+  const key = (category || 'update').toLowerCase();
+  const meta = announcementCategoryMeta[key] ?? announcementCategoryMeta.update;
+  const className = announcementHueClasses[meta.hue] ?? announcementHueClasses.default;
+  return {
+    label: meta.label,
+    className,
+  };
+};
+
 const monthLabel = (date: Date) => date.toLocaleString(undefined, { month: "short" });
 
 const describeMonthlyChange = (current: number, previous: number) => {
@@ -100,6 +131,7 @@ const Index = () => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
   const [loadingUI, setLoadingUI] = useState(true);
+  const [announcements, setAnnouncements] = useState<NewsletterPost[]>([]);
 
   const isAdmin = role === 'admin';
   const resolvedTotal = ticketSummary.resolved + ticketSummary.closed;
@@ -223,6 +255,21 @@ const Index = () => {
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
     : 'Collecting data';
   const backlogLabel = `${ticketSummary.open.toLocaleString()} open • ${ticketSummary.inProgress.toLocaleString()} in progress`;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const posts = await listNewsletterPosts(3);
+        if (!cancelled) setAnnouncements(posts);
+      } catch {
+        if (!cancelled) setAnnouncements([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const hydrateTicketInsights = (tickets: Ticket[], users: AppUser[]) => {
@@ -588,6 +635,56 @@ const Index = () => {
           <DashboardCharts />
         </div>
         <div className="space-y-4">
+          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+            <CardHeader className="flex flex-row items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <span className="rounded-full bg-primary/10 p-2 text-primary">
+                  <Megaphone className="h-4 w-4" />
+                </span>
+                <div>
+                  <CardTitle className="text-sm font-semibold text-foreground">Announcements</CardTitle>
+                  <CardDescription>Latest from the SAMS team</CardDescription>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                onClick={() => navigate(isDemoMode() ? "/demo/newsletter" : "/newsletter")}
+              >
+                View all
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {announcements.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No announcements yet. Check back soon.</p>
+              ) : (
+                announcements.slice(0, 3).map((post) => {
+                  const badge = getAnnouncementBadge(post.category);
+                  return (
+                    <button
+                      key={post.id}
+                      type="button"
+                      onClick={() => navigate(isDemoMode() ? "/demo/newsletter" : "/newsletter")}
+                      className="w-full rounded-lg border border-border/40 bg-muted/40 px-3 py-2 text-left transition hover:border-border hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-medium ${badge.className}`}>
+                          {badge.label}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {new Date(post.created_at).toLocaleDateString()}
+                        </span>
+                        {post.author && <span className="text-muted-foreground">• {post.author}</span>}
+                      </div>
+                      <p className="mt-1 text-sm font-medium text-foreground line-clamp-1">{post.title}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{post.body}</p>
+                    </button>
+                  );
+                })
+              )}
+            </CardContent>
+          </Card>
           <RecentActivity />
           <MyAudits />
         </div>

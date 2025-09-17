@@ -6,7 +6,8 @@ import { formatDistanceToNow, parseISO, isToday } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
-import { listActivity, logActivity, subscribeActivity, type Activity } from "@/services/activity";
+import { listActivity, subscribeActivity, type Activity } from "@/services/activity";
+import { History } from "lucide-react";
 
 const mockActivities = [
   { id: 1, type: "seed", message: "Welcome to SAMS", user_name: "System", created_at: new Date().toISOString() },
@@ -64,35 +65,40 @@ export function RecentActivity() {
   }, [todays, showAll]);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
-        <div>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>
-            Latest updates and changes in your asset management system
-          </CardDescription>
+    <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="flex items-start gap-2">
+          <span className="rounded-full bg-primary/10 p-2 text-primary">
+            <History className="h-4 w-4" />
+          </span>
+          <div>
+            <CardTitle className="text-sm font-semibold text-foreground">Recent Activity</CardTitle>
+            <CardDescription className="text-xs text-muted-foreground sm:text-sm">
+              Latest updates and changes in your asset management system
+            </CardDescription>
+          </div>
         </div>
         {todays.length > 8 && (
           <Button
             variant="ghost"
             size="sm"
             aria-expanded={showAll}
-            onClick={() => setShowAll(v => !v)}
-            className="shrink-0 h-8 px-2 text-xs"
+            onClick={() => setShowAll((v) => !v)}
+            className="h-8 px-2 text-xs"
           >
             {showAll ? "Show less" : "Show all"}
           </Button>
         )}
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {rows.length === 0 && (
             <p className="text-sm text-muted-foreground">No activity today yet.</p>
           )}
           {rows.map((activity) => (
             <div
               key={activity.id}
-              className="flex items-center gap-3 rounded-lg border border-border p-3 animate-slide-in"
+              className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/30 p-3 transition hover:border-border/70"
             >
               <Avatar className="h-8 w-8">
                 {/* optional avatar url if you add it later */}
@@ -116,7 +122,7 @@ export function RecentActivity() {
                 </div>
               </div>
               
-              <Badge variant="secondary" className="text-xs shrink-0">
+              <Badge variant="secondary" className="shrink-0 text-xs">
                 {activity.type.replace(/_/g, " ")}
               </Badge>
             </div>
