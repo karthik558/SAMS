@@ -159,19 +159,41 @@ export default function Properties() {
           userCounts[propId] = users.size;
         }
 
-        const licMap: Record<string, number> = {};
-        for (const l of licenses as any[]) { if (l?.property_id) licMap[l.property_id] = l.asset_limit || 0; }
-        const merged = props.map((p: Property) => ({
-          id: p.id,
-          name: p.name,
-          address: p.address ?? "",
-          type: p.type,
-          status: p.status,
-          manager: p.manager ?? "",
-          assetCount: assetCounts[p.id] ?? 0,
-          userCount: userCounts[p.id] ?? 0,
-          licenseLimit: licMap[p.id] || 0,
-        }));
+        // Map property licenses including plan
+        const licMap: Record<string, { limit: number; plan?: string | null; }> = {};
+        for (const l of licenses as any[]) { if (l?.property_id) licMap[l.property_id] = { limit: l.asset_limit || 0, plan: l.plan }; }
+
+        function derivedFromPlan(plan?: string | null): number | null {
+          switch (plan) {
+            case 'free': return 100;
+            case 'standard': return 500;
+            case 'pro': return 2500;
+            case 'business': return null; // unlimited unless numeric specified
+            default: return null;
+          }
+        }
+
+        const merged = props.map((p: Property) => {
+          const entry = licMap[p.id];
+          const plan = entry?.plan;
+          const rawLimit = entry?.limit ?? 0; // 0 = unlimited or derive from plan
+          const derived = rawLimit === 0 ? derivedFromPlan(plan) : null;
+          const effective = rawLimit > 0 ? rawLimit : (derived ?? 0); // 0 means unlimited (if derived also null)
+          return {
+            id: p.id,
+            name: p.name,
+            address: p.address ?? "",
+            type: p.type,
+            status: p.status,
+            manager: p.manager ?? "",
+            assetCount: assetCounts[p.id] ?? 0,
+            userCount: userCounts[p.id] ?? 0,
+            licenseLimit: effective, // 0 => unlimited
+            _rawLimit: rawLimit,
+            _plan: plan,
+            _derived: derived,
+          } as any;
+        });
         setProperties(merged);
       } catch (e: any) {
         console.error(e);
@@ -522,8 +544,9 @@ export default function Properties() {
         {/* Properties Grid */}
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((property) => {
-            const limit = (property as any).licenseLimit && (property as any).licenseLimit > 0 ? (property as any).licenseLimit : maxAssets;
-            const pct = limit > 0 ? Math.max(0, Math.min(100, Math.round(((Number(property.assetCount) || 0) / limit) * 100))) : 0;
+            const limit = (property as any).licenseLimit; // already effective (0 => unlimited)
+            const effectiveLimited = limit > 0;
+            const pct = effectiveLimited ? Math.min(100, Math.round(((Number(property.assetCount) || 0) / limit) * 100)) : 0;
             return (
               <Card
                 key={property.id}
@@ -577,11 +600,21 @@ export default function Properties() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
                       <span>Utilization</span>
-                      <span className="font-medium text-foreground/80">{pct}%</span>
+                      {effectiveLimited ? (
+                        <span className="font-medium text-foreground/80">{pct}%</span>
+                      ) : (
+                        <span className="font-medium text-foreground/60">Unlimited</span>
+                      )}
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted/60">
-                      <div className="h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all" style={{ width: `${pct}%` }} />
-                    </div>
+                    {effectiveLimited ? (
+                      <div className="h-2 w-full rounded-full bg-muted/60">
+                        <div className="h-full rounded-full bg-gradient-to-r from-primary via-primary/80 to-primary/60 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    ) : (
+                      <div className="h-2 w-full rounded-full bg-muted/40 flex items-center justify-center text-[10px] text-muted-foreground/70 tracking-wide">
+                        —
+                      </div>
+                    )}
                   </div>
 
                   {property.manager ? (
