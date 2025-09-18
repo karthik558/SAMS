@@ -85,31 +85,29 @@ export default function Login() {
     if (!email.trim()) { toast({ title: "Email is required", variant: "destructive" }); return; }
     if (!password) { toast({ title: "Password is required", variant: "destructive" }); return; }
     setLoading(true);
+    let success = false;
     try {
       if (hasSupabaseEnv) {
         if (attempts >= 5) {
-          await new Promise(r => setTimeout(r, 1500)); // throttle after 5 attempts
+          await new Promise(r => setTimeout(r, 1500));
         }
-        // Try password sign-in and detect MFA
         let res: any = null;
         try {
           res = await initiatePasswordSignIn(email.trim(), password);
         } catch (err: any) {
-          // Surface invalid credentials or other auth errors
           const msg = (err?.message || '').toLowerCase().includes('invalid') ? 'Email or password is incorrect.' : (err?.message || 'Sign in failed');
           toast({ title: "Invalid credentials", description: msg, variant: "destructive" });
           setAttempts(a => a + 1);
-          return;
+          return; // keep password so user can adjust
         }
         if (res.mfa) {
           setMfaNeeded(res.mfa);
           setSelectedFactor(res.mfa.factors[0]?.id || "");
-          // Create a challenge for the first factor
           if (res.mfa.factors[0]?.id) {
             const ch = await mfaChallenge(res.mfa.factors[0].id);
             setChallengeId(ch.challengeId);
           }
-          return; // wait for OTP submit
+          return; // keep password for MFA context (not strictly needed but OK)
         }
         const u = res.user;
         if (!u) {
@@ -123,7 +121,6 @@ export default function Login() {
         } catch {}
         try { await updateLastLogin(u.email); } catch {}
       } else {
-        // Local fallback: check local users and simple hash
         const users = readLocalUsers();
         const user = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
         if (!user) {
@@ -134,18 +131,20 @@ export default function Login() {
         const computed = password ? btoa(unescape(encodeURIComponent(password))).slice(0, 32) : "";
         if (!raw || computed !== raw) {
           toast({ title: "Invalid credentials", description: "Wrong password.", variant: "destructive" });
-          return;
+          return; // preserve password
         }
         try {
           localStorage.setItem(CURRENT_USER_KEY, user.id);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: user.id, name: user.name, email: user.email, role: user.role, department: user.department || null }));
         } catch {}
       }
+      success = true;
       navigate("/", { replace: true });
     } finally {
-  setLoading(false);
-  // Clear sensitive in-memory state
-  try { setPassword(""); } catch {}
+      setLoading(false);
+      if (success) {
+        try { setPassword(""); } catch {}
+      }
     }
   };
 
@@ -171,153 +170,155 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-dvh flex flex-col bg-muted/30">
-      <main className="flex flex-1 items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-soft border-border">
-          <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto flex items-center justify-center">
-              <div className="h-12 w-12 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
-                <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <CardTitle className="text-2xl">Sign in to SAMS</CardTitle>
-              <p className="text-sm text-muted-foreground">Welcome back. Please enter your details.</p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isResetMode ? (
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  try {
-                    if (!newPassword || newPassword.length < 8) {
-                      toast({ title: 'Password too short', description: 'Use at least 8 characters.', variant: 'destructive' });
-                      return;
-                    }
-                    if (newPassword !== confirmPassword) {
-                      toast({ title: 'Passwords do not match', variant: 'destructive' });
-                      return;
-                    }
-                    if (resetMfaNeeded) {
-                      if (resetOtp.length !== 6) {
-                        toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
-                        return;
-                      }
-                    }
-                    setLoading(true);
-                    // If MFA is required, verify first to upgrade session to AAL2
-                    if (resetMfaNeeded && resetFactorId && resetChallengeId) {
-                      try {
-                        const { data: userRes } = await supabase.auth.getUser();
-                        const emailForProfile = (userRes?.user?.email || '') as string;
-                        await mfaVerify(resetFactorId, resetChallengeId, resetOtp, emailForProfile);
-                      } catch (err:any) {
-                        toast({ title: 'MFA verification failed', description: err?.message || String(err), variant: 'destructive' });
-                        setLoading(false);
-                        return;
-                      }
-                    }
-                    await completePasswordReset(newPassword);
-                    toast({ title: 'Password updated', description: 'You can now sign in with your new password.' });
-                    setIsResetMode(false);
-                    setNewPassword("");
-                    setConfirmPassword("");
-                    setResetOtp("");
-                  } catch (err:any) {
-                    toast({ title: 'Reset failed', description: err?.message || String(err), variant: 'destructive' });
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="space-y-5"
-              >
-                <div className="space-y-2">
-                  <label htmlFor="new_password" className="text-sm font-medium">New password</label>
-                  <Input id="new_password" type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} placeholder="••••••••" />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="confirm_password" className="text-sm font-medium">Confirm password</label>
-                  <Input id="confirm_password" type="password" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} placeholder="••••••••" />
-                </div>
-                {resetMfaNeeded && (
-                  <div className="space-y-2">
-                    <label htmlFor="reset_otp" className="text-sm font-medium">Authenticator code</label>
-                    <Input id="reset_otp" inputMode="numeric" pattern="[0-9]*" maxLength={6} placeholder="000000" value={resetOtp} onChange={(e)=>setResetOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
-                    <p className="text-xs text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
-                  </div>
-                )}
-                <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Updating...' : 'Update password'}</Button>
-                <Button type="button" variant="ghost" className="w-full" onClick={()=>setIsResetMode(false)}>Back to sign in</Button>
-              </form>
-            ) : !mfaNeeded ? (
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">Email</label>
-                <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">Password</label>
-                <div className="flex gap-2">
-                  <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
-                  <Button type="button" variant="outline" onClick={() => setShowPassword(s => !s)} className="shrink-0">
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
+    <div className="min-h-dvh flex flex-col bg-muted/20">
+      <main className="flex flex-1 items-center justify-center px-4 py-10">
+        <div className="w-full max-w-sm md:max-w-md">
+          <Card className="w-full shadow-sm border-border/60 animate-in fade-in duration-300">
+            <CardHeader className="space-y-3 text-center">
+              <div className="mx-auto flex items-center justify-center">
+                <div className="h-12 w-12 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
+                  <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
                 </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <label className="inline-flex items-center gap-2 select-none">
-                  <input type="checkbox" className="rounded border-border" />
-                  <span className="text-muted-foreground">Remember me</span>
-                </label>
-                <button
-                  type="button"
-                  className="text-primary hover:underline disabled:opacity-60"
-                  disabled={resetSending || !email}
-                  onClick={async () => {
-                    if (!email) return;
+              <div className="space-y-1">
+                <CardTitle className="text-2xl">Sign in to SAMS</CardTitle>
+                <p className="text-sm text-muted-foreground">Enter your credentials to continue.</p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isResetMode ? (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
                     try {
-                      setResetSending(true);
-                      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
-                      const redirect = `${(base || '').replace(/\/$/, '')}/login`;
-                      await requestPasswordReset(email.trim(), redirect);
-                      toast({ title: "Reset email sent", description: "Check your inbox for password reset." });
-                    } catch (e:any) {
-                      toast({ title: "Reset failed", description: e?.message || String(e), variant: "destructive" });
+                      if (!newPassword || newPassword.length < 8) {
+                        toast({ title: 'Password too short', description: 'Use at least 8 characters.', variant: 'destructive' });
+                        return;
+                      }
+                      if (newPassword !== confirmPassword) {
+                        toast({ title: 'Passwords do not match', variant: 'destructive' });
+                        return;
+                      }
+                      if (resetMfaNeeded) {
+                        if (resetOtp.length !== 6) {
+                          toast({ title: 'Enter the 6-digit code', variant: 'destructive' });
+                          return;
+                        }
+                      }
+                      setLoading(true);
+                      // If MFA is required, verify first to upgrade session to AAL2
+                      if (resetMfaNeeded && resetFactorId && resetChallengeId) {
+                        try {
+                          const { data: userRes } = await supabase.auth.getUser();
+                          const emailForProfile = (userRes?.user?.email || '') as string;
+                          await mfaVerify(resetFactorId, resetChallengeId, resetOtp, emailForProfile);
+                        } catch (err:any) {
+                          toast({ title: 'MFA verification failed', description: err?.message || String(err), variant: 'destructive' });
+                          setLoading(false);
+                          return;
+                        }
+                      }
+                      await completePasswordReset(newPassword);
+                      toast({ title: 'Password updated', description: 'You can now sign in with your new password.' });
+                      setIsResetMode(false);
+                      setNewPassword("");
+                      setConfirmPassword("");
+                      setResetOtp("");
+                    } catch (err:any) {
+                      toast({ title: 'Reset failed', description: err?.message || String(err), variant: 'destructive' });
                     } finally {
-                      setResetSending(false);
+                      setLoading(false);
                     }
                   }}
+                  className="space-y-5"
                 >
-                  Forgot password?
-                </button>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
-              </Button>
+                  <div className="space-y-2">
+                    <label htmlFor="new_password" className="text-sm font-medium">New password</label>
+                    <Input id="new_password" type="password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} placeholder="••••••••" />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="confirm_password" className="text-sm font-medium">Confirm password</label>
+                    <Input id="confirm_password" type="password" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} placeholder="••••••••" />
+                  </div>
+                  {resetMfaNeeded && (
+                    <div className="space-y-2">
+                      <label htmlFor="reset_otp" className="text-sm font-medium">Authenticator code</label>
+                      <Input id="reset_otp" inputMode="numeric" pattern="[0-9]*" maxLength={6} placeholder="000000" value={resetOtp} onChange={(e)=>setResetOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
+                      <p className="text-xs text-muted-foreground">Enter the 6-digit code from your authenticator app.</p>
+                    </div>
+                  )}
+                  <Button type="submit" className="w-full" disabled={loading}>{loading ? 'Updating...' : 'Update password'}</Button>
+                  <Button type="button" variant="ghost" className="w-full" onClick={()=>setIsResetMode(false)}>Back to sign in</Button>
+                </form>
+              ) : !mfaNeeded ? (
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium">Email</label>
+                  <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium">Password</label>
+                  <div className="flex gap-2">
+                    <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} aria-required="true" aria-invalid={attempts>0 && !mfaNeeded ? true : undefined} onChange={(e) => setPassword(e.target.value)} />
+                    <Button type="button" variant="outline" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(s => !s)} className="shrink-0">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <label className="inline-flex items-center gap-2 select-none">
+                    <input type="checkbox" className="rounded border-border" />
+                    <span className="text-muted-foreground">Remember me</span>
+                  </label>
+                  <button
+                    type="button"
+                    className="text-primary hover:underline disabled:opacity-60"
+                    disabled={resetSending || !email}
+                    onClick={async () => {
+                      if (!email) return;
+                      try {
+                        setResetSending(true);
+                        const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                        const redirect = `${(base || '').replace(/\/$/, '')}/login`;
+                        await requestPasswordReset(email.trim(), redirect);
+                        toast({ title: "Reset email sent", description: "Check your inbox for password reset." });
+                      } catch (e:any) {
+                        toast({ title: "Reset failed", description: e?.message || String(e), variant: "destructive" });
+                      } finally {
+                        setResetSending(false);
+                      }
+                    }}
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Signing in..." : "Sign in"}
+                </Button>
+                </form>
+              ) : (
+              <form onSubmit={handleMfaVerify} className="space-y-5">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Enter authentication code</label>
+                  <Input id="otp" inputMode="numeric" pattern="[0-9]*" maxLength={6} placeholder="000000" value={otp} aria-label="One-time authentication code" onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
+                </div>
+                <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
+                  {loading ? "Verifying..." : "Verify"}
+                </Button>
+                <Button type="button" variant="ghost" className="w-full" onClick={() => { setMfaNeeded(null); setOtp(""); }}>
+                  Use a different account
+                </Button>
               </form>
-            ) : (
-            <form onSubmit={handleMfaVerify} className="space-y-5">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Enter authentication code</label>
-                <Input id="otp" inputMode="numeric" pattern="[0-9]*" maxLength={6} placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
+              )}
+              <div className="mt-6 flex flex-col gap-3">
+                <Button type="submit" form={mfaNeeded ? undefined : undefined} variant="outline" className="w-full gap-2" onClick={() => navigate('/scan')}>
+                  <QrCode className="h-4 w-4" />
+                  Scan QR Code
+                </Button>
               </div>
-              <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
-                {loading ? "Verifying..." : "Verify"}
-              </Button>
-              <Button type="button" variant="ghost" className="w-full" onClick={() => { setMfaNeeded(null); setOtp(""); }}>
-                Use a different account
-              </Button>
-            </form>
-            )}
-            <div className="mt-4">
-              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => navigate('/scan')}>
-                <QrCode className="h-4 w-4" />
-                Scan QR
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </main>
       <footer className="border-t border-border p-4 text-center text-xs text-muted-foreground">
         <p>
