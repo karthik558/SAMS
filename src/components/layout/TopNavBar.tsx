@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu } from 'lucide-react';
+import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
@@ -64,30 +64,49 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   }
 
   return (
-    <div className="flex w-full items-center gap-4 border-b border-border/60 bg-background/90 backdrop-blur px-4 py-2">
-      <div className="flex items-center gap-2">
-        <button type="button" onClick={onMenuToggle} className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent">
+    <div className="flex w-full items-stretch border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-2">
+      {/* Left brand + mobile toggle */}
+      <div className="flex items-center gap-1 pr-2">
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label="Open navigation"
+        >
           <Menu className="h-5 w-5" />
         </button>
-        <span className="font-semibold">SAMS</span>
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-accent/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          aria-label="Dashboard"
+        >
+          <Box className="h-5 w-5" />
+        </button>
       </div>
-      <nav className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar">
+      {/* Center nav – wraps on smaller widths */}
+      <nav className="flex flex-1 items-center justify-center gap-0.5 overflow-x-auto no-scrollbar py-1">
         {items.map(item => (
           <NavLink
             key={item.href}
             to={item.href}
             className={({ isActive }) => cn(
-              'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              isActive ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              'group flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+              isActive
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
             )}
           >
-            <item.icon className="h-4 w-4" />
-            <span>{item.label}</span>
+            <item.icon className={cn('h-4 w-4')} />
+            <span className="hidden lg:inline-block">{item.label}</span>
+            <span className="inline-block lg:hidden">{item.label}</span>
           </NavLink>
         ))}
       </nav>
-      <div className="ml-auto flex items-center gap-2">
-        {/* Placeholder for future quick actions / user menu duplication if needed */}
+      {/* Right side placeholder */}
+      <div className="flex items-center gap-2 pl-2">
+        {/* Future actions */}
       </div>
     </div>
   );
