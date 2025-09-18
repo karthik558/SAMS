@@ -25,7 +25,7 @@ import { addNotification } from "@/services/notifications";
 import { listProperties, type Property } from "@/services/properties";
 import { listAssets, type Asset } from "@/services/assets";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
@@ -110,7 +110,14 @@ export default function QRCodes() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
-  const [previewMeta, setPreviewMeta] = useState<{ assetId: string; assetName: string } | null>(null);
+  const [previewMeta, setPreviewMeta] = useState<{
+    assetId: string;
+    assetName: string;
+    property?: string;
+    status?: string;
+    printed?: boolean;
+    generatedDate?: string;
+  } | null>(null);
   const [canEditPage, setCanEditPage] = useState<boolean>(true);
   // Download selection state
   const [dlSingleOpen, setDlSingleOpen] = useState(false);
@@ -364,7 +371,14 @@ export default function QRCodes() {
       let dataUrl = qr.imageUrl || computedImages[qr.id];
       if (!dataUrl) dataUrl = await generateQrPng(qr);
       setPreviewImg(dataUrl || null);
-      setPreviewMeta({ assetId: qr.assetId, assetName: qr.assetName });
+      setPreviewMeta({
+        assetId: qr.assetId,
+        assetName: qr.assetName,
+        property: qr.property,
+        status: qr.status,
+        printed: qr.printed,
+        generatedDate: qr.generatedDate,
+      });
       setPreviewOpen(true);
     } catch (e) {
       console.error(e);
@@ -1063,25 +1077,73 @@ export default function QRCodes() {
 
         {/* QR Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Scan QR{previewMeta ? ` • ${previewMeta.assetName}` : ''}</DialogTitle>
+          <DialogContent className="sm:max-w-xl overflow-hidden rounded-2xl border border-border/60 bg-background/95 p-0 shadow-2xl">
+            <DialogHeader className="px-6 pt-6 pb-4 text-left">
+              <DialogTitle className="text-lg font-semibold text-foreground">
+                QR Preview
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                {previewMeta
+                  ? `Preview the code for ${previewMeta.assetName} (${previewMeta.assetId})`
+                  : 'Preview this QR code before sharing or printing.'}
+              </DialogDescription>
             </DialogHeader>
-            <div className="flex flex-col items-center gap-3">
-              {previewImg ? (
-                <img
-                  src={previewImg}
-                  alt={previewMeta ? `QR for ${previewMeta.assetId}` : 'QR'}
-                  className="w-72 h-72 object-contain border rounded-md bg-white"
-                />
-              ) : (
-                <div className="w-72 h-72 flex items-center justify-center border rounded-md bg-muted/30">
-                  <QrCode className="h-12 w-12 text-muted-foreground" />
+            <div className="grid gap-6 px-6 pb-6 md:grid-cols-[minmax(0,240px),1fr]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative w-full max-w-[220px] rounded-2xl border border-dashed border-border/70 bg-card/80 p-4 shadow-inner">
+                  <div className="relative flex h-[200px] items-center justify-center rounded-xl bg-background">
+                    {previewImg ? (
+                      <img
+                        src={previewImg}
+                        alt={previewMeta ? `QR for ${previewMeta.assetId}` : 'QR'}
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20">
+                        <QrCode className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-              {previewMeta && (
-                <div className="text-xs text-muted-foreground">{previewMeta.assetId}</div>
-              )}
+                {previewMeta && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className={`h-2 w-2 rounded-full ${previewMeta.printed ? 'bg-emerald-500' : 'bg-primary'}`} aria-hidden="true" />
+                    {previewMeta.printed ? 'Printed' : 'Ready to print'}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-5">
+                {previewMeta && (
+                  <div className="space-y-2">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Asset</p>
+                      <p className="text-base font-semibold text-foreground">{previewMeta.assetName}</p>
+                      <p className="text-sm text-muted-foreground">{previewMeta.assetId}</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {previewMeta.property && (
+                        <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Location</p>
+                          <p className="text-sm font-medium text-foreground">{previewMeta.property}</p>
+                        </div>
+                      )}
+                      <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                        <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Status</p>
+                        <div className="mt-1">
+                          {getStatusBadge(previewMeta.status || 'Generated', !!previewMeta.printed)}
+                        </div>
+                      </div>
+                      {previewMeta.generatedDate && (
+                        <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+                          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Generated</p>
+                          <p className="text-sm font-medium text-foreground">{previewMeta.generatedDate}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              </div>
             </div>
           </DialogContent>
         </Dialog>
