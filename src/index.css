@@ -169,3 +169,15 @@ All colors MUST be HSL.
   .compact-ui .h-14 { height: 3.0rem !important; }
   .compact-ui .h-16 { height: 3.25rem !important; }
   .compact-ui .rounded-2xl { border-radius: 0.75rem !important; }
+
+  /* Ultra density builds on compact */
+  .ultra-ui .p-4 { padding: 0.5rem !important; }
+  .ultra-ui .px-4 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+  .ultra-ui .py-4 { padding-top: 0.5rem !important; padding-bottom: 0.5rem !important; }
+  .ultra-ui table th, .ultra-ui table td { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+  .ultra-ui .h-14 { height: 2.75rem !important; }
+  .ultra-ui .h-16 { height: 3rem !important; }
+  .ultra-ui .rounded-2xl { border-radius: 0.6rem !important; }
+
+  /* Sticky header utility class */
+  .sticky-header .app-header, .sticky-header header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(8px); background-color: hsl(var(--background) / 0.85); }

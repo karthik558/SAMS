@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, demoStats } from "@/lib/demo";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getUserPreferences } from "@/services/userPreferences";
 import { listAssets } from "@/services/assets";
 import type { Asset } from "@/services/assets";
 import { listProperties } from "@/services/properties";
@@ -132,6 +133,7 @@ const Index = () => {
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
   const [loadingUI, setLoadingUI] = useState(true);
   const [announcements, setAnnouncements] = useState<NewsletterPost[]>([]);
+  const [showAnnouncements, setShowAnnouncements] = useState(true);
 
   const isAdmin = role === 'admin';
   const resolvedTotal = ticketSummary.resolved + ticketSummary.closed;
@@ -144,6 +146,16 @@ const Index = () => {
   const greeting = `${salutation}${firstName ? `, ${firstName}` : ''}`;
 
   const heroHighlights = useMemo(() => {
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = localStorage.getItem('current_user_id');
+        if (!uid) return;
+        const prefs = await getUserPreferences(uid);
+        if (typeof prefs.show_announcements === 'boolean') setShowAnnouncements(prefs.show_announcements);
+      } catch {}
+    })();
+  }, []);
     const readyDelta = Math.max(metrics.codesTotal - metrics.codesReady, 0);
     return [
       {
@@ -635,6 +647,7 @@ const Index = () => {
           <DashboardCharts />
         </div>
         <div className="space-y-4">
+          {showAnnouncements && (
           <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between gap-3">
               <div className="flex items-start gap-2">
@@ -685,6 +698,7 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
+          )}
           <RecentActivity />
           <MyAudits />
         </div>

@@ -70,9 +70,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         if (!uid) return;
         const pref = await getUserPreferences(uid);
         setShowNewsletter(!!pref.show_newsletter);
-        if (pref.compact_mode) {
-          try { document.documentElement.classList.add('compact-ui'); } catch {}
+        if (pref.compact_mode || pref.density === 'compact' || pref.density === 'ultra') {
+          try { document.documentElement.classList.add('compact-ui'); if (pref.density === 'ultra') document.documentElement.classList.add('ultra-ui'); } catch {}
         }
+        if (pref.sidebar_collapsed && !isMobile) setCollapsed(true);
       } catch {}
     })();
   }, []);

@@ -14,6 +14,7 @@ import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { getUserPreferences, upsertUserPreferences, type UserPreferences } from "@/services/userPreferences";
+import { refreshSoundPreference } from "@/lib/sound";
 import { listUsers } from "@/services/users";
 import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
@@ -29,9 +30,16 @@ export default function Settings() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   // Personalization preferences
   const [showNewsletter, setShowNewsletter] = useState(false);
-  const [compactMode, setCompactMode] = useState(false);
+  const [compactMode, setCompactMode] = useState(false); // legacy
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [defaultLanding, setDefaultLanding] = useState<string>("");
+  // New personalization fields
+  const [density, setDensity] = useState<'comfortable'|'compact'|'ultra'>('comfortable');
+  const [autoTheme, setAutoTheme] = useState(false);
+  const [enableSounds, setEnableSounds] = useState(true);
+  const [sidebarCollapsedPref, setSidebarCollapsedPref] = useState(false);
+  const [showAnnouncements, setShowAnnouncements] = useState(true);
+  const [stickyHeader, setStickyHeader] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
@@ -114,6 +122,12 @@ export default function Settings() {
           setCompactMode(!!p.compact_mode);
           setBetaFeatures(!!p.enable_beta_features);
           setDefaultLanding(p.default_landing_page || "");
+          if (p.density) setDensity(p.density);
+          if (typeof p.auto_theme === 'boolean') setAutoTheme(p.auto_theme);
+          if (typeof p.enable_sounds === 'boolean') setEnableSounds(p.enable_sounds);
+          if (typeof p.sidebar_collapsed === 'boolean') setSidebarCollapsedPref(p.sidebar_collapsed);
+          if (typeof p.show_announcements === 'boolean') setShowAnnouncements(p.show_announcements);
+          if (typeof p.sticky_header === 'boolean') setStickyHeader(p.sticky_header);
         }
       } catch {}
       finally { setPrefsLoaded(true); }
@@ -152,7 +166,7 @@ export default function Settings() {
   const handleSave = async () => {
     try {
       // Validate default landing page against whitelist
-      const allowedLanding = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
+  const allowedLanding = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
       let landingToSave: string | null = (defaultLanding || "") || null;
       if (landingToSave && !allowedLanding.has(landingToSave)) {
         landingToSave = null; // coerce invalid to null (system default)
@@ -169,14 +183,25 @@ export default function Settings() {
       if (hasSupabaseEnv) {
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
-          await upsertUserPreferences(currentUserId, { show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave });
+          await upsertUserPreferences(currentUserId, {
+            show_newsletter: showNewsletter,
+            compact_mode: density === 'compact' || density === 'ultra' ? true : compactMode,
+            enable_beta_features: betaFeatures,
+            default_landing_page: landingToSave,
+            density,
+            auto_theme: autoTheme,
+            enable_sounds: enableSounds,
+            sidebar_collapsed: sidebarCollapsedPref,
+            show_announcements: showAnnouncements,
+            sticky_header: stickyHeader,
+          });
         }
       } else {
         localStorage.setItem("user_settings", JSON.stringify({ notifications, email_notifications: emailNotifications, dark_mode: darkMode }));
         if (currentUserId) {
           try {
             const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
-            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave };
+            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader };
             localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
           } catch {}
         }
@@ -194,9 +219,16 @@ export default function Settings() {
             localStorage.setItem('theme', 'light');
           }
         }
-        if (compactMode) root.classList.add('compact-ui'); else root.classList.remove('compact-ui');
+        // Density classes
+        try {
+          root.classList.remove('compact-ui');
+          root.classList.remove('ultra-ui');
+          if (density === 'compact') root.classList.add('compact-ui');
+          else if (density === 'ultra') { root.classList.add('compact-ui'); root.classList.add('ultra-ui'); }
+        } catch {}
       } catch {}
-      toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
+  try { refreshSoundPreference(); } catch {}
+  toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
     } catch (e: any) {
       toast({ title: "Failed to save", description: e.message || String(e), variant: "destructive" });
     }
@@ -546,12 +578,19 @@ export default function Settings() {
                     <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
                   </div>
                   <Separator />
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col gap-3">
                     <div className="space-y-1">
-                      <Label>Compact Mode</Label>
-                      <p className="text-sm text-muted-foreground">Use denser spacing for tables and navigation</p>
+                      <Label>Interface Density</Label>
+                      <p className="text-sm text-muted-foreground">Adjust spacing scale across UI components</p>
                     </div>
-                    <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+                    <Select value={density} onValueChange={(v) => setDensity(v as any)}>
+                      <SelectTrigger className="h-10 w-full md:w-72"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="comfortable">Comfortable</SelectItem>
+                        <SelectItem value="compact">Compact</SelectItem>
+                        <SelectItem value="ultra">Ultra Dense</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between gap-4">
@@ -564,10 +603,50 @@ export default function Settings() {
                   <Separator />
                   <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
+                      <Label>Notification Sounds</Label>
+                      <p className="text-sm text-muted-foreground">Play a sound for new notifications</p>
+                    </div>
+                    <Switch checked={enableSounds} onCheckedChange={setEnableSounds} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Sidebar Collapsed</Label>
+                      <p className="text-sm text-muted-foreground">Start with sidebar collapsed on desktop</p>
+                    </div>
+                    <Switch checked={sidebarCollapsedPref} onCheckedChange={setSidebarCollapsedPref} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Show Announcements</Label>
+                      <p className="text-sm text-muted-foreground">Display the announcements panel on dashboard</p>
+                    </div>
+                    <Switch checked={showAnnouncements} onCheckedChange={setShowAnnouncements} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Sticky Header</Label>
+                      <p className="text-sm text-muted-foreground">Keep top navigation visible while scrolling</p>
+                    </div>
+                    <Switch checked={stickyHeader} onCheckedChange={setStickyHeader} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
                       <Label>Dark Mode</Label>
                       <p className="text-sm text-muted-foreground">Toggle dark theme appearance</p>
                     </div>
-                    <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                    <Switch checked={darkMode} disabled={autoTheme} onCheckedChange={setDarkMode} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Auto Theme</Label>
+                      <p className="text-sm text-muted-foreground">Follow system light/dark preference automatically</p>
+                    </div>
+                    <Switch checked={autoTheme} onCheckedChange={setAutoTheme} />
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-3">

@@ -1,6 +1,24 @@
 let audioEl: HTMLAudioElement | null = null;
 let unlocked = false;
 let pendingBeeps = 0;
+let soundsEnabled = true;
+
+// Lazy load preference once (can be refreshed manually if needed)
+function loadPref() {
+  try {
+    const uid = localStorage.getItem('current_user_id');
+    if (!uid) return;
+    const raw = localStorage.getItem('user_preferences_' + uid);
+    if (raw) {
+      const obj = JSON.parse(raw);
+      if (typeof obj.enable_sounds === 'boolean') soundsEnabled = obj.enable_sounds; else soundsEnabled = true;
+    }
+  } catch { soundsEnabled = true; }
+}
+// Prime on module import
+try { loadPref(); } catch {}
+
+export function refreshSoundPreference() { loadPref(); }
 
 function ensureAudio(): HTMLAudioElement | null {
   try {
@@ -19,6 +37,7 @@ function ensureAudio(): HTMLAudioElement | null {
 }
 
 export function playNotificationSound(): void {
+  if (!soundsEnabled) return;
   const el = ensureAudio();
   if (!el) return;
   try {

@@ -8,6 +8,13 @@ export type UserPreferences = {
   enable_beta_features: boolean;
   default_landing_page: string | null; // e.g., '/assets'
   feature_flags: Record<string, any>;
+  // New personalization fields
+  sidebar_collapsed?: boolean;
+  enable_sounds?: boolean;
+  density?: 'comfortable' | 'compact' | 'ultra';
+  auto_theme?: boolean;
+  show_announcements?: boolean;
+  sticky_header?: boolean;
   created_at?: string;
   updated_at?: string;
 };
@@ -30,6 +37,12 @@ function defaults(userId: string): UserPreferences {
     enable_beta_features: false,
     default_landing_page: null,
     feature_flags: {},
+    sidebar_collapsed: false,
+    enable_sounds: true,
+    density: 'comfortable',
+    auto_theme: false,
+    show_announcements: true,
+    sticky_header: false,
   };
 }
 
@@ -42,14 +55,18 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
     const effectiveId = authId; // ignore passed userId if different
     const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
     if (error) throw error;
-    if (data) return data as UserPreferences;
+    if (data) {
+      const filled = applyPostLoadDefaults(data as UserPreferences);
+      return filled;
+    }
     const def = defaults(effectiveId);
     const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
     if (e2) throw e2;
     return created as UserPreferences;
   }
   // local fallback uses provided id (demo / no supabase)
-  const local = loadLocal(userId) || defaults(userId);
+  const localRaw = loadLocal(userId) || defaults(userId);
+  const local = applyPostLoadDefaults(localRaw);
   if (!loadLocal(userId)) saveLocal(local);
   return local;
 }
@@ -70,4 +87,18 @@ export async function upsertUserPreferences(userId: string, patch: Partial<UserP
   const next: UserPreferences = { ...cur, ...patch };
   saveLocal(next);
   return next;
+}
+
+function applyPostLoadDefaults(p: UserPreferences): UserPreferences {
+  // Fill any missing new fields with defaults
+  if (typeof p.sidebar_collapsed === 'undefined') p.sidebar_collapsed = false;
+  if (typeof p.enable_sounds === 'undefined') p.enable_sounds = true;
+  if (typeof p.auto_theme === 'undefined') p.auto_theme = false;
+  if (typeof p.show_announcements === 'undefined') p.show_announcements = true;
+  if (typeof p.sticky_header === 'undefined') p.sticky_header = false;
+  if (!p.density) {
+    // Map legacy compact_mode
+    p.density = p.compact_mode ? 'compact' : 'comfortable';
+  }
+  return p;
 }

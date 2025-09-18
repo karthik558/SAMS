@@ -32,6 +32,17 @@ export function Layout({ children }: LayoutProps) {
         if (!uid) return;
         const prefs = await getUserPreferences(uid);
         const rawTarget = prefs?.default_landing_page || "/";
+        // Apply sticky header & auto theme early if preference set
+        try {
+          const root = document.documentElement;
+            if (prefs.sticky_header) root.classList.add('sticky-header'); else root.classList.remove('sticky-header');
+            if (prefs.auto_theme) {
+              const mq = window.matchMedia('(prefers-color-scheme: dark)');
+              const apply = () => { if (mq.matches) root.classList.add('dark'); else root.classList.remove('dark'); };
+              apply();
+              try { mq.addEventListener('change', apply); } catch { mq.addListener(apply); }
+            }
+        } catch {}
         if (!rawTarget || rawTarget === "/") return; // dashboard already
         // Validate and role gate approvals
         const allowed = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
