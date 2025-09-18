@@ -649,7 +649,6 @@ const Index = () => {
           <DashboardCharts />
         </div>
         <div className="space-y-4">
-          {showAnnouncements && (
           <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between gap-3">
               <div className="flex items-start gap-2">
@@ -700,7 +699,6 @@ const Index = () => {
               )}
             </CardContent>
           </Card>
-          )}
           <RecentActivity />
           <MyAudits />
         </div>
