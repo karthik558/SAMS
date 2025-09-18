@@ -159,3 +159,13 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+  /* Compact mode utility class: reduces padding/margins for denser layouts */
+  .compact-ui .p-4 { padding: 0.75rem !important; }
+  .compact-ui .px-4 { padding-left: 0.75rem !important; padding-right: 0.75rem !important; }
+  .compact-ui .py-4 { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  .compact-ui .space-y-6 > :not([hidden]) ~ :not([hidden]) { --tw-space-y-reverse: 0; margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse))) !important; margin-bottom: calc(1rem * var(--tw-space-y-reverse)) !important; }
+  .compact-ui table th, .compact-ui table td { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+  .compact-ui .h-14 { height: 3.0rem !important; }
+  .compact-ui .h-16 { height: 3.25rem !important; }
+  .compact-ui .rounded-2xl { border-radius: 0.75rem !important; }

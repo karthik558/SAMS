@@ -12,6 +12,7 @@ import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus, S
 import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
+import { getUserPreferences, upsertUserPreferences, type UserPreferences } from "@/services/userPreferences";
 import { listUsers } from "@/services/users";
 import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
@@ -25,6 +26,12 @@ export default function Settings() {
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  // Personalization preferences
+  const [showNewsletter, setShowNewsletter] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
+  const [betaFeatures, setBetaFeatures] = useState(false);
+  const [defaultLanding, setDefaultLanding] = useState<string>("");
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   // Demo current user id (wire to auth user/app user as needed)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -82,6 +89,18 @@ export default function Settings() {
         }
       } catch {}
 
+      // load user personalization preferences
+      try {
+        if (currentUserId) {
+          const p = await getUserPreferences(currentUserId);
+          setShowNewsletter(!!p.show_newsletter);
+          setCompactMode(!!p.compact_mode);
+          setBetaFeatures(!!p.enable_beta_features);
+          setDefaultLanding(p.default_landing_page || "");
+        }
+      } catch {}
+      finally { setPrefsLoaded(true); }
+
       // role
       try {
         const authRaw = localStorage.getItem("auth_user");
@@ -119,9 +138,17 @@ export default function Settings() {
       if (hasSupabaseEnv) {
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
+          await upsertUserPreferences(currentUserId, { show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: defaultLanding || null });
         }
       } else {
         localStorage.setItem("user_settings", JSON.stringify({ notifications, email_notifications: emailNotifications, dark_mode: darkMode }));
+        if (currentUserId) {
+          try {
+            const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
+            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: defaultLanding || null };
+            localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
+          } catch {}
+        }
       }
       // apply theme preference globally
       try {
@@ -132,6 +159,11 @@ export default function Settings() {
         } else {
           root.classList.remove("dark");
           localStorage.setItem("theme", "light");
+        }
+        if (compactMode) {
+          root.classList.add("compact-ui");
+        } else {
+          root.classList.remove("compact-ui");
         }
       } catch {}
       toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
@@ -297,7 +329,7 @@ export default function Settings() {
         />
       </div>
 
-      <Tabs defaultValue="security" className="space-y-6">
+  <Tabs defaultValue="security" className="space-y-6">
   <TabsList className={`w-full overflow-x-auto flex-nowrap bg-muted/50 backdrop-blur supports-[backdrop-filter]:bg-muted/60 rounded-md p-1 flex gap-1 justify-start ${role === 'admin' ? 'md:grid md:grid-cols-3 md:overflow-visible md:flex-none' : 'md:grid md:grid-cols-2 md:overflow-visible md:flex-none'}`}>
           <TabsTrigger value="notifications" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
             <Bell className="h-4 w-4" />
@@ -307,12 +339,75 @@ export default function Settings() {
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
+          <TabsTrigger value="personalization" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
+            <SettingsIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Personalization</span>
+          </TabsTrigger>
           {role === 'admin' && (
             <TabsTrigger value="departments" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Departments</span>
             </TabsTrigger>
           )}
+        <TabsContent value="personalization" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Personalization</CardTitle>
+              <CardDescription>Customize UI features and defaults just for you</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
+              {prefsLoaded && (
+              <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label>Show Newsletter Menu</Label>
+                  <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
+                </div>
+                <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
+              </div>
+              <Separator />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label>Compact Mode</Label>
+                  <p className="text-sm text-muted-foreground">Use denser spacing for tables and navigation</p>
+                </div>
+                <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+              </div>
+              <Separator />
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label>Beta Features</Label>
+                  <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
+                </div>
+                <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
+              </div>
+              <Separator />
+              <div className="flex flex-col gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="default-landing">Default Landing Page</Label>
+                  <p className="text-sm text-muted-foreground">Choose where the app sends you after login</p>
+                </div>
+                <select id="default-landing" value={defaultLanding} onChange={(e)=> setDefaultLanding(e.target.value)} className="h-9 w-full rounded border border-border/60 bg-background px-2 text-sm">
+                  <option value="">System Default (Dashboard)</option>
+                  <option value="/assets">Assets</option>
+                  <option value="/properties">Properties</option>
+                  <option value="/approvals">Approvals</option>
+                  <option value="/tickets">Tickets</option>
+                  <option value="/reports">Reports</option>
+                  <option value="/newsletter">Newsletter</option>
+                  <option value="/settings">Settings</option>
+                </select>
+                <p className="text-xs text-muted-foreground">This will take effect on your next login.</p>
+              </div>
+              <Button onClick={handleSave} className="w-full md:w-auto">
+                <Save className="h-4 w-4 mr-2" />
+                Save Personalization
+              </Button>
+              </>) }
+            </CardContent>
+          </Card>
+        </TabsContent>
           
         </TabsList>
 

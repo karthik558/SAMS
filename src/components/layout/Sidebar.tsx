@@ -23,8 +23,11 @@ import { listTickets } from "@/services/tickets";
 import { listApprovals } from "@/services/approvals";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
+import { getUserPreferences } from "@/services/userPreferences";
 
-const baseNav = [
+// Use a non-const assertion for dynamic injection (e.g., Newsletter)
+type NavItem = { name: string; href: string; icon: any };
+const baseNav: NavItem[] = [
   // Requested order
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Properties", href: "/properties", icon: Building2 },
@@ -33,12 +36,13 @@ const baseNav = [
   { name: "QR Codes", href: "/qr-codes", icon: QrCode },
   { name: "Scan QR", href: "/scan", icon: ScanLine }, // distinct icon from QR Codes
   { name: "Reports", href: "/reports", icon: FileBarChart },
+  // Newsletter is injected conditionally later based on user preferences
   { name: "Audit", href: "/audit", icon: ClipboardCheck },
   { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "License", href: "/license", icon: ShieldCheck },
-] as const;
+] ;
 
 interface SidebarProps {
   className?: string;
@@ -58,6 +62,20 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [ticketNewCount, setTicketNewCount] = useState<number>(0);
   const [ticketPendingCount, setTicketPendingCount] = useState<number>(0);
   const [role, setRole] = useState<string>("");
+  const [showNewsletter, setShowNewsletter] = useState<boolean>(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const pref = await getUserPreferences(uid);
+        setShowNewsletter(!!pref.show_newsletter);
+        if (pref.compact_mode) {
+          try { document.documentElement.classList.add('compact-ui'); } catch {}
+        }
+      } catch {}
+    })();
+  }, []);
   useEffect(() => {
     (async () => {
       try {
@@ -243,10 +261,20 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               Users: "users",
               Settings: "settings",
               License: null,
+              Newsletter: null,
             } as const;
-            const nav = baseNav.filter((item) => {
+            // Build a working array we can mutate to inject Newsletter
+            const working = [...baseNav];
+            if (showNewsletter && !working.find(i => i.name === 'Newsletter')) {
+              // Insert newsletter before Reports for visibility
+              const idx = working.findIndex(i => i.name === 'Reports');
+              const insertAt = idx >= 0 ? idx : working.length - 1;
+              working.splice(insertAt, 0, { name: 'Newsletter', href: '/newsletter', icon: FileBarChart });
+            }
+            const nav = working.filter((item) => {
               // Always visible
               if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
+              if (item.name === 'Newsletter') return showNewsletter; // user preference controlled
               // Approvals visible only to admin/manager
               if (item.name === "Approvals") return r === "admin" || r === "manager";
               // License only for admin
