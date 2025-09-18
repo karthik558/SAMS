@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import type { Asset } from "./assets";
 import { createAsset, listAssets } from "./assets";
+import { checkLicenseBeforeCreate } from './license';
 import { listProperties } from "./properties";
 import { listItemTypes } from "./itemTypes";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
@@ -295,6 +296,19 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
 
     try {
       if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+      // License check (each row counts as 1 asset regardless of quantity in import template; quantity can represent units but creation is per row)
+      try {
+        const check = await checkLicenseBeforeCreate(propertyCode, 1);
+        if (!check.ok) {
+          skipped++;
+          errors.push({ row: rowNum, message: check.message || 'License Exceed: upgrade required' });
+          continue;
+        }
+      } catch (e:any) {
+        if (/license/i.test(String(e?.message||''))) {
+          skipped++; errors.push({ row: rowNum, message: e.message }); continue;
+        }
+      }
       await createAsset(asset);
       inserted++;
     } catch (e: any) {

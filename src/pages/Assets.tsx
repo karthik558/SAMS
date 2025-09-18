@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+import { useNavigate } from 'react-router-dom';
 import { isDemoMode } from "@/lib/demo";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
@@ -47,6 +48,8 @@ import {
 import { toast } from "sonner";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
+import { checkLicenseBeforeCreate } from '@/services/license';
+import { LicenseExceedModal } from '@/components/assets/LicenseExceedModal';
 import { listProperties, type Property } from "@/services/properties";
 import { listDepartments } from "@/services/departments";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -134,6 +137,8 @@ export default function Assets() {
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<string[]>([]);
+  const [licenseModal, setLicenseModal] = useState<{ open: boolean; info: any | null }>({ open: false, info: null });
+  const navigate = useNavigate();
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
   const [sortBy, setSortBy] = useState("newest");
@@ -538,11 +543,11 @@ export default function Assets() {
   // Sanitize a code by removing non-alphanumeric and uppercasing
   const sanitizeCode = (s: string) => (s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-  const handleAddAsset = async (assetData: any) => {
+  const handleAddAsset = async (assetData: any): Promise<boolean> => {
   const canCreate = canEditPage;
     if (!canCreate) {
       toast.error("You don't have permission to create assets");
-      return;
+      return false;
     }
     // Department enforcement: if user has an allowed department list (from mapping), selected must be in list (non-admin)
     try {
@@ -553,10 +558,26 @@ export default function Assets() {
       if (role !== 'admin' && Array.isArray(effectiveAllowed) && effectiveAllowed.length > 0) {
         const sel = (assetData.department || user?.department || '').toString().toLowerCase();
         const ok = effectiveAllowed.map((d) => d.toLowerCase()).includes(sel);
-        if (!ok) { toast.error('You are not allowed to create assets for this department'); return; }
+        if (!ok) { toast.error('You are not allowed to create assets for this department'); return false; }
       }
     } catch {}
     try {
+      // Perform license pre-check BEFORE any create/update action (both Supabase & local)
+      const propertyCodeRaw = assetData.property; // property id/code from select
+      try {
+        const increment = selectedAsset ? 0 : Math.max(1, Number(assetData.quantity) || 1);
+        const check = await checkLicenseBeforeCreate(propertyCodeRaw, increment);
+        if (!check.ok) {
+          setLicenseModal({ open: true, info: { ...check, propertyId: propertyCodeRaw, message: check.message || 'License Exceeded' } });
+          return false; // Block creation
+        }
+      } catch (e:any) {
+        // If license call itself fails in a license-specific way, surface modal; else allow (fail-open)
+        if (/license/i.test(String(e?.message||''))) {
+          setLicenseModal({ open: true, info: { reason: 'GLOBAL_LIMIT', message: e.message } });
+          return false;
+        }
+      }
   if (isSupabase) {
   const propertyCodeRaw = assetData.property; // Select provides property id/code
   const prefix = typePrefix(assetData.itemType) + sanitizeCode(propertyCodeRaw);
@@ -584,14 +605,16 @@ export default function Assets() {
           await updateAsset(id, { ...common, id } as any);
           await logActivity("asset_updated", `Asset ${id} (${common.name}) updated at ${propertyCodeRaw}`);
         } else {
-          for (const id of ids) {
-            await createAsset({ ...common, id } as any);
+          if (!selectedAsset) {
+            for (const id of ids) {
+              await createAsset({ ...common, id } as any);
+            }
           }
           await logActivity("asset_created", `Assets created: ${ids.join(", ")}`);
         }
         const data = await listAssets();
         setAssets(data as any);
-        toast.success(selectedAsset ? "Asset updated" : `Asset(s) saved: ${ids.slice(0,3).join(", ")}${ids.length>3?"...":""}`);
+    // Defer success toast to AssetForm (it toasts when we return true)
   } else {
         toast.info("Supabase not configured; using local data only");
   const propertyCode = sanitizeCode(assetData.property);
@@ -621,6 +644,7 @@ export default function Assets() {
         await logActivity("asset_created", `Asset ${assetData.itemName} created (local)`, "Local");
       }
       setShowAddForm(false);
+      return true;
     } catch (e: any) {
       console.error(e);
       const msg = (e?.message || '').toString();
@@ -629,6 +653,7 @@ export default function Assets() {
       } else {
         toast.error(msg || "Failed to save asset");
       }
+      return false;
     }
   };
 
@@ -889,6 +914,32 @@ export default function Assets() {
       : undefined;
     return (
       <div className="space-y-6">
+        <LicenseExceedModal
+          open={licenseModal.open}
+          info={licenseModal.info}
+          onClose={() => setLicenseModal({ open: false, info: null })}
+          onCreateTicket={(info) => {
+            try {
+              const draft = {
+                type: 'license-upgrade',
+                createdAt: new Date().toISOString(),
+                reason: info.reason,
+                propertyId: info.propertyId || null,
+                globalUsage: info.globalUsage ?? null,
+                globalLimit: info.globalLimit ?? null,
+                propertyUsage: info.propertyUsage ?? null,
+                propertyLimit: info.propertyLimit ?? null,
+                message: info.message,
+              };
+              localStorage.setItem('ticket_draft_license_upgrade', JSON.stringify(draft));
+              toast.info('Draft upgrade ticket created');
+              setLicenseModal({ open: false, info: null });
+              navigate('/tickets?draft=license-upgrade');
+            } catch(e:any) {
+              toast.error(e?.message || 'Failed to create draft ticket');
+            }
+          }}
+        />
           <div className="flex items-center gap-4">
             <Button variant="outline" onClick={() => setShowAddForm(false)}>
               ← Back to Assets
@@ -950,6 +1001,32 @@ export default function Assets() {
 
   return (
     <div className="space-y-6">
+        <LicenseExceedModal
+          open={licenseModal.open}
+          info={licenseModal.info}
+          onClose={() => setLicenseModal({ open: false, info: null })}
+          onCreateTicket={(info) => {
+            try {
+              const draft = {
+                type: 'license-upgrade',
+                createdAt: new Date().toISOString(),
+                reason: info.reason,
+                propertyId: info.propertyId || null,
+                globalUsage: info.globalUsage ?? null,
+                globalLimit: info.globalLimit ?? null,
+                propertyUsage: info.propertyUsage ?? null,
+                propertyLimit: info.propertyLimit ?? null,
+                message: info.message,
+              };
+              localStorage.setItem('ticket_draft_license_upgrade', JSON.stringify(draft));
+              toast.info('Draft upgrade ticket created');
+              setLicenseModal({ open: false, info: null });
+              navigate('/tickets?draft=license-upgrade');
+            } catch(e:any) {
+              toast.error(e?.message || 'Failed to create draft ticket');
+            }
+          }}
+        />
         {/* Header with breadcrumbs */}
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
         <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">

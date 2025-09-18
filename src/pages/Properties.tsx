@@ -27,6 +27,7 @@ import {
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { listProperties, deleteProperty as sbDeleteProperty, createProperty as sbCreateProperty, updateProperty as sbUpdateProperty, type Property } from "@/services/properties";
 import { listAssets, type Asset } from "@/services/assets";
+import { listPropertyLicenses } from '@/services/license';
 import { logActivity } from "@/services/activity";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -124,9 +125,10 @@ export default function Properties() {
     (async () => {
       try {
         // Load properties, assets, and user-property access
-        const [props, assets, userAccess] = await Promise.all([
+        const [props, assets, licenses, userAccess] = await Promise.all([
           listProperties(),
           listAssets().catch(() => [] as Asset[]),
+          listPropertyLicenses().catch(()=>[]),
           supabase
             .from("user_property_access")
             .select("user_id, property_id")
@@ -157,6 +159,8 @@ export default function Properties() {
           userCounts[propId] = users.size;
         }
 
+        const licMap: Record<string, number> = {};
+        for (const l of licenses as any[]) { if (l?.property_id) licMap[l.property_id] = l.asset_limit || 0; }
         const merged = props.map((p: Property) => ({
           id: p.id,
           name: p.name,
@@ -166,6 +170,7 @@ export default function Properties() {
           manager: p.manager ?? "",
           assetCount: assetCounts[p.id] ?? 0,
           userCount: userCounts[p.id] ?? 0,
+          licenseLimit: licMap[p.id] || 0,
         }));
         setProperties(merged);
       } catch (e: any) {
@@ -517,7 +522,8 @@ export default function Properties() {
         {/* Properties Grid */}
         <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
           {filtered.map((property) => {
-            const pct = Math.max(0, Math.min(100, Math.round((Number(property.assetCount) || 0) / maxAssets * 100)));
+            const limit = (property as any).licenseLimit && (property as any).licenseLimit > 0 ? (property as any).licenseLimit : maxAssets;
+            const pct = limit > 0 ? Math.max(0, Math.min(100, Math.round(((Number(property.assetCount) || 0) / limit) * 100))) : 0;
             return (
               <Card
                 key={property.id}
@@ -555,7 +561,7 @@ export default function Properties() {
                         <span className="inline-flex items-center gap-1">
                           <Package className="h-3.5 w-3.5" /> Assets
                         </span>
-                        <span className="font-semibold text-foreground">{property.assetCount}</span>
+                        <span className="font-semibold text-foreground">{property.assetCount}{(property as any).licenseLimit>0 && <span className="text-[10px] text-muted-foreground font-normal"> / {(property as any).licenseLimit}</span>}</span>
                       </div>
                     </div>
                     <div className="rounded-lg border border-border/60 bg-muted/40 px-3 py-2">

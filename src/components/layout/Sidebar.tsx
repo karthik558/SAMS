@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ScanLine,
   Ticket,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ const baseNav = [
   { name: "Tickets", href: "/tickets", icon: Ticket },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "License", href: "/license", icon: ShieldCheck },
 ] as const;
 
 interface SidebarProps {
@@ -221,12 +223,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               Audit: "audit",
               Users: "users",
               Settings: "settings",
+              License: null,
             } as const;
             const nav = baseNav.filter((item) => {
               // Always visible
               if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
               // Approvals visible only to admin/manager
               if (item.name === "Approvals") return r === "admin" || r === "manager";
+              // License only for admin
+              if (item.name === "License") return r === 'admin';
               // Audit: admins always see (control page); managers see when an audit is active OR if there are reports; anyone with explicit permission sees
               if (item.name === "Audit") {
                 const rule = (effective as any)['audit'];

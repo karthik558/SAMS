@@ -63,7 +63,7 @@ export default function Tickets() {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
   const [layout, setLayout] = useState<'list' | 'board'>('list');
-  const [template, setTemplate] = useState<'none' | 'create_user'>('none');
+  const [template, setTemplate] = useState<'none' | 'create_user' | 'license_upgrade'>('none');
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
@@ -73,6 +73,38 @@ export default function Tickets() {
   const [assigning, setAssigning] = useState<Record<string, boolean>>({});
   const [closing, setClosing] = useState(false);
   const [posting, setPosting] = useState<Record<string, boolean>>({});
+  const [draftBanner, setDraftBanner] = useState<string | null>(null);
+
+  // Load license upgrade draft if present via query param
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('draft') === 'license-upgrade') {
+      try {
+        const raw = localStorage.getItem('ticket_draft_license_upgrade');
+        if (raw) {
+          const draft = JSON.parse(raw);
+          // Prefill sensible defaults only if fields empty
+          if (!title) setTitle('License Upgrade Request');
+          const lines: string[] = [];
+          lines.push('Requesting upgrade of asset license limits.');
+          if (draft.reason === 'GLOBAL_LIMIT') {
+            lines.push(`Global usage ${draft.globalUsage ?? '?'} / ${draft.globalLimit ?? '?'}`);
+          } else if (draft.reason === 'PROPERTY_LIMIT') {
+            lines.push(`Property ${draft.propertyId || ''} usage ${draft.propertyUsage ?? '?'} / ${draft.propertyLimit ?? '?'}`);
+          }
+          lines.push('Please review and extend the allocation.');
+          const desc = lines.join('\n');
+          if (!description) setDescription(desc);
+          setDraftBanner('Loaded license upgrade draft. Complete the details and click Create.');
+          // We intentionally keep draft in storage until ticket created so a refresh doesn't lose it
+        } else {
+          setDraftBanner('License upgrade draft not found.');
+        }
+      } catch {
+        setDraftBanner('Failed to load draft.');
+      }
+    }
+  }, [location.search]);
 
   useEffect(() => {
     (async () => {
@@ -714,7 +746,14 @@ export default function Tickets() {
       </section>
 
       <Card>
-        <CardHeader><CardTitle>New Ticket</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>New Ticket</CardTitle>
+          {draftBanner && (
+            <div className="mt-2 rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs text-primary-foreground/90 dark:text-primary/90">
+              {draftBanner}
+            </div>
+          )}
+        </CardHeader>
         <CardContent className="grid gap-3">
           <div className="grid gap-3 md:grid-cols-6">
             <Input placeholder="Title" value={title} onChange={(e) => setTitle(e.target.value)} className="md:col-span-2" />
@@ -750,7 +789,7 @@ export default function Tickets() {
             <Select
               value={template}
               onValueChange={(v) => {
-                const val = (v as 'none' | 'create_user');
+                const val = (v as 'none' | 'create_user' | 'license_upgrade');
                 if (val === 'create_user') {
                   if (!title.trim()) setTitle('Create User');
                   const tpl = [
@@ -767,6 +806,26 @@ export default function Tickets() {
                     '-',
                   ].join('\n');
                   setDescription(tpl);
+                } else if (val === 'license_upgrade') {
+                  if (!title.trim()) setTitle('License Upgrade Request');
+                  const lines = [
+                    'License Upgrade Request',
+                    '',
+                    'Context:',
+                    '- Current global usage: <enter if known>',
+                    '- Current property usage: <enter if property-specific>',
+                    '- Requested increase: <describe>',
+                    '',
+                    'Business Justification:',
+                    '- <Add reason>',
+                    '',
+                    'Impact if not upgraded:',
+                    '- <Add impact details>',
+                    '',
+                    'Additional Notes:',
+                    '- <Optional>'
+                  ].join('\n');
+                  setDescription(lines);
                 }
                 // Reset selector back to none for a lightweight UX
                 setTemplate('none');
@@ -777,6 +836,7 @@ export default function Tickets() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="create_user">Create User</SelectItem>
+                <SelectItem value="license_upgrade">License Upgrade</SelectItem>
               </SelectContent>
             </Select>
           </div>

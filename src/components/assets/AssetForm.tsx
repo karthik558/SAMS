@@ -25,7 +25,7 @@ import { listUserDepartmentAccess } from "@/services/userDeptAccess";
 import { isDemoMode } from "@/lib/demo";
 
 interface AssetFormProps {
-  onSubmit?: (data: any) => void;
+  onSubmit?: (data: any) => boolean | void | Promise<boolean | void>;
   initialData?: any;
 }
 
@@ -118,7 +118,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     }
   }, [currentUser, allowedDeptNames]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
   const role = (currentUser?.role || '').toLowerCase();
   // For non-admins, if itemType not provided (hidden), default to "Other"
@@ -141,25 +141,28 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
       }
     }
 
-  onSubmit?.(toSubmit);
-    toast.success("Asset saved successfully!");
-    
-    // Reset form if creating new asset
-    if (!initialData) {
-      setFormData({
-        itemName: "",
-        description: "",
-        purchaseDate: undefined,
-        quantity: "",
-        itemType: "",
-        expiryDate: undefined,
-        poNumber: "",
-        property: "",
-        condition: "",
-        serialNumber: "",
-  location: "",
-  // department will re-compute from currentUser in UI
-      });
+    try {
+      const result = await onSubmit?.(toSubmit);
+      if (result === true) {
+        toast.success("Asset saved successfully!");
+        if (!initialData) {
+          setFormData({
+            itemName: "",
+            description: "",
+            purchaseDate: undefined,
+            quantity: "",
+            itemType: "",
+            expiryDate: undefined,
+            poNumber: "",
+            property: "",
+            condition: "",
+            serialNumber: "",
+            location: "",
+          });
+        }
+      }
+    } catch (err: any) {
+      // Parent already surfaced error (e.g., modal). Do nothing here.
     }
   };
 
