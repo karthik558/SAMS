@@ -563,15 +563,19 @@ export default function Settings() {
                     </div>
                     {(() => {
                       try {
+                        const authRaw = (() => { try { return localStorage.getItem('auth_user'); } catch { return null; } })();
+                        const r = authRaw ? ((): string => { try { return (JSON.parse(authRaw).role || '').toLowerCase(); } catch { return ''; } })() : '';
+                        const canSeeApprovals = ['admin','manager'].includes(r);
                         return (
                           <Select value={defaultLanding || undefined} onValueChange={(v) => setDefaultLanding(v)}>
                             <SelectTrigger id="default-landing" className="h-11 w-full rounded-lg font-medium">
                               <SelectValue placeholder="System Default (Dashboard)" />
                             </SelectTrigger>
                             <SelectContent>
+                              <SelectItem value="/">Dashboard</SelectItem>
                               <SelectItem value="/assets">Assets</SelectItem>
                               <SelectItem value="/properties">Properties</SelectItem>
-                              <SelectItem value="/approvals">Approvals</SelectItem>
+                              {canSeeApprovals && <SelectItem value="/approvals">Approvals</SelectItem>}
                               <SelectItem value="/tickets">Tickets</SelectItem>
                               <SelectItem value="/reports">Reports</SelectItem>
                               <SelectItem value="/newsletter">Newsletter</SelectItem>

@@ -8,6 +8,7 @@ import { QrCode, Eye, EyeOff } from "lucide-react";
 import { listUsers, type AppUser } from "@/services/users";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { initiatePasswordSignIn, mfaChallenge, mfaVerify, loginWithPassword, requestPasswordReset, updateLastLogin, completePasswordReset, listMfaFactors } from "@/services/auth";
+import { getUserPreferences } from "@/services/userPreferences";
 import { supabase } from "@/lib/supabaseClient";
 
 const LS_USERS_KEY = "app_users_fallback";
@@ -139,7 +140,29 @@ export default function Login() {
         } catch {}
       }
       success = true;
-      navigate("/", { replace: true });
+      try {
+        // Attempt to load preferences for redirect
+        const uid = localStorage.getItem(CURRENT_USER_KEY) || "";
+        if (uid) {
+          const prefs = await getUserPreferences(uid);
+          const target = prefs?.default_landing_page || "/";
+          // Gate approvals if user not allowed
+          if (target === "/approvals") {
+            let role = ""; try { const raw = localStorage.getItem(AUTH_USER_KEY); role = raw ? (JSON.parse(raw).role || '').toLowerCase() : ''; } catch {}
+            if (!['admin','manager'].includes(role)) {
+              navigate("/", { replace: true });
+            } else {
+              navigate(target, { replace: true });
+            }
+          } else {
+            navigate(target, { replace: true });
+          }
+        } else {
+          navigate("/", { replace: true });
+        }
+      } catch {
+        navigate("/", { replace: true });
+      }
     } finally {
       setLoading(false);
       if (success) {
@@ -160,7 +183,23 @@ export default function Login() {
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: u.id, name: u.name, email: u.email, role: u.role, department: (u as any).department || null }));
       try { await updateLastLogin(u.email); } catch {}
   // No welcome toast
-      navigate("/", { replace: true });
+      try {
+        const uid = localStorage.getItem(CURRENT_USER_KEY) || "";
+        if (uid) {
+          const prefs = await getUserPreferences(uid);
+          const target = prefs?.default_landing_page || "/";
+          if (target === "/approvals") {
+            let role = ""; try { const raw = localStorage.getItem(AUTH_USER_KEY); role = raw ? (JSON.parse(raw).role || '').toLowerCase() : ''; } catch {}
+            if (!['admin','manager'].includes(role)) navigate("/", { replace: true }); else navigate(target, { replace: true });
+          } else {
+            navigate(target, { replace: true });
+          }
+        } else {
+          navigate("/", { replace: true });
+        }
+      } catch {
+        navigate("/", { replace: true });
+      }
     } catch (e:any) {
       toast({ title: "MFA verification failed", description: e?.message || String(e), variant: "destructive" });
     } finally {
