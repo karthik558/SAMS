@@ -35,6 +35,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [globalResults, setGlobalResults] = useState<{ nav: any[]; assets: any[]; properties: any[]; users: any[]; qrcodes: any[]; tickets: any[]; approvals: any[] }>({ nav: [], assets: [], properties: [], users: [], qrcodes: [], tickets: [], approvals: [] });
   const [searching, setSearching] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutHint, setShortcutHint] = useState("");
 
   const toggleTheme = () => {
     const next = !isDark;
@@ -60,6 +61,36 @@ export function Header({ onMenuClick }: HeaderProps) {
       else root.classList.remove("dark");
     } catch {
       // no-op if storage unavailable
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const navObj = typeof navigator !== "undefined" ? navigator : undefined;
+      if (!navObj) return;
+      const ua = (navObj.userAgent || "").toLowerCase();
+      const platform = (navObj.platform || "").toLowerCase();
+      const uaDataPlatform = ((navObj as any).userAgentData?.platform || "").toLowerCase();
+      const platformInfo = `${platform} ${uaDataPlatform}`;
+
+      if (ua.includes("android")) {
+        setShortcutHint("");
+        return;
+      }
+
+      if (/mac|iphone|ipad|ipod/.test(platformInfo) || /mac|iphone|ipad|ipod/.test(ua)) {
+        setShortcutHint("⌘K");
+        return;
+      }
+
+      if (/win/.test(platformInfo) || ua.includes("windows")) {
+        setShortcutHint("Ctrl+K");
+        return;
+      }
+
+      setShortcutHint("Ctrl+K");
+    } catch {
+      setShortcutHint("");
     }
   }, []);
 
@@ -227,7 +258,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search pages and actions… (⌘K)"
+              placeholder={`Search pages and actions…${shortcutHint ? ` (${shortcutHint})` : ""}`}
               className="pl-10 bg-muted/50 h-9"
               readOnly
               onFocus={() => setPaletteOpen(true)}
