@@ -151,18 +151,32 @@ export default function Settings() {
 
   const handleSave = async () => {
     try {
+      // Validate default landing page against whitelist
+      const allowedLanding = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
+      let landingToSave: string | null = (defaultLanding || "") || null;
+      if (landingToSave && !allowedLanding.has(landingToSave)) {
+        landingToSave = null; // coerce invalid to null (system default)
+      }
+      // Gate approvals landing if user lacks role
+      if (landingToSave === "/approvals") {
+        try {
+          const raw = localStorage.getItem('auth_user');
+          const r = raw ? (JSON.parse(raw).role || '').toLowerCase() : '';
+          if (!['admin','manager'].includes(r)) landingToSave = null;
+        } catch {}
+      }
       // Only user settings persisted (system config removed from UI)
       if (hasSupabaseEnv) {
         if (currentUserId) {
           await upsertUserSettings(currentUserId, { notifications, email_notifications: emailNotifications, dark_mode: darkMode });
-          await upsertUserPreferences(currentUserId, { show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: defaultLanding || null });
+          await upsertUserPreferences(currentUserId, { show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave });
         }
       } else {
         localStorage.setItem("user_settings", JSON.stringify({ notifications, email_notifications: emailNotifications, dark_mode: darkMode }));
         if (currentUserId) {
           try {
             const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
-            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: defaultLanding || null };
+            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave };
             localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
           } catch {}
         }

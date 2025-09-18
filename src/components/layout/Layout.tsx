@@ -1,9 +1,10 @@
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getUserPreferences } from "@/services/userPreferences";
 import { Home, Package, QrCode, ScanLine, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,36 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const redirectedRef = useRef(false);
+
+  // Hard refresh default landing redirect
+  useEffect(() => {
+    if (redirectedRef.current) return; // run only once
+    if (pathname !== "/") return; // only if we're at root/dashboard
+    let authed = false;
+    try { authed = Boolean(localStorage.getItem("current_user_id")); } catch {}
+    if (!authed) return;
+    (async () => {
+      try {
+        const uid = localStorage.getItem("current_user_id");
+        if (!uid) return;
+        const prefs = await getUserPreferences(uid);
+        const rawTarget = prefs?.default_landing_page || "/";
+        if (!rawTarget || rawTarget === "/") return; // dashboard already
+        // Validate and role gate approvals
+        const allowed = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
+        if (!allowed.has(rawTarget)) return;
+        if (rawTarget === "/approvals") {
+          let role = ""; try { const authRaw = localStorage.getItem("auth_user"); role = authRaw ? (JSON.parse(authRaw).role || '').toLowerCase() : ''; } catch {}
+          if (!['admin','manager'].includes(role)) return; // not allowed, stay on dashboard
+        }
+        redirectedRef.current = true;
+        navigate(rawTarget, { replace: true });
+      } catch {
+        // ignore failures silently
+      }
+    })();
+  }, [pathname, navigate]);
 
   const mobileNavItems = [
     { label: "Home", path: "/", icon: Home },
