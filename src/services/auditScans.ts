@@ -9,6 +9,8 @@ export type AuditScan = {
   department: string;
   status: "verified" | "damaged";
   scanned_by: string;
+  scanned_by_name?: string | null;
+  scanned_by_email?: string | null;
   scanned_at: string;
 };
 
@@ -42,5 +44,10 @@ export async function listMyScansForSession(sessionId: string): Promise<AuditSca
     .eq("scanned_by", userId)
     .order("scanned_at", { ascending: false });
   if (error) throw error;
-  return (data as any[]) as AuditScan[];
+  const scans = (data as any[]) as AuditScan[];
+  return scans.map((scan) => ({
+    ...scan,
+    scanned_by_name: scan.scanned_by_name ?? null,
+    scanned_by_email: scan.scanned_by_email ?? null,
+  }));
 }
