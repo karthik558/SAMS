@@ -1,5 +1,6 @@
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
+import { TopNavBar } from "./TopNavBar";
 import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -15,9 +16,33 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [topNavMode, setTopNavMode] = useState<boolean>(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const redirectedRef = useRef(false);
+
+  // Load navigation layout preference & reactive updates when settings page toggles it
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = localStorage.getItem("current_user_id");
+        if (!uid) return;
+        const prefs = await getUserPreferences(uid);
+        if (!cancelled) setTopNavMode(!!prefs.top_nav_mode);
+      } catch {}
+    })();
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'user_preferences_patch') { // lightweight broadcast channel via localStorage event
+        try {
+          const data = JSON.parse(e.newValue || '{}');
+          if (typeof data.top_nav_mode === 'boolean') setTopNavMode(data.top_nav_mode);
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => { cancelled = true; window.removeEventListener('storage', handler); };
+  }, []);
 
   // Hard refresh default landing redirect
   useEffect(() => {
@@ -69,10 +94,12 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-dvh bg-background">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar />
-      </div>
+      {/* Desktop Primary Navigation (Sidebar or TopNav) */}
+      {!topNavMode && (
+        <div className="hidden md:block">
+          <Sidebar />
+        </div>
+      )}
 
       {/* Mobile Sidebar Sheet */}
       {isMobile && (
@@ -84,7 +111,14 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
+        {topNavMode ? (
+          <>
+            <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
+            <Header onMenuClick={() => setSidebarOpen(true)} />
+          </>
+        ) : (
+          <Header onMenuClick={() => setSidebarOpen(true)} />
+        )}
         <main className="flex-1 overflow-auto p-4 md:p-6 bg-muted/30">
           {children}
         </main>

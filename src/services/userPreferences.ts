@@ -15,6 +15,7 @@ export type UserPreferences = {
   auto_theme?: boolean;
   show_announcements?: boolean;
   sticky_header?: boolean;
+  top_nav_mode?: boolean;
   created_at?: string;
   updated_at?: string;
 };
@@ -43,6 +44,7 @@ function defaults(userId: string): UserPreferences {
     auto_theme: false,
     show_announcements: true,
     sticky_header: false,
+    top_nav_mode: false,
   };
 }
 
@@ -96,6 +98,7 @@ function applyPostLoadDefaults(p: UserPreferences): UserPreferences {
   if (typeof p.auto_theme === 'undefined') p.auto_theme = false;
   if (typeof p.show_announcements === 'undefined') p.show_announcements = true;
   if (typeof p.sticky_header === 'undefined') p.sticky_header = false;
+  if (typeof p.top_nav_mode === 'undefined') p.top_nav_mode = false;
   if (!p.density) {
     // Map legacy compact_mode
     p.density = p.compact_mode ? 'compact' : 'comfortable';

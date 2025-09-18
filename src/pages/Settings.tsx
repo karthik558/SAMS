@@ -40,6 +40,7 @@ export default function Settings() {
   const [sidebarCollapsedPref, setSidebarCollapsedPref] = useState(false);
   const [showAnnouncements, setShowAnnouncements] = useState(true);
   const [stickyHeader, setStickyHeader] = useState(false);
+  const [topNavMode, setTopNavMode] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function Settings() {
           if (typeof p.sidebar_collapsed === 'boolean') setSidebarCollapsedPref(p.sidebar_collapsed);
           if (typeof p.show_announcements === 'boolean') setShowAnnouncements(p.show_announcements);
           if (typeof p.sticky_header === 'boolean') setStickyHeader(p.sticky_header);
+          if (typeof p.top_nav_mode === 'boolean') setTopNavMode(p.top_nav_mode);
         }
       } catch {}
       finally { setPrefsLoaded(true); }
@@ -194,6 +196,7 @@ export default function Settings() {
             sidebar_collapsed: sidebarCollapsedPref,
             show_announcements: showAnnouncements,
             sticky_header: stickyHeader,
+            top_nav_mode: topNavMode,
           });
         }
       } else {
@@ -201,7 +204,7 @@ export default function Settings() {
         if (currentUserId) {
           try {
             const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
-            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader };
+            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader, top_nav_mode: topNavMode };
             localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
           } catch {}
         }
@@ -228,6 +231,11 @@ export default function Settings() {
         } catch {}
       } catch {}
   try { refreshSoundPreference(); } catch {}
+  // Broadcast preference delta for live layout adjustments (e.g., top_nav_mode)
+  try {
+    const patch = { top_nav_mode: topNavMode };
+    localStorage.setItem('user_preferences_patch', JSON.stringify(patch));
+  } catch {}
   toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
     } catch (e: any) {
       toast({ title: "Failed to save", description: e.message || String(e), variant: "destructive" });
@@ -631,6 +639,14 @@ export default function Settings() {
                       <p className="text-sm text-muted-foreground">Keep top navigation visible while scrolling</p>
                     </div>
                     <Switch checked={stickyHeader} onCheckedChange={setStickyHeader} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Top Navigation Layout</Label>
+                      <p className="text-sm text-muted-foreground">Use a horizontal top bar instead of sidebar navigation</p>
+                    </div>
+                    <Switch checked={topNavMode} onCheckedChange={setTopNavMode} />
                   </div>
                   <Separator />
                   <div className="flex items-center justify-between gap-4">
