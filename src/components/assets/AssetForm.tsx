@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
+import { getAccessiblePropertyIdsForCurrentUser } from '@/services/userAccess';
 import { getLicenseSnapshot, type LicenseSnapshot } from '@/services/license';
 import { listItemTypes, createItemType, deleteItemType } from "@/services/itemTypes";
 import { listDepartments, type Department } from "@/services/departments";
@@ -58,7 +59,24 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
       try {
         // Properties from Supabase (or fallback handled in page state)
         if (hasSupabaseEnv) {
-          const props = await listProperties();
+          let props = await listProperties();
+          // Filter by access for non-admin users
+          try {
+            const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+            const cu = raw ? JSON.parse(raw) : null;
+            const role = (cu?.role || '').toLowerCase();
+            if (role !== 'admin') {
+              const access = await getAccessiblePropertyIdsForCurrentUser();
+              const accessIds = new Set(Array.from(access).map(String));
+              const filtered = props.filter(p => accessIds.has(String(p.id)));
+              // If editing and initialData property not in filtered, include it for visibility only
+              if (initialData?.property && !filtered.find(p => p.id === initialData.property)) {
+                const keep = props.find(p => p.id === initialData.property);
+                if (keep) filtered.unshift(keep);
+              }
+              props = filtered;
+            }
+          } catch {}
           setProperties(props);
         } else {
           // fallback to common names when no Supabase
