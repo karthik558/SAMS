@@ -228,6 +228,12 @@ export default function Tickets() {
       // keep property selected
       const fallback = localStorage.getItem('tickets_fallback_reason');
       if (hasSupabaseEnv && !fallback) toast.success('Ticket created'); else toast.info('Ticket saved locally (Supabase not configured)');
+      try {
+        if (localStorage.getItem('ticket_draft_license_upgrade')) {
+          localStorage.removeItem('ticket_draft_license_upgrade');
+          setDraftBanner(null);
+        }
+      } catch {}
     } catch (err) {
       setItems((s) => s.filter(i => i.id !== tempId));
       toast.error('Failed to create ticket');

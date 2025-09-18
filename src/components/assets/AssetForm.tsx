@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
+import { getLicenseSnapshot, type LicenseSnapshot } from '@/services/license';
 import { listItemTypes, createItemType, deleteItemType } from "@/services/itemTypes";
 import { listDepartments, type Department } from "@/services/departments";
 import { listUserDepartmentAccess } from "@/services/userDeptAccess";
@@ -49,6 +50,8 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allowedDeptNames, setAllowedDeptNames] = useState<string[] | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [licenseSnap, setLicenseSnap] = useState<LicenseSnapshot | null>(null);
+  const [licenseLoading, setLicenseLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -117,6 +120,23 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
       }
     }
   }, [currentUser, allowedDeptNames]);
+
+  // Fetch license snapshot when property changes
+  useEffect(() => {
+    (async () => {
+      const pid = formData.property;
+      if (!pid) { setLicenseSnap(null); return; }
+      try {
+        setLicenseLoading(true);
+        const snap = await getLicenseSnapshot(pid);
+        setLicenseSnap(snap);
+      } catch {
+        setLicenseSnap(null);
+      } finally {
+        setLicenseLoading(false);
+      }
+    })();
+  }, [formData.property]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +228,16 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                 min="1"
                 required
               />
+              {licenseSnap && (
+                <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                  {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-background/70 px-2 py-0.5">
+                      Property Remaining: {licenseSnap.propertyRemaining != null ? licenseSnap.propertyRemaining : '—'}
+                    </span>
+                  )}
+                  {licenseLoading && <span>Updating…</span>}
+                </div>
+              )}
             </div>
 
             {/* Item Type (visible to all; add/delete admin-only) */}
@@ -299,6 +329,15 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                   ))}
                 </SelectContent>
               </Select>
+              {licenseSnap && (
+                <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                  {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && licenseSnap.propertyUsage != null && (
+                    <span className="inline-flex items-center gap-1 rounded border border-border/60 bg-background/70 px-2 py-0.5">
+                      Property Usage: {licenseSnap.propertyUsage}/{licenseSnap.propertyLimit}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Department */}

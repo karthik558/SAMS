@@ -119,9 +119,47 @@ export async function checkLicenseBeforeCreate(propertyId: string, increment: nu
       propUsage = count || 0;
     }
     if (propUsage + increment > lic.asset_limit) {
-      return { ok: false, reason: 'PROPERTY_LIMIT', message: 'License Exceed: Property asset limit reached. Please raise a ticket for upgrading the license.', propertyLimit: lic.asset_limit, propertyUsage: propUsage };
+      return { ok: false, reason: 'PROPERTY_LIMIT', message: 'License Exceed: Property asset limit reached. Please raise a ticket for upgrading the license.', propertyLimit: lic.asset_limit, propertyUsage: propUsage, globalLimit, globalUsage: totalUsage };
     }
-    return { ok: true, propertyLimit: lic.asset_limit, propertyUsage: propUsage };
+    return { ok: true, propertyLimit: lic.asset_limit, propertyUsage: propUsage, globalLimit, globalUsage: totalUsage };
   }
   return { ok: true, globalLimit, globalUsage: totalUsage };
+}
+
+export type LicenseSnapshot = {
+  propertyId: string;
+  propertyLimit?: number;
+  propertyUsage?: number;
+  globalLimit: number;
+  globalUsage: number;
+  propertyRemaining?: number | null;
+  globalRemaining?: number | null;
+};
+
+export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSnapshot> {
+  const global = await getGlobalLimits();
+  const globalUsage = await countTotalAssets();
+  const globalLimit = global.free_asset_allowance || 0;
+  const lic = await getPropertyLicense(propertyId);
+  let propertyUsage: number | undefined;
+  let propertyLimit: number | undefined;
+  if (lic && lic.asset_limit > 0) {
+    propertyLimit = lic.asset_limit;
+    if (!hasSupabaseEnv || isDemoMode()) {
+      try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
+    } else {
+      const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
+      propertyUsage = count || 0;
+    }
+  }
+  const snapshot: LicenseSnapshot = {
+    propertyId,
+    propertyLimit,
+    propertyUsage,
+    globalLimit,
+    globalUsage,
+    propertyRemaining: (propertyLimit != null && propertyLimit > 0 && propertyUsage != null) ? Math.max(0, propertyLimit - propertyUsage) : null,
+    globalRemaining: (globalLimit > 0) ? Math.max(0, globalLimit - globalUsage) : null,
+  };
+  return snapshot;
 }
