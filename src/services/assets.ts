@@ -25,82 +25,45 @@ const table = "assets";
 const ASSET_CACHE_KEY = "assets:list";
 const ASSET_CACHE_TTL = 60_000; // 1 minute keeps dashboards snappy without going stale
 
-type AssetRow = {
-  id: string;
-  name: string;
-  type: string;
-  property: string | null;
-  property_id: string | null;
-  department: string | null;
-  quantity: number | null;
-  purchase_date: string | null;
-  expiry_date: string | null;
-  po_number: string | null;
-  condition: string | null;
-  status: string;
-  location: string | null;
-  description: string | null;
-  serial_number: string | null;
-  created_at: string | null;
-};
-
-type AssetWriteRow = Partial<{
-  id: string;
-  name: string;
-  type: string;
-  property: string | null;
-  property_id: string | null;
-  department: string | null;
-  quantity: number | null;
-  purchase_date: string | null;
-  expiry_date: string | null;
-  po_number: string | null;
-  condition: string | null;
-  status: string;
-  location: string | null;
-  description: string | null;
-  serial_number: string | null;
-}>;
-
 // Helpers to convert between DB (snake_case) and app (camelCase)
-function toCamel(row: AssetRow): Asset {
+function toCamel(row: any): Asset {
   return {
     id: row.id,
     name: row.name,
     type: row.type,
-    property: row.property ?? "",
-    property_id: row.property_id ?? null,
+    property: row.property,
+  property_id: row.property_id ?? null,
     department: row.department ?? null,
-    quantity: row.quantity ?? 0,
+    quantity: row.quantity,
     purchaseDate: row.purchase_date ?? null,
     expiryDate: row.expiry_date ?? null,
     poNumber: row.po_number ?? null,
     condition: row.condition ?? null,
     status: row.status,
-    location: row.location ?? null,
-    description: row.description ?? null,
-    serialNumber: row.serial_number ?? null,
-    created_at: row.created_at ?? undefined,
+  location: row.location ?? null,
+  description: row.description ?? null,
+  serialNumber: row.serial_number ?? null,
+    created_at: row.created_at,
   };
 }
 
-function toSnake(asset: Partial<Asset>): AssetWriteRow {
-  const row: AssetWriteRow = {};
-  if (asset.id !== undefined) row.id = asset.id;
-  if (asset.name !== undefined) row.name = asset.name;
-  if (asset.type !== undefined) row.type = asset.type;
-  if (asset.property !== undefined) row.property = asset.property;
-  if (asset.property_id !== undefined) row.property_id = asset.property_id ?? null;
-  if (asset.department !== undefined) row.department = asset.department ?? null;
-  if (asset.quantity !== undefined) row.quantity = asset.quantity;
-  if (asset.purchaseDate !== undefined) row.purchase_date = asset.purchaseDate ?? null;
-  if (asset.expiryDate !== undefined) row.expiry_date = asset.expiryDate ?? null;
-  if (asset.poNumber !== undefined) row.po_number = asset.poNumber ?? null;
-  if (asset.condition !== undefined) row.condition = asset.condition ?? null;
-  if (asset.status !== undefined) row.status = asset.status;
-  if (asset.location !== undefined) row.location = asset.location ?? null;
-  if (asset.description !== undefined) row.description = asset.description ?? null;
-  if (asset.serialNumber !== undefined) row.serial_number = asset.serialNumber ?? null;
+function toSnake(asset: Partial<Asset>) {
+  const row: any = {};
+  if ("id" in asset) row.id = asset.id;
+  if ("name" in asset) row.name = asset.name;
+  if ("type" in asset) row.type = asset.type;
+  if ("property" in asset) row.property = asset.property;
+  if ("property_id" in asset) row.property_id = asset.property_id ?? null;
+  if ("department" in asset) row.department = asset.department ?? null;
+  if ("quantity" in asset) row.quantity = asset.quantity;
+  if ("purchaseDate" in asset) row.purchase_date = asset.purchaseDate ?? null;
+  if ("expiryDate" in asset) row.expiry_date = asset.expiryDate ?? null;
+  if ("poNumber" in asset) row.po_number = asset.poNumber ?? null;
+  if ("condition" in asset) row.condition = asset.condition ?? null;
+  if ("status" in asset) row.status = asset.status;
+  if ("location" in asset) row.location = asset.location ?? null;
+  if ("description" in asset) row.description = asset.description ?? null;
+  if ("serialNumber" in asset) row.serial_number = asset.serialNumber ?? null;
   return row;
 }
 
@@ -117,8 +80,7 @@ export async function listAssets(options?: { force?: boolean }): Promise<Asset[]
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
-      const rows = (data ?? []) as AssetRow[];
-      return rows.map(toCamel);
+      return (data ?? []).map(toCamel);
     },
     { ttlMs: ASSET_CACHE_TTL, force: options?.force },
   );
@@ -131,7 +93,7 @@ export async function createAsset(asset: Asset): Promise<Asset> {
   const { data, error } = await supabase.from(table).insert(payload).select().single();
   if (error) throw error;
   invalidateCache(ASSET_CACHE_KEY);
-  return toCamel(data as AssetRow);
+  return toCamel(data);
 }
 
 export async function updateAsset(id: string, patch: Partial<Asset>): Promise<Asset> {
@@ -141,7 +103,7 @@ export async function updateAsset(id: string, patch: Partial<Asset>): Promise<As
   const { data, error } = await supabase.from(table).update(payload).eq("id", id).select().single();
   if (error) throw error;
   invalidateCache(ASSET_CACHE_KEY);
-  return toCamel(data as AssetRow);
+  return toCamel(data);
 }
 
 export async function deleteAsset(id: string): Promise<void> {
@@ -158,13 +120,7 @@ export async function getAssetById(id: string): Promise<Asset | null> {
     return list.find(a => a.id === id) || null;
   }
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase
-    .from(table)
-    .select(
-      "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at",
-    )
-    .eq("id", id)
-    .maybeSingle();
+  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
   if (error) throw error;
-  return data ? toCamel(data as AssetRow) : null;
+  return data ? toCamel(data) : null;
 }

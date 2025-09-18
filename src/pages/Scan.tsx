@@ -88,7 +88,7 @@ export default function Scan() {
         window.location.assign(text);
       } else {
         // Try to handle asset id fallback
-        const idMatch = text.match(/[A-Z]{2,}[A-Z0-9-]*\d{3,}$/);
+        const idMatch = text.match(/[A-Z]{2,}[A-Z0-9\-]*\d{3,}$/);
         if (idMatch) {
           window.location.assign(`/assets/${idMatch[0]}`);
         } else {

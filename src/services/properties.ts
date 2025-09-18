@@ -17,27 +17,7 @@ const table = "properties";
 const PROPERTY_CACHE_KEY = "properties:list";
 const PROPERTY_CACHE_TTL = 60_000;
 
-type PropertyRow = {
-  id: string;
-  name: string;
-  address: string | null;
-  type: string;
-  status: string;
-  manager: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-};
-
-type PropertyWriteRow = Partial<{
-  id: string;
-  name: string;
-  address: string | null;
-  type: string;
-  status: string;
-  manager: string | null;
-}>;
-
-function toCamel(row: PropertyRow): Property {
+function toCamel(row: any): Property {
   return {
     id: row.id,
     name: row.name,
@@ -45,20 +25,20 @@ function toCamel(row: PropertyRow): Property {
     type: row.type,
     status: row.status,
     manager: row.manager ?? null,
-    created_at: row.created_at ?? undefined,
-    updated_at: row.updated_at ?? undefined,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
-function toSnake(p: Partial<Property>): PropertyWriteRow {
-  const row: PropertyWriteRow = {};
-  if (p.id !== undefined) row.id = p.id;
-  if (p.name !== undefined) row.name = p.name;
-  if (p.address !== undefined) row.address = p.address ?? null;
-  if (p.type !== undefined) row.type = p.type;
-  if (p.status !== undefined) row.status = p.status;
-  if (p.manager !== undefined) row.manager = p.manager ?? null;
-  return row;
+function toSnake(p: Partial<Property>) {
+  return {
+    id: p.id,
+    name: p.name,
+    address: p.address ?? null,
+    type: p.type,
+    status: p.status,
+    manager: p.manager ?? null,
+  };
 }
 
 export async function listProperties(options?: { force?: boolean }): Promise<Property[]> {
@@ -72,8 +52,7 @@ export async function listProperties(options?: { force?: boolean }): Promise<Pro
         .select("id,name,address,type,status,manager,created_at,updated_at")
         .order("id");
       if (error) throw error;
-      const rows = (data ?? []) as PropertyRow[];
-      return rows.map(toCamel);
+      return (data ?? []).map(toCamel);
     },
     { ttlMs: PROPERTY_CACHE_TTL, force: options?.force },
   );
@@ -93,7 +72,7 @@ export async function createProperty(p: Property): Promise<Property> {
   const { data, error } = await supabase.from(table).insert(toSnake(p)).select().single();
   if (error) throw error;
   invalidateCache(PROPERTY_CACHE_KEY);
-  return toCamel(data as PropertyRow);
+  return toCamel(data);
 }
 
 export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
@@ -102,5 +81,5 @@ export async function updateProperty(id: string, patch: Partial<Property>): Prom
   const { data, error } = await supabase.from(table).update(toSnake(patch)).eq("id", id).select().single();
   if (error) throw error;
   invalidateCache(PROPERTY_CACHE_KEY);
-  return toCamel(data as PropertyRow);
+  return toCamel(data);
 }
