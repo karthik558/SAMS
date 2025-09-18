@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
@@ -368,7 +369,7 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4">
                 <div className="space-y-1">
                   <Label>Push Notifications</Label>
                   <p className="text-sm text-muted-foreground">
@@ -380,7 +381,7 @@ export default function Settings() {
 
               <Separator />
 
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center justify-between gap-4">
                 <div className="space-y-1">
                   <Label>Email Notifications</Label>
                   <p className="text-sm text-muted-foreground">
@@ -523,7 +524,7 @@ export default function Settings() {
               {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
               {prefsLoaded && (
                 <>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label>Show Newsletter Menu</Label>
                       <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
@@ -531,7 +532,7 @@ export default function Settings() {
                     <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
                   </div>
                   <Separator />
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label>Compact Mode</Label>
                       <p className="text-sm text-muted-foreground">Use denser spacing for tables and navigation</p>
@@ -539,7 +540,7 @@ export default function Settings() {
                     <Switch checked={compactMode} onCheckedChange={setCompactMode} />
                   </div>
                   <Separator />
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label>Beta Features</Label>
                       <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
@@ -547,7 +548,7 @@ export default function Settings() {
                     <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
                   </div>
                   <Separator />
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="space-y-1">
                       <Label>Dark Mode</Label>
                       <p className="text-sm text-muted-foreground">Toggle dark theme appearance</p>
@@ -555,26 +556,48 @@ export default function Settings() {
                     <Switch checked={darkMode} onCheckedChange={setDarkMode} />
                   </div>
                   <Separator />
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-3">
                     <div className="space-y-1">
                       <Label htmlFor="default-landing">Default Landing Page</Label>
                       <p className="text-sm text-muted-foreground">Choose where the app sends you after login</p>
                     </div>
-                    <select id="default-landing" value={defaultLanding} onChange={(e) => setDefaultLanding(e.target.value)} className="h-9 w-full rounded border border-border/60 bg-background px-2 text-sm">
-                      <option value="">System Default (Dashboard)</option>
-                      <option value="/assets">Assets</option>
-                      <option value="/properties">Properties</option>
-                      <option value="/approvals">Approvals</option>
-                      <option value="/tickets">Tickets</option>
-                      <option value="/reports">Reports</option>
-                      <option value="/newsletter">Newsletter</option>
-                      <option value="/settings">Settings</option>
-                    </select>
+                    {(() => {
+                      try {
+                        return (
+                          <Select value={defaultLanding || undefined} onValueChange={(v) => setDefaultLanding(v)}>
+                            <SelectTrigger id="default-landing" className="h-11 w-full rounded-lg font-medium">
+                              <SelectValue placeholder="System Default (Dashboard)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="/assets">Assets</SelectItem>
+                              <SelectItem value="/properties">Properties</SelectItem>
+                              <SelectItem value="/approvals">Approvals</SelectItem>
+                              <SelectItem value="/tickets">Tickets</SelectItem>
+                              <SelectItem value="/reports">Reports</SelectItem>
+                              <SelectItem value="/newsletter">Newsletter</SelectItem>
+                              <SelectItem value="/settings">Settings</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        );
+                      } catch (e) {
+                        return (
+                          <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                            Unable to render selector.
+                          </div>
+                        );
+                      }
+                    })()}
                     <p className="text-xs text-muted-foreground">This will take effect on your next login.</p>
                   </div>
-                  <Button onClick={handleSave} className="w-full md:w-auto">
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Personalization
+                  <Button
+                    onClick={handleSave}
+                    className="relative w-full overflow-hidden rounded-lg bg-gradient-to-r from-primary via-primary/90 to-primary/80 px-6 py-5 text-sm font-semibold shadow-md transition hover:from-primary/90 hover:via-primary hover:to-primary/90 focus-visible:ring-2 focus-visible:ring-primary/50 md:w-auto"
+                  >
+                    <span className="relative z-10 flex items-center">
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Personalization
+                    </span>
+                    <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 animate-[shine_1.8s_ease_infinite] [animation-delay:400ms] group-hover:opacity-60" />
                   </Button>
                 </>
               )}
