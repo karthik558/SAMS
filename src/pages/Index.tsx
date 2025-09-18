@@ -145,7 +145,7 @@ const Index = () => {
   const salutation = hour < 12 ? 'Good Morning' : hour >= 18 ? 'Good Evening' : 'Good Afternoon';
   const greeting = `${salutation}${firstName ? `, ${firstName}` : ''}`;
 
-  const heroHighlights = useMemo(() => {
+  // Load announcement visibility preference (separate effect to obey hook rules)
   useEffect(() => {
     (async () => {
       try {
@@ -156,6 +156,8 @@ const Index = () => {
       } catch {}
     })();
   }, []);
+
+  const heroHighlights = useMemo(() => {
     const readyDelta = Math.max(metrics.codesTotal - metrics.codesReady, 0);
     return [
       {
