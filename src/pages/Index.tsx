@@ -740,16 +740,28 @@ const Index = () => {
                       <stop offset="95%" stopColor={chartColors.resolved} stopOpacity={0.05} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.3)" vertical={false} />
-                  <XAxis dataKey="month" stroke="rgba(148, 163, 184, 0.6)" tickLine={false} />
-                  <YAxis allowDecimals={false} stroke="rgba(148, 163, 184, 0.6)" tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.4)" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    stroke="hsl(var(--muted-foreground))"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                  />
                   <Tooltip
                     cursor={{ strokeDasharray: "3 3" }}
                     contentStyle={{
                       borderRadius: 12,
-                      border: "1px solid rgba(148, 163, 184, 0.25)",
-                      backgroundColor: "hsl(var(--card))",
-                      color: "hsl(var(--foreground))",
+                      border: '1px solid hsl(var(--border))',
+                      backgroundColor: 'hsl(var(--popover))',
+                      color: 'hsl(var(--popover-foreground))',
                     }}
                   />
                   <Area type="monotone" dataKey="created" name="Created" stroke={chartColors.created} fill="url(#ticketCreated)" strokeWidth={2} />
