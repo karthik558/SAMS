@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 import { isDemoMode } from '@/lib/demo';
 import { getCachedValue, invalidateCache } from '@/lib/data-cache';
+import type { Asset } from '@/services/assets';
 
 export type PropertyLicense = {
   property_id: string;
@@ -26,6 +27,37 @@ const LOCAL_KEY_PL = 'property_license_map';
 const LOCAL_KEY_GLOBAL = 'license_global_limits_v2';
 const PROPERTY_LICENSE_CACHE_KEY = 'property_license:list';
 const PROPERTY_LICENSE_CACHE_TTL = 60_000;
+
+type CachedAssetSummary = Pick<Asset, 'property' | 'property_id'>;
+
+function safeLocalStorageGet(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function parseStoredArray<T>(raw: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function readCachedAssets(): CachedAssetSummary[] {
+  const demo = parseStoredArray<CachedAssetSummary>(safeLocalStorageGet('demo_assets'));
+  if (demo.length) return demo;
+  return parseStoredArray<CachedAssetSummary>(safeLocalStorageGet('assets_cache'));
+}
+
+function matchesProperty(asset: CachedAssetSummary, propertyId: string): boolean {
+  const pid = asset.property_id ?? asset.property;
+  return pid != null && String(pid) === propertyId;
+}
 
 function readLocalMap(): Record<string, PropertyLicense> {
   try { const raw = localStorage.getItem(LOCAL_KEY_PL); if (raw) return JSON.parse(raw); } catch {}
@@ -87,19 +119,23 @@ export async function getGlobalLimits(): Promise<GlobalLicenseLimits> {
 
 function normalizeGlobal(raw: GlobalLicenseLimits): GlobalLicenseLimits {
   // Legacy: object only had free_asset_allowance (pre-plan). Assume free plan.
-  if ((raw as any).free_asset_allowance != null && (raw as any).plan == null) {
-    const free = (raw as any).free_asset_allowance as number;
-    return { plan: 'free', asset_allowance: free };
+  if (raw.free_asset_allowance != null && raw.plan == null) {
+    return { plan: 'free', asset_allowance: raw.free_asset_allowance };
   }
+
+  const next: GlobalLicenseLimits = { ...raw };
+
   // If plan is set but asset_allowance missing, derive (business => null/unlimited)
-  if (raw.asset_allowance == null) {
-    raw.asset_allowance = derivedAllowanceForPlan(raw.plan);
+  if (next.asset_allowance == null) {
+    next.asset_allowance = derivedAllowanceForPlan(next.plan);
   }
+
   // Strip legacy key for any non-free plan to avoid confusing UI (we keep only while plan==='free').
-  if (raw.plan !== 'free' && (raw as any).free_asset_allowance != null) {
-    delete (raw as any).free_asset_allowance;
+  if (next.plan !== 'free' && next.free_asset_allowance != null) {
+    delete next.free_asset_allowance;
   }
-  return raw;
+
+  return next;
 }
 
 function derivedAllowanceForPlan(plan: LicensePlan): number | null {
@@ -114,7 +150,7 @@ function derivedAllowanceForPlan(plan: LicensePlan): number | null {
 
 export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): Promise<GlobalLicenseLimits> {
   const current = await getGlobalLimits();
-  let next: GlobalLicenseLimits = { ...current, ...patch };
+  const next: GlobalLicenseLimits = { ...current, ...patch };
 
   // Plan change logic
   if (patch.plan) {
@@ -133,8 +169,8 @@ export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): P
   }
 
   // Remove legacy free_asset_allowance unless plan is still free (kept for compatibility display if ever needed)
-  if (next.plan !== 'free' && (next as any).free_asset_allowance != null) {
-    delete (next as any).free_asset_allowance;
+  if (next.plan !== 'free' && next.free_asset_allowance != null) {
+    delete next.free_asset_allowance;
   }
 
   if (!hasSupabaseEnv || isDemoMode()) {
@@ -149,8 +185,7 @@ export async function updateGlobalLimits(patch: Partial<GlobalLicenseLimits>): P
 // Helper to compute total assets count (DB query). Provide fallback when offline.
 export async function countTotalAssets(): Promise<number> {
   if (!hasSupabaseEnv || isDemoMode()) {
-    try { const raw = localStorage.getItem('demo_assets') || localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); return Array.isArray(list) ? list.length : 0; } } catch {}
-    return 0;
+    return readCachedAssets().length;
   }
   const { count, error } = await supabase.from('assets').select('*', { count: 'exact', head: true });
   if (error) throw error;
@@ -183,7 +218,7 @@ export async function checkLicenseBeforeCreate(propertyId: string, increment: nu
   // Count property usage
   let propUsage = 0;
   if (!hasSupabaseEnv || isDemoMode()) {
-    try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
+    propUsage = readCachedAssets().filter((asset) => matchesProperty(asset, propertyId)).length;
   } else {
     const { count, error } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
     if (error) throw error;
@@ -215,7 +250,7 @@ export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSna
   if (lic && lic.asset_limit > 0) {
     propertyLimit = lic.asset_limit;
     if (!hasSupabaseEnv || isDemoMode()) {
-      try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
+      propertyUsage = readCachedAssets().filter((asset) => matchesProperty(asset, propertyId)).length;
     } else {
       const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
       propertyUsage = count || 0;
@@ -225,7 +260,7 @@ export async function getLicenseSnapshot(propertyId: string): Promise<LicenseSna
     if (derived != null) {
       propertyLimit = derived;
       if (!hasSupabaseEnv || isDemoMode()) {
-        try { const raw = localStorage.getItem('assets_cache'); if (raw) { const list = JSON.parse(raw); propertyUsage = list.filter((a: any) => a.property_id === propertyId || a.property === propertyId).length; } } catch {}
+        propertyUsage = readCachedAssets().filter((asset) => matchesProperty(asset, propertyId)).length;
       } else {
         const { count } = await supabase.from('assets').select('*', { count: 'exact', head: true }).eq('property_id', propertyId);
         propertyUsage = count || 0;
