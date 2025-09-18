@@ -187,7 +187,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               <Package className="h-8 w-8 text-primary" />
               <div className="flex items-center gap-2">
                 <span className="text-xl font-bold text-foreground">SAMS{isDemoMode() ? ' • Demo' : ''}</span>
-                {role === 'admin' && (
+                {role === 'admin' && !isDemoMode() && (
                   <Badge
                     variant="outline"
                     className="border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary shadow-sm"
