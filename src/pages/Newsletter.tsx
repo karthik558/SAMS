@@ -316,27 +316,6 @@ export default function Newsletter() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm font-semibold text-foreground">Publishing Tips</CardTitle>
-              <CardDescription className="text-xs text-muted-foreground">
-                Keep updates concise and actionable.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm text-muted-foreground">
-              <ul className="space-y-2">
-                <li>✅ Lead with the outcome or impact in the first sentence.</li>
-                <li>🕒 Include timelines, owners, and next steps for incident-style posts.</li>
-                <li>🔖 Tag each update with a category so teams can filter quickly.</li>
-                <li>📬 Encourage stakeholders to subscribe to email alerts for critical changes.</li>
-              </ul>
-              {!isAdmin && (
-                <p className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  Need to publish an announcement? Contact an administrator or submit a ticket with your draft copy.
-                </p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
 
