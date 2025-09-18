@@ -16,6 +16,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listTickets } from "@/services/tickets";
@@ -56,6 +57,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [auditPendingCount, setAuditPendingCount] = useState<number>(0);
   const [ticketNewCount, setTicketNewCount] = useState<number>(0);
   const [ticketPendingCount, setTicketPendingCount] = useState<number>(0);
+  const [role, setRole] = useState<string>("");
   useEffect(() => {
     (async () => {
       try {
@@ -97,10 +99,17 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   useEffect(() => {
     (async () => {
       try {
-        const raw = localStorage.getItem('auth_user');
+        let raw: string | null = null;
+        if (isDemoMode()) {
+          raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
+        }
+        if (!raw) {
+          raw = localStorage.getItem('auth_user');
+        }
         let dept: string | null = null;
         let role: string = '';
         if (raw) { const u = JSON.parse(raw); dept = u?.department || null; role = (u?.role || '').toLowerCase(); }
+        setRole(role);
         setUserDept((dept || '').toLowerCase());
         if (role === 'admin') {
           // Admin sees all pending_admin approvals
@@ -174,9 +183,19 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         {/* Header */}
         <div className="flex h-14 md:h-16 items-center justify-between border-b border-border/60 bg-sidebar px-4">
           {!collapsed && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-3">
               <Package className="h-8 w-8 text-primary" />
-              <span className="text-xl font-bold text-foreground">SAMS{isDemoMode() ? ' • Demo' : ''}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-bold text-foreground">SAMS{isDemoMode() ? ' • Demo' : ''}</span>
+                {role === 'admin' && (
+                  <Badge
+                    variant="outline"
+                    className="border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary shadow-sm"
+                  >
+                    Admin
+                  </Badge>
+                )}
+              </div>
             </div>
           )}
           {!isMobile && (
