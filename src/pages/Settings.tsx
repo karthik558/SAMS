@@ -58,6 +58,15 @@ export default function Settings() {
   const [mfaDisableOtp, setMfaDisableOtp] = useState<string>("");
   const [mfaDisableChallengeId, setMfaDisableChallengeId] = useState<string>("");
 
+  const baseTabs = [
+    { value: "notifications", label: "Notifications", icon: Bell },
+    { value: "security", label: "Security", icon: Shield },
+    { value: "personalization", label: "Personalization", icon: SettingsIcon },
+  ];
+  const tabItems = role === "admin"
+    ? [...baseTabs, { value: "departments", label: "Departments", icon: Building2 }]
+    : baseTabs;
+
   // Load settings
   useEffect(() => {
     (async () => {
@@ -319,7 +328,7 @@ export default function Settings() {
   }
 
   return (
-  <div className="space-y-6">
+    <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
       <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
         <PageHeader
@@ -328,87 +337,20 @@ export default function Settings() {
           description="Manage your SAMS preferences and system configuration"
         />
       </div>
-
-  <Tabs defaultValue="security" className="space-y-6">
-  <TabsList className={`w-full overflow-x-auto flex-nowrap bg-muted/50 backdrop-blur supports-[backdrop-filter]:bg-muted/60 rounded-md p-1 flex gap-1 justify-start ${role === 'admin' ? 'md:grid md:grid-cols-3 md:overflow-visible md:flex-none' : 'md:grid md:grid-cols-2 md:overflow-visible md:flex-none'}`}>
-          <TabsTrigger value="notifications" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
-            <Bell className="h-4 w-4" />
-            <span className="hidden sm:inline">Notifications</span>
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
-            <Shield className="h-4 w-4" />
-            <span className="hidden sm:inline">Security</span>
-          </TabsTrigger>
-          <TabsTrigger value="personalization" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
-            <SettingsIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Personalization</span>
-          </TabsTrigger>
-          {role === 'admin' && (
-            <TabsTrigger value="departments" className="flex items-center gap-2 shrink-0 min-w-[9rem] sm:min-w-0 md:min-w-0 md:w-full justify-center">
-              <Building2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Departments</span>
+      <Tabs defaultValue="security" className="space-y-6">
+        <TabsList className="flex w-full flex-wrap items-stretch gap-2 rounded-md bg-muted/50 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/60 sm:flex-nowrap">
+          {tabItems.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="flex flex-1 min-w-[3.25rem] items-center justify-center gap-2 rounded-md px-3 py-2 text-sm sm:min-w-[3.5rem] sm:px-3 lg:flex-none lg:min-w-0 lg:justify-start lg:px-4"
+              title={label}
+              aria-label={label}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="sr-only lg:not-sr-only">{label}</span>
             </TabsTrigger>
-          )}
-        <TabsContent value="personalization" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personalization</CardTitle>
-              <CardDescription>Customize UI features and defaults just for you</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
-              {prefsLoaded && (
-              <>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Show Newsletter Menu</Label>
-                  <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
-                </div>
-                <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
-              </div>
-              <Separator />
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Compact Mode</Label>
-                  <p className="text-sm text-muted-foreground">Use denser spacing for tables and navigation</p>
-                </div>
-                <Switch checked={compactMode} onCheckedChange={setCompactMode} />
-              </div>
-              <Separator />
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Beta Features</Label>
-                  <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
-                </div>
-                <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
-              </div>
-              <Separator />
-              <div className="flex flex-col gap-2">
-                <div className="space-y-1">
-                  <Label htmlFor="default-landing">Default Landing Page</Label>
-                  <p className="text-sm text-muted-foreground">Choose where the app sends you after login</p>
-                </div>
-                <select id="default-landing" value={defaultLanding} onChange={(e)=> setDefaultLanding(e.target.value)} className="h-9 w-full rounded border border-border/60 bg-background px-2 text-sm">
-                  <option value="">System Default (Dashboard)</option>
-                  <option value="/assets">Assets</option>
-                  <option value="/properties">Properties</option>
-                  <option value="/approvals">Approvals</option>
-                  <option value="/tickets">Tickets</option>
-                  <option value="/reports">Reports</option>
-                  <option value="/newsletter">Newsletter</option>
-                  <option value="/settings">Settings</option>
-                </select>
-                <p className="text-xs text-muted-foreground">This will take effect on your next login.</p>
-              </div>
-              <Button onClick={handleSave} className="w-full md:w-auto">
-                <Save className="h-4 w-4 mr-2" />
-                Save Personalization
-              </Button>
-              </>) }
-            </CardContent>
-          </Card>
-        </TabsContent>
-          
+          ))}
         </TabsList>
 
         <TabsContent value="notifications" className="space-y-6">
@@ -564,62 +506,124 @@ export default function Settings() {
             </CardContent>
           </Card>
         </TabsContent>
-  {role === 'admin' && (
-  <TabsContent value="departments" className="space-y-6">
+
+        <TabsContent value="personalization" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Departments</CardTitle>
-              <CardDescription>Manage departments used for routing approvals and user assignments</CardDescription>
+              <CardTitle>Personalization</CardTitle>
+              <CardDescription>Customize UI features and defaults just for you</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <Input placeholder="Name (e.g., IT)" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
-                <Input placeholder="Code (optional)" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} />
-                <Button onClick={async () => {
-                  const name = newDeptName.trim();
-                  if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
-                  try {
-                    const created = await createDepartment({ name, code: newDeptCode.trim() || null });
-                    setDepartments((s) => [created, ...s]);
-                    setNewDeptName(""); setNewDeptCode("");
-                    toast({ title: "Department added" });
-                  } catch (e: any) {
-                    toast({ title: "Add failed", description: e?.message || String(e), variant: "destructive" });
-                  }
-                }}>
-                  <Plus className="h-4 w-4 mr-2" /> Add
-                </Button>
-              </div>
-              <div className="border rounded divide-y">
-                {departments.length ? departments.map((d) => (
-                  <div key={d.id} className="flex items-center justify-between p-3">
-                    <div>
-                      <div className="font-medium">{d.name}</div>
-                      <div className="text-xs text-muted-foreground">Code: {d.code || '-'} • {d.is_active ? 'Active' : 'Inactive'}</div>
+            <CardContent className="space-y-6">
+              {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
+              {prefsLoaded && (
+                <>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Show Newsletter Menu</Label>
+                      <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={async () => {
-                        try {
-                          const updated = await updateDepartment(d.id, { is_active: !d.is_active });
-                          setDepartments((s) => s.map(x => x.id === d.id ? updated : x));
-                        } catch {}
-                      }}>
-                        {d.is_active ? <ToggleRight className="h-4 w-4 mr-2" /> : <ToggleLeft className="h-4 w-4 mr-2" />} {d.is_active ? 'Active' : 'Inactive'}
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={async () => {
-                        if (!confirm(`Delete ${d.name}?`)) return;
-                        try { await deleteDepartment(d.id); setDepartments((s) => s.filter(x => x.id !== d.id)); } catch {}
-                      }}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
                   </div>
-                )) : <div className="p-3 text-sm text-muted-foreground">No departments</div>}
-              </div>
+                  <Separator />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Compact Mode</Label>
+                      <p className="text-sm text-muted-foreground">Use denser spacing for tables and navigation</p>
+                    </div>
+                    <Switch checked={compactMode} onCheckedChange={setCompactMode} />
+                  </div>
+                  <Separator />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Beta Features</Label>
+                      <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
+                    </div>
+                    <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
+                  </div>
+                  <Separator />
+                  <div className="flex flex-col gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="default-landing">Default Landing Page</Label>
+                      <p className="text-sm text-muted-foreground">Choose where the app sends you after login</p>
+                    </div>
+                    <select id="default-landing" value={defaultLanding} onChange={(e) => setDefaultLanding(e.target.value)} className="h-9 w-full rounded border border-border/60 bg-background px-2 text-sm">
+                      <option value="">System Default (Dashboard)</option>
+                      <option value="/assets">Assets</option>
+                      <option value="/properties">Properties</option>
+                      <option value="/approvals">Approvals</option>
+                      <option value="/tickets">Tickets</option>
+                      <option value="/reports">Reports</option>
+                      <option value="/newsletter">Newsletter</option>
+                      <option value="/settings">Settings</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">This will take effect on your next login.</p>
+                  </div>
+                  <Button onClick={handleSave} className="w-full md:w-auto">
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Personalization
+                  </Button>
+                </>
+              )}
             </CardContent>
           </Card>
-  </TabsContent>
-  )}
+        </TabsContent>
+
+        {role === 'admin' && (
+          <TabsContent value="departments" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Departments</CardTitle>
+                <CardDescription>Manage departments used for routing approvals and user assignments</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <Input placeholder="Name (e.g., IT)" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
+                  <Input placeholder="Code (optional)" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} />
+                  <Button onClick={async () => {
+                    const name = newDeptName.trim();
+                    if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
+                    try {
+                      const created = await createDepartment({ name, code: newDeptCode.trim() || null });
+                      setDepartments((s) => [created, ...s]);
+                      setNewDeptName(""); setNewDeptCode("");
+                      toast({ title: "Department added" });
+                    } catch (e: any) {
+                      toast({ title: "Add failed", description: e?.message || String(e), variant: "destructive" });
+                    }
+                  }}>
+                    <Plus className="h-4 w-4 mr-2" /> Add
+                  </Button>
+                </div>
+                <div className="border rounded divide-y">
+                  {departments.length ? departments.map((d) => (
+                    <div key={d.id} className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="font-medium">{d.name}</div>
+                        <div className="text-xs text-muted-foreground">Code: {d.code || '-'} • {d.is_active ? 'Active' : 'Inactive'}</div>
+                      </div>
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
+                        <Button variant="outline" size="sm" onClick={async () => {
+                          try {
+                            const updated = await updateDepartment(d.id, { is_active: !d.is_active });
+                            setDepartments((s) => s.map(x => x.id === d.id ? updated : x));
+                          } catch {}
+                        }}>
+                          {d.is_active ? <ToggleRight className="h-4 w-4 mr-2" /> : <ToggleLeft className="h-4 w-4 mr-2" />} {d.is_active ? 'Active' : 'Inactive'}
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={async () => {
+                          if (!confirm(`Delete ${d.name}?`)) return;
+                          try { await deleteDepartment(d.id); setDepartments((s) => s.filter(x => x.id !== d.id)); } catch {}
+                        }}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )) : <div className="p-3 text-sm text-muted-foreground">No departments</div>}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
