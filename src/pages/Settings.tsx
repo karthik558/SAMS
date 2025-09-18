@@ -32,6 +32,13 @@ export default function Settings() {
   const [betaFeatures, setBetaFeatures] = useState(false);
   const [defaultLanding, setDefaultLanding] = useState<string>("");
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+  // Initialize dark mode from existing theme preference immediately (before async load)
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('theme');
+      if (stored === 'dark') setDarkMode(true);
+    } catch {}
+  }, []);
 
   // Demo current user id (wire to auth user/app user as needed)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -159,21 +166,20 @@ export default function Settings() {
           } catch {}
         }
       }
-      // apply theme preference globally
+      // apply theme preference globally ONLY if it changed to avoid accidental resets
       try {
         const root = document.documentElement;
-        if (darkMode) {
-          root.classList.add("dark");
-          localStorage.setItem("theme", "dark");
-        } else {
-          root.classList.remove("dark");
-          localStorage.setItem("theme", "light");
+        const currentlyDark = root.classList.contains('dark');
+        if (darkMode !== currentlyDark) {
+          if (darkMode) {
+            root.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+          } else {
+            root.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+          }
         }
-        if (compactMode) {
-          root.classList.add("compact-ui");
-        } else {
-          root.classList.remove("compact-ui");
-        }
+        if (compactMode) root.classList.add('compact-ui'); else root.classList.remove('compact-ui');
       } catch {}
       toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
     } catch (e: any) {
@@ -539,6 +545,14 @@ export default function Settings() {
                       <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
                     </div>
                     <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
+                  </div>
+                  <Separator />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Dark Mode</Label>
+                      <p className="text-sm text-muted-foreground">Toggle dark theme appearance</p>
+                    </div>
+                    <Switch checked={darkMode} onCheckedChange={setDarkMode} />
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-2">
