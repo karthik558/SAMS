@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoProperties } from "@/lib/demo";
+import { getCachedValue, invalidateCache } from "@/lib/data-cache";
 
 export type Property = {
   id: string;
@@ -13,6 +14,8 @@ export type Property = {
 };
 
 const table = "properties";
+const PROPERTY_CACHE_KEY = "properties:list";
+const PROPERTY_CACHE_TTL = 60_000;
 
 function toCamel(row: any): Property {
   return {
@@ -38,12 +41,21 @@ function toSnake(p: Partial<Property>) {
   };
 }
 
-export async function listProperties(): Promise<Property[]> {
+export async function listProperties(options?: { force?: boolean }): Promise<Property[]> {
   if (isDemoMode()) return getDemoProperties();
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").order("id");
-  if (error) throw error;
-  return (data ?? []).map(toCamel);
+  return getCachedValue(
+    PROPERTY_CACHE_KEY,
+    async () => {
+      const { data, error } = await supabase
+        .from(table)
+        .select("id,name,address,type,status,manager,created_at,updated_at")
+        .order("id");
+      if (error) throw error;
+      return (data ?? []).map(toCamel);
+    },
+    { ttlMs: PROPERTY_CACHE_TTL, force: options?.force },
+  );
 }
 
 export async function deleteProperty(id: string): Promise<void> {
@@ -51,6 +63,7 @@ export async function deleteProperty(id: string): Promise<void> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
+  invalidateCache(PROPERTY_CACHE_KEY);
 }
 
 export async function createProperty(p: Property): Promise<Property> {
@@ -58,6 +71,7 @@ export async function createProperty(p: Property): Promise<Property> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).insert(toSnake(p)).select().single();
   if (error) throw error;
+  invalidateCache(PROPERTY_CACHE_KEY);
   return toCamel(data);
 }
 
@@ -66,5 +80,6 @@ export async function updateProperty(id: string, patch: Partial<Property>): Prom
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).update(toSnake(patch)).eq("id", id).select().single();
   if (error) throw error;
+  invalidateCache(PROPERTY_CACHE_KEY);
   return toCamel(data);
 }

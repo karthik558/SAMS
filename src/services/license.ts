@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from '@/lib/supabaseClient';
 import { isDemoMode } from '@/lib/demo';
+import { getCachedValue, invalidateCache } from '@/lib/data-cache';
 
 export type PropertyLicense = {
   property_id: string;
@@ -23,6 +24,8 @@ export interface GlobalLicenseLimits {
 
 const LOCAL_KEY_PL = 'property_license_map';
 const LOCAL_KEY_GLOBAL = 'license_global_limits_v2';
+const PROPERTY_LICENSE_CACHE_KEY = 'property_license:list';
+const PROPERTY_LICENSE_CACHE_TTL = 60_000;
 
 function readLocalMap(): Record<string, PropertyLicense> {
   try { const raw = localStorage.getItem(LOCAL_KEY_PL); if (raw) return JSON.parse(raw); } catch {}
@@ -34,13 +37,19 @@ function defaultGlobalLimits(): GlobalLicenseLimits { return { plan: 'business',
 function readLocalGlobal(): GlobalLicenseLimits { try { const raw = localStorage.getItem(LOCAL_KEY_GLOBAL); if (raw) return JSON.parse(raw); } catch {} return defaultGlobalLimits(); }
 function writeLocalGlobal(v: GlobalLicenseLimits) { try { localStorage.setItem(LOCAL_KEY_GLOBAL, JSON.stringify(v)); } catch {} }
 
-export async function listPropertyLicenses(): Promise<PropertyLicense[]> {
+export async function listPropertyLicenses(options?: { force?: boolean }): Promise<PropertyLicense[]> {
   if (!hasSupabaseEnv || isDemoMode()) {
     return Object.values(readLocalMap());
   }
-  const { data, error } = await supabase.from('property_license').select('*');
-  if (error) throw error;
-  return (data || []) as PropertyLicense[];
+  return getCachedValue(
+    PROPERTY_LICENSE_CACHE_KEY,
+    async () => {
+      const { data, error } = await supabase.from('property_license').select('*');
+      if (error) throw error;
+      return (data || []) as PropertyLicense[];
+    },
+    { ttlMs: PROPERTY_LICENSE_CACHE_TTL, force: options?.force },
+  );
 }
 
 export async function getPropertyLicense(propertyId: string): Promise<PropertyLicense | null> {
@@ -62,6 +71,7 @@ export async function upsertPropertyLicense(propertyId: string, assetLimit: numb
   }
   const { data, error } = await supabase.from('property_license').upsert({ property_id: propertyId, asset_limit: assetLimit, plan }).select().single();
   if (error) throw error;
+  invalidateCache(PROPERTY_LICENSE_CACHE_KEY);
   return data as PropertyLicense;
 }
 

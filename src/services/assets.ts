@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets } from "@/lib/demo";
+import { getCachedValue, invalidateCache } from "@/lib/data-cache";
 
 export type Asset = {
   id: string; // e.g., AST-001
@@ -21,6 +22,8 @@ export type Asset = {
 };
 
 const table = "assets";
+const ASSET_CACHE_KEY = "assets:list";
+const ASSET_CACHE_TTL = 60_000; // 1 minute keeps dashboards snappy without going stale
 
 // Helpers to convert between DB (snake_case) and app (camelCase)
 function toCamel(row: any): Asset {
@@ -64,12 +67,23 @@ function toSnake(asset: Partial<Asset>) {
   return row;
 }
 
-export async function listAssets(): Promise<Asset[]> {
+export async function listAssets(options?: { force?: boolean }): Promise<Asset[]> {
   if (isDemoMode()) return getDemoAssets();
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []).map(toCamel);
+  return getCachedValue(
+    ASSET_CACHE_KEY,
+    async () => {
+      const { data, error } = await supabase
+        .from(table)
+        .select(
+          "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at",
+        )
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(toCamel);
+    },
+    { ttlMs: ASSET_CACHE_TTL, force: options?.force },
+  );
 }
 
 export async function createAsset(asset: Asset): Promise<Asset> {
@@ -78,6 +92,7 @@ export async function createAsset(asset: Asset): Promise<Asset> {
   const payload = toSnake(asset);
   const { data, error } = await supabase.from(table).insert(payload).select().single();
   if (error) throw error;
+  invalidateCache(ASSET_CACHE_KEY);
   return toCamel(data);
 }
 
@@ -87,6 +102,7 @@ export async function updateAsset(id: string, patch: Partial<Asset>): Promise<As
   const payload = toSnake(patch);
   const { data, error } = await supabase.from(table).update(payload).eq("id", id).select().single();
   if (error) throw error;
+  invalidateCache(ASSET_CACHE_KEY);
   return toCamel(data);
 }
 
@@ -95,6 +111,7 @@ export async function deleteAsset(id: string): Promise<void> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
+  invalidateCache(ASSET_CACHE_KEY);
 }
 
 export async function getAssetById(id: string): Promise<Asset | null> {
