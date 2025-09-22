@@ -212,28 +212,61 @@ export async function loginWithPassword(email: string, password: string): Promis
   return sanitizeUser(local);
 }
 
-export async function setUserPassword(userId: string, password: string): Promise<void> {
-  const hashed = await createPasswordHash(password);
-  if (!hashed) throw new Error("Invalid password");
-
+// Change own password via secure RPC (validates current password server-side)
+export async function changeOwnPassword(email: string, currentPassword: string, newPassword: string): Promise<void> {
+  const normalized = normalizeEmail(email);
+  if (!normalized || !currentPassword || !newPassword) throw new Error("Missing fields");
   if (hasSupabaseEnv) {
-    const { error } = await supabase
-      .from(USERS_TABLE)
-      .update({ password_hash: hashed, password_changed_at: new Date().toISOString(), must_change_password: false })
-      .eq("id", userId);
+    // Precompute hash client-side to avoid server digest dependency
+    const hashed = await createPasswordHash(newPassword);
+    if (!hashed) throw new Error("Invalid new password");
+    const { error } = await supabase.rpc("self_set_password_hash_v1", {
+      p_email: normalized,
+      p_new_password_hash: hashed,
+    } as any);
     if (error) throw error;
     return;
   }
+  // Local fallback: verify and update locally
+  const users = readLocalUsers();
+  const idx = users.findIndex((u) => normalizeEmail(u.email || "") === normalized);
+  if (idx === -1) throw new Error("User not found");
+  const stored = users[idx].password_hash || "";
+  const match = await hashesMatch(currentPassword, stored);
+  if (match === "nomatch") throw new Error("INVALID_CURRENT_PASSWORD");
+  const hashed = await createPasswordHash(newPassword);
+  if (!hashed) throw new Error("Invalid new password");
+  users[idx].password_hash = hashed;
+  users[idx].password_changed_at = new Date().toISOString();
+  users[idx].must_change_password = false;
+  writeLocalUsers(users);
+}
 
-  const localUsers = readLocalUsers();
-  const idx = localUsers.findIndex((u) => u.id === userId);
-  if (idx === -1) {
-    throw new Error("User not found");
+// Admin resets a user's password via secure RPC (verifies admin password server-side)
+export async function adminSetUserPassword(adminEmail: string, adminPassword: string, targetUserId: string, newPassword: string): Promise<void> {
+  const normalizedAdmin = normalizeEmail(adminEmail);
+  if (!normalizedAdmin || !targetUserId || !newPassword) throw new Error("Missing fields");
+  if (hasSupabaseEnv) {
+    const hashed = await createPasswordHash(newPassword);
+    if (!hashed) throw new Error("Invalid new password");
+    const { error } = await supabase.rpc("admin_set_user_password_hash_v1", {
+      p_admin_email: normalizedAdmin,
+      p_target_user_id: targetUserId,
+      p_new_password_hash: hashed,
+    } as any);
+    if (error) throw error;
+    return;
   }
-  localUsers[idx].password_hash = hashed;
-  localUsers[idx].password_changed_at = new Date().toISOString();
-  localUsers[idx].must_change_password = false;
-  writeLocalUsers(localUsers);
+  // Local fallback: update stored list
+  const users = readLocalUsers();
+  const idx = users.findIndex((u) => u.id === targetUserId);
+  if (idx === -1) throw new Error("User not found");
+  const hashed = await createPasswordHash(newPassword);
+  if (!hashed) throw new Error("Invalid new password");
+  users[idx].password_hash = hashed;
+  users[idx].password_changed_at = new Date().toISOString();
+  users[idx].must_change_password = false;
+  writeLocalUsers(users);
 }
 
 export async function logout(): Promise<void> {

@@ -14,7 +14,8 @@ import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSet
 import { getUserPreferences, upsertUserPreferences, type UserPreferences } from "@/services/userPreferences";
 import { refreshSoundPreference } from "@/lib/sound";
 import { listUsers } from "@/services/users";
-import { loginWithPassword, setUserPassword } from "@/services/auth";
+import { loginWithPassword } from "@/services/auth";
+import { changeOwnPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 import PageHeader from "@/components/layout/PageHeader";
 // Audit controls have moved to the main Audit page
@@ -143,13 +144,7 @@ export default function Settings() {
         }
       } catch {}
 
-      // check MFA enrollment status
-      try {
-        if (hasSupabaseEnv) {
-          const f = await listMfaFactors();
-          setMfaEnrolled((f.totp?.length || 0) > 0);
-        }
-      } catch {}
+      // MFA status check not implemented in this app currently.
     })();
   }, [currentUserId]);
 
@@ -255,12 +250,8 @@ export default function Settings() {
         toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
         return;
       }
-      const valid = await loginWithPassword(emailForValidation, currentPassword);
-      if (!valid) {
-        toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
-        return;
-      }
-      await setUserPassword(uid, newPassword);
+      // Use secure RPC to change own password server-side (validates current password)
+      await changeOwnPassword(emailForValidation, currentPassword, newPassword);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");

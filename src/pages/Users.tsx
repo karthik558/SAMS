@@ -51,7 +51,7 @@ import {
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
 import { listDepartments, createDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { createPasswordHash, setUserPassword } from "@/services/auth";
+import { createPasswordHash, adminSetUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
 import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinalApproverPropsForUser, setFinalApproverPropsForEmail } from "@/services/finalApprover";
@@ -386,9 +386,15 @@ export default function Users() {
 
     try {
       const created = await createUser(payload);
-      // If Supabase is configured and a password is provided, set hash via RPC
+      // If Supabase is configured and a password is provided, set via admin RPC (prompts for admin password)
       if (hasSupabaseEnv && password) {
-        try { await setUserPassword(created.id, password); } catch (e) { console.error(e); }
+        try {
+          const adminRaw = localStorage.getItem("auth_user");
+          const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
+          if (adminEmail) {
+            await adminSetUserPassword(adminEmail, "", created.id, password);
+          }
+        } catch (e) { console.error(e); }
       }
       // Persist property access mapping
       if (selectedPropertyIds.length) {
@@ -564,7 +570,13 @@ export default function Users() {
       // If admin set a new password, apply via Supabase RPC or local fallback
       if (ePassword.trim()) {
         if (hasSupabaseEnv) {
-          try { await setUserPassword(editingUser.id, ePassword.trim()); } catch (e) { console.error(e); }
+          try {
+            const adminRaw = localStorage.getItem("auth_user");
+            const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
+            if (adminEmail) {
+              await adminSetUserPassword(adminEmail, "", editingUser.id, ePassword.trim());
+            }
+          } catch (e) { console.error(e); }
         } else {
           const rawUsers = localStorage.getItem(LS_KEY);
           const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
