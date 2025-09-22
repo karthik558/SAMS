@@ -41,6 +41,7 @@ import {
   Phone,
   Filter
 } from "lucide-react";
+import { Key } from "lucide-react";
 import { format } from "date-fns";
 import {
   DropdownMenu,
@@ -160,6 +161,10 @@ export default function Users() {
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+  // Reset password popup state
+  const [isResetPwOpen, setIsResetPwOpen] = useState(false);
+  const [resetTargetUser, setResetTargetUser] = useState<AppUser | null>(null);
+  const [resetNewPassword, setResetNewPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -663,6 +668,66 @@ export default function Users() {
   const getStatusBadgeVariant = (status: string) => {
     return status.toLowerCase() === "active" ? "default" : "secondary";
   }
+
+  const openResetPassword = (user: AppUser) => {
+    setResetTargetUser(user);
+    setResetNewPassword("");
+    setIsResetPwOpen(true);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resetTargetUser) return;
+    const newPw = resetNewPassword.trim();
+    if (!newPw) {
+      toast({ title: "Password required", description: "Please enter a new password.", variant: "destructive" });
+      return;
+    }
+    try {
+      if (hasSupabaseEnv) {
+        try {
+          const adminRaw = localStorage.getItem("auth_user");
+          const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
+          if (!adminEmail) throw new Error("Admin email not found in session.");
+          await adminSetUserPassword(adminEmail, "", resetTargetUser.id, newPw);
+        } catch (e: any) {
+          // If Supabase call fails, attempt local fallback below
+          console.warn("Supabase reset failed, falling back to local.", e?.message || e);
+          const rawUsers = localStorage.getItem(LS_KEY);
+          const list = rawUsers ? (JSON.parse(rawUsers) as any[]) : [];
+          const idx = list.findIndex((u) => u.id === resetTargetUser.id);
+          if (idx !== -1) {
+            const hash = await createPasswordHash(newPw);
+            if (hash) {
+              list[idx].password_hash = hash;
+              list[idx].password_changed_at = new Date().toISOString();
+              list[idx].must_change_password = false;
+              localStorage.setItem(LS_KEY, JSON.stringify(list));
+            }
+          }
+        }
+      } else {
+        // Local-only fallback
+        const rawUsers = localStorage.getItem(LS_KEY);
+        const list = rawUsers ? (JSON.parse(rawUsers) as any[]) : [];
+        const idx = list.findIndex((u) => u.id === resetTargetUser.id);
+        if (idx !== -1) {
+          const hash = await createPasswordHash(newPw);
+          if (hash) {
+            list[idx].password_hash = hash;
+            list[idx].password_changed_at = new Date().toISOString();
+            list[idx].must_change_password = false;
+            localStorage.setItem(LS_KEY, JSON.stringify(list));
+          }
+        }
+      }
+      toast({ title: "Password updated", description: `Password reset for ${resetTargetUser.name}.` });
+      setIsResetPwOpen(false);
+      setResetTargetUser(null);
+      setResetNewPassword("");
+    } catch (e: any) {
+      toast({ title: "Reset failed", description: e?.message || "Unable to reset password.", variant: "destructive" });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -1265,6 +1330,12 @@ export default function Users() {
                                 </DropdownMenuItem>
                               )}
                               {authRole === 'admin' && (
+                                <DropdownMenuItem onClick={() => openResetPassword(user)}>
+                                  <Key className="h-4 w-4 mr-2" />
+                                  Reset Password
+                                </DropdownMenuItem>
+                              )}
+                              {authRole === 'admin' && (
                                 <DropdownMenuItem
                                   onClick={() => handleDeleteUser(user.id, user.name)}
                                   className="text-destructive focus:text-destructive"
@@ -1318,6 +1389,11 @@ export default function Users() {
                               </DropdownMenuItem>
                             )}
                             {authRole === 'admin' && (
+                              <DropdownMenuItem onClick={() => openResetPassword(user)}>
+                                <Key className="h-4 w-4 mr-2" /> Reset Password
+                              </DropdownMenuItem>
+                            )}
+                            {authRole === 'admin' && (
                               <DropdownMenuItem
                                 onClick={() => handleDeleteUser(user.id, user.name)}
                                 className="text-destructive"
@@ -1343,6 +1419,36 @@ export default function Users() {
           )}
         </CardContent>
       </Card>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={isResetPwOpen} onOpenChange={setIsResetPwOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              {resetTargetUser ? `Set a new password for ${resetTargetUser.name}` : 'Enter a new password'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="resetPassword">New Password</Label>
+            <Input
+              id="resetPassword"
+              type="password"
+              placeholder="Enter new password"
+              value={resetNewPassword}
+              onChange={(e) => setResetNewPassword(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPwOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmResetPassword}>
+              <Key className="h-4 w-4 mr-2" />
+              Reset
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit User Dialog */}
       <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
