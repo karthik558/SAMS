@@ -6,11 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus, Settings as SettingsIcon } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import QRCode from "qrcode";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { getUserPreferences, upsertUserPreferences, type UserPreferences } from "@/services/userPreferences";
@@ -18,7 +16,6 @@ import { refreshSoundPreference } from "@/lib/sound";
 import { listUsers } from "@/services/users";
 import { loginWithPassword, setUserPassword } from "@/services/auth";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
-import { listMfaFactors, mfaActivateTotp, mfaEnrollTotp, mfaChallenge, mfaVerify, mfaUnenrollTotp } from "@/services/auth";
 import PageHeader from "@/components/layout/PageHeader";
 // Audit controls have moved to the main Audit page
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
@@ -65,15 +62,6 @@ export default function Settings() {
   const [role, setRole] = useState<string>("");
   // Audit controls moved to /audit
 
-  // MFA state
-  const [mfaEnrolled, setMfaEnrolled] = useState<boolean>(false);
-  const [mfaEnrollUrl, setMfaEnrollUrl] = useState<string>("");
-  const [mfaQrDataUrl, setMfaQrDataUrl] = useState<string>("");
-  const [mfaFactorId, setMfaFactorId] = useState<string>("");
-  const [mfaCode, setMfaCode] = useState<string>("");
-  const [mfaLoading, setMfaLoading] = useState(false);
-  const [mfaDisableOtp, setMfaDisableOtp] = useState<string>("");
-  const [mfaDisableChallengeId, setMfaDisableChallengeId] = useState<string>("");
 
   const baseTabs = [
     { value: "notifications", label: "Notifications", icon: Bell },
@@ -252,37 +240,27 @@ export default function Settings() {
       return;
     }
     try {
-      if (hasSupabaseEnv) {
-        if (!currentUserEmail || !currentUserId) {
-          toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
-          return;
-        }
-  const valid = await loginWithPassword(currentUserEmail, currentPassword);
-        if (!valid) {
-          toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
-          return;
-        }
-        await setUserPassword(currentUserId, newPassword);
-      } else {
-        // Local fallback using demo users store
-        const rawUsers = localStorage.getItem("app_users_fallback");
-        const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
-        const uid = currentUserId || localStorage.getItem("current_user_id");
-        const idx = list.findIndex(u => u.id === uid);
-        if (idx === -1) {
-          toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
-          return;
-        }
-        const stored = list[idx].password_hash as string | undefined;
-        const computed = btoa(unescape(encodeURIComponent(currentPassword))).slice(0, 32);
-        if (!stored || stored !== computed) {
-          toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
-          return;
-        }
-        // Update hash
-        list[idx].password_hash = btoa(unescape(encodeURIComponent(newPassword))).slice(0, 32);
-        localStorage.setItem("app_users_fallback", JSON.stringify(list));
+      const uid = currentUserId || localStorage.getItem("current_user_id");
+      let emailForValidation = currentUserEmail;
+      if (!emailForValidation) {
+        try {
+          const raw = localStorage.getItem("auth_user");
+          if (raw) {
+            const parsed = JSON.parse(raw) as { email?: string };
+            emailForValidation = parsed?.email || null;
+          }
+        } catch {}
       }
+      if (!uid || !emailForValidation) {
+        toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
+        return;
+      }
+      const valid = await loginWithPassword(emailForValidation, currentPassword);
+      if (!valid) {
+        toast({ title: "Invalid current password", description: "Please check your current password.", variant: "destructive" });
+        return;
+      }
+      await setUserPassword(uid, newPassword);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -291,102 +269,6 @@ export default function Settings() {
       toast({ title: "Update failed", description: e?.message || String(e), variant: "destructive" });
     }
   };
-
-  async function startTotpEnrollment() {
-    try {
-      setMfaLoading(true);
-      const { factorId, otpauthUrl } = await mfaEnrollTotp();
-      setMfaFactorId(factorId);
-      // Rewrite otpauth URI to use a friendly issuer/label for authenticator apps
-      const issuer = 'SAMS';
-      const email = currentUserEmail || 'user';
-      let friendly = otpauthUrl;
-      try {
-        const prefix = 'otpauth://totp/';
-        if (otpauthUrl.startsWith(prefix)) {
-          const rest = otpauthUrl.slice(prefix.length);
-          const qIndex = rest.indexOf('?');
-          const rawLabel = qIndex >= 0 ? rest.slice(0, qIndex) : rest;
-          const query = qIndex >= 0 ? rest.slice(qIndex + 1) : '';
-          const newLabel = encodeURIComponent(`${issuer}:${email}`);
-          const params = new URLSearchParams(query);
-          params.set('issuer', issuer);
-          friendly = `${prefix}${newLabel}?${params.toString()}`;
-        }
-      } catch {}
-      setMfaEnrollUrl(friendly);
-      try {
-        const dataUrl = await QRCode.toDataURL(friendly, { width: 192, margin: 1 });
-        setMfaQrDataUrl(dataUrl);
-      } catch {}
-    } catch (e: any) {
-      toast({ title: "Enrollment failed", description: e?.message || String(e), variant: "destructive" });
-    } finally {
-      setMfaLoading(false);
-    }
-  }
-
-  async function activateTotp() {
-    if (!mfaFactorId || !mfaCode) return;
-    try {
-      setMfaLoading(true);
-      await mfaActivateTotp(mfaFactorId, mfaCode);
-      setMfaEnrolled(true);
-      setMfaEnrollUrl("");
-  setMfaQrDataUrl("");
-      setMfaFactorId("");
-      setMfaCode("");
-      toast({ title: "MFA enabled", description: "Authenticator app configured." });
-    } catch (e: any) {
-      toast({ title: "Verification failed", description: e?.message || String(e), variant: "destructive" });
-    } finally {
-      setMfaLoading(false);
-    }
-  }
-
-  async function beginDisableMfa() {
-    try {
-      setMfaLoading(true);
-      // list factors to get the current totp factor id
-      const f = await listMfaFactors();
-      const fid = f.totp[0]?.id;
-      if (!fid) {
-        toast({ title: "No MFA found", description: "There's no authenticator configured.", variant: "destructive" });
-        return;
-      }
-      // Start a challenge to verify ownership before disabling
-      const ch = await mfaChallenge(fid);
-      setMfaFactorId(fid);
-      setMfaDisableChallengeId(ch.challengeId);
-      setMfaDisableOtp("");
-      toast({ title: "Enter code to disable", description: "Enter a 6-digit code from your authenticator to disable MFA." });
-    } catch (e: any) {
-      toast({ title: "Cannot start disable flow", description: e?.message || String(e), variant: "destructive" });
-    } finally {
-      setMfaLoading(false);
-    }
-  }
-
-  async function confirmDisableMfa() {
-    if (!mfaFactorId) return;
-    try {
-      setMfaLoading(true);
-      // If we have an active challenge and code, verify first
-      if (mfaDisableChallengeId && mfaDisableOtp.trim().length === 6) {
-        await mfaVerify(mfaFactorId, mfaDisableChallengeId, mfaDisableOtp.trim(), currentUserEmail || "");
-      }
-      await mfaUnenrollTotp(mfaFactorId);
-      setMfaEnrolled(false);
-      setMfaDisableChallengeId("");
-      setMfaDisableOtp("");
-      setMfaFactorId("");
-      toast({ title: "MFA disabled", description: "Authenticator app unenrolled." });
-    } catch (e: any) {
-      toast({ title: "Disable failed", description: e?.message || String(e), variant: "destructive" });
-    } finally {
-      setMfaLoading(false);
-    }
-  }
 
   return (
     <div className="space-y-6">
@@ -508,62 +390,6 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <Separator />
-
-              <div>
-                <Label className="font-medium">Multi-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground">
-                  Add an extra layer of security to your account
-                </p>
-                <div className="flex items-center justify-between gap-2">
-                  <Badge variant={mfaEnrolled ? "default" : "outline"} className="font-medium">
-                    {mfaEnrolled ? "Enabled" : "Not Enrolled"}
-                  </Badge>
-                  {!mfaEnrolled ? (
-                    <Button onClick={startTotpEnrollment} disabled={mfaLoading} className="whitespace-nowrap">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Enable MFA
-                    </Button>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Button variant="destructive" onClick={beginDisableMfa} disabled={mfaLoading} className="whitespace-nowrap">
-                        Disable MFA
-                      </Button>
-                    </div>
-                  )}
-                </div>
-
-                {(!mfaEnrolled && (mfaEnrollUrl || mfaQrDataUrl)) && (
-                  <div className="mt-4">
-                    <Label className="font-medium">Authenticator App</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Scan the QR code below with your authenticator app
-                    </p>
-                    <div className="flex items-center gap-4">
-                      <img src={mfaQrDataUrl || mfaEnrollUrl} alt="QR Code" className="w-24 h-24" />
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Input placeholder="Enter code" value={mfaCode} onChange={(e) => setMfaCode(e.target.value)} />
-                          <Button onClick={activateTotp} disabled={mfaLoading || mfaCode.trim().length !== 6}>
-                            Verify & Enable
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {mfaEnrolled && mfaDisableChallengeId && (
-                  <div className="mt-4">
-                    <Label className="font-medium">Confirm Disable</Label>
-                    <p className="text-sm text-muted-foreground">Enter a 6-digit code from your authenticator to confirm disabling MFA.</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Input placeholder="000000" inputMode="numeric" pattern="[0-9]*" maxLength={6} value={mfaDisableOtp} onChange={(e) => setMfaDisableOtp(e.target.value.replace(/\D/g, '').slice(0,6))} />
-                      <Button variant="destructive" onClick={confirmDisableMfa} disabled={mfaLoading || mfaDisableOtp.length !== 6}>Confirm</Button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

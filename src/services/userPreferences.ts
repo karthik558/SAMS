@@ -50,23 +50,26 @@ function defaults(userId: string): UserPreferences {
 
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {
   if (hasSupabaseEnv && !isDemoMode()) {
-    // Always trust the authenticated user id for RLS compliance
-    const { data: authData } = await supabase.auth.getUser();
-    const authId = authData?.user?.id;
-    if (!authId) throw new Error('NO_AUTH_USER');
-    const effectiveId = authId; // ignore passed userId if different
-    const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
-    if (error) throw error;
-    if (data) {
-      const filled = applyPostLoadDefaults(data as UserPreferences);
-      return filled;
+    try {
+      let effectiveId = userId;
+      if (!effectiveId) {
+        const { data: authData } = await supabase.auth.getUser();
+        effectiveId = authData?.user?.id || '';
+      }
+      if (!effectiveId) throw new Error('NO_USER_ID');
+      const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
+      if (error) throw error;
+      if (data) {
+        return applyPostLoadDefaults(data as UserPreferences);
+      }
+      const def = defaults(effectiveId);
+      const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
+      if (e2) throw e2;
+      return applyPostLoadDefaults(created as UserPreferences);
+    } catch (error) {
+      console.warn('getUserPreferences falling back to local storage', error);
     }
-    const def = defaults(effectiveId);
-    const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
-    if (e2) throw e2;
-    return created as UserPreferences;
   }
-  // local fallback uses provided id (demo / no supabase)
   const localRaw = loadLocal(userId) || defaults(userId);
   const local = applyPostLoadDefaults(localRaw);
   if (!loadLocal(userId)) saveLocal(local);
@@ -75,15 +78,20 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
 
 export async function upsertUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
   if (hasSupabaseEnv && !isDemoMode()) {
-    const { data: authData } = await supabase.auth.getUser();
-    const authId = authData?.user?.id;
-    if (!authId) throw new Error('NO_AUTH_USER');
-    const effectiveId = authId;
-    // Ensure we never attempt to write a row for a different user (would fail RLS)
-    const row = { user_id: effectiveId, ...patch } as any;
-    const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'user_id' }).select().single();
-    if (error) throw error;
-    return data as UserPreferences;
+    try {
+      let effectiveId = userId;
+      if (!effectiveId) {
+        const { data: authData } = await supabase.auth.getUser();
+        effectiveId = authData?.user?.id || '';
+      }
+      if (!effectiveId) throw new Error('NO_USER_ID');
+      const row = { user_id: effectiveId, ...patch } as any;
+      const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'user_id' }).select().single();
+      if (error) throw error;
+      return applyPostLoadDefaults(data as UserPreferences);
+    } catch (error) {
+      console.warn('upsertUserPreferences falling back to local storage', error);
+    }
   }
   const cur = loadLocal(userId) || defaults(userId);
   const next: UserPreferences = { ...cur, ...patch };

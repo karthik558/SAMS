@@ -12,148 +12,252 @@ export type MinimalUser = {
   must_change_password?: boolean;
 };
 
-async function fetchProfileByEmail(email: string): Promise<MinimalUser | null> {
+const USERS_TABLE = "app_users";
+const LS_USERS_KEY = "app_users_fallback";
+const HASH_VERSION_PREFIX = "v1$";
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function legacyHash(password: string): string {
+  if (!password) return "";
+  try {
+    return btoa(unescape(encodeURIComponent(password))).slice(0, 32);
+  } catch {
+    return "";
+  }
+}
+
+const hexTable = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
+
+function bufferToHex(buffer: ArrayBuffer): string {
+  const view = new Uint8Array(buffer);
+  let out = "";
+  for (let i = 0; i < view.length; i += 1) {
+    out += hexTable[view[i]];
+  }
+  return out;
+}
+
+async function sha256Hex(input: string): Promise<string | null> {
+  try {
+    if (typeof globalThis.crypto?.subtle === "undefined") return null;
+    const encoded = new TextEncoder().encode(input);
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", encoded);
+    return bufferToHex(digest);
+  } catch {
+    return null;
+  }
+}
+
+function randomSalt(size = 16): Uint8Array {
+  const salt = new Uint8Array(size);
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(salt);
+  } else {
+    for (let i = 0; i < salt.length; i += 1) {
+      salt[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return salt;
+}
+
+export async function createPasswordHash(password: string): Promise<string | null> {
+  if (!password) return null;
+  const saltHex = bufferToHex(randomSalt().buffer);
+  const digest = await sha256Hex(`${saltHex}::${password}`);
+  if (!digest) {
+    // Fallback to legacy hash if WebCrypto is unavailable
+    return legacyHash(password) || null;
+  }
+  return `${HASH_VERSION_PREFIX}${saltHex}$${digest}`;
+}
+
+function sanitizeUser(row: any): MinimalUser | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    email: (row.email || "").toLowerCase(),
+    role: row.role,
+    department: row.department ?? null,
+    phone: row.phone ?? null,
+    status: row.status ?? "inactive",
+    avatar_url: row.avatar_url ?? null,
+    must_change_password: row.must_change_password ?? false,
+  };
+}
+
+async function fetchRemoteUserByEmail(email: string): Promise<any | null> {
+  const normalized = normalizeEmail(email);
   const { data, error } = await supabase
-    .from("app_users")
-    .select("id, name, email, role, department, phone, status, avatar_url, must_change_password")
-    .eq("email", email.toLowerCase())
+    .from(USERS_TABLE)
+    .select("id, name, email, role, department, phone, status, avatar_url, must_change_password, password_hash")
+    .eq("email", normalized)
     .maybeSingle();
   if (error) throw error;
-  return (data as MinimalUser) ?? null;
+  return data ?? null;
+}
+
+function readLocalUsers(): any[] {
+  try {
+    const raw = localStorage.getItem(LS_USERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalUsers(users: any[]): void {
+  try {
+    localStorage.setItem(LS_USERS_KEY, JSON.stringify(users));
+  } catch {}
+}
+
+function isModernHash(hash: string | null | undefined): boolean {
+  return Boolean(hash && hash.startsWith(HASH_VERSION_PREFIX));
+}
+
+async function hashesMatch(password: string, storedHash: string): Promise<"match" | "legacy" | "nomatch"> {
+  if (!storedHash) return "nomatch";
+  if (isModernHash(storedHash)) {
+    const [, saltHex, digest] = storedHash.split("$");
+    if (!saltHex || !digest) return "nomatch";
+    const computed = await sha256Hex(`${saltHex}::${password}`);
+    if (!computed) {
+      // If crypto fails, fall back to legacy comparison so users can still sign in
+      return legacyHash(password) === storedHash ? "legacy" : "nomatch";
+    }
+    return computed === digest ? "match" : "nomatch";
+  }
+  return legacyHash(password) === storedHash ? "legacy" : "nomatch";
+}
+
+async function upgradeRemoteHash(userId: string, password: string): Promise<void> {
+  if (!hasSupabaseEnv) return;
+  const nextHash = await createPasswordHash(password);
+  if (!nextHash) return;
+  try {
+    await supabase
+      .from(USERS_TABLE)
+      .update({ password_hash: nextHash, password_changed_at: new Date().toISOString(), must_change_password: false })
+      .eq("id", userId);
+  } catch {}
+}
+
+async function upgradeLocalHash(userId: string, password: string): Promise<void> {
+  const users = readLocalUsers();
+  const idx = users.findIndex((u) => u.id === userId);
+  if (idx === -1) return;
+  const nextHash = await createPasswordHash(password);
+  if (!nextHash) return;
+  users[idx].password_hash = nextHash;
+  users[idx].password_changed_at = new Date().toISOString();
+  users[idx].must_change_password = false;
+  writeLocalUsers(users);
+}
+
+async function verifyWithSupabaseAuth(email: string, password: string): Promise<boolean> {
+  if (!hasSupabaseEnv) return false;
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return false;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+  }
 }
 
 export async function loginWithPassword(email: string, password: string): Promise<MinimalUser | null> {
-  if (!hasSupabaseEnv) return null;
-  // Standard secure auth flow over TLS; avoids exposing credentials to public RPC
-  const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw error;
-  // Fetch user profile from app_users table
-  return await fetchProfileByEmail(email);
-}
+  const normalized = normalizeEmail(email);
+  if (!normalized || !password) return null;
 
-// Start password sign-in, returning MFA factors info if required (no throw on MFA-required)
-export async function initiatePasswordSignIn(email: string, password: string): Promise<{ user: MinimalUser | null; mfa: { factors: Array<{ id: string; friendlyName?: string | null }> } | null }> {
-  if (!hasSupabaseEnv) return { user: null, mfa: null };
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-  // MFA required indicated in data.mfa
-  const mfaFactors = (data as any)?.mfa?.factors || [];
-  if (Array.isArray(mfaFactors) && mfaFactors.length > 0) {
-    const factors = mfaFactors.map((f: any) => ({ id: f.id, friendlyName: f.friendly_name ?? null }));
-    return { user: null, mfa: { factors } };
-  }
-  if (error) throw error;
-  const user = await fetchProfileByEmail(email);
-  return { user, mfa: null };
-}
-
-export async function mfaChallenge(factorId: string): Promise<{ challengeId: string }> {
-  const { data, error } = await (supabase as any).auth.mfa.challenge({ factorId });
-  if (error) throw error;
-  return { challengeId: data.id };
-}
-
-export async function mfaVerify(factorId: string, challengeId: string, code: string, emailForProfile: string): Promise<MinimalUser | null> {
-  const { data, error } = await (supabase as any).auth.mfa.verify({ factorId, challengeId, code });
-  if (error) throw error;
-  return await fetchProfileByEmail(emailForProfile);
-}
-
-// MFA management helpers (TOTP)
-export async function listMfaFactors(): Promise<{ totp: Array<{ id: string }> }> {
-  if (!hasSupabaseEnv) return { totp: [] };
-  const { data, error } = await (supabase as any).auth.mfa.listFactors();
-  if (error) throw error;
-  // Support both potential shapes
-  const totp = (data?.totp || data?.all || []).filter((f: any) => (f?.factor_type || f?.type) === 'totp').map((f: any) => ({ id: f.id }));
-  return { totp };
-}
-
-export async function mfaEnrollTotp(): Promise<{ factorId: string; otpauthUrl: string }> {
-  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
-  const { data, error } = await (supabase as any).auth.mfa.enroll({ factorType: 'totp' });
-  if (error) throw error;
-  const factorId = data?.id;
-  // Try known locations for the otpauth URI
-  const rawUri = data?.totp?.uri || data?.totp?.qr_code || data?.uri || data?.provisioning_uri;
-  if (!factorId || !rawUri) throw new Error('Failed to get TOTP enrollment data');
-  // Best-effort label/issuer normalization
-  let otpauthUrl = rawUri;
-  try {
-    const prefix = 'otpauth://totp/';
-    if (rawUri.startsWith(prefix)) {
-      const rest = rawUri.slice(prefix.length);
-      const qIndex = rest.indexOf('?');
-      const query = qIndex >= 0 ? rest.slice(qIndex + 1) : '';
-      const params = new URLSearchParams(query);
-      if (!params.get('issuer')) params.set('issuer', 'SAMS');
-      const label = encodeURIComponent(`SAMS`);
-      otpauthUrl = `${prefix}${label}?${params.toString()}`;
+  if (hasSupabaseEnv) {
+    const row = await fetchRemoteUserByEmail(normalized);
+    if (!row) return null;
+    if (!row.password_hash) {
+      const valid = await verifyWithSupabaseAuth(normalized, password);
+      if (!valid) return null;
+      await upgradeRemoteHash(row.id, password);
+      return sanitizeUser(row);
     }
-  } catch {}
-  return { factorId, otpauthUrl };
-}
-
-export async function mfaActivateTotp(factorId: string, code: string): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
-  // Some SDK versions do not expose mfa.activate; use challenge + verify instead
-  const { data: ch, error: chErr } = await (supabase as any).auth.mfa.challenge({ factorId });
-  if (chErr) throw chErr;
-  const challengeId = ch?.id;
-  const { error: vErr } = await (supabase as any).auth.mfa.verify({ factorId, challengeId, code });
-  if (vErr) throw vErr;
-}
-
-// Unenroll TOTP factor (disable MFA). If factorId not provided, use the first TOTP factor.
-export async function mfaUnenrollTotp(factorId?: string): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
-  let fid = factorId;
-  if (!fid) {
-    const f = await listMfaFactors();
-    fid = f.totp[0]?.id;
-  }
-  if (!fid) return; // nothing to unenroll
-  const { error } = await (supabase as any).auth.mfa.unenroll({ factorId: fid });
-  if (error) throw error;
-}
-
-export async function logout(): Promise<void> {
-  if (!hasSupabaseEnv) return;
-  try {
-    const { data: userRes } = await supabase.auth.getUser();
-    const email = (userRes?.user?.email || '').toLowerCase();
-    if (email) {
-  // Standard sign-out; no single-device session cleanup
+    const outcome = await hashesMatch(password, row.password_hash);
+    if (outcome === "nomatch") {
+      const valid = await verifyWithSupabaseAuth(normalized, password);
+      if (!valid) return null;
+      await upgradeRemoteHash(row.id, password);
+      return sanitizeUser(row);
     }
-  } catch {}
-  await supabase.auth.signOut();
+    if (outcome === "legacy") {
+      await upgradeRemoteHash(row.id, password);
+    }
+    return sanitizeUser(row);
+  }
+
+  const localUsers = readLocalUsers();
+  const local = localUsers.find((u) => normalizeEmail(u.email || "") === normalized);
+  if (!local || !local.password_hash) return null;
+  const outcome = await hashesMatch(password, local.password_hash);
+  if (outcome === "nomatch") return null;
+  if (outcome === "legacy") {
+    await upgradeLocalHash(local.id, password);
+  }
+  return sanitizeUser(local);
 }
 
 export async function setUserPassword(userId: string, password: string): Promise<void> {
-  if (!hasSupabaseEnv) return; // noop in local mode
-  const { error } = await supabase.rpc("set_user_password", { uid: userId, raw_password: password });
-  if (error) throw error;
-}
+  const hashed = await createPasswordHash(password);
+  if (!hashed) throw new Error("Invalid password");
 
-// Update last_login timestamp on successful authentication
-export async function updateLastLogin(email: string): Promise<void> {
-  if (!hasSupabaseEnv) return;
-  try {
-    const now = new Date().toISOString();
-    await supabase.from('app_users').update({ last_login: now }).eq('email', email.toLowerCase());
-  } catch {
-    // best-effort
+  if (hasSupabaseEnv) {
+    const { error } = await supabase
+      .from(USERS_TABLE)
+      .update({ password_hash: hashed, password_changed_at: new Date().toISOString(), must_change_password: false })
+      .eq("id", userId);
+    if (error) throw error;
+    return;
   }
+
+  const localUsers = readLocalUsers();
+  const idx = localUsers.findIndex((u) => u.id === userId);
+  if (idx === -1) {
+    throw new Error("User not found");
+  }
+  localUsers[idx].password_hash = hashed;
+  localUsers[idx].password_changed_at = new Date().toISOString();
+  localUsers[idx].must_change_password = false;
+  writeLocalUsers(localUsers);
 }
 
-export async function requestPasswordReset(email: string, redirectTo: string): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
-  if (error) throw error;
+export async function logout(): Promise<void> {
+  try {
+    localStorage.removeItem("current_user_id");
+    localStorage.removeItem("auth_user");
+  } catch {}
 }
 
-// Complete password reset after clicking the email link (user has a temporary session)
-export async function completePasswordReset(newPassword: string): Promise<void> {
-  if (!hasSupabaseEnv) throw new Error('NO_SUPABASE');
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw error;
+export async function updateLastLogin(email: string): Promise<void> {
+  const normalized = normalizeEmail(email);
+  if (hasSupabaseEnv && normalized) {
+    try {
+      const now = new Date().toISOString();
+      await supabase.from(USERS_TABLE).update({ last_login: now }).eq("email", normalized);
+    } catch {
+      // best effort only
+    }
+    return;
+  }
+
+  const localUsers = readLocalUsers();
+  const idx = localUsers.findIndex((u) => normalizeEmail(u.email || "") === normalized);
+  if (idx === -1) return;
+  localUsers[idx].last_login = new Date().toISOString();
+  writeLocalUsers(localUsers);
 }

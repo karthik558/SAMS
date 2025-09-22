@@ -51,7 +51,7 @@ import {
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
 import { listDepartments, createDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { setUserPassword } from "@/services/auth";
+import { createPasswordHash, setUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
 import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinalApproverPropsForUser, setFinalApproverPropsForEmail } from "@/services/finalApprover";
@@ -430,8 +430,8 @@ export default function Users() {
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
       // Fallback: persist to localStorage
-      // Store a simple hash for local fallback (not secure; demo only)
-      const hash = password ? btoa(unescape(encodeURIComponent(password))).slice(0, 32) : undefined;
+      const hash = password ? await createPasswordHash(password) ?? undefined : undefined;
+      const passwordChangedAt = hash ? new Date().toISOString() : payload.password_changed_at;
       const local: AppUser = {
         id: crypto?.randomUUID?.() || String(Date.now()),
         name: payload.name,
@@ -443,7 +443,7 @@ export default function Users() {
         status: payload.status,
         avatar_url: payload.avatar_url,
         must_change_password: payload.must_change_password,
-        password_changed_at: payload.password_changed_at,
+        password_changed_at: passwordChangedAt,
         // @ts-ignore
         password_hash: hash,
       } as AppUser as any;
@@ -570,7 +570,12 @@ export default function Users() {
           const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
           const idx = list.findIndex(u => u.id === editingUser.id);
           if (idx !== -1) {
-            list[idx].password_hash = btoa(unescape(encodeURIComponent(ePassword.trim()))).slice(0, 32);
+            const nextHash = await createPasswordHash(ePassword.trim());
+            if (nextHash) {
+              list[idx].password_hash = nextHash;
+              list[idx].password_changed_at = new Date().toISOString();
+              list[idx].must_change_password = false;
+            }
             localStorage.setItem(LS_KEY, JSON.stringify(list));
           }
         }

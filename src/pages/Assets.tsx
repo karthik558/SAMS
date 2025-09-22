@@ -46,7 +46,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
 import { checkLicenseBeforeCreate } from '@/services/license';
 import { LicenseExceedModal } from '@/components/assets/LicenseExceedModal';
@@ -184,10 +184,16 @@ export default function Assets() {
     (async () => {
       try {
         if (!hasSupabaseEnv) { setApproverPropIds(new Set()); return; }
-        const { data, error } = await supabase.auth.getUser();
-        if (error) throw error;
-        const user = data?.user;
-        const uid = (user?.id || user?.email || '').toString();
+        let uid = localStorage.getItem('current_user_id') || '';
+        if (!uid) {
+          try {
+            const raw = localStorage.getItem('auth_user');
+            if (raw) {
+              const parsed = JSON.parse(raw) as { id?: string; email?: string };
+              uid = parsed?.id || parsed?.email || '';
+            }
+          } catch {}
+        }
         if (!uid) { setApproverPropIds(new Set()); return; }
         const list = await listFinalApproverPropsForUser(uid);
         setApproverPropIds(new Set((list || []).map(String)));

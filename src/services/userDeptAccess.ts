@@ -18,24 +18,9 @@ function writeLocal(data: Record<string, string[]>) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
 }
 
-async function isAuthed(): Promise<boolean> {
-  try {
-    if (!hasSupabaseEnv || !supabase?.auth) return false;
-    const { data } = await supabase.auth.getSession();
-    return Boolean(data?.session);
-  } catch {
-    return false;
-  }
-}
-
 export async function listUserDepartmentAccess(userId: string): Promise<string[]> {
   if (!userId) return [];
   if (!hasSupabaseEnv) {
-    const map = readLocal();
-    return map[userId] || [];
-  }
-  // If not authenticated to Supabase, fall back to local cache
-  if (!(await isAuthed())) {
     const map = readLocal();
     return map[userId] || [];
   }
@@ -83,8 +68,6 @@ export async function setUserDepartmentAccess(userId: string, departments: strin
 
   // 2) Direct writes as fallback (may be blocked by RLS without admin policy)
   try {
-  // Require an authenticated session for direct writes
-  if (!(await isAuthed())) throw new Error('NO_AUTH');
   // Fetch existing REMOTE rows only (do not merge local cache here)
   const { data: exRows, error: exErr } = await supabase.from(TABLE).select('department').eq('user_id', userId);
   if (exErr) throw exErr;
