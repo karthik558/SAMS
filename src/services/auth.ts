@@ -31,7 +31,7 @@ function legacyHash(password: string): string {
 
 const hexTable = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
 
-function bufferToHex(buffer: ArrayBuffer): string {
+function bufferToHex(buffer: ArrayBufferLike): string {
   const view = new Uint8Array(buffer);
   let out = "";
   for (let i = 0; i < view.length; i += 1) {
