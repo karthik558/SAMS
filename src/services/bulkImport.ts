@@ -5,6 +5,7 @@ import { checkLicenseBeforeCreate } from './license';
 import { listProperties } from "./properties";
 import { listItemTypes } from "./itemTypes";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { getAccessiblePropertyIdsForCurrentUser } from "./userAccess";
 
 export type BulkAssetRow = {
   // id is optional; when omitted, the system will auto-generate based on type+property
@@ -50,7 +51,21 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   } catch {
     properties = [];
   }
-  const propertyCodes = properties.map(p => p.id);
+  // Determine current user role and accessible properties
+  let currentRole = "";
+  try {
+    const raw = localStorage.getItem('auth_user');
+    if (raw) currentRole = (JSON.parse(raw)?.role || '').toString();
+  } catch {}
+  const isAdmin = (currentRole || '').toLowerCase() === 'admin';
+  let accessibleSet: Set<string> = new Set();
+  try {
+    accessibleSet = await getAccessiblePropertyIdsForCurrentUser();
+  } catch {}
+  const allPropertyCodes = properties.map(p => p.id);
+  const propertyCodes = isAdmin || accessibleSet.size === 0
+    ? allPropertyCodes
+    : allPropertyCodes.filter((code) => accessibleSet.has(code));
   const conditions = ["Excellent", "Good", "Fair", "Poor", "Damaged"];
   const statuses = ["Active", "Expiring Soon", "Expired", "Inactive"];
   const departments = ["IT","HR","Finance","Operations"]; // best-effort; dynamic list not embedded to keep template simple offline
@@ -75,6 +90,14 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   // Header
   input.addRow(HEADER as any);
   input.getRow(1).font = { bold: true };
+  // Highlight required headers (name, type, property, quantity)
+  const requiredCols = new Set([1, 2, 3, 5]);
+  requiredCols.forEach((colIdx) => {
+    const cell = input.getRow(1).getCell(colIdx);
+    // Light highlight and note without changing header text (import relies on exact header names)
+    (cell as any).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF0B3' } };
+    try { (cell as any).note = 'Required'; } catch {}
+  });
 
   // Sample row
   input.addRow([
@@ -100,24 +123,50 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   // Data validation for rows 2..1000
   const maxRows = 1000;
   const range = (col: number) => ({ start: 2, end: maxRows, col });
-  const setListValidation = (col: number, formulae: string) => {
+  const setListValidation = (col: number, formulae: string, allowBlank = true) => {
     for (let r = 2; r <= maxRows; r++) {
       input.getCell(r, col).dataValidation = {
         type: 'list',
-        allowBlank: true,
+        allowBlank,
         formulae: [formulae],
         showErrorMessage: true,
         error: 'Select a value from the dropdown list',
       } as any;
     }
   };
+  // Helper to enforce non-empty custom validation on a column
+  const colToA1 = (n: number): string => {
+    let s = "";
+    let num = n;
+    while (num > 0) {
+      const rem = (num - 1) % 26;
+      s = String.fromCharCode(65 + rem) + s;
+      num = Math.floor((num - 1) / 26);
+    }
+    return s;
+  };
+  const setRequiredValidation = (col: number) => {
+    for (let r = 2; r <= maxRows; r++) {
+      const addr = `${colToA1(col)}${r}`;
+      input.getCell(r, col).dataValidation = {
+        type: 'custom',
+        allowBlank: false,
+        formulae: [`LEN(TRIM(${addr}))>0`],
+        showErrorMessage: true,
+        error: 'This field is required',
+      } as any;
+    }
+  };
 
   // Only apply list validations if we have values; otherwise leave free text
-  if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`); // type
-  if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`); // property code
-  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`); // department
-  setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition
-  setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status
+  if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`, false); // type (required)
+  if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`, false); // property code (required)
+  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`); // department (optional)
+  setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition (optional)
+  setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status (optional)
+  // Additional non-empty checks for name (1) and quantity (5)
+  setRequiredValidation(1); // name
+  setRequiredValidation(5); // quantity
 
   // Save
   const buf = await book.xlsx.writeBuffer();
@@ -231,11 +280,16 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   let skipped = 0;
   const errors: { row: number; message: string }[] = [];
 
-  // Who is importing (for department enforcement)
+  // Who is importing (for department and property enforcement)
   let currentUser: any = null;
   try {
     const raw = (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user') || localStorage.getItem('auth_user'));
     currentUser = raw ? JSON.parse(raw) : null;
+  } catch {}
+  const role = String(currentUser?.role || '').toLowerCase();
+  let accessibleProps: Set<string> = new Set();
+  try {
+    accessibleProps = await getAccessiblePropertyIdsForCurrentUser();
   } catch {}
 
   for (let i = 0; i < rows.length; i++) {
@@ -262,7 +316,6 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const id = providedId || nextId(type, propertyCode);
 
       // Enforce department access if mapping exists (non-admin)
-      const role = String(currentUser?.role || '').toLowerCase();
       const allowedMapRaw = localStorage.getItem('user_dept_access');
       const allowedMap = allowedMapRaw ? JSON.parse(allowedMapRaw) as Record<string, string[]> : {};
       const allowed = currentUser?.id ? (allowedMap[currentUser.id] || []) : [];
@@ -272,6 +325,15 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
         if (!ok) {
           skipped++;
           errors.push({ row: rowNum, message: `You are not allowed to import assets for department ${effectiveDept || '(blank)'}` });
+          continue;
+        }
+      }
+
+      // Enforce property access for non-admin users if we know the allowed set
+      if (role !== 'admin' && accessibleProps.size > 0) {
+        if (!accessibleProps.has(propertyCode)) {
+          skipped++;
+          errors.push({ row: rowNum, message: `You are not allowed to import assets for property ${propertyCode}` });
           continue;
         }
       }
