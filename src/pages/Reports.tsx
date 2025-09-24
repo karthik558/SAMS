@@ -33,7 +33,7 @@ import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
 import { listDepartments, type Department } from "@/services/departments";
-import { listSessions, listReviewsForSession, type AuditSession } from "@/services/audit";
+import { listSessions, listReviewsForSession, getSessionById, type AuditSession } from "@/services/audit";
 import { listTickets, type Ticket } from "@/services/tickets";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import {
@@ -350,6 +350,7 @@ export default function Reports() {
           date_from: dateFrom ? new Date(dateFrom).toISOString().slice(0,10) : null,
           date_to: dateTo ? new Date(dateTo).toISOString().slice(0,10) : null,
           file_url: null,
+          filter_session_id: selectedReportType === 'audit-review' ? (selectedAuditSessionId || null) : null,
           filter_department: reportData.department ?? null,
           filter_property: selectedProperty !== 'all' ? selectedProperty : null,
           filter_asset_type: selectedAssetType !== 'all' ? selectedAssetType : null,
@@ -471,6 +472,7 @@ export default function Reports() {
             date_from: null,
             date_to: null,
             file_url: null,
+            filter_session_id: null,
             filter_department: reportType === 'department-wise' ? (deptForReport === 'ALL' ? null : deptForReport) : null,
             filter_property: null,
             filter_asset_type: null,
@@ -521,6 +523,7 @@ export default function Reports() {
             date_from: null,
             date_to: null,
             file_url: null,
+            filter_session_id: sid,
             filter_department: dep || null,
             filter_property: propId || null,
             filter_asset_type: null,
@@ -659,6 +662,12 @@ export default function Reports() {
     try {
       if (!(hasSupabaseEnv || isDemoMode())) return [];
       const reviews = await listReviewsForSession(sessionId).catch(() => []);
+      // Resolve session property to use as a fallback when asset metadata is unavailable due to RLS
+      let sessionPropertyId: string | null = null;
+      try {
+        const sess = await getSessionById(sessionId);
+        sessionPropertyId = ((sess as any)?.property_id ?? null) ? String((sess as any).property_id) : null;
+      } catch {}
       const filtered = (reviews || []).filter((r: any) => !department || String(r.department || '').toLowerCase() === String(department).toLowerCase());
       // Enrich with asset details when available
       let assets: Asset[] = assetsCache || [];
@@ -674,7 +683,8 @@ export default function Reports() {
           asset_id: r.asset_id,
           asset_name: a?.name || '',
           property: (a as any)?.property || '',
-      property_id: (a as any)?.property_id || null,
+      // Fall back to session property when asset metadata is unavailable
+      property_id: ((a as any)?.property_id ?? null) ? String((a as any).property_id) : (sessionPropertyId ?? null),
           type: a?.type || '',
           status: r.status,
           comment: r.comment || '',
@@ -683,8 +693,11 @@ export default function Reports() {
       });
     // If a specific property is selected, apply it; otherwise, for non-admins apply allowed property scoping
     const isAdmin = isAdminRole;
-    const rows2Unscoped = rows.filter(r => !propertyId || String(r.property_id || '') === String(propertyId));
-    const rows2 = (isAdmin || propertyId || !allowedProps.size) ? rows2Unscoped : rows2Unscoped.filter(r => allowedProps.has(String(r.property_id || '')));
+    // Be tolerant when property_id is unreadable due to RLS; don't drop rows just because property can't be resolved
+    const rows2Unscoped = rows.filter(r => !propertyId || !r.property_id || String(r.property_id) === String(propertyId));
+    const rows2 = (isAdmin || propertyId || !allowedProps.size)
+      ? rows2Unscoped
+      : rows2Unscoped.filter(r => r.property_id && allowedProps.has(String(r.property_id)));
       // Put issues first to make them prominent
       const order = { missing: 0, damaged: 1, verified: 2 } as any;
     return rows2.sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));
@@ -734,7 +747,7 @@ export default function Reports() {
     try {
       // Prepare data set
       if (String(report.type || '') === 'audit-review') {
-        const sid = (() => {
+        const sid = (report as any).filter_session_id || (() => {
           const n = String(report.name || '');
           const m = n.match(/Session\s+([\w-]+)/i);
           return m ? m[1] : '';
@@ -787,7 +800,7 @@ export default function Reports() {
   const downloadReportPdf = async (report: any) => {
     try {
       if (String(report.type || '') === 'audit-review') {
-        const sid = (() => {
+        const sid = (report as any).filter_session_id || (() => {
           const n = String(report.name || '');
           const m = n.match(/Session\s+([\w-]+)/i);
           return m ? m[1] : '';

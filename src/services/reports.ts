@@ -11,6 +11,7 @@ export type Report = {
   date_to: string | null;
   file_url: string | null;
   // Optional filter metadata to support correct downloads
+  filter_session_id?: string | null;
   filter_department?: string | null;
   filter_property?: string | null;
   filter_asset_type?: string | null;
@@ -84,9 +85,10 @@ export async function createReport(payload: Omit<Report, "id" | "created_at">): 
   if (result.error) {
     const msg = (result.error.message || '').toString();
     const code = (result.error as any).code || '';
-    const looksLikeMissingColumn = /column .* does not exist/i.test(msg) || /(filter_(department|property|asset_type)|created_by(_id)?)/i.test(msg) || code === '42703';
+    const looksLikeMissingColumn = /column .* does not exist/i.test(msg) || /(filter_(session_id|department|property|asset_type)|created_by(_id)?)/i.test(msg) || code === '42703';
     if (looksLikeMissingColumn) {
       const cleaned: any = { ...payload };
+      delete cleaned.filter_session_id;
       delete cleaned.filter_department;
       delete cleaned.filter_property;
       delete cleaned.filter_asset_type;

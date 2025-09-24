@@ -155,6 +155,16 @@ export async function getDepartmentReviewSummary(sessionId: string): Promise<Rec
 
 export async function listReviewsForSession(sessionId: string): Promise<AuditReview[]> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  try {
+    // Try permissive v2 first (broad read for session)
+    const { data: v2, error: e2 } = await supabase.rpc('get_audit_reviews_for_session_v2', { p_session_id: sessionId } as any);
+    if (!e2 && Array.isArray(v2)) return v2 as any[];
+  } catch {}
+  try {
+    // Prefer SECURITY DEFINER RPC to avoid client-side RLS surprises
+    const { data: rows, error: rpcErr } = await supabase.rpc('get_audit_reviews_for_session_v1', { p_session_id: sessionId } as any);
+    if (!rpcErr && Array.isArray(rows)) return rows as any[];
+  } catch {}
   const { data, error } = await supabase.from("audit_reviews").select("*").eq("session_id", sessionId);
   if (error) throw error;
   return (data as any[]) || [];
