@@ -163,7 +163,10 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
   const toSubmit = { ...formData, itemType: (role === 'admin' ? formData.itemType : (formData.itemType || 'Other')) };
 
     // Basic validation
-  if (!toSubmit.itemName || !toSubmit.quantity || (role === 'admin' && !toSubmit.itemType) || !toSubmit.property) {
+  const deptVal = (toSubmit as any).department?.toString().trim();
+  const locVal = (toSubmit as any).location?.toString().trim();
+  const condVal = (toSubmit as any).condition?.toString().trim();
+  if (!toSubmit.itemName || !toSubmit.quantity || (role === 'admin' && !toSubmit.itemType) || !toSubmit.property || !deptVal || !locVal || !condVal) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -360,7 +363,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
 
             {/* Department */}
             <div className="space-y-2">
-              <Label htmlFor="department">Department</Label>
+              <Label htmlFor="department">Department *</Label>
               <Select
                 value={(formData as any).department || ""}
                 onValueChange={(value) => handleInputChange("department", value)}
@@ -471,18 +474,19 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
 
             {/* Location */}
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
+              <Label htmlFor="location">Location *</Label>
               <Input
                 id="location"
                 value={formData.location}
                 onChange={(e) => handleInputChange("location", e.target.value)}
                 placeholder="e.g., Floor 2, Room 203"
+                required
               />
             </div>
 
             {/* Condition */}
             <div className="space-y-2">
-              <Label htmlFor="condition">Condition</Label>
+              <Label htmlFor="condition">Condition *</Label>
               <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select condition" />
