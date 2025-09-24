@@ -42,7 +42,7 @@ const HEADER: (keyof BulkAssetRow)[] = [
   "serialNumber",
 ];
 
-export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Template.xlsx") {
+export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Template.xlsx") {
   // Gather dropdown sources
   const types = (await listItemTypes()).map(t => t.name);
   let properties: { id: string; name: string }[] = [];
@@ -90,8 +90,8 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   // Header
   input.addRow(HEADER as any);
   input.getRow(1).font = { bold: true };
-  // Highlight required headers (name, type, property, quantity)
-  const requiredCols = new Set([1, 2, 3, 5]);
+  // Highlight required headers (name, type, property, department, quantity)
+  const requiredCols = new Set([1, 2, 3, 4, 5]);
   requiredCols.forEach((colIdx) => {
     const cell = input.getRow(1).getCell(colIdx);
     // Light highlight and note without changing header text (import relies on exact header names)
@@ -161,7 +161,7 @@ export async function downloadAssetTemplate(filename = "Asset_Bulk_Import_Templa
   // Only apply list validations if we have values; otherwise leave free text
   if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`, false); // type (required)
   if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`, false); // property code (required)
-  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`); // department (optional)
+  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`, false); // department (required)
   setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition (optional)
   setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status (optional)
   // Additional non-empty checks for name (1) and quantity (5)
@@ -302,9 +302,9 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const quantity = Number(r["quantity"] ?? NaN);
   const status = String(r["status"] ?? "").trim() || "Active";
 
-    if (!name || !type || !property || !Number.isFinite(quantity)) {
+    if (!name || !type || !property || !Number.isFinite(quantity) || !department) {
       skipped++;
-      errors.push({ row: rowNum, message: "Missing required fields (name, type, property, quantity) or invalid quantity" });
+      errors.push({ row: rowNum, message: "Missing required fields (name, type, property, department, quantity) or invalid quantity" });
       continue;
     }
 
