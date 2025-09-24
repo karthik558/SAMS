@@ -80,9 +80,16 @@ export async function getAssignment(sessionId: string, department: string): Prom
 export async function listDepartmentAssets(department: string, propertyId?: string): Promise<Asset[]> {
   const all = await listAssets();
   const norm = (s: string) => (s || '').toLowerCase();
+  const pid = norm(String(propertyId || ''));
   return (all || [])
     .filter(a => norm(a.department || '') === norm(department || ''))
-    .filter(a => !propertyId || String(a.property_id || '') === String(propertyId));
+    .filter(a => {
+      if (!propertyId) return true;
+      const apid = norm(String(a.property_id || ''));
+      const aprop = norm(String(a.property || ''));
+      // Match by exact property_id, or by property code/name equality, or by containing code within name
+      return apid === pid || aprop === pid || (pid && aprop.includes(pid));
+    });
 }
 
 export async function getReviewsFor(sessionId: string, department: string): Promise<AuditReview[]> {
@@ -340,13 +347,14 @@ export async function listRecentAuditReports(limit: number = 20): Promise<AuditR
   return (data as any[]) || [];
 }
 
-export async function listSessions(limit: number = 20): Promise<AuditSession[]> {
+export async function listSessions(limit: number = 200): Promise<AuditSession[]> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase
     .from("audit_sessions")
     .select("*")
     .order("started_at", { ascending: false })
-    .limit(limit);
+    // fetch more to ensure dropdown shows full history
+    .range(0, Math.max(0, (limit || 200) - 1));
   if (error) throw error;
   return (data as any[]) || [];
 }

@@ -223,10 +223,15 @@ export default function Reports() {
       // Load audit sessions for audit-review report
       try {
         if (hasSupabaseEnv || isDemoMode()) {
-          const sess = await listSessions(25);
-          // Scope sessions by allowed property for non-admins
-          const sessScoped = isAdmin ? (sess || []) : (sess || []).filter((s: any) => s?.property_id && allowed.has(String(s.property_id)));
-          setAuditSessions(sessScoped);
+          const sess = await listSessions(200);
+          // Scope sessions by allowed property for non-admins; if no allowed or none match, fall back to all sessions to avoid empty dropdowns
+          if (isAdmin) {
+            setAuditSessions(sess || []);
+          } else {
+            let scoped = (sess || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
+            if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sess || []);
+            setAuditSessions(scoped);
+          }
         }
       } catch (e) {
         console.error(e);
@@ -427,7 +432,7 @@ export default function Reports() {
         let sid = selectedAuditSessionId;
         try {
           if (!sid && !auditSessions.length) {
-            const sess = await listSessions(25);
+            const sess = await listSessions(200);
             setAuditSessions(sess || []);
             if (sess && sess.length) sid = sess[0].id;
           } else if (!sid && auditSessions.length) {

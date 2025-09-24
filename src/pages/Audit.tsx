@@ -49,6 +49,7 @@ export default function Audit() {
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [sessionReports, setSessionReports] = useState<AuditReport[]>([]);
   const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const [loadingSessionReports, setLoadingSessionReports] = useState<boolean>(false);
   const [assignmentStatus, setAssignmentStatus] = useState<"pending" | "submitted" | "">("");
   const [reportReviews, setReportReviews] = useState<AuditReview[]>([]);
   const [detailDept, setDetailDept] = useState<string>("");
@@ -374,17 +375,16 @@ export default function Audit() {
               setRecentReports(rec);
               try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
               if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
-              const sessList = await listSessions(20);
-              // Filter sessions to allowed properties for non-admins
+              const sessList = await listSessions(200);
+              // Filter sessions to allowed properties for non-admins; if we can't determine allowed
+              // or filtering yields nothing, fall back to showing all sessions to avoid empty dropdowns
               try {
                 const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
                 if (!isAdmin) {
                   const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                  if (allowed && allowed.size) {
-                    setSessions(sessList.filter((s: any) => s?.property_id && allowed.has(String(s.property_id))));
-                  } else {
-                    setSessions([]);
-                  }
+                  let scoped = (sessList || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
+                  if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sessList || []);
+                  setSessions(scoped);
                 } else {
                   setSessions(sessList);
                 }
@@ -426,14 +426,15 @@ export default function Audit() {
             try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
             // If no local latest picked, show the most recent one
             if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
-            const sess = await listSessions(20);
-            // Filter sessions to allowed properties for non-admins
+            const sess = await listSessions(200);
+            // Filter sessions to allowed properties for non-admins; fallback to all when none
             try {
               const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
               if (!isAdmin) {
                 const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                if (allowed && allowed.size) setSessions(sess.filter((s: any) => s?.property_id && allowed.has(String(s.property_id))));
-                else setSessions([]);
+                let scoped = (sess || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
+                if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sess || []);
+                setSessions(scoped);
               } else {
                 setSessions(sess);
               }
@@ -717,7 +718,7 @@ export default function Audit() {
                         setRecentReports(rec);
                         try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
                         if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
-                        const sessList = await listSessions(20);
+                        const sessList = await listSessions(200);
                         setSessions(sessList);
                       } catch (e) { console.error(e); }
                     } catch (e: any) {
@@ -1034,6 +1035,8 @@ export default function Audit() {
                         <Label>Sessions</Label>
                         <Select value={selectedSessionId} onValueChange={async (sid) => {
                           setSelectedSessionId(sid);
+                          setHistoryOpen(true); // auto-open history when a session is picked
+                          setLoadingSessionReports(true);
                           try {
                             const reps = await listAuditReports(sid);
                             setSessionReports(reps || []);
@@ -1042,7 +1045,12 @@ export default function Audit() {
                               setViewReportId(reps[0].id);
                               try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
                             }
-                          } catch {}
+                          } catch (e) {
+                            console.error(e);
+                            setSessionReports([]);
+                          } finally {
+                            setLoadingSessionReports(false);
+                          }
                         }}>
                           <SelectTrigger className="min-w-[220px]"><SelectValue placeholder="Select session" /></SelectTrigger>
                           <SelectContent>
@@ -1054,6 +1062,37 @@ export default function Audit() {
                       </div>
                       <Button variant="outline" onClick={() => setHistoryOpen(v => !v)}>{historyOpen ? 'Hide' : 'Show'} History</Button>
                     </div>
+                    {/* Empty state or loading for selected session */}
+                    {selectedSessionId && (
+                      <div className="mb-2 text-sm text-muted-foreground">
+                        {loadingSessionReports
+                          ? 'Loading reports for selected session…'
+                          : (sessionReports.length === 0 ? (
+                              <div className="flex items-center justify-between gap-2">
+                                <span>No reports found for this session yet.</span>
+                                <Button size="sm" variant="secondary" onClick={async () => {
+                                  try {
+                                    const raw = localStorage.getItem('auth_user');
+                                    const au = raw ? JSON.parse(raw) : null;
+                                    const rep = await createAuditReport(selectedSessionId, au?.name || au?.email || au?.id || null);
+                                    setLatestReport(rep);
+                                    setViewReportId(rep?.id || null);
+                                    const reps = await listAuditReports(selectedSessionId);
+                                    setSessionReports(reps || []);
+                                    const rec = await listRecentAuditReports(20);
+                                    setRecentReports(rec);
+                                    try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
+                                    toast.success('Report created');
+                                    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+                                  } catch (e: any) {
+                                    toast.error(e?.message || 'Failed to create report');
+                                  }
+                                }}>Generate First Report</Button>
+                              </div>
+                            ) : null)
+                        }
+                      </div>
+                    )}
                     <div className="mb-4 flex items-center justify-end gap-2">
                       {sessionId && (
                         <Button size="sm" onClick={async () => {
