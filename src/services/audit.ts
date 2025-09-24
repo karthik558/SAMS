@@ -246,6 +246,14 @@ export async function listAuditInchargeForUser(userId: string, userEmail?: strin
   }
   try {
     let remote: string[] = [];
+    // Prefer SECURITY DEFINER RPC to bypass any RLS edge cases
+    try {
+      const { data: rows, error: rpcErr } = await supabase.rpc('get_audit_incharge_for_user_v1', { p_user_id: userId, p_user_email: userEmail ?? null } as any);
+      if (!rpcErr && Array.isArray(rows)) {
+        remote = (rows || []).map((r: any) => String(r.property_id));
+      }
+    } catch {}
+    if (!remote.length) {
     // Use provided email when available (avoids RLS on app_users). If not provided and this is the current user,
     // attempt to read from localStorage session.
     let email = (userEmail || undefined) as string | undefined;
@@ -256,23 +264,24 @@ export async function listAuditInchargeForUser(userId: string, userEmail?: strin
         if (au && (String(au.id) === String(userId))) email = au.email || undefined;
       } catch {}
     }
-    if (email) {
-      const orParts = [
-        `user_id.eq.${userId}`,
-        `user_id.eq.${email}`,
-        `user_id.eq.${String(email).toLowerCase()}`,
-        `user_id.eq.${String(email).toUpperCase()}`,
-      ];
-      const { data, error } = await supabase
-        .from('audit_incharge')
-        .select('property_id')
-        .or(orParts.join(','));
-      if (error) throw error;
-      remote = (data || []).map((r: any) => String(r.property_id));
-    } else {
-      const { data, error } = await supabase.from('audit_incharge').select('property_id').eq('user_id', userId);
-      if (error) throw error;
-      remote = (data || []).map((r: any) => String(r.property_id));
+      if (email) {
+        const orParts = [
+          `user_id.eq.${userId}`,
+          `user_id.eq.${email}`,
+          `user_id.eq.${String(email).toLowerCase()}`,
+          `user_id.eq.${String(email).toUpperCase()}`,
+        ];
+        const { data, error } = await supabase
+          .from('audit_incharge')
+          .select('property_id')
+          .or(orParts.join(','));
+        if (error) throw error;
+        remote = (data || []).map((r: any) => String(r.property_id));
+      } else {
+        const { data, error } = await supabase.from('audit_incharge').select('property_id').eq('user_id', userId);
+        if (error) throw error;
+        remote = (data || []).map((r: any) => String(r.property_id));
+      }
     }
     // Merge with local fallback in case some writes were saved locally
     const map = readLocalAI();
