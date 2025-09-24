@@ -693,25 +693,10 @@ export default function Assets() {
   };
 
   const handleGenerateQR = (asset: any) => {
-    // If quantity > 1, offer to split into unique asset IDs first
+    // Always generate a QR for the selected asset without splitting its quantity into multiple asset records
     const qty = Number(asset.quantity) || 1;
     if (qty > 1) {
-      const ok = window.confirm(`This asset has quantity ${qty}. To generate unique QR codes, we'll split it into ${qty} separate asset IDs (one per unit). Continue?`);
-      if (!ok) return;
-      (async () => {
-        try {
-          const splitList = await splitAssetIntoUnits(asset);
-          const first = splitList.find(a => a.id === asset.id) || splitList[0] || null;
-          if (first) {
-            setSelectedAsset(first);
-            setShowQRGenerator(true);
-          }
-        } catch (e:any) {
-          console.error(e);
-          toast.error(e?.message || 'Failed to split asset into units');
-        }
-      })();
-      return;
+      toast.info(`Generating a single QR for this item (quantity: ${qty}).`);
     }
     setSelectedAsset(asset);
     setShowQRGenerator(true);
@@ -1633,24 +1618,11 @@ export default function Assets() {
                           const normalizedBase = (base || '').replace(/\/$/, '');
                           const selected = assets.filter(a => selectedIds.has(a.id));
                           const images: string[] = [];
-                          // Expand assets with quantity>1 by splitting first (DB/local as configured)
-                          const expanded: any[] = [];
-                          for (const a of selected) {
-                            if ((Number(a.quantity)||1) > 1) {
-                              try {
-                                const units = await splitAssetIntoUnits(a);
-                                expanded.push(...units);
-                              } catch {
-                                expanded.push(a);
-                              }
-                            } else {
-                              expanded.push(a);
-                            }
-                          }
+                          // Generate one QR per selected asset without altering asset records
                           let createdCount = 0;
                           const createdIds: string[] = [];
-                          for (let i = 0; i < expanded.length; i++) {
-                            const a = expanded[i];
+                          for (let i = 0; i < selected.length; i++) {
+                            const a = selected[i];
                             const url = `${normalizedBase}/assets/${a.id}`;
                             const raw = await QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: '#000', light: '#FFF' }, errorCorrectionLevel: 'M' });
                             const labeled = await composeQrWithLabel(raw, { assetId: a.id, topText: a.name || 'Scan to view asset' });
@@ -1659,7 +1631,7 @@ export default function Assets() {
                             try {
                               if (hasSupabaseEnv) {
                                 const payload: SbQRCode = {
-                                  id: `QR-${a.id}-${Date.now()}-${i}`,
+                                  id: `QR-${a.id}-${Date.now()}`,
                                   assetId: a.id,
                                   property: a.property ?? null,
                                   generatedDate: new Date().toISOString().slice(0,10),
@@ -1676,7 +1648,7 @@ export default function Assets() {
                             }
                           }
                           // Log bulk activity summary
-                          try { await logActivity('qr_bulk_generated', `Generated ${expanded.length} QR code(s) for export`); } catch {}
+                          try { await logActivity('qr_bulk_generated', `Generated ${selected.length} QR code(s) for export`); } catch {}
                           if (exportFmt === 'png') {
                             const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
                             const aEl = document.createElement('a');
