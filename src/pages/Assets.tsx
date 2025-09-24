@@ -466,6 +466,121 @@ export default function Assets() {
     });
   }, [scopedAssets, filterProperty]);
 
+  // Apply filters to assets and sort for display
+  const filteredAssets = assets.filter(asset => {
+    // hide assets tied to disabled properties if we know properties
+    if (activePropertyIds.size && asset.property && !activePropertyIds.has(asset.property)) return false;
+    // enforce user access if any set exists
+    if (accessibleProps.size && !(accessibleProps.has(String(asset.property_id || asset.property)))) return false;
+    const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         asset.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();
+    const matchesProperty = filterProperty === "all" || (asset.property || "").toLowerCase() === filterProperty.toLowerCase();
+    // Department multi-select filter
+    const matchesDepartment = deptAll || deptFilter.map(d => d.toLowerCase()).includes((asset.department || '').toString().toLowerCase());
+    // Date range filter: use purchaseDate when available, else fallback to created_at
+    const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+    let matchesDate = true;
+    if (range?.from) {
+      const start = toStartOfDay(range.from);
+      const end = toEndOfDay(range.to ?? range.from);
+      const dateStr: string | undefined = (asset.purchaseDate as any) || (asset.created_at as any);
+      if (dateStr) {
+        const t = new Date(dateStr).getTime();
+        matchesDate = t >= start.getTime() && t <= end.getTime();
+      } else {
+        matchesDate = false;
+      }
+    }
+    // Saved views filter
+    let matchesSaved = true;
+    if (savedView === 'expiring-30' || savedView === 'expiring-90') {
+      const days = savedView === 'expiring-30' ? 30 : 90;
+      if (asset.expiryDate) {
+        const now = new Date();
+        const limit = new Date();
+        limit.setDate(limit.getDate() + days);
+        const exp = new Date(asset.expiryDate);
+        matchesSaved = exp >= now && exp <= limit;
+      } else {
+        matchesSaved = false;
+      }
+    } else if (savedView === 'needing-audit') {
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const pd = asset.purchaseDate ? new Date(asset.purchaseDate) : null;
+      matchesSaved = !!(pd && pd < oneYearAgo && String(asset.status || '').toLowerCase().includes('active'));
+    }
+  
+    return matchesSearch && matchesType && matchesProperty && matchesDepartment && matchesDate && matchesSaved;
+  });
+
+  const sortedAssets = [...filteredAssets].sort((a, b) => {
+    // Local natural ID comparator to avoid dependency ordering issues
+    const localCompareById = (x: any, y: any) => {
+      const parse = (id: string): { prefix: string; num: number } | null => {
+        const m = String(id).match(/^(.*?)(\d+)$/);
+        if (!m) return null;
+        return { prefix: m[1], num: Number(m[2]) };
+      };
+      const pa = parse(String(x.id));
+      const pb = parse(String(y.id));
+      if (pa && pb) {
+        const prefCmp = pa.prefix.localeCompare(pb.prefix);
+        if (prefCmp !== 0) return prefCmp;
+        return pa.num - pb.num;
+      }
+      return String(x.id).localeCompare(String(y.id));
+    };
+    switch (sortBy) {
+      case "id-asc": return localCompareById(a, b);
+      case "id-desc": return -localCompareById(a, b);
+      case "name": return (a.name || "").localeCompare(b.name || "");
+      case "qty": return (b.quantity || 0) - (a.quantity || 0);
+      case "department": {
+        const da = (a.department || "").toString();
+        const db = (b.department || "").toString();
+        const cmp = da.localeCompare(db);
+        return cmp !== 0 ? cmp : localCompareById(a, b);
+      }
+      case "newest":
+      default: {
+        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+        const dt = bt - at;
+        if (dt !== 0) return dt;
+        // tie-break by natural id to keep units close when created_at is equal/empty
+        return localCompareById(a, b);
+      }
+    }
+  });
+
+  // Group visible, sorted assets by (propertyId, name, type, department) for aggregated display
+  const groupedRows = useMemo(() => {
+    const keyOf = (a: any) => {
+      const pid = String(a.property_id || a.property || '').toLowerCase();
+      return [
+        pid,
+        String(a.name || '').toLowerCase(),
+        String(a.type || '').toLowerCase(),
+        String(a.department || '').toLowerCase(),
+      ].join('||');
+    };
+    const map = new Map<string, { key: string; members: any[]; rep: any; totalQty: number }>();
+    for (const a of sortedAssets) {
+      const k = keyOf(a);
+      const g = map.get(k);
+      if (g) {
+        g.members.push(a);
+        g.totalQty += Number(a.quantity || 0) || 0;
+      } else {
+        map.set(k, { key: k, members: [a], rep: a, totalQty: Number(a.quantity || 0) || 0 });
+      }
+    }
+    return Array.from(map.values());
+  }, [sortedAssets]);
+
   const assetHighlights = useMemo(() => {
     const total = statsAssets.length;
     const active = statsAssets.filter((a: any) => String(a.status).toLowerCase() === 'active').length;
@@ -810,78 +925,7 @@ export default function Assets() {
     return String(a.id).localeCompare(String(b.id));
   };
 
-  const filteredAssets = assets.filter(asset => {
-    // hide assets tied to disabled properties if we know properties
-    if (activePropertyIds.size && asset.property && !activePropertyIds.has(asset.property)) return false;
-    // enforce user access if any set exists
-    if (accessibleProps.size && !(accessibleProps.has(String(asset.property_id || asset.property)))) return false;
-    const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         asset.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();
-    const matchesProperty = filterProperty === "all" || (asset.property || "").toLowerCase() === filterProperty.toLowerCase();
-  // Department multi-select filter
-  const matchesDepartment = deptAll || deptFilter.map(d => d.toLowerCase()).includes((asset.department || '').toString().toLowerCase());
-    // Date range filter: use purchaseDate when available, else fallback to created_at
-    const toStartOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    const toEndOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
-  let matchesDate = true;
-    if (range?.from) {
-      const start = toStartOfDay(range.from);
-      const end = toEndOfDay(range.to ?? range.from);
-      const dateStr: string | undefined = (asset.purchaseDate as any) || (asset.created_at as any);
-      if (dateStr) {
-        const t = new Date(dateStr).getTime();
-        matchesDate = t >= start.getTime() && t <= end.getTime();
-      } else {
-        matchesDate = false;
-      }
-    }
-    // Saved views filter
-    let matchesSaved = true;
-    if (savedView === 'expiring-30' || savedView === 'expiring-90') {
-      const days = savedView === 'expiring-30' ? 30 : 90;
-      if (asset.expiryDate) {
-        const now = new Date();
-        const limit = new Date();
-        limit.setDate(limit.getDate() + days);
-        const exp = new Date(asset.expiryDate);
-        matchesSaved = exp >= now && exp <= limit;
-      } else {
-        matchesSaved = false;
-      }
-    } else if (savedView === 'needing-audit') {
-      const oneYearAgo = new Date();
-      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-      const pd = asset.purchaseDate ? new Date(asset.purchaseDate) : null;
-      matchesSaved = !!(pd && pd < oneYearAgo && String(asset.status || '').toLowerCase().includes('active'));
-    }
   
-  return matchesSearch && matchesType && matchesProperty && matchesDepartment && matchesDate && matchesSaved;
-  });
-
-  const sortedAssets = [...filteredAssets].sort((a, b) => {
-    switch (sortBy) {
-      case "id-asc": return compareById(a, b);
-      case "id-desc": return -compareById(a, b);
-      case "name": return (a.name || "").localeCompare(b.name || "");
-      case "qty": return (b.quantity || 0) - (a.quantity || 0);
-      case "department": {
-        const da = (a.department || "").toString();
-        const db = (b.department || "").toString();
-        const cmp = da.localeCompare(db);
-        return cmp !== 0 ? cmp : compareById(a, b);
-      }
-      case "newest":
-      default: {
-        const at = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
-        const dt = bt - at;
-        if (dt !== 0) return dt;
-        // tie-break by natural id to keep units close when created_at is equal/empty
-        return compareById(a, b);
-      }
-    }
-  });
 
   if (showAddForm) {
     // Map selected asset shape (services Asset) to AssetForm expected initialData keys
@@ -1342,7 +1386,7 @@ export default function Assets() {
                 <CardDescription>All assets that match the filters and scope above</CardDescription>
               </div>
               <div className="text-xs text-muted-foreground md:text-right">
-                Showing {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
+                Showing {groupedRows.length.toLocaleString()} group{groupedRows.length === 1 ? '' : 's'} • {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
               </div>
             </div>
           </CardHeader>
@@ -1397,130 +1441,156 @@ export default function Assets() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-        {sortedAssets.map((asset) => (
-                  <TableRow key={asset.id} className="transition-colors hover:bg-muted/35">
-                    {isVisible('select') && (
-                    <TableCell className="w-10">
-                      <Checkbox
-                        aria-label={`Select ${asset.id}`}
-                        checked={selectedIds.has(asset.id)}
-                        onCheckedChange={(checked) => {
-                          const next = new Set(selectedIds);
-                          if (checked) next.add(asset.id); else next.delete(asset.id);
-                          setSelectedIds(next);
-                        }}
-                      />
-                    </TableCell>)}
-                    {isVisible('id') && <TableCell className="font-medium">{asset.id}</TableCell>}
-                    {isVisible('name') && (
-                      <TableCell>
-                        <span className="font-medium text-foreground/90 leading-5">
-                          {asset.name || asset.id}
-                        </span>
-                      </TableCell>
-                    )}
-                    {isVisible('type') && (
-                      <TableCell>
-                        {asset.type ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
+                {groupedRows.map((group) => {
+                  const { rep, members, totalQty, key } = group;
+                  const allSelected = members.every(m => selectedIds.has(m.id));
+                  return (
+                    <TableRow key={key} className="transition-colors hover:bg-muted/35">
+                      {isVisible('select') && (
+                        <TableCell className="w-10">
+                          <Checkbox
+                            aria-label={`Select group ${key}`}
+                            checked={allSelected}
+                            onCheckedChange={(checked) => {
+                              const next = new Set(selectedIds);
+                              if (checked) {
+                                for (const m of members) next.add(m.id);
+                              } else {
+                                for (const m of members) next.delete(m.id);
+                              }
+                              setSelectedIds(next);
+                            }}
+                          />
+                        </TableCell>
+                      )}
+                      {isVisible('id') && (
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span>{members[0]?.id}</span>
+                            {members.length > 1 && (
+                              <span className="text-[11px] text-muted-foreground">+{members.length - 1} more</span>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                      {isVisible('name') && (
+                        <TableCell>
+                          <span className="font-medium text-foreground/90 leading-5">
+                            {rep.name || rep.id}
+                          </span>
+                        </TableCell>
+                      )}
+                      {isVisible('type') && (
+                        <TableCell>
+                          {rep.type ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
+                              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="truncate whitespace-nowrap">{rep.type}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {isVisible('property') && (
+                        <TableCell>
+                          <div className="flex flex-col gap-0.5 text-sm">
+                            <span className="font-medium text-foreground/90">{propertyDisplayName(String(rep.property))}</span>
+                            <span className="text-[11px] text-muted-foreground">{displayPropertyCode(String(rep.property))}</span>
+                          </div>
+                        </TableCell>
+                      )}
+                      {isVisible('department') && (
+                        <TableCell>
+                          {rep.department ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
+                              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="truncate whitespace-nowrap">{rep.department}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                      )}
+                      {isVisible('qty') && (
+                        <TableCell>
+                          <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
                             <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="truncate whitespace-nowrap">{asset.type}</span>
+                            {totalQty}
                           </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isVisible('property') && (
-                      <TableCell>
-                        <div className="flex flex-col gap-0.5 text-sm">
-                          <span className="font-medium text-foreground/90">{propertyDisplayName(String(asset.property))}</span>
-                          <span className="text-[11px] text-muted-foreground">{displayPropertyCode(String(asset.property))}</span>
-                        </div>
-                      </TableCell>
-                    )}
-                    {isVisible('department') && (
-                      <TableCell>
-                        {asset.department ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground/80">
-                            <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="truncate whitespace-nowrap">{asset.department}</span>
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isVisible('qty') && (
-                      <TableCell>
-                        <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
-                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                          {asset.quantity}
-                        </span>
-                      </TableCell>
-                    )}
-                    {isVisible('location') && <TableCell>{asset.location || '-'}</TableCell>}
-                    {isVisible('purchaseDate') && <TableCell>{asset.purchaseDate}</TableCell>}
-                    {isVisible('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
-                    {isVisible('approval') && (
-                      <TableCell>
-                        {approvalsByAsset[asset.id] ? (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="inline-flex items-center gap-1 text-primary">
-                                  <ShieldCheck className="h-4 w-4" />
-                                  <span className="text-xs">{approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Mgr' : 'Admin'}</span>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                Pending {approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Manager' : 'Admin'} approval
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                    )}
-                    {isVisible('serial') && <TableCell>{asset.serialNumber || '-'}</TableCell>}
-                    {isVisible('description') && <TableCell>{asset.description || '-'}</TableCell>}
-                    {isVisible('actions') && (
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {(role === 'admin' || approverPropIds.has(String(asset.property_id || asset.property || ''))) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditAsset(asset)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleGenerateQR(asset)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <QrCode className="h-4 w-4" />
-                        </Button>
-                        {role === 'admin' && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleDeleteAsset(asset.id)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                    )}
-                  </TableRow>
-                ))}
+                        </TableCell>
+                      )}
+                      {isVisible('location') && <TableCell>{rep.location || '-'}</TableCell>}
+                      {isVisible('purchaseDate') && <TableCell>{rep.purchaseDate}</TableCell>}
+                      {isVisible('status') && <TableCell>{getStatusBadge(rep.status)}</TableCell>}
+                      {isVisible('approval') && (
+                        <TableCell>
+                          {/* Show approval indicator if ANY member has a pending approval */}
+                          {(() => {
+                            const pending = members.find(m => approvalsByAsset[m.id]);
+                            if (pending) {
+                              const st = approvalsByAsset[pending.id]?.status;
+                              return (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="inline-flex items-center gap-1 text-primary">
+                                        <ShieldCheck className="h-4 w-4" />
+                                        <span className="text-xs">{st === 'pending_manager' ? 'Mgr' : 'Admin'}</span>
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      Pending {st === 'pending_manager' ? 'Manager' : 'Admin'} approval
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              );
+                            }
+                            return <span className="text-xs text-muted-foreground">-</span>;
+                          })()}
+                        </TableCell>
+                      )}
+                      {isVisible('serial') && <TableCell>{rep.serialNumber || '-'}</TableCell>}
+                      {isVisible('description') && <TableCell>{rep.description || '-'}</TableCell>}
+                      {isVisible('actions') && (
+                        <TableCell>
+                          <div className="flex gap-2">
+                            {/* Allow inline edit/delete only when the group is a single item to avoid ambiguity */}
+                            {members.length === 1 && (role === 'admin' || approverPropIds.has(String(rep.property_id || rep.property || ''))) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEditAsset(rep)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {/* Keep quick QR on the representative item; for bulk/grouped use the Export QR Sheet */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleGenerateQR(rep)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <QrCode className="h-4 w-4" />
+                            </Button>
+                            {members.length === 1 && role === 'admin' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteAsset(rep.id)}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             </div>
@@ -1617,12 +1687,39 @@ export default function Assets() {
                           const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
                           const normalizedBase = (base || '').replace(/\/$/, '');
                           const selected = assets.filter(a => selectedIds.has(a.id));
+                          // Build groups by (propertyId, name, type, department)
+                          const keyOf = (a: any) => {
+                            const pid = String(a.property_id || a.property || '').toLowerCase();
+                            return [
+                              pid,
+                              String(a.name || '').toLowerCase(),
+                              String(a.type || '').toLowerCase(),
+                              String(a.department || '').toLowerCase(),
+                            ].join('||');
+                          };
+                          const groups = new Map<string, any[]>();
+                          for (const a of assets) {
+                            const k = keyOf(a);
+                            const arr = groups.get(k) || [];
+                            arr.push(a);
+                            groups.set(k, arr);
+                          }
+                          const targets: any[] = [];
+                          const seen = new Set<string>();
+                          for (const s of selected) {
+                            const k = keyOf(s);
+                            const members = groups.get(k) || [s];
+                            for (const m of members) {
+                              const id = String(m.id);
+                              if (!seen.has(id)) { seen.add(id); targets.push(m); }
+                            }
+                          }
                           const images: string[] = [];
-                          // Generate one QR per selected asset without altering asset records
+                          // Generate one QR per target asset (grouped)
                           let createdCount = 0;
                           const createdIds: string[] = [];
-                          for (let i = 0; i < selected.length; i++) {
-                            const a = selected[i];
+                          for (let i = 0; i < targets.length; i++) {
+                            const a = targets[i];
                             const url = `${normalizedBase}/assets/${a.id}`;
                             const raw = await QRCode.toDataURL(url, { width: 512, margin: 2, color: { dark: '#000', light: '#FFF' }, errorCorrectionLevel: 'M' });
                             const labeled = await composeQrWithLabel(raw, { assetId: a.id, topText: a.name || 'Scan to view asset' });
@@ -1648,7 +1745,7 @@ export default function Assets() {
                             }
                           }
                           // Log bulk activity summary
-                          try { await logActivity('qr_bulk_generated', `Generated ${selected.length} QR code(s) for export`); } catch {}
+                          try { await logActivity('qr_bulk_generated', `Generated ${targets.length} QR code(s) for export (grouped)`); } catch {}
                           if (exportFmt === 'png') {
                             const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
                             const aEl = document.createElement('a');
