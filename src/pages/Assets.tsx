@@ -982,9 +982,6 @@ export default function Assets() {
             <Button variant="outline" onClick={() => setShowAddForm(false)}>
               ← Back to Assets
             </Button>
-            <h1 className="text-3xl font-bold">
-              {selectedAsset ? "Edit Asset" : "Add New Asset"}
-            </h1>
           </div>
           <AssetForm 
             onSubmit={handleAddAsset} 
