@@ -6,6 +6,7 @@ import { listProperties } from "./properties";
 import { listItemTypes } from "./itemTypes";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAccessiblePropertyIdsForCurrentUser } from "./userAccess";
+import { getAccessibleDepartmentsForCurrentUser } from "./userDeptAccess";
 import { listDepartments } from "./departments";
 
 export type BulkAssetRow = {
@@ -303,6 +304,21 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   try {
     accessibleProps = await getAccessiblePropertyIdsForCurrentUser();
   } catch {}
+  let allowedDepartmentsLower: Set<string> | null = null;
+  if (role !== 'admin') {
+    try {
+      const depts = await getAccessibleDepartmentsForCurrentUser();
+      if (depts && depts.size > 0) {
+        allowedDepartmentsLower = new Set(Array.from(depts).map((d) => String(d).toLowerCase()));
+      }
+    } catch {}
+    if (!allowedDepartmentsLower || allowedDepartmentsLower.size === 0) {
+      const fallback = String(currentUser?.department || '').trim();
+      if (fallback) {
+        allowedDepartmentsLower = new Set([fallback.toLowerCase()]);
+      }
+    }
+  }
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
@@ -327,14 +343,10 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const providedId = String(r["id"] || "").trim();
   const id = providedId || nextId(type, propertyCode);
 
-      // Enforce department access if mapping exists (non-admin)
-      const allowedMapRaw = localStorage.getItem('user_dept_access');
-      const allowedMap = allowedMapRaw ? JSON.parse(allowedMapRaw) as Record<string, string[]> : {};
-      const allowed = currentUser?.id ? (allowedMap[currentUser.id] || []) : [];
       const effectiveDept = department || currentUser?.department || '';
-      if (role !== 'admin' && Array.isArray(allowed) && allowed.length > 0) {
-        const ok = allowed.map((d) => d.toLowerCase()).includes(String(effectiveDept).toLowerCase());
-        if (!ok) {
+      if (role !== 'admin' && allowedDepartmentsLower && allowedDepartmentsLower.size > 0) {
+        const key = String(effectiveDept).toLowerCase();
+        if (!key || !allowedDepartmentsLower.has(key)) {
           skipped++;
           errors.push({ row: rowNum, message: `You are not allowed to import assets for department ${effectiveDept || '(blank)'}` });
           continue;
