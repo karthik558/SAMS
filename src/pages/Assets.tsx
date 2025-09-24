@@ -21,7 +21,9 @@ import {
   Calendar,
   AlertTriangle,
   ShieldCheck,
-  Users
+  Users,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -161,6 +163,7 @@ export default function Assets() {
   const [approverPropIds, setApproverPropIds] = useState<Set<string>>(new Set());
   const [range, setRange] = useState<DateRange>();
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   // Bulk action scoping: restrict property assignment options for managers
   const bulkPropertyOptions = useMemo(() => {
     if (role === 'admin') return propertyOptions;
@@ -1444,7 +1447,16 @@ export default function Assets() {
                 {groupedRows.map((group) => {
                   const { rep, members, totalQty, key } = group;
                   const allSelected = members.every(m => selectedIds.has(m.id));
+                  const isExpanded = expandedGroups.has(key);
+                  const toggleExpanded = () => {
+                    setExpandedGroups(prev => {
+                      const next = new Set(prev);
+                      if (next.has(key)) next.delete(key); else next.add(key);
+                      return next;
+                    });
+                  };
                   return (
+                    <>
                     <TableRow key={key} className="transition-colors hover:bg-muted/35">
                       {isVisible('select') && (
                         <TableCell className="w-10">
@@ -1465,11 +1477,26 @@ export default function Assets() {
                       )}
                       {isVisible('id') && (
                         <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{members[0]?.id}</span>
-                            {members.length > 1 && (
-                              <span className="text-[11px] text-muted-foreground">+{members.length - 1} more</span>
+                          <div className="flex items-start gap-2">
+                            {members.length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={toggleExpanded}
+                                aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
+                                aria-expanded={isExpanded}
+                                className="mt-0.5 text-muted-foreground hover:text-foreground"
+                              >
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                            ) : (
+                              <span className="inline-block w-4" />
                             )}
+                            <div className="flex flex-col">
+                              <span>{members[0]?.id}</span>
+                              {members.length > 1 && !isExpanded && (
+                                <span className="text-[11px] text-muted-foreground">+{members.length - 1} more</span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                       )}
@@ -1514,10 +1541,14 @@ export default function Assets() {
                       )}
                       {isVisible('qty') && (
                         <TableCell>
-                          <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
-                            <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                            {totalQty}
-                          </span>
+                          {!isExpanded ? (
+                            <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
+                              <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                              {totalQty}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">{members.length} item{members.length===1?'':'s'}</span>
+                          )}
                         </TableCell>
                       )}
                       {isVisible('location') && <TableCell>{rep.location || '-'}</TableCell>}
@@ -1589,6 +1620,152 @@ export default function Assets() {
                         </TableCell>
                       )}
                     </TableRow>
+                    {isExpanded && members.length > 0 && (
+                      <>
+                        {members
+                          .slice(1) // exclude representative (already shown in group row)
+                          .sort((a, b) => {
+                            const parse = (id: string): { prefix: string; num: number } | null => {
+                              const m = String(id).match(/^(.*?)(\d+)$/);
+                              if (!m) return null;
+                              return { prefix: m[1], num: Number(m[2]) };
+                            };
+                            const pa = parse(String(a.id));
+                            const pb = parse(String(b.id));
+                            if (pa && pb) {
+                              const prefCmp = pa.prefix.localeCompare(pb.prefix);
+                              if (prefCmp !== 0) return prefCmp;
+                              return pa.num - pb.num;
+                            }
+                            return String(a.id).localeCompare(String(b.id));
+                          })
+                          .reverse() // show newest / highest id first
+                          .map((asset) => (
+                            <TableRow key={`${key}::${asset.id}`} className="bg-muted/20">
+                              {isVisible('select') && (
+                                <TableCell className="w-10">
+                                  <Checkbox
+                                    aria-label={`Select ${asset.id}`}
+                                    checked={selectedIds.has(asset.id)}
+                                    onCheckedChange={(checked) => {
+                                      const next = new Set(selectedIds);
+                                      if (checked) next.add(asset.id); else next.delete(asset.id);
+                                      setSelectedIds(next);
+                                    }}
+                                  />
+                                </TableCell>
+                              )}
+                              {isVisible('id') && <TableCell className="font-mono pl-6 text-sm">{asset.id}</TableCell>}
+                              {isVisible('name') && (
+                                <TableCell>
+                                  <span className="text-sm">{asset.name || asset.id}</span>
+                                </TableCell>
+                              )}
+                              {isVisible('type') && (
+                                <TableCell>
+                                  {asset.type ? (
+                                    <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80">
+                                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span className="truncate whitespace-nowrap">{asset.type}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {isVisible('property') && (
+                                <TableCell>
+                                  <div className="flex flex-col gap-0.5 text-sm">
+                                    <span className="font-medium text-foreground/90">{propertyDisplayName(String(asset.property))}</span>
+                                    <span className="text-[10px] text-muted-foreground">{displayPropertyCode(String(asset.property))}</span>
+                                  </div>
+                                </TableCell>
+                              )}
+                              {isVisible('department') && (
+                                <TableCell>
+                                  {asset.department ? (
+                                    <span className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80">
+                                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span className="truncate whitespace-nowrap">{asset.department}</span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {isVisible('qty') && (
+                                <TableCell>
+                                  <span className="inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
+                                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {asset.quantity}
+                                  </span>
+                                </TableCell>
+                              )}
+                              {isVisible('location') && <TableCell className="text-sm">{asset.location || '-'}</TableCell>}
+                              {isVisible('purchaseDate') && <TableCell className="text-sm">{asset.purchaseDate}</TableCell>}
+                              {isVisible('status') && <TableCell>{getStatusBadge(asset.status)}</TableCell>}
+                              {isVisible('approval') && (
+                                <TableCell>
+                                  {approvalsByAsset[asset.id] ? (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="inline-flex items-center gap-1 text-primary">
+                                            <ShieldCheck className="h-4 w-4" />
+                                            <span className="text-sm">{approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Mgr' : 'Admin'}</span>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Pending {approvalsByAsset[asset.id]?.status === 'pending_manager' ? 'Manager' : 'Admin'} approval
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">-</span>
+                                  )}
+                                </TableCell>
+                              )}
+                              {isVisible('serial') && <TableCell className="text-sm">{asset.serialNumber || '-'}</TableCell>}
+                              {isVisible('description') && <TableCell className="text-sm">{asset.description || '-'}</TableCell>}
+                              {isVisible('actions') && (
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    {(role === 'admin' || approverPropIds.has(String(asset.property_id || asset.property || ''))) && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleEditAsset(asset)}
+                                        className="h-8 w-8 p-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleGenerateQR(asset)}
+                                      className="h-8 w-8 p-0"
+                                    >
+                                      <QrCode className="h-4 w-4" />
+                                    </Button>
+                                    {role === 'admin' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleDeleteAsset(asset.id)}
+                                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          ))}
+                      </>
+                    )}
+                    </>
                   );
                 })}
               </TableBody>
@@ -1686,34 +1863,9 @@ export default function Assets() {
                         try {
                           const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
                           const normalizedBase = (base || '').replace(/\/$/, '');
-                          const selected = assets.filter(a => selectedIds.has(a.id));
-                          // Build groups by (propertyId, name, type, department)
-                          const keyOf = (a: any) => {
-                            const pid = String(a.property_id || a.property || '').toLowerCase();
-                            return [
-                              pid,
-                              String(a.name || '').toLowerCase(),
-                              String(a.type || '').toLowerCase(),
-                              String(a.department || '').toLowerCase(),
-                            ].join('||');
-                          };
-                          const groups = new Map<string, any[]>();
-                          for (const a of assets) {
-                            const k = keyOf(a);
-                            const arr = groups.get(k) || [];
-                            arr.push(a);
-                            groups.set(k, arr);
-                          }
-                          const targets: any[] = [];
-                          const seen = new Set<string>();
-                          for (const s of selected) {
-                            const k = keyOf(s);
-                            const members = groups.get(k) || [s];
-                            for (const m of members) {
-                              const id = String(m.id);
-                              if (!seen.has(id)) { seen.add(id); targets.push(m); }
-                            }
-                          }
+                          // Only export explicitly selected asset IDs (no implicit group expansion)
+                          const targets = assets.filter(a => selectedIds.has(a.id));
+                          if (!targets.length) { toast.info('Nothing selected'); return; }
                           const images: string[] = [];
                           // Generate one QR per target asset (grouped)
                           let createdCount = 0;
@@ -1745,7 +1897,7 @@ export default function Assets() {
                             }
                           }
                           // Log bulk activity summary
-                          try { await logActivity('qr_bulk_generated', `Generated ${targets.length} QR code(s) for export (grouped)`); } catch {}
+                          try { await logActivity('qr_bulk_generated', `Generated ${targets.length} QR code(s) for export`); } catch {}
                           if (exportFmt === 'png') {
                             const { dataUrl } = await composeQrA4Sheet(images, { orientation: exportOrientation });
                             const aEl = document.createElement('a');
