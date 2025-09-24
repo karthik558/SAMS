@@ -17,6 +17,8 @@ import { formatDistanceToNow, parseISO } from "date-fns";
 import { listNotifications, addNotification, markAllRead, clearAllNotifications, type Notification } from "@/services/notifications";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import CommandPalette from "@/components/layout/CommandPalette";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -24,6 +26,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [isDark, setIsDark] = useState(false);
   const [, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -73,6 +76,7 @@ export function Header({ onMenuClick }: HeaderProps) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+  const firstName = (authUser?.name || "").split(" ").filter(Boolean)[0] || null;
 
   const handleSignOut = () => {
     try {
@@ -266,224 +270,265 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  return (
-    <header className="app-header h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-full items-center justify-between px-3 md:px-6 gap-3">
-        {/* Left: menu + search */}
-        <div className="flex items-center gap-2 flex-1 max-w-md">
-          <button
-            aria-label="Open menu"
-            onClick={onMenuClick}
-            className="md:hidden inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder={`Search pages and actions…${shortcutHint ? ` (${shortcutHint})` : ""}`}
-              className="pl-10 bg-muted/50 h-9"
-              readOnly
-              onFocus={() => setPaletteOpen(true)}
-              onClick={() => setPaletteOpen(true)}
-            />
+  const iconBase = isMobile ? "h-9 w-9 rounded-full bg-muted/70 p-0 shadow-sm" : "h-8 w-8 p-0";
+
+  const notificationsDropdown = (
+    <DropdownMenu
+      onOpenChange={async (open) => {
+        setNotifOpen(open);
+        if (open) {
+          await markAllRead();
+          const data = await listNotifications(50);
+          setNotifications(data);
+        }
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <Button
+          aria-label="Open notifications"
+          variant="ghost"
+          size="sm"
+          className={cn("relative", iconBase)}
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-4 text-destructive-foreground">
+              {badgeLabel}
+            </span>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-80 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
+      >
+        <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Notifications</p>
+            <p className="text-xs text-muted-foreground">
+              {unreadCount ? `${unreadCount} new` : 'You are all caught up'}
+            </p>
+          </div>
+          {notifications.length > 0 && (
+            <button
+              onClick={async () => {
+                await clearAllNotifications();
+                setNotifications([]);
+                if (isDemoMode()) {
+                  try { sessionStorage.setItem('demo_notifs_cleared', '1'); } catch {}
+                }
+              }}
+              className="text-xs font-semibold text-primary hover:text-primary/80"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        <div className="max-h-80 overflow-y-auto p-2">
+          {notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-4 py-6 text-center">
+              <span className="text-sm font-medium text-muted-foreground">No notifications</span>
+              <span className="text-xs text-muted-foreground">Updates will appear here as you work.</span>
+            </div>
+          ) : (
+            notifications.slice(0, 12).map((n) => {
+              const to = getNotificationTarget(n);
+              const isUnread = !n.read;
+              const typeLabel = (n.type || '').replace(/_/g, ' ');
+              return (
+                <DropdownMenuItem
+                  key={n.id}
+                  className="group mx-1 my-1 rounded-lg px-0 py-0 focus:bg-transparent"
+                >
+                  <Link
+                    to={to}
+                    className="flex w-full items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/70"
+                    onClick={() => setNotifOpen(false)}
+                  >
+                    <span
+                      className={`mt-1 inline-flex h-2 w-2 rounded-full ${isUnread ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+                      aria-hidden="true"
+                    />
+                    <div className="flex flex-1 flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="line-clamp-2 text-sm font-semibold text-foreground">
+                          {n.title || typeLabel || 'Notification'}
+                        </p>
+                        <span className="whitespace-nowrap text-xs text-muted-foreground">
+                          {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      {n.message && (
+                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                          {n.message}
+                        </p>
+                      )}
+                      {typeLabel && (
+                        <Badge
+                          variant="outline"
+                          className="w-fit border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
+                        >
+                          {typeLabel}
+                        </Badge>
+                      )}
+                    </div>
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const userMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className={cn("rounded-full p-0", iconBase)}>
+          <Avatar className="h-full w-full">
+            <AvatarImage src="/placeholder-avatar.jpg" />
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-64 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
+      >
+        <div className="flex items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src="/placeholder-avatar.jpg" />
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-foreground">
+              {authUser?.name || "Guest User"}
+            </p>
+            {userEmail && (
+              <p className="max-w-[12rem] truncate text-xs text-muted-foreground">
+                {userEmail}
+              </p>
+            )}
+            {roleLower && !isDemoMode() && (
+              <Badge
+                variant="outline"
+                className="border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
+              >
+                {roleLower}
+              </Badge>
+            )}
           </div>
         </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 md:gap-4">
-          {/* Theme Toggle */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleTheme}
-            className="h-8 w-8 p-0"
+        <div className="py-2">
+          {isAdminRole && (
+            <>
+              <DropdownMenuItem
+                onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
+                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
+              >
+                <UsersIcon className="h-4 w-4" />
+                <span>Manage users</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
+                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
+              >
+                <SettingsIcon className="h-4 w-4" />
+                <span>Organization settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-2" />
+            </>
+          )}
+          <DropdownMenuItem
+            onClick={handleSignOut}
+            className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive"
           >
-            {isDark ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
-
-          {/* Notifications */}
-          <DropdownMenu onOpenChange={async (open) => {
-            setNotifOpen(open);
-            if (open) {
-              await markAllRead();
-              const data = await listNotifications(50);
-              setNotifications(data);
-            }
-          }}>
-            <DropdownMenuTrigger asChild>
-              <Button aria-label="Open notifications" variant="ghost" size="sm" className="h-8 w-8 p-0 relative">
-                <Bell className="h-4 w-4" />
-                {unreadCount > 0 && (
-                  <span
-                    className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] leading-4 flex items-center justify-center"
-                  >
-                    {badgeLabel}
-                  </span>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-80 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
-            >
-              <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Notifications</p>
-                  <p className="text-xs text-muted-foreground">
-                    {unreadCount ? `${unreadCount} new` : 'You are all caught up'}
-                  </p>
-                </div>
-                {notifications.length > 0 && (
-                  <button
-                    onClick={async () => {
-                      await clearAllNotifications();
-                      setNotifications([]);
-                      if (isDemoMode()) {
-                        try { sessionStorage.setItem('demo_notifs_cleared', '1'); } catch {}
-                      }
-                    }}
-                    className="text-xs font-semibold text-primary hover:text-primary/80"
-                  >
-                    Clear all
-                  </button>
-                )}
-              </div>
-              <div className="max-h-80 overflow-y-auto p-2">
-                {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 bg-muted/30 px-4 py-6 text-center">
-                    <span className="text-sm font-medium text-muted-foreground">No notifications</span>
-                    <span className="text-xs text-muted-foreground">Updates will appear here as you work.</span>
-                  </div>
-                ) : (
-                  notifications.slice(0, 12).map((n) => {
-                    const to = getNotificationTarget(n);
-                    const isUnread = !n.read;
-                    const typeLabel = (n.type || '').replace(/_/g, ' ');
-                    return (
-                      <DropdownMenuItem
-                        key={n.id}
-                        className="group mx-1 my-1 rounded-lg px-0 py-0 focus:bg-transparent"
-                      >
-                        <Link
-                          to={to}
-                          className="flex w-full items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/70"
-                          onClick={() => setNotifOpen(false)}
-                        >
-                          <span
-                            className={`mt-1 inline-flex h-2 w-2 rounded-full ${isUnread ? 'bg-primary' : 'bg-muted-foreground/40'}`}
-                            aria-hidden="true"
-                          />
-                          <div className="flex flex-1 flex-col gap-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="text-sm font-semibold text-foreground line-clamp-2">
-                                {n.title || typeLabel || 'Notification'}
-                              </p>
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
-                              </span>
-                            </div>
-                            {n.message && (
-                              <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                                {n.message}
-                              </p>
-                            )}
-                            {typeLabel && (
-                              <Badge
-                                variant="outline"
-                                className="w-fit border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
-                              >
-                                {typeLabel}
-                              </Badge>
-                            )}
-                          </div>
-                        </Link>
-                      </DropdownMenuItem>
-                    );
-                  })
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="/placeholder-avatar.jpg" />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-64 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
-            >
-              <div className="flex items-center gap-3 border-b border-border/60 bg-muted/40 px-4 py-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src="/placeholder-avatar.jpg" />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {userInitials}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold text-foreground">
-                    {authUser?.name || "Guest User"}
-                  </p>
-                  {userEmail && (
-                    <p className="text-xs text-muted-foreground truncate max-w-[12rem]">
-                      {userEmail}
-                    </p>
-                  )}
-                  {roleLower && !isDemoMode() && (
-                    <Badge
-                      variant="outline"
-                      className="border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
-                    >
-                      {roleLower}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <div className="py-2">
-                {isAdminRole && (
-                  <>
-                    <DropdownMenuItem
-                      onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
-                      className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
-                    >
-                      <UsersIcon className="h-4 w-4" />
-                      <span>Manage users</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
-                      className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
-                    >
-                      <SettingsIcon className="h-4 w-4" />
-                      <span>Organization settings</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator className="my-2" />
-                  </>
-                )}
-                <DropdownMenuItem
-                  onClick={handleSignOut}
-                  className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            <LogOut className="h-4 w-4" />
+            <span>Sign out</span>
+          </DropdownMenuItem>
         </div>
-      </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  return (
+    <header className="app-header h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      {isMobile ? (
+        <div className="grid h-full w-full grid-cols-[auto,1fr,auto] items-center gap-2 px-3">
+          <div className="flex items-center gap-2">
+            <button
+              aria-label="Open menu"
+              onClick={onMenuClick}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 shadow-sm"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaletteOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-xs text-muted-foreground shadow-sm"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center justify-center">
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-background shadow-sm">
+              <img src="/favicon.png" alt="SAMS" className="h-7 w-7 object-contain" />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 p-0 shadow-sm"
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            {notificationsDropdown}
+            {userMenu}
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-full items-center justify-between gap-3 px-3 md:px-6">
+          <div className="flex flex-1 items-center gap-2 max-w-md">
+            <button
+              aria-label="Open menu"
+              onClick={onMenuClick}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent md:hidden"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={`Search pages and actions…${shortcutHint ? ` (${shortcutHint})` : ""}`}
+                className="h-9 bg-muted/50 pl-10"
+                readOnly
+                onFocus={() => setPaletteOpen(true)}
+                onClick={() => setPaletteOpen(true)}
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 md:gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleTheme}
+              className="h-8 w-8 p-0"
+            >
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            {notificationsDropdown}
+            {userMenu}
+          </div>
+        </div>
+      )}
       {/* Command Palette */}
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} role={authUser?.role || null} />
     </header>
