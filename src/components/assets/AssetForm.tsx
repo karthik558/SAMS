@@ -451,54 +451,80 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
             <div className="grid gap-6 md:grid-cols-3">
               <div className="space-y-2">
                 <Label>Purchase Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formData.purchaseDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.purchaseDate ? format(formData.purchaseDate, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.purchaseDate}
+                        onSelect={(date) => handleInputChange("purchaseDate", date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {formData.purchaseDate && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.purchaseDate && "text-muted-foreground"
-                      )}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => handleInputChange("purchaseDate", undefined)}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.purchaseDate ? format(formData.purchaseDate, "PPP") : "Pick a date"}
+                      Clear
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.purchaseDate}
-                      onSelect={(date) => handleInputChange("purchaseDate", date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
                 <Label>Expiry Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formData.expiryDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={formData.expiryDate}
+                        onSelect={(date) => handleInputChange("expiryDate", date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {formData.expiryDate && (
                     <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !formData.expiryDate && "text-muted-foreground"
-                      )}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-full sm:w-auto"
+                      onClick={() => handleInputChange("expiryDate", undefined)}
                     >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
+                      Clear
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={formData.expiryDate}
-                      onSelect={(date) => handleInputChange("expiryDate", date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
