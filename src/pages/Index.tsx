@@ -1065,11 +1065,13 @@ const Index = () => {
                     isDragActive && !importing ? "border-primary bg-primary/10 shadow-inner" : ""
                   )}
                 >
-                  <Upload className={cn("h-6 w-6", isDragActive ? "text-primary" : "text-muted-foreground")} />
+                  <Upload className={cn("h-6 w-6", isDragActive ? "text-primary" : "text-foreground")}
+                    strokeWidth={1.8}
+                  />
                   <span className="font-semibold text-foreground">
                     {isDragActive ? "Drop the file to start import" : "Drag & drop your Excel file"}
                   </span>
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="text-[11px] font-normal text-muted-foreground">
                     Or click to browse (.xlsx, .xls)
                   </span>
                 </div>
