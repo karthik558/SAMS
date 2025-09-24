@@ -891,63 +891,118 @@ const Index = () => {
       </Card>
 
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Bulk Import Assets</DialogTitle>
-            <DialogDescription>
-              Download the Excel template, fill in asset rows, then upload to import. IDs are generated automatically based on Item Type + Property code.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={async () => { await downloadAssetTemplate(); }} className="gap-2">
-                <Download className="h-4 w-4" />
-                Download Template
-              </Button>
-              <Button variant="outline" onClick={() => fileRef.current?.click()} className="gap-2">
-                <Upload className="h-4 w-4" />
-                Select File
-              </Button>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setImporting(true);
-                try {
-                    const res = await importAssetsFromFile(file);
-                    setLastImportSummary(`Inserted: ${res.inserted}, Skipped: ${res.skipped}${res.errors.length ? `, Errors: ${res.errors.length}` : ''}`);
-                    if (res.errors.length) {
-                      console.warn("Import errors", res.errors);
+        <DialogContent className="sm:max-w-xl overflow-hidden border border-border/70 bg-card/95 p-0 shadow-xl">
+          <div className="flex flex-col">
+            <DialogHeader className="px-6 pb-0 pt-6 text-left">
+              <div className="flex items-start gap-3">
+                <span className="rounded-lg bg-primary/10 p-2 text-primary">
+                  <Upload className="h-5 w-5" />
+                </span>
+                <div className="space-y-1">
+                  <DialogTitle className="text-lg sm:text-xl">Bulk Import Assets</DialogTitle>
+                  <DialogDescription>
+                    Download the Excel template, fill it with your asset data, then upload to import. Asset IDs are generated automatically based on Item Type and Property.
+                  </DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="space-y-6 px-6 pb-6 pt-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Button
+                  onClick={async () => {
+                    await downloadAssetTemplate();
+                  }}
+                  className="h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl text-base font-semibold"
+                >
+                  <Download className="h-6 w-6" />
+                  <span>Download Template</span>
+                  <span className="text-xs font-normal text-primary-foreground/80">
+                    Get the latest column mapping
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => fileRef.current?.click()}
+                  className="h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl border-dashed text-base"
+                >
+                  <Upload className="h-6 w-6 text-primary" />
+                  <span className="text-foreground">Select File to Import</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Supports .xlsx or .xls files
+                  </span>
+                </Button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setImporting(true);
+                    try {
+                      const res = await importAssetsFromFile(file);
+                      setLastImportSummary(`Inserted: ${res.inserted}, Skipped: ${res.skipped}${res.errors.length ? `, Errors: ${res.errors.length}` : ''}`);
+                      if (res.errors.length) {
+                        console.warn("Import errors", res.errors);
+                      }
+                      toast.success(`Imported ${res.inserted} asset(s)`);
+                      if (hasSupabaseEnv) {
+                        try {
+                          const assets = await listAssets();
+                          setCounts((c) => ({ ...c, assets: assets.length }));
+                          const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
+                          setMetrics((m) => ({ ...m, totalQuantity }));
+                        } catch {}
+                      }
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : "Import failed";
+                      toast.error(message);
+                    } finally {
+                      setImporting(false);
                     }
-                    toast.success(`Imported ${res.inserted} asset(s)`);
-                    if (hasSupabaseEnv) {
-                      try {
-                        const assets = await listAssets();
-                        setCounts((c) => ({ ...c, assets: assets.length }));
-                        const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
-                        setMetrics((m) => ({ ...m, totalQuantity }));
-                      } catch {}
-                    }
-                  } catch (err) {
-                    const message = err instanceof Error ? err.message : "Import failed";
-                    toast.error(message);
-                  } finally {
-                    setImporting(false);
-                  }
-                }} />
+                  }}
+                />
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-4 text-sm text-muted-foreground">
+                <p className="text-sm font-medium text-foreground">
+                  Bulk upload keeps your asset inventory aligned across every location.
+                </p>
+                <p className="mt-1 text-sm">
+                  Start with the template, review totals after import, and rerun anytime—each upload can include up to 1,000 rows.
+                </p>
+              </div>
+
+              {lastImportSummary && (
+                <div className="rounded-lg border border-emerald-400/40 bg-emerald-100/20 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-200">
+                  Last import: {lastImportSummary}
+                </div>
+              )}
+
+              {!hasSupabaseEnv && (
+                <div className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+                  Backend not connected. Connect Supabase before uploading to store imported assets.
+                </div>
+              )}
             </div>
-            {lastImportSummary && (
-              <p className="text-xs text-muted-foreground">Last import: {lastImportSummary}</p>
-            )}
-            {!hasSupabaseEnv && (
-              <p className="text-xs text-warning-foreground">Backend not connected. Import requires Supabase.</p>
-            )}
+            <DialogFooter className="!flex !flex-col gap-3 border-t border-border/70 bg-background/60 px-6 py-4 text-sm text-muted-foreground sm:!flex-row sm:items-center sm:!justify-between sm:!space-x-0">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Download className="h-4 w-4" />
+                </span>
+                <span>Keep your asset register up to date in minutes.</span>
+              </div>
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <Button variant="outline" onClick={() => setBulkOpen(false)}>
+                  Close
+                </Button>
+                <Button disabled className="gap-2" variant="secondary">
+                  {importing ? "Importing..." : "Ready"}
+                </Button>
+              </div>
+            </DialogFooter>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkOpen(false)}>Close</Button>
-            <Button disabled className="gap-2" variant="secondary">
-              {importing ? "Importing..." : "Ready"}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
