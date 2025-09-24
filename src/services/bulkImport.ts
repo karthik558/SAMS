@@ -6,6 +6,7 @@ import { listProperties } from "./properties";
 import { listItemTypes } from "./itemTypes";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getAccessiblePropertyIdsForCurrentUser } from "./userAccess";
+import { listDepartments } from "./departments";
 
 export type BulkAssetRow = {
   // id is optional; when omitted, the system will auto-generate based on type+property
@@ -68,7 +69,18 @@ export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Templat
     : allPropertyCodes.filter((code) => accessibleSet.has(code));
   const conditions = ["Excellent", "Good", "Fair", "Poor", "Damaged"];
   const statuses = ["Active", "Expiring Soon", "Expired", "Inactive"];
-  const departments = ["IT","HR","Finance","Operations"]; // best-effort; dynamic list not embedded to keep template simple offline
+  // Fetch department names from Supabase settings > departments (fallback to a small static list)
+  let departments: string[] = [];
+  try {
+    const list = await listDepartments();
+    const names = list.map((d) => (d.name || "").trim()).filter(Boolean);
+    // Deduplicate, preserve order by first appearance
+    const seen = new Set<string>();
+    for (const n of names) if (!seen.has(n)) { seen.add(n); departments.push(n); }
+    if (departments.length === 0) throw new Error("EMPTY_DEPARTMENTS");
+  } catch {
+    departments = ["IT","HR","Finance","Operations"]; // offline fallback
+  }
 
   const book = new ExcelJS.Workbook();
   const input = book.addWorksheet("Assets");
@@ -161,7 +173,7 @@ export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Templat
   // Only apply list validations if we have values; otherwise leave free text
   if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`, false); // type (required)
   if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`, false); // property code (required)
-  setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`, false); // department (required)
+  if (departments.length) setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`, false); // department (required)
   setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition (optional)
   setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status (optional)
   // Additional non-empty checks for name (1) and quantity (5)
