@@ -17,6 +17,7 @@ import {
   FileText,
   Upload,
   Megaphone,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -44,6 +45,8 @@ import { Input } from "@/components/ui/input";
 import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Line } from "recharts";
 import MetricCard from "@/components/ui/metric-card";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 type TicketSummary = {
   total: number;
@@ -131,9 +134,21 @@ const Index = () => {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
+  const [importErrors, setImportErrors] = useState<Array<{ row: number; message: string }>>([]);
+  const [importProgress, setImportProgress] = useState(0);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const progressResetRef = useRef<number | null>(null);
   const [loadingUI, setLoadingUI] = useState(true);
   const [announcements, setAnnouncements] = useState<NewsletterPost[]>([]);
   const [showAnnouncements, setShowAnnouncements] = useState(true);
+
+  useEffect(() => {
+    return () => {
+      if (progressResetRef.current != null) {
+        window.clearTimeout(progressResetRef.current);
+      }
+    };
+  }, []);
 
   const isAdmin = role === 'admin';
   const resolvedTotal = ticketSummary.resolved + ticketSummary.closed;
@@ -144,6 +159,120 @@ const Index = () => {
   const hour = new Date().getHours();
   const salutation = hour < 12 ? 'Good Morning' : hour >= 18 ? 'Good Evening' : 'Good Afternoon';
   const greeting = `${salutation}${firstName ? `, ${firstName}` : ''}`;
+
+  const handleImportFile = async (file: File) => {
+    if (!file) return;
+    if (progressResetRef.current != null) {
+      window.clearTimeout(progressResetRef.current);
+      progressResetRef.current = null;
+    }
+    setImportErrors([]);
+    setLastImportSummary("");
+    setImportProgress(15);
+    setImporting(true);
+    try {
+      const res = await importAssetsFromFile(file);
+      setImportProgress(70);
+      const summary = `Inserted: ${res.inserted}, Skipped: ${res.skipped}${res.errors.length ? `, Errors: ${res.errors.length}` : ''}`;
+      setLastImportSummary(summary);
+      setImportErrors(res.errors ?? []);
+      if (res.errors.length) {
+        toast.info(`Imported ${res.inserted} asset${res.inserted === 1 ? '' : 's'}. ${res.errors.length} row${res.errors.length === 1 ? '' : 's'} need review.`);
+      } else {
+        toast.success(`Imported ${res.inserted} asset${res.inserted === 1 ? '' : 's'}`);
+      }
+      if (hasSupabaseEnv) {
+        try {
+          const assets = await listAssets();
+          setCounts((c) => ({ ...c, assets: assets.length }));
+          const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
+          setMetrics((m) => ({ ...m, totalQuantity }));
+        } catch {}
+      }
+      setImportProgress(90);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Import failed";
+      toast.error(message);
+      setImportErrors([]);
+      setLastImportSummary("");
+    } finally {
+      setImportProgress(100);
+      if (progressResetRef.current != null) {
+        window.clearTimeout(progressResetRef.current);
+      }
+      progressResetRef.current = window.setTimeout(() => {
+        setImportProgress(0);
+        progressResetRef.current = null;
+      }, 600);
+      setImporting(false);
+      setIsDragActive(false);
+      if (fileRef.current) {
+        fileRef.current.value = "";
+      }
+    }
+  };
+
+  const copyErrorsToClipboard = async () => {
+    if (!importErrors.length) return;
+    const payload = importErrors.map((err) => `Row ${err.row}: ${err.message}`).join('\n');
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(payload);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = payload;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success('Error details copied to clipboard');
+    } catch {
+      toast.error('Unable to copy error details');
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (importing) {
+      event.dataTransfer.dropEffect = 'none';
+      return;
+    }
+    event.dataTransfer.dropEffect = 'copy';
+    if (!isDragActive) setIsDragActive(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (isDragActive) setIsDragActive(false);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (importing) return;
+    setIsDragActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) {
+      void handleImportFile(file);
+    }
+  };
+
+  const handleDropZoneKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (importing) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      fileRef.current?.click();
+    }
+  };
+
+  const propertyTotal = Math.max(0, counts.properties ?? 0);
+  const propertyLabel = propertyTotal === 1 ? 'property' : 'properties';
 
   // Load announcement visibility preference (separate effect to obey hook rules)
   useEffect(() => {
@@ -912,67 +1041,109 @@ const Index = () => {
                   onClick={async () => {
                     await downloadAssetTemplate();
                   }}
-                  className="h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl text-base font-semibold"
+                  className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-xl text-base font-semibold"
                 >
                   <Download className="h-6 w-6" />
                   <span>Download Template</span>
-                  <span className="text-xs font-normal text-primary-foreground/80">
-                    Get the latest column mapping
-                  </span>
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => fileRef.current?.click()}
-                  className="h-24 w-full flex flex-col items-center justify-center gap-2 rounded-xl border-dashed text-base"
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    if (!importing) fileRef.current?.click();
+                  }}
+                  onKeyDown={handleDropZoneKeyDown}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "flex h-24 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-background/80 p-4 text-center text-base transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                    importing
+                      ? "cursor-not-allowed opacity-70"
+                      : "cursor-pointer hover:border-primary/60 hover:bg-primary/5",
+                    isDragActive && !importing ? "border-primary bg-primary/10 shadow-inner" : ""
+                  )}
                 >
-                  <Upload className="h-6 w-6 text-primary" />
-                  <span className="text-foreground">Select File to Import</span>
-                  <span className="text-xs font-normal text-muted-foreground">
-                    Supports .xlsx or .xls files
+                  <Upload className={cn("h-6 w-6", isDragActive ? "text-primary" : "text-muted-foreground")} />
+                  <span className="font-semibold text-foreground">
+                    {isDragActive ? "Drop the file to start import" : "Drag & drop your Excel file"}
                   </span>
-                </Button>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Or click to browse (.xlsx, .xls)
+                  </span>
+                </div>
                 <input
                   ref={fileRef}
                   type="file"
                   accept=".xlsx,.xls"
                   className="hidden"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (!file) return;
-                    setImporting(true);
-                    try {
-                      const res = await importAssetsFromFile(file);
-                      setLastImportSummary(`Inserted: ${res.inserted}, Skipped: ${res.skipped}${res.errors.length ? `, Errors: ${res.errors.length}` : ''}`);
-                      if (res.errors.length) {
-                        console.warn("Import errors", res.errors);
-                      }
-                      toast.success(`Imported ${res.inserted} asset(s)`);
-                      if (hasSupabaseEnv) {
-                        try {
-                          const assets = await listAssets();
-                          setCounts((c) => ({ ...c, assets: assets.length }));
-                          const totalQuantity = assets.reduce<number>((sum, a) => sum + (Number(a.quantity) || 0), 0);
-                          setMetrics((m) => ({ ...m, totalQuantity }));
-                        } catch {}
-                      }
-                    } catch (err) {
-                      const message = err instanceof Error ? err.message : "Import failed";
-                      toast.error(message);
-                    } finally {
-                      setImporting(false);
-                    }
+                    if (!file || importing) return;
+                    void handleImportFile(file);
                   }}
                 />
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-4 text-sm text-muted-foreground">
-                <p className="text-sm font-medium text-foreground">
-                  Bulk upload keeps your asset inventory aligned across every location.
-                </p>
-                <p className="mt-1 text-sm">
-                  Start with the template, review totals after import, and rerun anytime—each upload can include up to 1,000 rows.
-                </p>
+              <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span className="uppercase tracking-wide">Import access</span>
+                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-primary">
+                      {propertyTotal.toLocaleString()} {propertyLabel}
+                    </span>
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
+                    <Upload className="h-3.5 w-3.5" />
+                    <span>Up to 1,000 rows per file</span>
+                  </div>
+                </div>
               </div>
+
+              {(importing || importProgress > 0) && (
+                <div className="space-y-2 rounded-xl border border-border/60 bg-background/80 px-4 py-4">
+                  <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                    <span>{importing ? "Importing file..." : "Import complete"}</span>
+                    <span>{Math.min(importProgress, 100)}%</span>
+                  </div>
+                  <Progress value={Math.min(importProgress, 100)} className="h-2" />
+                </div>
+              )}
+
+              {importErrors.length > 0 && (
+                <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-4 text-sm">
+                  <div className="flex items-center justify-between">
+                    <p className="font-medium text-destructive">Some rows need a quick review</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => void copyErrorsToClipboard()}
+                      className="h-8 gap-1 px-2 text-destructive hover:text-destructive"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copy all
+                    </Button>
+                  </div>
+                  <ul className="space-y-2">
+                    {importErrors.slice(0, 5).map((err, idx) => (
+                      <li
+                        key={`${err.row}-${idx}`}
+                        className="rounded-lg border border-destructive/20 bg-background/90 px-3 py-2 text-sm text-destructive"
+                      >
+                        <span className="font-semibold">Row {err.row}</span>
+                        <span className="ml-2 text-destructive/90">{err.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {importErrors.length > 5 && (
+                    <p className="text-xs text-destructive/80">
+                      + {importErrors.length - 5} more row{importErrors.length - 5 === 1 ? '' : 's'} detailed in the copied report.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {lastImportSummary && (
                 <div className="rounded-lg border border-emerald-400/40 bg-emerald-100/20 px-4 py-3 text-sm text-emerald-900 dark:text-emerald-200">
