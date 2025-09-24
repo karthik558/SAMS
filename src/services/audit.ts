@@ -238,16 +238,42 @@ export async function setAuditIncharge(propertyId: string, userId: string, userN
   }
 }
 
-export async function listAuditInchargeForUser(userId: string): Promise<string[]> {
+export async function listAuditInchargeForUser(userId: string, userEmail?: string | null): Promise<string[]> {
   if (!userId) return [];
   if (!hasSupabaseEnv) {
     const map = readLocalAI();
     return Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
   }
   try {
-    const { data, error } = await supabase.from('audit_incharge').select('property_id').eq('user_id', userId);
-    if (error) throw error;
-    const remote = (data || []).map((r: any) => String(r.property_id));
+    let remote: string[] = [];
+    // Use provided email when available (avoids RLS on app_users). If not provided and this is the current user,
+    // attempt to read from localStorage session.
+    let email = (userEmail || undefined) as string | undefined;
+    if (!email) {
+      try {
+        const raw = (typeof window !== 'undefined') ? (localStorage.getItem('auth_user') || localStorage.getItem('demo_auth_user') || '') : '';
+        const au = raw ? JSON.parse(raw) : null;
+        if (au && (String(au.id) === String(userId))) email = au.email || undefined;
+      } catch {}
+    }
+    if (email) {
+      const orParts = [
+        `user_id.eq.${userId}`,
+        `user_id.eq.${email}`,
+        `user_id.eq.${String(email).toLowerCase()}`,
+        `user_id.eq.${String(email).toUpperCase()}`,
+      ];
+      const { data, error } = await supabase
+        .from('audit_incharge')
+        .select('property_id')
+        .or(orParts.join(','));
+      if (error) throw error;
+      remote = (data || []).map((r: any) => String(r.property_id));
+    } else {
+      const { data, error } = await supabase.from('audit_incharge').select('property_id').eq('user_id', userId);
+      if (error) throw error;
+      remote = (data || []).map((r: any) => String(r.property_id));
+    }
     // Merge with local fallback in case some writes were saved locally
     const map = readLocalAI();
     const local = Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));

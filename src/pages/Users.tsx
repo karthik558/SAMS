@@ -421,6 +421,10 @@ export default function Users() {
       try {
         if (inchargePropertyIds.length) {
           await setAuditInchargeForUser(created.id, created.name || null, inchargePropertyIds);
+          try {
+            // Auto-grant Audit page view permission when user becomes incharge
+            await setUserPermissions(created.id, ({ audit: { v: true, e: true } } as unknown) as Partial<Record<PageKey, { v?: boolean; e?: boolean }>> as any);
+          } catch {}
         }
       } catch {}
       // Persist Final Approver assignments (if any)
@@ -515,8 +519,11 @@ export default function Users() {
     }
     // Load properties where this user is Auditor Incharge
     try {
-      const pids = await listAuditInchargeForUser(user.id);
-      setEditInchargePropertyIds(pids);
+      const pids = await listAuditInchargeForUser(user.id, user.email || undefined);
+      // Normalize returned IDs to match existing property IDs (case-insensitive mapping)
+      const byLower = new Map<string, string>(properties.map(p => [String(p.id).toLowerCase(), String(p.id)]));
+      const normalized = Array.from(new Set(pids.map(pid => byLower.get(String(pid).toLowerCase()) || String(pid))));
+      setEditInchargePropertyIds(normalized);
     } catch {
       setEditInchargePropertyIds([]);
     }
@@ -617,6 +624,12 @@ export default function Users() {
       // Persist Auditor Incharge assignments (admin only UI but safe to call)
       try {
         await setAuditInchargeForUser(editingUser.id, updated?.name || null, editInchargePropertyIds);
+        try {
+          // If user has any incharge properties, ensure Audit page permission is granted
+          if (editInchargePropertyIds && editInchargePropertyIds.length > 0) {
+            await setUserPermissions(editingUser.id, ({ audit: { v: true, e: true } } as unknown) as Partial<Record<PageKey, { v?: boolean; e?: boolean }>> as any);
+          }
+        } catch {}
       } catch {}
       // Persist Final Approver assignments
       try {
@@ -1055,7 +1068,7 @@ export default function Users() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
                     {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
-                      const checked = inchargePropertyIds.includes(p.id);
+                      const checked = inchargePropertyIds.some(id => String(id).toLowerCase() === String(p.id).toLowerCase());
                       return (
                         <DropdownMenuItem
                           key={p.id}
@@ -1747,8 +1760,8 @@ export default function Users() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
-                    const checked = editInchargePropertyIds.includes(p.id);
+                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                    const checked = editInchargePropertyIds.some(id => String(id).toLowerCase() === String(p.id).toLowerCase());
                     return (
                       <DropdownMenuItem
                         key={p.id}
@@ -1768,6 +1781,30 @@ export default function Users() {
                   })}
                   {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
                     <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                  )}
+                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
+                    <>
+                      <div className="my-1 h-px bg-border" />
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
+                          setEditInchargePropertyIds(ids);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Select all
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setEditInchargePropertyIds([]);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        Clear selection
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>

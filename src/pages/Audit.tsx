@@ -256,7 +256,10 @@ export default function Audit() {
         const user = raw ? JSON.parse(raw) : null;
         setRole((user?.role || '').toLowerCase());
         try {
-          const uid = getCurrentUserId();
+          let uid = getCurrentUserId();
+          if (!uid) {
+            try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
+          }
           const allowed = uid ? await canUserEdit(uid, 'audit') : null;
           setCanAuditAdmin(Boolean(allowed));
         } catch { setCanAuditAdmin(false); }
@@ -279,8 +282,10 @@ export default function Audit() {
             const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
             if (!isAdmin) {
               if (uid) {
-                const mine = await listAuditInchargeForUser(uid);
-                filtered = (props as Property[]).filter(p => mine.includes(String(p.id)));
+                const mine = await listAuditInchargeForUser(uid, (user?.email || undefined));
+                // if user has any incharge properties, allow admin controls implicitly
+                try { setCanAuditAdmin((prev) => prev || (mine && mine.length > 0)); } catch {}
+                filtered = (props as Property[]).filter(p => mine.includes(String(p.id)) || mine.includes(String(p.id).toLowerCase()));
               } else {
                 filtered = [];
               }
