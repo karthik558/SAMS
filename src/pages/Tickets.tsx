@@ -67,6 +67,10 @@ export default function Tickets() {
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
+  // Per-ticket description expand/collapse state
+  const [descExpanded, setDescExpanded] = useState<Record<string, boolean>>({});
+  // Track per-comment expand/collapse for long messages
+  const [expandedComment, setExpandedComment] = useState<Record<string, boolean>>({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState<Record<string, boolean>>({});
@@ -908,7 +912,19 @@ export default function Tickets() {
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">Created by: {t.createdBy} • {fmt(t.createdAt)}</div>
-                    <div className="text-sm text-foreground mt-2 whitespace-pre-wrap">{t.description}</div>
+                    <div className="text-sm text-foreground mt-2">
+                      <div className={`whitespace-pre-wrap break-words ${descExpanded[t.id] ? '' : 'line-clamp-3'}`}>{t.description}</div>
+                      {((t.description || '').length > 160 || (t.description || '').split('\n').length > 3) && (
+                        <button
+                          type="button"
+                          className="mt-1 text-xs text-primary hover:underline"
+                          aria-expanded={!!descExpanded[t.id]}
+                          onClick={() => setDescExpanded(s => ({ ...s, [t.id]: !s[t.id] }))}
+                        >
+                          {descExpanded[t.id] ? 'Show less' : 'Show more'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="flex gap-2">
@@ -941,12 +957,28 @@ export default function Tickets() {
                     <div className="text-xs space-y-2">
                       <div className="font-medium">Comments</div>
                       <div className="space-y-1">
-                        {(comments[t.id]||[]).map(c => (
-                          <div key={c.id} className="flex items-start gap-2">
-                            <span className="text-muted-foreground w-52 shrink-0">{fmt(c.createdAt)} • {c.author}</span>
-                            <span>{c.message}</span>
-                          </div>
-                        ))}
+                        {(comments[t.id]||[]).map(c => {
+                          const expanded = !!expandedComment[c.id];
+                          const isLong = (c.message?.length || 0) > 160 || (c.message?.split('\n').length || 0) > 3;
+                          return (
+                            <div key={c.id} className="flex items-start gap-2">
+                              <span className="text-muted-foreground w-52 shrink-0">{fmt(c.createdAt)} • {c.author}</span>
+                              <div className="flex-1">
+                                <div className={`text-sm whitespace-pre-wrap break-words ${expanded ? '' : 'line-clamp-3'}`}>{c.message}</div>
+                                {isLong && (
+                                  <button
+                                    type="button"
+                                    className="mt-1 text-xs text-primary hover:underline"
+                                    aria-expanded={expanded}
+                                    onClick={() => setExpandedComment(s => ({ ...s, [c.id]: !s[c.id] }))}
+                                  >
+                                    {expanded ? 'Show less' : 'Show more'}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                         {t.status !== 'closed' ? (
                           <div className="flex items-center gap-2">
                             <Input aria-label={`Add comment to ticket ${t.id}`} placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
