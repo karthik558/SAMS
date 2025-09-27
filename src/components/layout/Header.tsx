@@ -508,14 +508,20 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Menu className="h-5 w-5" />
             </button>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={`Search pages and actions…${shortcutHint ? ` (${shortcutHint})` : ""}`}
-                className="h-9 bg-muted/50 pl-10"
+                aria-label="Search"
+                placeholder="Search pages and actions…"
+                className="h-10 pl-10 pr-12 rounded-full border border-border/60 bg-muted/60 text-sm placeholder:text-muted-foreground/70 shadow-sm transition-colors hover:bg-muted/70 focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 readOnly
                 onFocus={() => setPaletteOpen(true)}
                 onClick={() => setPaletteOpen(true)}
               />
+              {shortcutHint && (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-border/60 bg-muted px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground">
+                  {shortcutHint}
+                </span>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
