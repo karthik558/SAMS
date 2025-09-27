@@ -52,6 +52,7 @@ interface SidebarProps {
 
 export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isTablet, setIsTablet] = useState(false);
   const location = useLocation();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
@@ -77,6 +78,23 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       } catch {}
     })();
   }, []);
+
+  // Detect tablet viewport and collapse by default when entering tablet range
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)');
+    const apply = () => {
+      const tablet = mql.matches;
+      // When entering tablet range, default to collapsed (but allow manual expand afterward)
+      if (tablet && !isTablet) {
+        setCollapsed(true);
+      }
+      setIsTablet(tablet);
+    };
+    try { mql.addEventListener('change', apply); } catch { mql.addListener(apply); }
+    // Initialize on mount
+    apply();
+    return () => { try { mql.removeEventListener('change', apply); } catch { mql.removeListener(apply); } };
+  }, [isTablet]);
   useEffect(() => {
     (async () => {
       try {
