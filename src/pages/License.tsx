@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { listProperties, type Property } from '@/services/properties';
 import { listAssets } from '@/services/assets';
 import { getPropertyLicense, listPropertyLicenses, upsertPropertyLicense, type LicensePlan } from '@/services/license';
@@ -8,18 +9,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
 import PageHeader from '@/components/layout/PageHeader';
 import Breadcrumbs from '@/components/layout/Breadcrumbs';
-import { Building2, ShieldCheck, Save, RefreshCw } from 'lucide-react';
+import { Building2, ShieldCheck, Save, RefreshCw, Lock } from 'lucide-react';
+import { loginWithPassword } from '@/services/auth';
 
 interface PropertyRow extends Property { assetCount: number; licenseLimit: number; plan?: LicensePlan | null; derived?: number | null; }
 
 export default function LicensePage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<PropertyRow[]>([]);
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [editingPlans, setEditingPlans] = useState<Record<string, LicensePlan | 'none'>>({});
   const [globalMessage] = useState('Global capacity is unlimited. Manage per-property plans below.');
+  // Password confirmation gate
+  const [authOpen, setAuthOpen] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const SESSION_KEY = 'license_access_verified_at';
 
   const reload = async () => {
     setLoading(true);
@@ -71,7 +82,37 @@ export default function LicensePage() {
     }
   };
 
-  useEffect(() => { reload(); }, []);
+  // Determine current user and role; only admins allowed and require password confirmation
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('auth_user');
+      const u = raw ? JSON.parse(raw) : null;
+      const role = ((u?.role || '') as string).toLowerCase();
+      const email = (u?.email || '') as string;
+      if (!email) {
+        toast.error('Not signed in');
+        navigate('/login');
+        return;
+      }
+      setAdminEmail(email);
+      if (role !== 'admin') {
+        toast.error('Unauthorized');
+        navigate('/');
+        return;
+      }
+      // If recently verified in this session (5 min), skip prompt
+      try {
+        const ts = Number(sessionStorage.getItem(SESSION_KEY) || '0');
+        if (ts && Date.now() - ts < 5 * 60 * 1000) {
+          setAuthorized(true);
+          setAuthOpen(false);
+        }
+      } catch {}
+    } catch {}
+  }, [navigate]);
+
+  // Load only after authorization
+  useEffect(() => { if (authorized) reload(); }, [authorized]);
 
   const totalUsage = useMemo(() => properties.reduce((s,p)=> s + p.assetCount, 0), [properties]);
 
@@ -97,7 +138,57 @@ export default function LicensePage() {
       <div className='rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8'>
         <PageHeader icon={ShieldCheck} title='License Management' description='Configure global and per-property asset allowances' actions={<Button size='sm' variant='outline' onClick={reload} className='gap-2'><RefreshCw className='h-4 w-4'/>Refresh</Button>} />
       </div>
-      {!!properties.length && (
+      {/* Password confirmation modal */}
+      <Dialog open={authOpen} onOpenChange={(o)=> { setAuthOpen(o); if (!o && !authorized) navigate('/'); }}>
+        <DialogContent className='sm:max-w-md rounded-2xl border border-primary/40 bg-card/95 p-0 overflow-hidden'>
+          {/* Accent header bar without verbose text */}
+          <div className='flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3'>
+            <div className='h-8 w-8 rounded-md bg-primary/20 text-primary flex items-center justify-center'>
+              <Lock className='h-4 w-4' />
+            </div>
+            <span className='sr-only'>Admin verification</span>
+          </div>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!adminEmail) { toast.error('Not signed in'); return; }
+              try {
+                setVerifying(true);
+                const u = await loginWithPassword(adminEmail, password);
+                if (!u || (u.role || '').toLowerCase() !== 'admin') {
+                  toast.error('Invalid password');
+                  setVerifying(false);
+                  return;
+                }
+                setAuthorized(true);
+                setAuthOpen(false);
+                try { sessionStorage.setItem(SESSION_KEY, String(Date.now())); } catch {}
+              } catch (e:any) {
+                toast.error(e?.message || 'Verification failed');
+              } finally {
+                setVerifying(false);
+                setPassword('');
+              }
+            }}
+          >
+            <div className='grid gap-3 p-4'>
+              <div className='text-xs text-muted-foreground'>Signed in as: <span className='font-medium text-foreground'>{adminEmail || '—'}</span></div>
+              <Input
+                type='password'
+                value={password}
+                onChange={(e)=> setPassword(e.target.value)}
+                placeholder='Enter your password'
+                autoFocus
+              />
+            </div>
+            <DialogFooter className='gap-2 px-4 pb-4'>
+              <Button type='button' variant='outline' onClick={()=> navigate('/')}>Cancel</Button>
+              <Button type='submit' disabled={!password || verifying}>{verifying ? 'Verifying…' : 'Verify'}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      {authorized && !!properties.length && (
         <Card className='border border-primary/30 bg-primary/5'>
           <CardContent className='p-4 text-sm flex flex-wrap gap-2'>
             <span className='font-medium text-primary'>Global Unlimited</span>
@@ -113,6 +204,10 @@ export default function LicensePage() {
           <CardDescription>Assign a plan or custom numeric limit per property. Plan derives a default limit unless you set a specific number (0 = unlimited).</CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
+          {!authorized && (
+            <div className='text-sm text-muted-foreground'>Please verify your password to view and edit license settings.</div>
+          )}
+          {authorized && (
           <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-3'>
             {properties.map(p => {
               const pct = p.licenseLimit>0 ? Math.min(100, Math.round(p.assetCount / p.licenseLimit * 100)) : 0;
@@ -189,8 +284,9 @@ export default function LicensePage() {
               );
             })}
           </div>
-          {!properties.length && !loading && <div className='text-sm text-muted-foreground'>No properties found.</div>}
-          {loading && <div className='text-sm text-muted-foreground'>Loading…</div>}
+          )}
+          {authorized && !properties.length && !loading && <div className='text-sm text-muted-foreground'>No properties found.</div>}
+          {authorized && loading && <div className='text-sm text-muted-foreground'>Loading…</div>}
         </CardContent>
       </Card>
 
