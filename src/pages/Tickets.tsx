@@ -63,7 +63,7 @@ export default function Tickets() {
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [range, setRange] = useState<DateRange>();
   const [layout, setLayout] = useState<'list' | 'board'>('list');
-  const [template, setTemplate] = useState<'none' | 'create_user' | 'license_upgrade'>('none');
+  const [template, setTemplate] = useState<'none' | 'create_user' | 'license_upgrade' | 'bug' | 'feature_request' | 'audit_query' | 'request_report' | 'request_rights'>('none');
   const [showClosedOnly, setShowClosedOnly] = useState(false);
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [comments, setComments] = useState<Record<string, TicketComment[]>>({});
@@ -799,41 +799,119 @@ export default function Tickets() {
             <Select
               value={template}
               onValueChange={(v) => {
-                const val = (v as 'none' | 'create_user' | 'license_upgrade');
+                const val = (v as typeof template);
                 if (val === 'create_user') {
-                  if (!title.trim()) setTitle('Create User');
-                  const tpl = [
-                    'Create User Request',
+                  setTitle('User Account Request');
+                  const lines = [
+                    'Please create a new user account.',
                     '',
-                    '| Field           | Value                  |',
-                    '|-----------------|------------------------|',
-                    '| Email           | user@example.com       |',
-                    '| Full name       | FirstN LastN           |',
-                    '| Department      | Engineering            |',
-                    '| Property Access | Property 1, Property 2 |',
+                    'User details:',
+                    '- Email: user@example.com',
+                    '- Full name: First Last',
+                    '- Department: <Department>',
                     '',
-                    'Additional notes:',
+                    'Access needed:',
+                    '- Role: <Admin/Manager/User>',
+                    '- Properties: <Property 1, Property 2>',
+                    '',
+                    'Notes (optional):',
+                    '-'
+                  ].join('\n');
+                  setDescription(lines);
+                } else if (val === 'license_upgrade') {
+                  setTitle('License Upgrade');
+                  const lines = [
+                    'Requesting an increase to license capacity.',
+                    '',
+                    'Details:',
+                    '- Current usage: <global/property> <usage>/<limit>',
+                    '- Requested increase: <describe target or unlimited>',
+                    '- Reason: <brief reason>',
+                    '',
+                    'Notes (optional):',
+                    '-'
+                  ].join('\n');
+                  setDescription(lines);
+                } else if (val === 'bug') {
+                  setTitle('Bug: <short summary>');
+                  const lines = [
+                    'Steps to reproduce:',
+                    '1.',
+                    '2.',
+                    '3.',
+                    '',
+                    'Expected result:',
+                    '-',
+                    '',
+                    'Actual result:',
+                    '-',
+                    '',
+                    'Environment (browser/device):',
                     '-',
                   ].join('\n');
-                  setDescription(tpl);
-                } else if (val === 'license_upgrade') {
-                  if (!title.trim()) setTitle('License Upgrade Request');
+                  setDescription(lines);
+                } else if (val === 'feature_request') {
+                  setTitle('Feature Request: <short summary>');
                   const lines = [
-                    'License Upgrade Request',
+                    'Summary:',
+                    '-',
                     '',
+                    'Problem to solve:',
+                    '-',
+                    '',
+                    'Proposed solution/idea:',
+                    '-',
+                    '',
+                    'Benefits/impact:',
+                    '-',
+                    '',
+                    'Priority/urgency:',
+                    '- Low/Medium/High/Urgent',
+                  ].join('\n');
+                  setDescription(lines);
+                } else if (val === 'audit_query') {
+                  setTitle('Audit Query: <property/session>');
+                  const lines = [
                     'Context:',
-                    '- Current global usage: <enter if known>',
-                    '- Current property usage: <enter if property-specific>',
-                    '- Requested increase: <describe>',
+                    '- Property/Session: <id or name>',
+                    '- Date/Range: <dates>',
                     '',
-                    'Business Justification:',
-                    '- <Add reason>',
+                    'Question/clarification:',
+                    '-',
                     '',
-                    'Impact if not upgraded:',
-                    '- <Add impact details>',
+                    'Attachments (optional):',
+                    '-',
+                  ].join('\n');
+                  setDescription(lines);
+                } else if (val === 'request_report') {
+                  setTitle('Report Request: <report name>');
+                  const lines = [
+                    'Purpose:',
+                    '-',
                     '',
-                    'Additional Notes:',
-                    '- <Optional>'
+                    'Filters/Scope:',
+                    '- Properties: <list>',
+                    '- Date range: <range>',
+                    '- Other filters: <list>',
+                    '',
+                    'Format & delivery:',
+                    '- Format: CSV/PDF',
+                    '- Frequency: one-time/recurring <if recurring, how often?>',
+                  ].join('\n');
+                  setDescription(lines);
+                } else if (val === 'request_rights') {
+                  setTitle('Access Rights Request');
+                  const lines = [
+                    'User:',
+                    '- Name/Email: <user>',
+                    '',
+                    'Requested access:',
+                    '- Role: <Admin/Manager/User>',
+                    '- Properties: <list>',
+                    '- Duration (if temporary): <e.g., 2 weeks>',
+                    '',
+                    'Business reason:',
+                    '-',
                   ].join('\n');
                   setDescription(lines);
                 }
@@ -847,6 +925,11 @@ export default function Tickets() {
               <SelectContent>
                 <SelectItem value="create_user">Create User</SelectItem>
                 <SelectItem value="license_upgrade">License Upgrade</SelectItem>
+                <SelectItem value="bug">Bug</SelectItem>
+                <SelectItem value="feature_request">Feature Request</SelectItem>
+                <SelectItem value="audit_query">Audit Query</SelectItem>
+                <SelectItem value="request_report">Request Report</SelectItem>
+                <SelectItem value="request_rights">Request Rights</SelectItem>
               </SelectContent>
             </Select>
           </div>
