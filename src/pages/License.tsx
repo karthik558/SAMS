@@ -141,6 +141,8 @@ export default function LicensePage() {
       {/* Password confirmation modal */}
       <Dialog open={authOpen} onOpenChange={(o)=> { setAuthOpen(o); if (!o && !authorized) navigate('/'); }}>
         <DialogContent className='sm:max-w-md rounded-2xl border border-primary/40 bg-card/95 p-0 overflow-hidden'>
+        {/* Accessibility: required DialogTitle (visually hidden) */}
+          <h2 className="sr-only">Admin verification</h2>
           {/* Accent header bar without verbose text */}
           <div className='flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3'>
             <div className='h-8 w-8 rounded-md bg-primary/20 text-primary flex items-center justify-center'>
@@ -228,7 +230,7 @@ export default function LicensePage() {
                   </div>
                   <div className='space-y-2'>
                     <label className='text-[11px] uppercase tracking-wide text-muted-foreground'>Plan & Limit</label>
-                    <div className='grid grid-cols-1 sm:[grid-template-columns:14rem_12rem] md:[grid-template-columns:16rem_12rem] gap-3 items-start'>
+                    <div className='grid grid-cols-1 sm:[grid-template-columns:12rem_minmax(0,1fr)] md:[grid-template-columns:14rem_minmax(0,1fr)] gap-3 items-start'>
                       <Select
                         value={currentPlan ? currentPlan : 'none'}
                         onValueChange={(val)=> {
@@ -254,7 +256,7 @@ export default function LicensePage() {
                           <SelectItem value='business'>Business</SelectItem>
                         </SelectContent>
                       </Select>
-                      <div className='flex flex-col'>
+                      <div className='flex flex-col min-w-0'>
                         <Input
                           value={editingVal ?? (p.licenseLimit>0 ? String(p.licenseLimit) : (p.derived ?? 0).toString())}
                           disabled={currentPlan !== 'business'}
