@@ -2,7 +2,7 @@ import { isDemoMode } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { QrCode, Camera, Image as ImageIcon, RotateCcw, ArrowLeft } from "lucide-react";
 import { BrowserMultiFormatReader, BrowserQRCodeReader } from "@zxing/browser";
@@ -134,37 +134,67 @@ export default function Scan() {
   };
 
   return (
-    <div className="p-4 max-w-xl mx-auto">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> QR Scanner</CardTitle>
-          <CardDescription>Use your device camera to scan a code and open the link.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Top bar with Back */}
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="gap-2" onClick={handleBack}><ArrowLeft className="h-4 w-4" /> Back</Button>
-          </div>
-          <div className="relative aspect-square md:aspect-video bg-black/80 rounded-lg overflow-hidden">
-            <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-            {/* Overlay */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] aspect-square border-2 border-primary/60 rounded-lg" />
+    <div className="mx-auto max-w-3xl p-4 sm:p-6">
+      <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <QrCode className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Scan QR</CardTitle>
+                <CardDescription>Use your camera or a photo to scan and open links or assets.</CardDescription>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              {active ? (
+                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Camera active</Badge>
+              ) : (
+                <Badge variant="outline" className="bg-muted/40">Idle</Badge>
+              )}
             </div>
           </div>
-          <div className="flex gap-2">
-            {!active ? (
-              <Button onClick={start} className="gap-2"><Camera className="h-4 w-4" /> Start Camera</Button>
-            ) : (
-              <Button variant="outline" onClick={stop} className="gap-2"><RotateCcw className="h-4 w-4" /> Stop</Button>
-            )}
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onPickImage(e.target.files?.[0] || undefined); if (e.target) (e.target as HTMLInputElement).value = ""; }} />
-            <Button type="button" variant="outline" className="gap-2" onClick={() => fileRef.current?.click()}>
-              <ImageIcon className="h-4 w-4" /> Scan from Photo
-            </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <Button variant="ghost" size="sm" className="gap-2" onClick={handleBack}><ArrowLeft className="h-4 w-4" /> Back</Button>
+            <div className="flex gap-2">
+              {!active ? (
+                <Button onClick={start} className="gap-2" disabled={loading}><Camera className="h-4 w-4" /> {loading ? 'Starting…' : 'Start Camera'}</Button>
+              ) : (
+                <Button variant="outline" onClick={stop} className="gap-2"><RotateCcw className="h-4 w-4" /> Stop</Button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { onPickImage(e.target.files?.[0] || undefined); if (e.target) (e.target as HTMLInputElement).value = ""; }}
+              />
+              <Button type="button" variant="outline" className="gap-2" onClick={() => fileRef.current?.click()}>
+                <ImageIcon className="h-4 w-4" /> Scan from Photo
+              </Button>
+            </div>
           </div>
+
+          <div className="relative aspect-[3/4] md:aspect-video rounded-2xl border border-primary/20 bg-gradient-to-b from-black/60 to-black/85 overflow-hidden">
+            <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+            {/* Overlay: framing corners */}
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute inset-4">
+                <div className="absolute left-0 top-0 h-10 w-10 border-l-2 border-t-2 border-primary/70 rounded-tl-md" />
+                <div className="absolute right-0 top-0 h-10 w-10 border-r-2 border-t-2 border-primary/70 rounded-tr-md" />
+                <div className="absolute left-0 bottom-0 h-10 w-10 border-l-2 border-b-2 border-primary/70 rounded-bl-md" />
+                <div className="absolute right-0 bottom-0 h-10 w-10 border-r-2 border-b-2 border-primary/70 rounded-br-md" />
+              </div>
+              {/* Subtle center guide */}
+              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-24 w-24 rounded-md border border-primary/30" />
+            </div>
+          </div>
+
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <p className="text-xs text-muted-foreground">Tip: On mobile, allow camera access and ensure good lighting. The back camera is preferred. Use your browser back to exit.</p>
+          <p className="text-xs text-muted-foreground">Tip: On mobile, allow camera access and ensure good lighting. The back camera is preferred. You can also scan from a screenshot or photo.</p>
         </CardContent>
       </Card>
     </div>
