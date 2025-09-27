@@ -84,14 +84,16 @@ export function MyAudits() {
             </CardDescription>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-8 px-2 text-xs"
-          onClick={() => navigate(isDemoMode() ? "/demo/audit" : "/audit")}
-        >
-          View all
-        </Button>
+        {!isDemoMode() && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={() => navigate("/audit")}
+          >
+            View all
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {!items.length && !loading && (

@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Bell, Shield, Save, Building2, Trash2, ToggleLeft, ToggleRight, Plus, Settings as SettingsIcon } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 import { getSystemSettings, updateSystemSettings, getUserSettings, upsertUserSettings } from "@/services/settings";
 import { getUserPreferences, upsertUserPreferences, type UserPreferences } from "@/services/userPreferences";
 import { refreshSoundPreference } from "@/lib/sound";
@@ -69,7 +70,7 @@ export default function Settings() {
     { value: "security", label: "Security", icon: Shield },
     { value: "personalization", label: "Personalization", icon: SettingsIcon },
   ];
-  const tabItems = role === "admin"
+  const tabItems = role === "admin" && !isDemoMode()
     ? [...baseTabs, { value: "departments", label: "Departments", icon: Building2 }]
     : baseTabs;
 
@@ -132,13 +133,13 @@ export default function Settings() {
         }
       } catch {}
 
-      // load departments
+      // load departments (disabled in demo)
       try {
         // Only admins can manage/view Departments tab
         const authRaw = localStorage.getItem("auth_user");
         const au = authRaw ? JSON.parse(authRaw) as { role?: string } : ({} as any);
         const r = (au.role || "").toLowerCase();
-        if (r === 'admin') {
+        if (r === 'admin' && !isDemoMode()) {
           const deps = await listDepartments();
           setDepartments(deps);
         }
@@ -535,7 +536,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {role === 'admin' && (
+        {role === 'admin' && !isDemoMode() && (
           <TabsContent value="departments" className="space-y-6">
             <Card>
               <CardHeader>
@@ -547,6 +548,7 @@ export default function Settings() {
                   <Input placeholder="Name (e.g., IT)" value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} />
                   <Input placeholder="Code (optional)" value={newDeptCode} onChange={(e) => setNewDeptCode(e.target.value)} />
                   <Button onClick={async () => {
+                    if (isDemoMode()) { toast({ title: "Demo mode", description: "Department changes are disabled in demo.", variant: "destructive" }); return; }
                     const name = newDeptName.trim();
                     if (!name) { toast({ title: "Name required", variant: "destructive" }); return; }
                     try {
@@ -570,6 +572,7 @@ export default function Settings() {
                       </div>
                       <div className="flex items-center gap-2 self-end sm:self-auto">
                         <Button variant="outline" size="sm" onClick={async () => {
+                          if (isDemoMode()) { toast({ title: "Demo mode", description: "Department changes are disabled in demo.", variant: "destructive" }); return; }
                           try {
                             const updated = await updateDepartment(d.id, { is_active: !d.is_active });
                             setDepartments((s) => s.map(x => x.id === d.id ? updated : x));
@@ -578,6 +581,7 @@ export default function Settings() {
                           {d.is_active ? <ToggleRight className="h-4 w-4 mr-2" /> : <ToggleLeft className="h-4 w-4 mr-2" />} {d.is_active ? 'Active' : 'Inactive'}
                         </Button>
                         <Button variant="destructive" size="sm" onClick={async () => {
+                          if (isDemoMode()) { toast({ title: "Demo mode", description: "Department changes are disabled in demo.", variant: "destructive" }); return; }
                           if (!confirm(`Delete ${d.name}?`)) return;
                           try { await deleteDepartment(d.id); setDepartments((s) => s.filter(x => x.id !== d.id)); } catch {}
                         }}>

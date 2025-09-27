@@ -219,8 +219,11 @@ export function Header({ onMenuClick }: HeaderProps) {
       { terms: ['settings','config','preferences'], label: 'Settings', path: navItems.find(i=>i.label==='Settings')?.path || '/settings' },
       { terms: ['tickets','ticket','maintenance'], label: 'Tickets', path: navItems.find(i=>i.label==='Tickets')?.path || '/tickets' },
       { terms: ['approvals','approval','requests'], label: 'Approvals', path: navItems.find(i=>i.label==='Approvals')?.path || '/approvals' },
-      { terms: ['audit','audits'], label: 'Audit', path: navItems.find(i=>i.label==='Audit')?.path || '/audit' },
   ];
+  // In demo mode, do not suggest Audit via synonyms
+  if (!isDemoMode()) {
+    synonyms.push({ terms: ['audit','audits'], label: 'Audit', path: navItems.find(i=>i.label==='Audit')?.path || '/audit' });
+  }
   
   
     const synMatches = q

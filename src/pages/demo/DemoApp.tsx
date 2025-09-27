@@ -30,6 +30,9 @@ export default function DemoAppRouter() {
           <Route path="properties" element={<Properties />} />
           <Route path="qr-codes" element={<QRCodes />} />
           <Route path="reports" element={<Reports />} />
+          {/* Explicitly block Audit and License pages in demo */}
+          <Route path="audit" element={<Navigate to="/demo" replace />} />
+          <Route path="license" element={<Navigate to="/demo" replace />} />
           <Route path="approvals" element={<Approvals />} />
           <Route path="tickets" element={<Tickets />} />
           <Route path="newsletter" element={<Newsletter />} />

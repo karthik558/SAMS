@@ -288,6 +288,7 @@ export default function Assets() {
 
   useEffect(() => {
     (async () => {
+      if (isDemoMode()) { setAccessibleProps(new Set()); return; }
       const ids = await getAccessiblePropertyIdsForCurrentUser();
       setAccessibleProps(ids);
     })();
@@ -305,6 +306,7 @@ export default function Assets() {
   useEffect(() => {
     (async () => {
       try {
+        if (isDemoMode()) { setAllowedDepts(null); return; }
         const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
         const user = raw ? JSON.parse(raw) : null;
         if (user?.id) {
@@ -336,12 +338,12 @@ export default function Assets() {
 
   // Load from Supabase when configured
   useEffect(() => {
-    if (!isSupabase) return;
+    if (!isSupabase || isDemoMode()) return;
     (async () => {
       try {
-  const data = await listAssets();
-  setAssets(data as any);
-  setLoadingUI(false);
+        const data = await listAssets();
+        setAssets(data as any);
+        setLoadingUI(false);
       } catch (e: any) {
         console.error(e);
         toast.error("Failed to load assets from Supabase; using local data");
@@ -354,7 +356,7 @@ export default function Assets() {
   useEffect(() => {
     (async () => {
       try {
-        if (isSupabase) {
+        if (isSupabase && !isDemoMode()) {
           const [props, types, depts] = await Promise.all([
             listProperties().catch(() => [] as any[]),
             listItemTypes().catch(() => [] as any[]),
@@ -473,8 +475,8 @@ export default function Assets() {
   const filteredAssets = assets.filter(asset => {
     // hide assets tied to disabled properties if we know properties
     if (activePropertyIds.size && asset.property && !activePropertyIds.has(asset.property)) return false;
-    // enforce user access if any set exists
-    if (accessibleProps.size && !(accessibleProps.has(String(asset.property_id || asset.property)))) return false;
+  // enforce user access if any set exists (skip in demo to keep sample data visible)
+  if (!isDemoMode() && accessibleProps.size && !(accessibleProps.has(String(asset.property_id || asset.property)))) return false;
     const matchesSearch = asset.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          asset.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || (asset.type || "").toLowerCase() === filterType.toLowerCase();
@@ -628,7 +630,7 @@ export default function Assets() {
     ];
   }, [statsAssets]);
 
-  if (loadingUI && isSupabase) {
+  if (loadingUI && isSupabase && !isDemoMode()) {
     return <PageSkeleton />;
   }
 

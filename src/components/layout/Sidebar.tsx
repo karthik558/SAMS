@@ -273,6 +273,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               working.splice(insertAt, 0, { name: 'Newsletter', href: '/newsletter', icon: FileBarChart });
             }
             const nav = working.filter((item) => {
+              // In demo mode, hide Audit and License entirely
+              if (isDemoMode() && (item.name === "Audit" || item.name === "License")) return false;
               // Always visible
               if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
               if (item.name === 'Newsletter') return showNewsletter; // user preference controlled

@@ -53,7 +53,9 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     { label: 'License', href: '/license', icon: ShieldCheck, roles: ['admin'] },
   ];
 
-  const items = navItemsBase.filter(i => !i.roles || i.roles.includes(role));
+  const items = navItemsBase
+    .filter(i => !i.roles || i.roles.includes(role))
+    .filter(i => !(isDemoMode() && (i.label === 'Audit' || i.label === 'License')));
   if (showNewsletter) {
     const idx = items.findIndex(i => i.label === 'Reports');
     const newsletterItem = { label: 'Newsletter', href: '/newsletter', icon: FileBarChart };

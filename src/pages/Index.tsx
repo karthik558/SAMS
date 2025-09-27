@@ -829,7 +829,7 @@ const Index = () => {
             </CardContent>
           </Card>
           <RecentActivity />
-          <MyAudits />
+          {!isDemoMode() && <MyAudits />}
         </div>
       </section>
 

@@ -52,7 +52,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
 
   const pages = useMemo<PageItem[]>(() => {
     const rootPath = prefix ? prefix : '/';
-    return (
+    const list: PageItem[] = (
       [
         { label: 'Dashboard', path: rootPath, roles: ['admin', 'manager', 'user'], icon: LayoutDashboard },
         { label: 'Assets', path: `${prefix}/assets`, roles: ['admin', 'manager', 'user'], icon: Package },
@@ -64,7 +64,10 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
         { label: 'Settings', path: `${prefix}/settings`, roles: ['admin'], icon: Settings },
         { label: 'Scan', path: `${prefix}/scan`, roles: ['admin', 'manager', 'user'], icon: ScanLine },
       ]
-    ).filter((item) => item.roles.includes(roleLower || 'user'))
+    ).filter((item) => item.roles.includes(roleLower || 'user'));
+    // In demo mode, ensure Audit and License are not present (they aren't explicitly listed here,
+    // but if added later, this guard will filter them out by label/path)
+    return list.filter((i) => !isDemoMode() || (!/\baudit\b/i.test(i.label) && !/\/license$/.test(i.path)));
   }, [prefix, roleLower]);
 
   const actions = useMemo<ActionItem[]>(() => {
