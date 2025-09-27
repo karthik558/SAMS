@@ -1226,19 +1226,7 @@ export default function Users() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 overflow-x-auto no-scrollbar">
-              {['all', 'admin', 'manager', 'user'].map((r) => (
-                <Button
-                  key={r}
-                  variant={roleFilter === r ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setRoleFilter(r)}
-                  className="whitespace-nowrap"
-                >
-                  {r === 'all' ? 'All' : toTitle(r)}
-                </Button>
-              ))}
-            </div>
+            {/* Removed duplicate role filter buttons; using only the dropdown to select role */}
 
             <div className="flex w-full flex-col gap-2 sm:flex-row sm:w-auto sm:items-center sm:justify-end">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
