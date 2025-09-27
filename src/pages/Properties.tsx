@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import StatusChip from "@/components/ui/status-chip";
 import MetricCard from "@/components/ui/metric-card";
-import { Building2, Plus, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
+import { Building2, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { isDemoMode } from "@/lib/demo";
@@ -222,11 +222,7 @@ export default function Properties() {
     } catch {}
   }, []);
 
-  const handleAddProperty = () => {
-    setEditingId(null);
-    setForm({ id: "", name: "", address: "", type: "Office", status: "Active", manager: "" });
-    setIsDialogOpen(true);
-  };
+  // Add Property action removed; properties are added via License page
 
   const handleEditProperty = (propertyId: string) => {
     if ((role || '').toLowerCase() !== 'admin') {
@@ -483,12 +479,6 @@ export default function Properties() {
             icon={Building2}
             title="Property Management"
             description="Manage properties and related assets"
-            actions={
-              <Button onClick={handleAddProperty} className="gap-2" disabled={!canEditPage}>
-                <Plus className="h-4 w-4" />
-                Add New Property
-              </Button>
-            }
           />
         </div>
 

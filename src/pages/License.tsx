@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listProperties, type Property } from '@/services/properties';
+import { listProperties, createProperty as sbCreateProperty, type Property } from '@/services/properties';
 import { listAssets } from '@/services/assets';
 import { getPropertyLicense, listPropertyLicenses, upsertPropertyLicense, type LicensePlan } from '@/services/license';
 import { hasSupabaseEnv } from '@/lib/supabaseClient';
@@ -9,10 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/layout/PageHeader';
 import Breadcrumbs from '@/components/layout/Breadcrumbs';
-import { Building2, ShieldCheck, Save, RefreshCw, Lock } from 'lucide-react';
+import { Building2, ShieldCheck, Save, RefreshCw, Lock, Plus } from 'lucide-react';
 import { loginWithPassword } from '@/services/auth';
 
 interface PropertyRow extends Property { assetCount: number; licenseLimit: number; plan?: LicensePlan | null; derived?: number | null; }
@@ -24,6 +25,12 @@ export default function LicensePage() {
   const [editing, setEditing] = useState<Record<string, string>>({});
   const [editingPlans, setEditingPlans] = useState<Record<string, LicensePlan | 'none'>>({});
   const [globalMessage] = useState('Global capacity is unlimited. Manage per-property plans below.');
+  // Add Property dialog state
+  const [addOpen, setAddOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newForm, setNewForm] = useState<{ id: string; name: string; address: string; type: string; status: string; manager: string }>({ id: '', name: '', address: '', type: 'Office', status: 'Active', manager: '' });
+  const [newPlan, setNewPlan] = useState<LicensePlan | 'none'>('none');
+  const [newLimit, setNewLimit] = useState<string>('0');
   // Password confirmation gate
   const [authOpen, setAuthOpen] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -82,6 +89,16 @@ export default function LicensePage() {
     }
   };
 
+  function derivedFromPlan(plan?: LicensePlan | null): number | null {
+    switch (plan) {
+      case 'free': return 100;
+      case 'standard': return 500;
+      case 'pro': return 2500;
+      case 'business': return null;
+      default: return null;
+    }
+  }
+
   // Determine current user and role; only admins allowed and require password confirmation
   useEffect(() => {
     try {
@@ -130,13 +147,93 @@ export default function LicensePage() {
     try { await upsertPropertyLicense(propId, toStore, plan); toast.success('Saved'); setEditing(prev => { const cp = { ...prev }; delete cp[propId]; return cp; }); await reload(); } catch (e:any) { toast.error(e.message || 'Failed'); }
   };
 
+  async function handleCreateProperty() {
+    try {
+      if (!newForm.name.trim()) { toast.error('Enter a property name'); return; }
+      setAdding(true);
+      // Generate ID if missing
+      const id = newForm.id.trim() || `PROP-${Math.floor(Math.random()*900+100)}`;
+      let created: Property | null = null;
+      if (hasSupabaseEnv) {
+        // Persist to Supabase
+        created = await sbCreateProperty({
+          id,
+          name: newForm.name.trim(),
+          address: newForm.address.trim() || null,
+          type: newForm.type,
+          status: newForm.status,
+          manager: newForm.manager.trim() || null,
+        } as Property);
+      } else {
+        // Local optimistic add only
+        created = {
+          id,
+          name: newForm.name.trim(),
+          address: newForm.address.trim() || null,
+          type: newForm.type,
+          status: newForm.status,
+          manager: newForm.manager.trim() || null,
+        } as Property;
+      }
+
+      // Compute license store values
+      const plan = newPlan === 'none' ? null : newPlan;
+      let n = Number(newLimit);
+      if (!Number.isFinite(n) || n < 0) n = 0;
+      const toStore = plan && plan !== 'business' ? 0 : n;
+      try {
+        await upsertPropertyLicense(id, toStore, plan);
+      } catch (e:any) {
+        if (hasSupabaseEnv) throw e; // only ignore when backend not configured
+      }
+
+      // Update UI: if backend present, reload; else optimistic append
+      if (hasSupabaseEnv) {
+        await reload();
+      } else if (created) {
+        const rawLimit = toStore;
+        const derived = rawLimit === 0 ? derivedFromPlan(plan as any) : null;
+        const effective = rawLimit > 0 ? rawLimit : (derived ?? 0);
+        const row: PropertyRow = { ...created, assetCount: 0, licenseLimit: effective, plan: plan as any, derived } as any;
+        setProperties(prev => [...prev, row]);
+        setEditingPlans(prev => ({ ...prev, [id]: newPlan }));
+      }
+
+      setAddOpen(false);
+      setNewForm({ id: '', name: '', address: '', type: 'Office', status: 'Active', manager: '' });
+      setNewPlan('none');
+      setNewLimit('0');
+      toast.success('Property created');
+    } catch (e:any) {
+      console.error(e);
+      toast.error(e?.message || 'Failed to create property');
+    } finally {
+      setAdding(false);
+    }
+  }
+
   // Removed global plan saving; global is unlimited now.
 
   return (
     <div className='space-y-6'>
       <Breadcrumbs items={[{ label: 'Dashboard', to: '/' }, { label: 'License' }]} />
       <div className='rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8'>
-        <PageHeader icon={ShieldCheck} title='License Management' description='Configure global and per-property asset allowances' actions={<Button size='sm' variant='outline' onClick={reload} className='gap-2'><RefreshCw className='h-4 w-4'/>Refresh</Button>} />
+        <PageHeader
+          icon={ShieldCheck}
+          title='License Management'
+          description='Configure global and per-property asset allowances'
+          actions={
+            <div className='flex gap-2'>
+              <Button size='sm' className='gap-2' onClick={() => setAddOpen(true)}>
+                <Plus className='h-4 w-4' />
+                Add Property
+              </Button>
+              <Button size='sm' variant='outline' onClick={reload} className='gap-2'>
+                <RefreshCw className='h-4 w-4'/>Refresh
+              </Button>
+            </div>
+          }
+        />
       </div>
       {/* Password confirmation modal */}
       <Dialog open={authOpen} onOpenChange={(o)=> { setAuthOpen(o); if (!o && !authorized) navigate('/'); }}>
@@ -301,6 +398,106 @@ export default function LicensePage() {
           <CardContent className='p-6 text-sm text-muted-foreground'>Backend not configured: license settings stored locally only.</CardContent>
         </Card>
       )}
+
+      {/* Add Property Dialog */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className='sm:max-w-xl rounded-2xl border border-border/60 bg-card/95 p-0 overflow-hidden'>
+          <DialogHeader className='border-b border-border/60 px-5 py-4'>
+            <DialogTitle className='text-base'>Add Property & Assign License</DialogTitle>
+            <DialogDescription>Create a new property and set its license plan or custom limit.</DialogDescription>
+          </DialogHeader>
+          <div className='p-5'>
+            <div className='grid gap-4'>
+              <div className='grid gap-2 sm:grid-cols-2'>
+                <div className='space-y-2'>
+                  <Label htmlFor='prop-id'>Property ID (optional)</Label>
+                  <Input id='prop-id' value={newForm.id} onChange={(e)=> setNewForm(s=>({ ...s, id: e.target.value }))} placeholder='e.g., PROP-123' />
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='prop-type'>Type</Label>
+                  <Select value={newForm.type} onValueChange={(v)=> setNewForm(s=>({ ...s, type: v }))}>
+                    <SelectTrigger id='prop-type'><SelectValue placeholder='Type' /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='Office'>Office</SelectItem>
+                      <SelectItem value='Storage'>Storage</SelectItem>
+                      <SelectItem value='Manufacturing'>Manufacturing</SelectItem>
+                      <SelectItem value='Site Office'>Site Office</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='prop-name'>Name</Label>
+                <Input id='prop-name' value={newForm.name} onChange={(e)=> setNewForm(s=>({ ...s, name: e.target.value }))} placeholder='Property name' />
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='prop-address'>Address</Label>
+                <Input id='prop-address' value={newForm.address} onChange={(e)=> setNewForm(s=>({ ...s, address: e.target.value }))} placeholder='Address (optional)' />
+              </div>
+              <div className='grid gap-2 sm:grid-cols-2'>
+                <div className='space-y-2'>
+                  <Label htmlFor='prop-status'>Status</Label>
+                  <Select value={newForm.status} onValueChange={(v)=> setNewForm(s=>({ ...s, status: v }))}>
+                    <SelectTrigger id='prop-status'><SelectValue placeholder='Status' /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value='Active'>Active</SelectItem>
+                      <SelectItem value='Inactive'>Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className='space-y-2'>
+                  <Label htmlFor='prop-manager'>Manager</Label>
+                  <Input id='prop-manager' value={newForm.manager} onChange={(e)=> setNewForm(s=>({ ...s, manager: e.target.value }))} placeholder='Manager (optional)' />
+                </div>
+              </div>
+
+              <div className='mt-1 rounded-lg border border-border/60 p-3'>
+                <div className='mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>License</div>
+                <div className='grid gap-3 sm:[grid-template-columns:12rem_minmax(0,1fr)] md:[grid-template-columns:14rem_minmax(0,1fr)] items-start'>
+                  <Select value={newPlan} onValueChange={(v)=> {
+                    const pv = v as LicensePlan | 'none';
+                    setNewPlan(pv);
+                    if (pv !== 'business' && pv !== 'none') setNewLimit('0');
+                  }}>
+                    <SelectTrigger className='h-10 text-sm'><SelectValue placeholder='None' /></SelectTrigger>
+                    <SelectContent className='text-sm'>
+                      <SelectItem value='none'>None</SelectItem>
+                      <SelectItem value='free'>Free</SelectItem>
+                      <SelectItem value='standard'>Standard</SelectItem>
+                      <SelectItem value='pro'>Pro</SelectItem>
+                      <SelectItem value='business'>Business</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className='min-w-0'>
+                    <Input
+                      value={newLimit}
+                      onChange={(e)=> setNewLimit(e.target.value.replace(/[^0-9]/g, ''))}
+                      disabled={newPlan !== 'business' && newPlan !== 'none'}
+                      className='h-10 text-sm tabular-nums'
+                      placeholder={newPlan === 'business' || newPlan === 'none' ? 'Enter custom or 0=unlimited' : (()=>{
+                        const d = derivedFromPlan(newPlan as any);
+                        return d != null ? `Derived ${d}` : '0 = unlimited';
+                      })()}
+                    />
+                    <div className='mt-1 h-4 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground'>
+                      {newPlan && newPlan !== 'business' && newPlan !== 'none' ? (
+                        <span>Derived from {newPlan} plan: {derivedFromPlan(newPlan as any) ?? 0} assets</span>
+                      ) : (
+                        <span className='invisible'>·</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <p className='mt-2 text-[11px] text-muted-foreground'>Tip: Plans derive a default limit. Choose Business or None to set a custom number. Use 0 for unlimited.</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className='px-5 pb-5'>
+            <Button variant='outline' onClick={()=> setAddOpen(false)} disabled={adding}>Cancel</Button>
+            <Button onClick={handleCreateProperty} disabled={adding}>{adding ? 'Creating…' : 'Create & Assign'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
