@@ -5,7 +5,7 @@ import { playNotificationSound } from "@/lib/sound";
 export type AuditSession = {
   id: string;
   started_at: string;
-  frequency_months: 3 | 6;
+  frequency_months: 1 | 3 | 6;
   initiated_by?: string | null;
   is_active: boolean;
   property_id?: string | null;
@@ -43,7 +43,7 @@ export async function getActiveSession(): Promise<AuditSession | null> {
   return (data as any) || null;
 }
 
-export async function startAuditSession(freq: 3 | 6, initiated_by?: string | null, property_id?: string | null): Promise<AuditSession> {
+export async function startAuditSession(freq: 1 | 3 | 6, initiated_by?: string | null, property_id?: string | null): Promise<AuditSession> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   // Try v2 with property scoping; fallback to v1 if not available
   try {
@@ -409,4 +409,18 @@ export async function getSessionById(id: string): Promise<AuditSession | null> {
   const { data, error } = await supabase.from("audit_sessions").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data as any) || null;
+}
+
+// Friendly display name: {PropertyCode-DD-MM-YYYY-Frequency}
+export function formatAuditSessionName(s: Partial<AuditSession> | null | undefined): string {
+  if (!s) return "";
+  const prop = String((s as any).property_id || '').trim() || 'UNK';
+  const dt = (() => {
+    try { return s.started_at ? new Date(s.started_at) : new Date(); } catch { return new Date(); }
+  })();
+  const dd = String(dt.getDate()).padStart(2, '0');
+  const mm = String(dt.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(dt.getFullYear());
+  const freq = (s as any).frequency_months ?? '?';
+  return `${prop}-${dd}-${mm}-${yyyy}-${freq}`;
 }

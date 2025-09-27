@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClipboardCheck } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { listSessions, getSessionById, isAuditActive, getProgress } from "@/services/audit";
+import { listSessions, getSessionById, isAuditActive, getProgress, formatAuditSessionName } from "@/services/audit";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 type Row = { id: string; property?: string | null; startedAt?: string | null; status: string; submitted?: string };
@@ -101,11 +101,8 @@ export function MyAudits() {
           {items.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/30 p-3">
               <div className="min-w-0">
-                <div className="text-sm font-medium text-foreground truncate">Session {r.id}</div>
-                <div className="text-xs text-muted-foreground truncate">
-                  Property: {r.property || '—'}
-                  {r.startedAt ? ` • Started ${new Date(r.startedAt).toLocaleString()}` : ''}
-                </div>
+                <div className="text-sm font-medium text-foreground truncate">{formatAuditSessionName({ id: r.id, property_id: r.property as any, started_at: r.startedAt || '', frequency_months: undefined as any, is_active: r.status==='Active' })}</div>
+                <div className="text-xs text-muted-foreground truncate">{r.startedAt ? `Started ${new Date(r.startedAt).toLocaleString()}` : ''}</div>
               </div>
               <Badge variant={r.status === 'Active' ? 'default' : 'secondary'}>{r.status}</Badge>
             </div>

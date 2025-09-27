@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
-import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
+import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, formatAuditSessionName, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { listAssets, getAssetById, type Asset } from "@/services/assets";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -36,7 +36,7 @@ export default function Audit() {
   const [role, setRole] = useState<string>("");
   const [canAuditAdmin, setCanAuditAdmin] = useState<boolean>(false);
   const [auditOn, setAuditOn] = useState<boolean>(false);
-  const [auditFreq, setAuditFreq] = useState<3 | 6>(3);
+  const [auditFreq, setAuditFreq] = useState<1 | 3 | 6>(1);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [progress, setProgress] = useState<{ total: number; submitted: number } | null>(null);
   const [summary, setSummary] = useState<Record<string, { verified: number; missing: number; damaged: number }>>({});
@@ -229,10 +229,12 @@ export default function Audit() {
         }).join('');
         parts.push(`<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`);
       }
-      const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Audit Session ${sessionId}</title>
+  const sessMeta = await getSessionById(sessionId);
+  const friendly = formatAuditSessionName(sessMeta || { id: sessionId } as any);
+  const html = `<!doctype html><html><head><meta charset="utf-8"/><title>Audit ${friendly || sessionId}</title>
       <style>@page{size:A4;margin:14mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px} .brand img{height:28px;width:28px;object-fit:contain} .meta{color:#666;font-size:12px;margin-bottom:8px} .summary{display:flex;gap:8px;margin:8px 0 12px} .chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(0,0,0,0.08)} .chip.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0} .chip.warn{background:#fffbeb;color:#92400e;border-color:#fde68a} .chip.err{background:#fef2f2;color:#991b1b;border-color:#fecaca} .section{margin:16px 0 8px;font-size:15px} table{border-collapse:collapse;width:100%;font-size:12px} th,td{padding:8px;border-bottom:1px solid #eee;text-align:left} .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:11px}</style>
       </head><body>
-      <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>Audit Review — Session ${sessionId}</h1></div>
+  <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>Audit Review — ${friendly || sessionId}</h1></div>
       <div class="meta">Generated at ${new Date().toLocaleString()}</div>
       ${parts.join('')}
       </body></html>`;
@@ -651,10 +653,16 @@ export default function Audit() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
               <div className="space-y-1">
                 <Label>Frequency</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button variant={auditFreq === 3 ? 'default' : 'outline'} size="sm" onClick={() => setAuditFreq(3)}>Every 3 months</Button>
-                  <Button variant={auditFreq === 6 ? 'default' : 'outline'} size="sm" onClick={() => setAuditFreq(6)}>Every 6 months</Button>
-                </div>
+                <Select value={String(auditFreq)} onValueChange={(v) => setAuditFreq(Number(v) as 1 | 3 | 6)} disabled={auditOn}>
+                  <SelectTrigger className="w-[220px]">
+                    <SelectValue placeholder="Select frequency" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Every 1 month</SelectItem>
+                    <SelectItem value="3">Every 3 months</SelectItem>
+                    <SelectItem value="6">Every 6 months</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
     <div className="flex items-center gap-2 w-full md:w-auto">
                 {!auditOn ? (
@@ -1060,7 +1068,7 @@ export default function Audit() {
                           <SelectTrigger className="min-w-[220px]"><SelectValue placeholder="Select session" /></SelectTrigger>
                           <SelectContent>
                             {sessions.map(s => (
-                              <SelectItem key={s.id} value={s.id}>{s.id} • {new Date(s.started_at).toLocaleString()} {s.is_active ? '(Active)' : ''}</SelectItem>
+                              <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

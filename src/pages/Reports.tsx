@@ -33,7 +33,7 @@ import { addNotification } from "@/services/notifications";
 import { listAssets, type Asset } from "@/services/assets";
 import { listApprovals, type ApprovalRequest } from "@/services/approvals";
 import { listDepartments, type Department } from "@/services/departments";
-import { listSessions, listReviewsForSession, getSessionById, type AuditSession } from "@/services/audit";
+import { listSessions, listReviewsForSession, getSessionById, formatAuditSessionName, type AuditSession } from "@/services/audit";
 import { listTickets, type Ticket } from "@/services/tickets";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import {
@@ -391,7 +391,15 @@ export default function Reports() {
           const rows = await buildAuditRows(selectedAuditSessionId, reportData.department, (selectedProperty !== 'all' ? selectedProperty : undefined));
           if (rows.length) {
             const name = `${reportTypes.find(r => r.id === selectedReportType)?.name} - Session ${selectedAuditSessionId}${reportData.department ? ` - ${reportData.department}` : ''} - ${new Date().toISOString().slice(0,10)}`;
-            if (reportFormat === 'pdf') downloadAuditPdfFromRows(name, rows);
+            if (reportFormat === 'pdf') {
+              try {
+                const sessMeta = await getSessionById(selectedAuditSessionId);
+                const friendly = formatAuditSessionName(sessMeta || { id: selectedAuditSessionId } as any);
+                downloadAuditPdfFromRows(friendly, rows);
+              } catch {
+                downloadAuditPdfFromRows(selectedAuditSessionId, rows);
+              }
+            }
             else downloadCsvFromRows(name, rows);
           } else { toast.info('No reviews found for that selection'); }
         } else {
@@ -725,10 +733,11 @@ export default function Reports() {
     const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
     const normalizedBase = (base || '').replace(/\/$/, '');
     const logoSrc = `${normalizedBase}/favicon.png`;
-    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${name}</title>
+  const titleName = `SAMS-AuditReport-${name}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${titleName}</title>
     <style>@page{size:A4;margin:16mm} body{font-family:Inter,system-ui,-apple-system,sans-serif;color:#111} h1{font-size:18px;margin:0 0 8px} table{border-collapse:collapse;width:100%;font-size:12px} .meta{color:#666;font-size:12px;margin-bottom:8px} .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px} .brand img{height:28px;width:28px;object-fit:contain} .summary{display:flex;gap:8px;margin:8px 0 12px} .chip{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid rgba(0,0,0,0.08)} .chip.ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0} .chip.warn{background:#fffbeb;color:#92400e;border-color:#fde68a} .chip.err{background:#fef2f2;color:#991b1b;border-color:#fecaca}</style>
     </head><body>
-    <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>${name}</h1></div>
+  <div class="brand"><img src='${logoSrc}' onerror="this.src='/favicon.ico'" alt='logo' /><h1>SAMS Audit Report — ${name}</h1></div>
     <div class="meta">Generated at ${new Date().toLocaleString()}</div>
     ${summary}
     <table><thead>${thead}</thead><tbody>${tbody}</tbody></table>
@@ -815,7 +824,13 @@ export default function Reports() {
         if (!sid) { toast.error('No session ID found on this report'); return; }
   const rows = await buildAuditRows(sid, dep, ((report as any).filter_property || undefined));
         if (!rows.length) { toast.info('No data to download for this report'); return; }
-        downloadAuditPdfFromRows(String(report.name || 'report'), rows);
+        try {
+          const sessMeta = await getSessionById(sid);
+          const friendly = formatAuditSessionName(sessMeta || { id: sid } as any);
+          downloadAuditPdfFromRows(friendly, rows);
+        } catch {
+          downloadAuditPdfFromRows(String(report.name || 'report'), rows);
+        }
         return;
       }
       const assets: Asset[] = (assetsCache && assetsCache.length)
@@ -1091,7 +1106,7 @@ export default function Reports() {
                   </SelectTrigger>
                   <SelectContent>
                     {auditSessions.map(s => (
-                      <SelectItem key={s.id} value={s.id}>{s.id} • {new Date(s.started_at).toLocaleString()} {s.is_active ? '(Active)' : ''}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -1178,7 +1193,7 @@ export default function Reports() {
                     </SelectTrigger>
                     <SelectContent>
                       {auditSessions.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{s.id} • {new Date(s.started_at).toLocaleString()} {s.is_active ? '(Active)' : ''}</SelectItem>
+                        <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
