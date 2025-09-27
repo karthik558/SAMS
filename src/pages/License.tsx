@@ -228,7 +228,7 @@ export default function LicensePage() {
                   </div>
                   <div className='space-y-2'>
                     <label className='text-[11px] uppercase tracking-wide text-muted-foreground'>Plan & Limit</label>
-                    <div className='flex gap-2 items-center'>
+                    <div className='grid grid-cols-1 sm:[grid-template-columns:14rem_12rem] md:[grid-template-columns:16rem_12rem] gap-3 items-start'>
                       <Select
                         value={currentPlan ? currentPlan : 'none'}
                         onValueChange={(val)=> {
@@ -243,7 +243,7 @@ export default function LicensePage() {
                           }
                         }}
                       >
-                        <SelectTrigger className='h-9 w-32 text-xs'>
+                        <SelectTrigger className='h-10 w-full text-xs'>
                           <SelectValue placeholder='None' />
                         </SelectTrigger>
                         <SelectContent className='text-xs'>
@@ -254,17 +254,21 @@ export default function LicensePage() {
                           <SelectItem value='business'>Business</SelectItem>
                         </SelectContent>
                       </Select>
-                      <div className='flex flex-col flex-1'>
+                      <div className='flex flex-col'>
                         <Input
                           value={editingVal ?? (p.licenseLimit>0 ? String(p.licenseLimit) : (p.derived ?? 0).toString())}
                           disabled={currentPlan !== 'business'}
                           onChange={(e)=> setEditing(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          className='h-9 text-xs'
+                          className='h-10 text-xs tabular-nums'
                           placeholder={currentPlan === 'business' ? 'Enter custom or 0=unlimited' : (p.derived != null ? `Derived ${p.derived}` : '0 = unlimited')}
                         />
-                        {currentPlan && currentPlan !== 'business' && p.derived != null && (
-                          <div className='mt-1 text-[10px] text-muted-foreground'>Derived from {currentPlan} plan: {p.derived} assets</div>
-                        )}
+                        <div className='mt-1 h-4 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground'>
+                          {currentPlan && currentPlan !== 'business' && p.derived != null ? (
+                            <span>Derived from {currentPlan} plan: {p.derived} assets</span>
+                          ) : (
+                            <span className='invisible'>·</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     <Button size='sm' onClick={()=> handleSaveProperty(p.id)} className='gap-2 h-8'><Save className='h-4 w-4'/>Save</Button>
