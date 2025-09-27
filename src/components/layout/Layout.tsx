@@ -17,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [topNavMode, setTopNavMode] = useState<boolean>(false);
+  const [isTablet, setIsTablet] = useState<boolean>(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const redirectedRef = useRef(false);
@@ -43,6 +44,17 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('storage', handler);
     return () => { cancelled = true; window.removeEventListener('storage', handler); };
   }, []);
+
+  // Detect tablet viewport (>=768px and <1024px) so TopNav applies only on desktop
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)');
+    const apply = () => setIsTablet(mql.matches);
+    try { mql.addEventListener('change', apply); } catch { mql.addListener(apply); }
+    apply();
+    return () => { try { mql.removeEventListener('change', apply); } catch { mql.removeListener(apply); } };
+  }, []);
+
+  const effectiveTopNavMode = topNavMode && !isMobile && !isTablet;
 
   // Hard refresh default landing redirect
   useEffect(() => {
@@ -95,7 +107,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="flex h-dvh bg-background">
       {/* Desktop Primary Navigation (Sidebar or TopNav) */}
-      {!topNavMode && (
+      {!effectiveTopNavMode && (
         <div className="hidden md:block">
           <Sidebar />
         </div>
@@ -111,7 +123,7 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {topNavMode ? (
+        {effectiveTopNavMode ? (
           <>
             <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
             <Header onMenuClick={() => setSidebarOpen(true)} />
