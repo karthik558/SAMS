@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -50,7 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
-import { listDepartments, createDepartment, type Department } from "@/services/departments";
+import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { createPasswordHash, adminSetUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
@@ -182,6 +183,9 @@ export default function Users() {
   const [editInchargePropertyIds, setEditInchargePropertyIds] = useState<string[]>([]);
   const [editApproverPropertyIds, setEditApproverPropertyIds] = useState<string[]>([]);
   const [deptOptions, setDeptOptions] = useState<Department[]>([]);
+  // Full list for management UI (active + inactive)
+  const [departmentsAll, setDepartmentsAll] = useState<Department[]>([]);
+  const [deptLoading, setDeptLoading] = useState<boolean>(false);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newDeptModalOpen, setNewDeptModalOpen] = useState(false);
   const [newDeptName, setNewDeptName] = useState("");
@@ -236,15 +240,22 @@ export default function Users() {
     };
   }, []);
 
-  // Load departments for selectors (requires Supabase)
+  // Load departments for selectors and management (fallbacks handled in service)
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setDeptLoading(true);
       try {
-        if (!hasSupabaseEnv) { if (!cancelled) setDeptOptions([]); return; }
         const deps = await listDepartments();
-        if (!cancelled) setDeptOptions(deps.filter(d => d.is_active));
-      } catch {}
+        if (!cancelled) {
+          setDepartmentsAll(deps);
+          setDeptOptions(deps.filter(d => d.is_active));
+        }
+      } catch {
+        if (!cancelled) { setDepartmentsAll([]); setDeptOptions([]); }
+      } finally {
+        if (!cancelled) setDeptLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -1421,6 +1432,159 @@ export default function Users() {
         </CardContent>
       </Card>
 
+      {/* Departments management (moved from Settings) - Admin only and hidden in Demo */}
+      {authRole === 'admin' && !isDemoMode() && (
+        <Card className="border border-border/60 shadow-sm backdrop-blur">
+          <CardHeader className="space-y-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle>Departments</CardTitle>
+                <CardDescription>Manage departments used for routing approvals and user assignments</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Add Department
+                    </Button>
+                  </DialogTrigger>
+                  <DepartmentEditorDialog
+                    onSave={async (name, code) => {
+                      if (!name.trim()) return;
+                      try {
+                        const created = await createDepartment({ name: name.trim(), code: code?.trim() || null });
+                        setDepartmentsAll((prev) => [created, ...prev]);
+                        // refresh active options
+                        setDeptOptions((prev) => [created, ...prev]);
+                        toast({ title: 'Department added', description: `${created.name} created.` });
+                      } catch (e: any) {
+                        toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
+                      }
+                    }}
+                  />
+                </Dialog>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[200px]">Name</TableHead>
+                    <TableHead className="hidden sm:table-cell">Code</TableHead>
+                    <TableHead className="hidden sm:table-cell">Status</TableHead>
+                    <TableHead className="hidden md:table-cell">Created</TableHead>
+                    <TableHead className="w-[70px]" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {deptLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <div className="py-6 text-center text-sm text-muted-foreground">Loading departments…</div>
+                      </TableCell>
+                    </TableRow>
+                  ) : departmentsAll.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5}>
+                        <div className="py-6 text-center text-sm text-muted-foreground">No departments found</div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    departmentsAll.map((d) => (
+                      <TableRow key={d.id}>
+                        <TableCell className="font-medium">{d.name}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{d.code || '—'}</TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <Badge variant={d.is_active ? 'default' : 'secondary'}>{d.is_active ? 'Active' : 'Inactive'}</Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
+                          {(() => { try { return d.created_at ? format(new Date(d.created_at), 'PP p') : '—'; } catch { return '—'; } })()}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                    <Edit className="h-4 w-4 mr-2" /> Edit
+                                  </DropdownMenuItem>
+                                </DialogTrigger>
+                                <DepartmentEditorDialog
+                                  initialName={d.name}
+                                  initialCode={d.code || ''}
+                                  onSave={async (name, code) => {
+                                    if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Editing departments is disabled in demo.', variant: 'destructive' }); return; }
+                                    try {
+                                      const updated = await updateDepartment(d.id, { name: name.trim(), code: code?.trim() || null });
+                                      setDepartmentsAll((prev) => prev.map(x => x.id === d.id ? updated : x));
+                                      setDeptOptions((prev) => {
+                                        const next = prev.map(x => x.id === d.id ? updated : x).filter(x => x.is_active);
+                                        // ensure active-only list
+                                        return next;
+                                      });
+                                      toast({ title: 'Department updated', description: `${updated.name} saved.` });
+                                    } catch (e: any) {
+                                      toast({ title: 'Update failed', description: e?.message || 'Unable to update department.', variant: 'destructive' });
+                                    }
+                                  }}
+                                />
+                              </Dialog>
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Editing departments is disabled in demo.', variant: 'destructive' }); return; }
+                                  try {
+                                    const updated = await updateDepartment(d.id, { is_active: !d.is_active });
+                                    setDepartmentsAll((prev) => prev.map(x => x.id === d.id ? updated : x));
+                                    setDeptOptions((prev) => {
+                                      const base = prev.filter(x => x.id !== d.id);
+                                      return updated.is_active ? [updated, ...base] : base;
+                                    });
+                                  } catch (e: any) {
+                                    toast({ title: 'Action failed', description: e?.message || 'Unable to toggle status.', variant: 'destructive' });
+                                  }
+                                }}
+                              >
+                                {d.is_active ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={async () => {
+                                  if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Deleting departments is disabled in demo.', variant: 'destructive' }); return; }
+                                  const ok = window.confirm(`Delete department "${d.name}"? This cannot be undone.`);
+                                  if (!ok) return;
+                                  try {
+                                    await deleteDepartment(d.id);
+                                    setDepartmentsAll((prev) => prev.filter(x => x.id !== d.id));
+                                    setDeptOptions((prev) => prev.filter(x => x.id !== d.id));
+                                    toast({ title: 'Department deleted', description: `${d.name} removed.` });
+                                  } catch (e: any) {
+                                    toast({ title: 'Delete failed', description: e?.message || 'Unable to delete department.', variant: 'destructive' });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Reset Password Dialog */}
       <Dialog open={isResetPwOpen} onOpenChange={setIsResetPwOpen}>
         <DialogContent className="max-w-md">
@@ -1883,5 +2047,35 @@ export default function Users() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// Inline Department Editor dialog component
+function DepartmentEditorDialog({ initialName = "", initialCode = "", onSave }: { initialName?: string; initialCode?: string; onSave: (name: string, code?: string) => Promise<void> | void; }) {
+  const [name, setName] = useState<string>(initialName);
+  const [code, setCode] = useState<string>(initialCode);
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>{initialName ? 'Edit Department' : 'Add Department'}</DialogTitle>
+        <DialogDescription>{initialName ? 'Update department details' : 'Create a new department'}</DialogDescription>
+      </DialogHeader>
+      <div className="space-y-2">
+        <Label htmlFor="dept_name">Name</Label>
+        <Input id="dept_name" placeholder="e.g., IT" value={name} onChange={(e) => setName(e.target.value)} />
+        <Label htmlFor="dept_code">Code</Label>
+        <Input id="dept_code" placeholder="e.g., IT" value={code} onChange={(e) => setCode(e.target.value)} />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Cancel</Button>
+        </DialogClose>
+        <DialogClose asChild>
+          <Button disabled={!name.trim()} onClick={async () => { await onSave(name, code); }}>
+            {initialName ? 'Save' : 'Add'}
+          </Button>
+        </DialogClose>
+      </DialogFooter>
+    </DialogContent>
   );
 }
