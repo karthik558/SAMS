@@ -406,12 +406,7 @@ export function DashboardCharts() {
                     : [value.toLocaleString(), 'Purchases'];
                 }}
               />
-              <Legend
-                verticalAlign="top"
-                height={32}
-                iconType="plainline"
-                formatter={(value: string) => (value === 'runningTotal' ? 'Cumulative purchases' : 'Monthly purchases')}
-              />
+              {/* Legend removed to avoid runtime errors and per request to hide 'Monthly purchases' label */}
               <Area
                 yAxisId="left"
                 type="monotone"
