@@ -65,7 +65,7 @@ export function RecentActivity() {
   }, [todays, showAll]);
 
   return (
-    <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
+    <Card className="rounded-xl border border-border/60 bg-card shadow-sm min-w-0">
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div className="flex items-start gap-2">
           <span className="rounded-full bg-primary/10 p-2 text-primary">

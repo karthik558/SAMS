@@ -232,9 +232,9 @@ export function DashboardCharts() {
   }, [chartExpiryData]);
 
   return (
-    <div className="grid gap-4 sm:gap-5 md:gap-6 md:grid-cols-2">
+    <div className="grid gap-4 sm:gap-5 md:gap-6 md:grid-cols-2 min-w-0">
       {/* Asset Distribution Pie Chart */}
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
         <CardHeader className="flex flex-col gap-3 pb-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Asset Distribution by Type</CardTitle>
@@ -267,8 +267,8 @@ export function DashboardCharts() {
               <span className="ml-1 text-foreground">{chartAssetsByType.length}</span>
             </Badge>
           </div>
-          <div className="relative">
-            <ResponsiveContainer width="100%" height={240}>
+          <div className="relative h-[240px] sm:h-[260px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={hasData ? chartAssetsByType : []}
@@ -331,7 +331,7 @@ export function DashboardCharts() {
       </Card>
 
       {/* Purchase Trend Line Chart */}
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+  <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
         <CardHeader className="flex flex-col gap-3 pb-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Purchase Trends</CardTitle>
@@ -356,7 +356,8 @@ export function DashboardCharts() {
               <span className="ml-1 text-foreground">{purchaseSummary.current.toLocaleString()}</span>
             </Badge>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
+          <div className="h-[240px] sm:h-[260px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={hasData ? chartPurchaseTrendExtended : []} margin={{ top: 16, right: 20, left: 12, bottom: 12 }}>
               <defs>
                 <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
@@ -425,12 +426,13 @@ export function DashboardCharts() {
                 activeDot={{ r: 5 }}
               />
             </AreaChart>
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
       {/* Property Assets Bar Chart (horizontal, top-N with gradient) */}
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+  <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
         <CardHeader className="flex flex-col gap-3 pb-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Assets by Property</CardTitle>
@@ -457,7 +459,8 @@ export function DashboardCharts() {
               </Badge>
             </div>
           )}
-          <ResponsiveContainer width="100%" height={260}>
+          <div className="h-[260px] sm:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={hasData ? chartPropertyAssets.map(x => ({ property: x.name, assets: x.assets })) : []}
               layout="vertical"
@@ -500,12 +503,13 @@ export function DashboardCharts() {
                 <LabelList dataKey="assets" position="right" className="text-[10px] fill-foreground" />
               </Bar>
             </BarChart>
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          </div>
       </CardContent>
       </Card>
 
       {/* Expiry Tracking (stacked area with gradients) */}
-      <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
+  <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
         <CardHeader className="flex flex-col gap-3 pb-0">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Asset Expiry Tracking</CardTitle>
@@ -530,8 +534,9 @@ export function DashboardCharts() {
               <span className="ml-1 text-foreground">{expirySummary.expired.toLocaleString()}</span>
             </Badge>
           </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={hasData ? chartExpiryData : []} margin={{ top: 10, right: 12, left: 12, bottom: 10 }}>
+          <div className="h-[240px] sm:h-[260px] md:h-[300px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={hasData ? chartExpiryData : []} margin={{ top: 10, right: 12, left: 12, bottom: 10 }}>
               <defs>
                 <linearGradient id="expiringGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.45} />
@@ -570,7 +575,8 @@ export function DashboardCharts() {
               <Area type="monotone" dataKey="expiring" stackId="1" stroke="hsl(38, 92%, 50%)" fill="url(#expiringGrad)" />
               <Area type="monotone" dataKey="expired" stackId="1" stroke="hsl(0, 72%, 51%)" fill="url(#expiredGrad)" />
             </AreaChart>
-          </ResponsiveContainer>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
     </div>
