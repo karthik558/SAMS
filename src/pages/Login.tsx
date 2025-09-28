@@ -116,12 +116,6 @@ export default function Login() {
             </div>
             <span className="text-xl font-bold text-white drop-shadow">SAMS</span>
           </div>
-          <div className="space-y-3 text-white drop-shadow">
-            <h1 className="text-3xl font-semibold">Smart Asset Management System</h1>
-            <p className="max-w-md text-sm text-white/90">
-              Keep track of properties, assets, audits, and tickets with a modern, fast, and secure workflow.
-            </p>
-          </div>
         </div>
       </div>
 
