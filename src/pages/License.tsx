@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogD
 import { Label } from '@/components/ui/label';
 import PageHeader from '@/components/layout/PageHeader';
 import Breadcrumbs from '@/components/layout/Breadcrumbs';
-import { Building2, ShieldCheck, Save, RefreshCw, Lock, Plus } from 'lucide-react';
+import { Building2, ShieldCheck, Save, RefreshCw, Lock, Plus, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
 import { loginWithPassword } from '@/services/auth';
 
 interface PropertyRow extends Property { assetCount: number; licenseLimit: number; plan?: LicensePlan | null; derived?: number | null; }
@@ -37,6 +37,8 @@ export default function LicensePage() {
   const [verifying, setVerifying] = useState(false);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const SESSION_KEY = 'license_access_verified_at';
 
   const reload = async () => {
@@ -237,25 +239,28 @@ export default function LicensePage() {
       </div>
       {/* Password confirmation modal */}
       <Dialog open={authOpen} onOpenChange={(o)=> { setAuthOpen(o); if (!o && !authorized) navigate('/'); }}>
-        <DialogContent className='sm:max-w-md rounded-2xl border border-primary/40 bg-card/95 p-0 overflow-hidden'>
-        {/* Accessibility: required DialogTitle (visually hidden) */}
-          <h2 className="sr-only">Admin verification</h2>
-          {/* Accent header bar without verbose text */}
-          <div className='flex items-center gap-2 border-b border-primary/30 bg-primary/10 px-4 py-3'>
-            <div className='h-8 w-8 rounded-md bg-primary/20 text-primary flex items-center justify-center'>
-              <Lock className='h-4 w-4' />
-            </div>
-            <span className='sr-only'>Admin verification</span>
-          </div>
+        <DialogContent className='w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl border border-border/60 bg-card p-0 overflow-hidden'>
+          <DialogHeader className='px-5 pt-5 pb-0'>
+            <DialogTitle className='text-base flex items-center gap-2'>
+              <span className='inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary'>
+                <Lock className='h-4 w-4' />
+              </span>
+              Admin verification
+            </DialogTitle>
+            <DialogDescription>Enter your password to access license settings.</DialogDescription>
+          </DialogHeader>
           <form
             onSubmit={async (e) => {
               e.preventDefault();
               if (!adminEmail) { toast.error('Not signed in'); return; }
               try {
                 setVerifying(true);
+                setAuthError(null);
                 const u = await loginWithPassword(adminEmail, password);
                 if (!u || (u.role || '').toLowerCase() !== 'admin') {
-                  toast.error('Invalid password');
+                  const msg = 'Invalid password. Please try again.';
+                  setAuthError(msg);
+                  toast.error(msg);
                   setVerifying(false);
                   return;
                 }
@@ -263,26 +268,55 @@ export default function LicensePage() {
                 setAuthOpen(false);
                 try { sessionStorage.setItem(SESSION_KEY, String(Date.now())); } catch {}
               } catch (e:any) {
-                toast.error(e?.message || 'Verification failed');
+                const msg = e?.message || 'Verification failed';
+                setAuthError(String(msg));
+                toast.error(msg);
               } finally {
                 setVerifying(false);
                 setPassword('');
               }
             }}
           >
-            <div className='grid gap-3 p-4'>
-              <div className='text-xs text-muted-foreground'>Signed in as: <span className='font-medium text-foreground'>{adminEmail || '—'}</span></div>
-              <Input
-                type='password'
-                value={password}
-                onChange={(e)=> setPassword(e.target.value)}
-                placeholder='Enter your password'
-                autoFocus
-              />
+            <div className='grid gap-3 p-5'>
+              <div className='text-xs text-muted-foreground'>
+                Signed in as: <span className='font-medium text-foreground'>{adminEmail || '—'}</span>
+              </div>
+              <div className='space-y-2'>
+                <Label htmlFor='admin-password' className='text-xs'>Password</Label>
+                <div className='relative'>
+                  <Input
+                    id='admin-password'
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e)=> setPassword(e.target.value)}
+                    placeholder='Enter your password'
+                    autoComplete='current-password'
+                    autoFocus
+                    disabled={verifying}
+                  />
+                  <button
+                    type='button'
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={()=> setShowPassword(v=>!v)}
+                    className='absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground'
+                  >
+                    {showPassword ? <EyeOff className='h-4 w-4'/> : <Eye className='h-4 w-4'/>}
+                  </button>
+                </div>
+                {authError && (
+                  <div className='mt-1 inline-flex items-center gap-2 text-[13px] text-destructive'>
+                    <AlertCircle className='h-4 w-4' />
+                    <span className='leading-none'>{authError}</span>
+                  </div>
+                )}
+              </div>
             </div>
-            <DialogFooter className='gap-2 px-4 pb-4'>
-              <Button type='button' variant='outline' onClick={()=> navigate('/')}>Cancel</Button>
-              <Button type='submit' disabled={!password || verifying}>{verifying ? 'Verifying…' : 'Verify'}</Button>
+            <DialogFooter className='px-5 pb-5 gap-2 flex-col-reverse sm:flex-row sm:justify-end'>
+              <Button type='button' variant='outline' onClick={()=> navigate('/')} className='w-full sm:w-auto' disabled={verifying}>Cancel</Button>
+              <Button type='submit' className='w-full sm:w-auto gap-2' disabled={!password || verifying}>
+                {verifying && <Loader2 className='h-4 w-4 animate-spin'/>}
+                {verifying ? 'Verifying…' : 'Verify'}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
