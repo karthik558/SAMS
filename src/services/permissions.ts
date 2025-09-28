@@ -170,8 +170,7 @@ export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e:
     audit: { v: false, e: false },
   };
   if (role === 'admin') {
-    Object.keys(base).forEach((k) => {
-      // @ts-expect-error: iterating string keys; index type aligns with PageKey at runtime
+    (Object.keys(base) as Array<keyof typeof base>).forEach((k) => {
       base[k] = { v: true, e: true };
     });
   } else if (role === 'manager') {

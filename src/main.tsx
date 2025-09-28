@@ -20,7 +20,7 @@ try {
 			mql.addEventListener('change', handler);
 		} catch {
 			// Safari fallback: older WebKit only supports addListener
-			// @ts-expect-error: addListener exists on older MediaQueryList implementations
+			// Optional chaining ensures no type error even if method is absent in TS lib
 			mql.addListener?.(handler);
 		}
 	}

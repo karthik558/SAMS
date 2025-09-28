@@ -458,7 +458,8 @@ export default function Users() {
       // Fallback: persist to localStorage
       const hash = password ? await createPasswordHash(password) ?? undefined : undefined;
       const passwordChangedAt = hash ? new Date().toISOString() : payload.password_changed_at;
-      const local: AppUser = {
+  type LocalAppUser = AppUser & { password_hash?: string };
+  const local: LocalAppUser = {
         id: crypto?.randomUUID?.() || String(Date.now()),
         name: payload.name,
         email: payload.email,
@@ -470,9 +471,9 @@ export default function Users() {
         avatar_url: payload.avatar_url,
         must_change_password: payload.must_change_password,
         password_changed_at: passwordChangedAt,
-  // @ts-expect-error: local-only field for demo mode; not part of AppUser API in backend
-  password_hash: hash,
-      } as AppUser as any;
+    // local-only field for demo mode; not part of AppUser API in backend
+    password_hash: hash,
+  } as LocalAppUser;
       const next = [local, ...users];
       setUsers(next);
       writeLocalUsers(next);
