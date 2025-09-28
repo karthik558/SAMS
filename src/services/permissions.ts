@@ -171,7 +171,7 @@ export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e:
   };
   if (role === 'admin') {
     Object.keys(base).forEach((k) => {
-      // @ts-ignore
+      // @ts-expect-error: iterating string keys; index type aligns with PageKey at runtime
       base[k] = { v: true, e: true };
     });
   } else if (role === 'manager') {

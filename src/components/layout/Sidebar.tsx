@@ -77,7 +77,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         if (pref.sidebar_collapsed && !isMobile) setCollapsed(true);
       } catch {}
     })();
-  }, []);
+  }, [isMobile]);
 
   // Detect tablet viewport and collapse by default when entering tablet range
   useEffect(() => {

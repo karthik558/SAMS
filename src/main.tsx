@@ -19,8 +19,8 @@ try {
 		try {
 			mql.addEventListener('change', handler);
 		} catch {
-			// Safari
-			// @ts-ignore
+			// Safari fallback: older WebKit only supports addListener
+			// @ts-expect-error: addListener exists on older MediaQueryList implementations
 			mql.addListener?.(handler);
 		}
 	}

@@ -470,8 +470,8 @@ export default function Users() {
         avatar_url: payload.avatar_url,
         must_change_password: payload.must_change_password,
         password_changed_at: passwordChangedAt,
-        // @ts-ignore
-        password_hash: hash,
+  // @ts-expect-error: local-only field for demo mode; not part of AppUser API in backend
+  password_hash: hash,
       } as AppUser as any;
       const next = [local, ...users];
       setUsers(next);

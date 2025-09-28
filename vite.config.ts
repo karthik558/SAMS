@@ -8,12 +8,22 @@ export default defineConfig(({ mode }) => ({
     host: "::",
   port: 8000,
   },
-  plugins: [
-    react()
-  ].filter(Boolean),
+  plugins: [react()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          charts: ["recharts"],
+          supabase: ["@supabase/supabase-js"],
+          lucide: ["lucide-react"],
+        },
+      },
     },
   },
 }));

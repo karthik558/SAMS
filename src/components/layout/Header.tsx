@@ -252,7 +252,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   add(globalResults.tickets, 'Tickets', (t:any) => ({ label: `${t.id} — ${t.title || ''}`.trim(), sub: `${t.status || ''}${t.assignee?` · ${t.assignee}`:''}${t.created_by?` · ${t.created_by}`:''}`, path: `${prefix}/tickets` }));
   add(globalResults.approvals, 'Approvals', (a:any) => ({ label: `${a.id} — ${a.asset_id || ''}`.trim(), sub: `${a.status || ''}${a.department?` · ${a.department}`:''}`, path: `${prefix}/approvals` }));
     return out;
-  }, [search, navItems, globalResults]);
+  }, [search, navItems, globalResults, prefix]);
 
   const goTo = (path: string) => {
     setSearch("");

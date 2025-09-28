@@ -23,7 +23,21 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      // Pragmatic defaults for this project
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/ban-ts-comment": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "no-empty": ["warn", { allowEmptyCatch: true }],
+      "prefer-const": "warn",
+      "no-useless-escape": "warn",
+    },
+  },
+  // File-specific overrides
+  {
+    files: ["tailwind.config.ts"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   }
 );

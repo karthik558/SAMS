@@ -454,7 +454,7 @@ function toSnake(input: Partial<Ticket>) {
   };
   if (Object.prototype.hasOwnProperty.call(input, 'assignee')) {
     // Allow setting to null explicitly when caller intends to unassign
-    // @ts-ignore
+    // @ts-expect-error: obj index type does not declare 'assignee' but backend accepts it
     obj.assignee = input.assignee ?? null;
   }
   // Remove undefined fields so DB defaults apply

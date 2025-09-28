@@ -12,26 +12,18 @@ export type FinalApprover = {
 export async function getFinalApprover(propertyId: string): Promise<FinalApprover | null> {
   if (!propertyId) return null;
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  try {
-    const { data, error } = await supabase.from('final_approvers').select('*').eq('property_id', propertyId).maybeSingle();
-    if (error) throw error;
-    if (data) return { property_id: data.property_id, user_id: data.user_id, user_name: data.user_name };
-    return null;
-  } catch (e) {
-    throw e;
-  }
+  const { data, error } = await supabase.from('final_approvers').select('*').eq('property_id', propertyId).maybeSingle();
+  if (error) throw error;
+  if (data) return { property_id: data.property_id, user_id: data.user_id, user_name: data.user_name };
+  return null;
 }
 
 export async function listFinalApproverPropsForUser(userId: string): Promise<string[]> {
   if (!userId) return [];
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  try {
-    const { data, error } = await supabase.from('final_approvers').select('property_id').eq('user_id', userId);
-    if (error) throw error;
-    return (data || []).map((r: any) => String(r.property_id));
-  } catch (e) {
-    throw e;
-  }
+  const { data, error } = await supabase.from('final_approvers').select('property_id').eq('user_id', userId);
+  if (error) throw error;
+  return (data || []).map((r: any) => String(r.property_id));
 }
 
 // List by email (preferred for Admin assigning users on Users page)
