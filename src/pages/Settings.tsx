@@ -208,7 +208,7 @@ export default function Settings() {
     // Same-tab broadcast
     try { window.dispatchEvent(new CustomEvent('user-preferences-changed', { detail: patch })); } catch {}
   } catch {}
-  toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
+  // Success toast removed per request
     } catch (e: any) {
       toast({ title: "Failed to save", description: e.message || String(e), variant: "destructive" });
     }
