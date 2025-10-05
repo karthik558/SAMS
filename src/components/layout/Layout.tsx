@@ -31,18 +31,68 @@ export function Layout({ children }: LayoutProps) {
         if (!uid) return;
         const prefs = await getUserPreferences(uid);
         if (!cancelled) setTopNavMode(!!prefs.top_nav_mode);
+        // Apply some immediate UI classes on initial load
+        try {
+          const root = document.documentElement;
+          if (prefs.sticky_header) root.classList.add('sticky-header'); else root.classList.remove('sticky-header');
+          root.classList.remove('compact-ui');
+          root.classList.remove('ultra-ui');
+          if (prefs.density === 'compact') root.classList.add('compact-ui');
+          else if (prefs.density === 'ultra') { root.classList.add('compact-ui'); root.classList.add('ultra-ui'); }
+          if (prefs.auto_theme) {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            const apply = () => { if (mq.matches) root.classList.add('dark'); else root.classList.remove('dark'); };
+            apply();
+          }
+        } catch {}
       } catch {}
     })();
-    const handler = (e: StorageEvent) => {
+    const storageHandler = (e: StorageEvent) => {
       if (e.key === 'user_preferences_patch') { // lightweight broadcast channel via localStorage event
         try {
           const data = JSON.parse(e.newValue || '{}');
           if (typeof data.top_nav_mode === 'boolean') setTopNavMode(data.top_nav_mode);
+          // Apply classes dynamically
+          const root = document.documentElement;
+          if (typeof data.sticky_header === 'boolean') {
+            if (data.sticky_header) root.classList.add('sticky-header'); else root.classList.remove('sticky-header');
+          }
+          if (typeof data.density === 'string') {
+            root.classList.remove('compact-ui');
+            root.classList.remove('ultra-ui');
+            if (data.density === 'compact') root.classList.add('compact-ui');
+            else if (data.density === 'ultra') { root.classList.add('compact-ui'); root.classList.add('ultra-ui'); }
+          }
+          if (typeof data.auto_theme === 'boolean' && data.auto_theme) {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            if (mq.matches) root.classList.add('dark'); else root.classList.remove('dark');
+          }
         } catch {}
       }
     };
-    window.addEventListener('storage', handler);
-    return () => { cancelled = true; window.removeEventListener('storage', handler); };
+    const sameTabHandler = (ev: Event) => {
+      try {
+        const detail = (ev as CustomEvent).detail || {};
+        if (typeof detail.top_nav_mode === 'boolean') setTopNavMode(detail.top_nav_mode);
+        const root = document.documentElement;
+        if (typeof detail.sticky_header === 'boolean') {
+          if (detail.sticky_header) root.classList.add('sticky-header'); else root.classList.remove('sticky-header');
+        }
+        if (typeof detail.density === 'string') {
+          root.classList.remove('compact-ui');
+          root.classList.remove('ultra-ui');
+          if (detail.density === 'compact') root.classList.add('compact-ui');
+          else if (detail.density === 'ultra') { root.classList.add('compact-ui'); root.classList.add('ultra-ui'); }
+        }
+        if (typeof detail.auto_theme === 'boolean' && detail.auto_theme) {
+          const mq = window.matchMedia('(prefers-color-scheme: dark)');
+          if (mq.matches) root.classList.add('dark'); else root.classList.remove('dark');
+        }
+      } catch {}
+    };
+    window.addEventListener('storage', storageHandler);
+    window.addEventListener('user-preferences-changed', sameTabHandler as any);
+    return () => { cancelled = true; window.removeEventListener('storage', storageHandler); window.removeEventListener('user-preferences-changed', sameTabHandler as any); };
   }, []);
 
   // Detect tablet viewport (>=768px and <1024px) so TopNav applies only on desktop

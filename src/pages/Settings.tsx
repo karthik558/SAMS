@@ -195,10 +195,18 @@ export default function Settings() {
         } catch {}
       } catch {}
   try { refreshSoundPreference(); } catch {}
-  // Broadcast preference delta for live layout adjustments (e.g., top_nav_mode)
+  // Broadcast preference delta for live layout adjustments (same-tab + cross-tab)
   try {
-    const patch = { top_nav_mode: topNavMode };
+    const patch = {
+      top_nav_mode: topNavMode,
+      sticky_header: stickyHeader,
+      auto_theme: autoTheme,
+      density,
+    };
+    // Cross-tab broadcast
     localStorage.setItem('user_preferences_patch', JSON.stringify(patch));
+    // Same-tab broadcast
+    try { window.dispatchEvent(new CustomEvent('user-preferences-changed', { detail: patch })); } catch {}
   } catch {}
   toast({ title: "Settings saved", description: "Your settings have been updated successfully." });
     } catch (e: any) {
