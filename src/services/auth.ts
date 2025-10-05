@@ -160,7 +160,7 @@ async function upgradeLocalHash(userId: string, password: string): Promise<void>
   writeLocalUsers(users);
 }
 
-async function verifyWithSupabaseAuth(email: string, password: string): Promise<boolean> {
+async function verifyWithSupabaseAuth(email: string, password: string, keepSession = false): Promise<boolean> {
   if (!hasSupabaseEnv) return false;
   try {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -169,9 +169,36 @@ async function verifyWithSupabaseAuth(email: string, password: string): Promise<
   } catch {
     return false;
   } finally {
-    try {
-      await supabase.auth.signOut();
-    } catch {}
+    if (!keepSession) {
+      try { await supabase.auth.signOut(); } catch {}
+    }
+  }
+}
+
+async function ensureSupabaseSession(email: string, password: string): Promise<void> {
+  if (!hasSupabaseEnv) return;
+  const target = (email || '').toLowerCase();
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const currentEmail = (userData?.user?.email || '').toLowerCase();
+    if (userData?.user && currentEmail === target) {
+      // Already the correct user
+      return;
+    }
+    if (userData?.user && currentEmail !== target) {
+      // Logged in as someone else – sign out first
+      try { await supabase.auth.signOut(); } catch {}
+    }
+  } catch {}
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      // If we cannot sign in as target, ensure we don't keep an old session
+      try { await supabase.auth.signOut(); } catch {}
+    }
+  } catch {
+    // non-fatal: app will still work with local-only persistence for some features
+    try { await supabase.auth.signOut(); } catch {}
   }
 }
 
@@ -183,21 +210,26 @@ export async function loginWithPassword(email: string, password: string): Promis
     const row = await fetchRemoteUserByEmail(normalized);
     if (!row) return null;
     if (!row.password_hash) {
-      const valid = await verifyWithSupabaseAuth(normalized, password);
+      const valid = await verifyWithSupabaseAuth(normalized, password, true);
       if (!valid) return null;
       await upgradeRemoteHash(row.id, password);
+      // Keep Supabase session for RLS-based tables
+      try { await ensureSupabaseSession(normalized, password); } catch {}
       return sanitizeUser(row);
     }
     const outcome = await hashesMatch(password, row.password_hash);
     if (outcome === "nomatch") {
-      const valid = await verifyWithSupabaseAuth(normalized, password);
+      const valid = await verifyWithSupabaseAuth(normalized, password, true);
       if (!valid) return null;
       await upgradeRemoteHash(row.id, password);
+      try { await ensureSupabaseSession(normalized, password); } catch {}
       return sanitizeUser(row);
     }
     if (outcome === "legacy") {
       await upgradeRemoteHash(row.id, password);
     }
+    // Establish Supabase session to enable RLS-aware features
+    try { await ensureSupabaseSession(normalized, password); } catch {}
     return sanitizeUser(row);
   }
 
@@ -274,6 +306,9 @@ export async function logout(): Promise<void> {
     localStorage.removeItem("current_user_id");
     localStorage.removeItem("auth_user");
   } catch {}
+  if (hasSupabaseEnv) {
+    try { await supabase.auth.signOut(); } catch {}
+  }
 }
 
 export async function updateLastLogin(email: string): Promise<void> {

@@ -3,6 +3,7 @@ import { isDemoMode } from "@/lib/demo";
 
 export type UserPreferences = {
   user_id: string;
+  user_email?: string | null;
   show_newsletter: boolean;
   compact_mode: boolean;
   enable_beta_features: boolean;
@@ -33,6 +34,7 @@ function saveLocal(p: UserPreferences) {
 function defaults(userId: string): UserPreferences {
   return {
     user_id: userId,
+    user_email: null,
     show_newsletter: false,
     compact_mode: false,
     enable_beta_features: false,
@@ -51,18 +53,29 @@ function defaults(userId: string): UserPreferences {
 export async function getUserPreferences(userId: string): Promise<UserPreferences> {
   if (hasSupabaseEnv && !isDemoMode()) {
     try {
-      let effectiveId = userId;
-      if (!effectiveId) {
-        const { data: authData } = await supabase.auth.getUser();
-        effectiveId = authData?.user?.id || '';
-      }
+      // Require an active Supabase session for RLS-protected table
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) throw new Error('NO_SESSION');
+      // Avoid cross-user contamination: ensure session email matches app user email (if present)
+      let appEmail: string | null = null;
+      try {
+        const raw = localStorage.getItem('auth_user');
+        if (raw) appEmail = (JSON.parse(raw).email || '').toLowerCase();
+      } catch {}
+      const { data: checkUser } = await supabase.auth.getUser();
+      const sessEmail = (checkUser?.user?.email || '').toLowerCase();
+      if (appEmail && sessEmail && appEmail !== sessEmail) throw new Error('SESSION_MISMATCH');
+      // Always use the Supabase Auth UID to satisfy FK and RLS (ignore passed-in userId)
+      const { data: authData } = await supabase.auth.getUser();
+      const effectiveId = authData?.user?.id || '';
+      const effectiveEmail = authData?.user?.email || null;
       if (!effectiveId) throw new Error('NO_USER_ID');
       const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
       if (error) throw error;
       if (data) {
         return applyPostLoadDefaults(data as UserPreferences);
       }
-      const def = defaults(effectiveId);
+      const def = { ...defaults(effectiveId), user_email: effectiveEmail };
       const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
       if (e2) throw e2;
       return applyPostLoadDefaults(created as UserPreferences);
@@ -79,13 +92,23 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
 export async function upsertUserPreferences(userId: string, patch: Partial<UserPreferences>): Promise<UserPreferences> {
   if (hasSupabaseEnv && !isDemoMode()) {
     try {
-      let effectiveId = userId;
-      if (!effectiveId) {
-        const { data: authData } = await supabase.auth.getUser();
-        effectiveId = authData?.user?.id || '';
-      }
+      // Require an active Supabase session for RLS-protected table
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) throw new Error('NO_SESSION');
+      // Avoid cross-user contamination: ensure session email matches app user email (if present)
+      let appEmail: string | null = null;
+      try {
+        const raw = localStorage.getItem('auth_user');
+        if (raw) appEmail = (JSON.parse(raw).email || '').toLowerCase();
+      } catch {}
+      const { data: checkUser } = await supabase.auth.getUser();
+      const sessEmail = (checkUser?.user?.email || '').toLowerCase();
+      if (appEmail && sessEmail && appEmail !== sessEmail) throw new Error('SESSION_MISMATCH');
+      const { data: authData2 } = await supabase.auth.getUser();
+      const effectiveId = authData2?.user?.id || '';
+      const email = authData2?.user?.email || null;
       if (!effectiveId) throw new Error('NO_USER_ID');
-      const row = { user_id: effectiveId, ...patch } as any;
+      const row = { user_id: effectiveId, user_email: email, ...patch } as any;
       const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'user_id' }).select().single();
       if (error) throw error;
       return applyPostLoadDefaults(data as UserPreferences);
