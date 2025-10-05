@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon, LogOut } from "lucide-react";
+import { Bell, Search, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon, LogOut, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
@@ -273,7 +273,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
-  const iconBase = isMobile ? "h-9 w-9 rounded-full bg-muted/70 p-0 shadow-sm" : "h-8 w-8 p-0";
+  const iconBase = isMobile
+    ? (isAdminRole ? "relative h-11 w-11 rounded-full bg-muted/70 p-0 shadow-sm" : "h-9 w-9 rounded-full bg-muted/70 p-0 shadow-sm")
+    : (isAdminRole ? "relative h-10 w-10 p-0" : "h-8 w-8 p-0");
 
   const notificationsDropdown = (
     <DropdownMenu
@@ -385,16 +387,37 @@ export function Header({ onMenuClick }: HeaderProps) {
     </DropdownMenu>
   );
 
+  const triggerAvatar = (
+    <Avatar className="h-full w-full">
+      <AvatarImage src="/placeholder-avatar.jpg" />
+      <AvatarFallback className="bg-primary text-primary-foreground">
+        {userInitials}
+      </AvatarFallback>
+    </Avatar>
+  );
+
+  const decoratedTriggerAvatar = isAdminRole ? (
+    <span className="relative flex h-full w-full items-center justify-center">
+      <span
+        className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-1 shadow-[0_0_0_1px_rgba(0,0,0,0.08)] transition-shadow dark:shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
+      >
+        <span className="flex h-full w-full items-center justify-center rounded-full bg-background p-[2px]">
+          {triggerAvatar}
+        </span>
+      </span>
+      <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-background">
+        <ShieldCheck className="h-2.5 w-2.5" />
+      </span>
+    </span>
+  ) : (
+    triggerAvatar
+  );
+
   const userMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={cn("rounded-full p-0", iconBase)}>
-          <Avatar className="h-full w-full">
-            <AvatarImage src="/placeholder-avatar.jpg" />
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {userInitials}
-            </AvatarFallback>
-          </Avatar>
+          {decoratedTriggerAvatar}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
