@@ -1,211 +1,183 @@
 <img src="https://raw.githubusercontent.com/FoORK-Lab/pass-gen-dependencies/refs/heads/main/sams_banner.jpg" alt="SAMS"/>
 <div align="center">
-	<h1>SAMS (Smart Asset Management System)</h1>
-	<p>Centralized asset lifecycle, tracking, and auditing for modern operations</p>
-	<p>
-		<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
-			<img src="https://img.shields.io/badge/Live%20Demo-Open-2ea44f?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
-		</a>
-		&nbsp;
-		<a href="#overview">
-			<img src="https://img.shields.io/badge/Open%20Source-100%25-2962FF?style=for-the-badge&logo=github&logoColor=white" alt="100% Open Source" />
-		</a>
-	</p>
+  <h1>SAMS &mdash; Smart Asset Management System</h1>
+  <p>Centralized asset lifecycle management, QR-enabled tracking, and collaborative operations for modern teams.</p>
+  <p>
+    <a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+      <img src="https://img.shields.io/badge/Live%20Demo-Open-2ea44f?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
+    </a>
+    &nbsp;
+    <a href="#overview">
+      <img src="https://img.shields.io/badge/Open%20Source-100%25-2962FF?style=for-the-badge&logo=github&logoColor=white" alt="Open Source" />
+    </a>
+  </p>
 </div>
 
 ---
 
 ## Overview
 
-SAMS streamlines the full lifecycle of physical assets across properties and departments. It helps teams register, track, audit, and label assets with efficient QR-based workflows, clear ownership, and strong accountability. This project is 100% open source.
+SAMS streamlines how enterprises catalogue, monitor, audit, and label fixed assets across locations. Assets, properties, users, tickets, and audit workflows live in a cohesive UI backed by modern tooling (React, TypeScript, Supabase).
+
+### Why SAMS
+
+- Replace spreadsheets with a single source of truth for asset history and ownership.
+- Enable facilities, finance, and audit teams to collaborate with guardrails.
+- Deliver QR-ready labels and mobile friendly workflows for field operations.
 
 ## Table of Contents
 
-- [Key Capabilities](#key-capabilities)
-- [Modules](#modules)
-- [Tickets](#tickets)
-- [Announcements-newsletter](#announcements-newsletter)
-- [Notifications--deep-links](#notifications--deep-links)
-- [Benefits](#benefits)
-- [Who It’s For](#who-its-for)
-- [Security and Access](#security-and-access)
-- [Printing and Labels](#printing-and-labels)
-- [Reliability and Offline](#reliability-and-offline)
-- [Supabase Setup — Newsletter](#supabase-setup--newsletter)
+- [Product Highlights](#product-highlights)
+- [Platform Modules](#platform-modules)
+- [Technology Stack](#technology-stack)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Configuration](#environment-configuration)
+- [Everyday Development](#everyday-development)
+- [Quality & Observability](#quality--observability)
+- [Pending Initiatives](#pending-initiatives)
+- [Deployment Notes](#deployment-notes)
 - [Live Demo](#live-demo)
-- [Request a Demo](#request-a-demo)
-- [Browser and Device Support](#browser-and-device-support)
-- [Versioning and Releases](#versioning-and-releases)
-- [FAQ](#faq)
-- [Troubleshooting](#troubleshooting)
-- [License](#license)
-- [Code of Conduct](#code-of-conduct)
+- [Support](#support)
+- [Browser & Device Support](#browser--device-support)
+- [License & Conduct](#license--conduct)
 
-## Key Capabilities
+## Product Highlights
 
-- Asset registry and lifecycle
-	- Create and manage assets with rich attributes (type, location, status, dates, purchasing details)
-	- Quantity normalization into unit-level records for precise tracking and labeling
-	- Natural Asset ID sorting to keep related unit IDs adjacent
+### Asset Lifecycle & Registry
+- Rich asset metadata (status, ownership, procurement, lifecycle dates).
+- Quantity normalization into unit level records for accurate tracking.
+- Natural asset ID ordering keeps sibling items grouped together.
 
-- Properties and locations
-	- Property directory with status controls and visibility rules
-	- Filters and access controls aligned to property permissions
+### Properties & Access Control
+- Property directory with status flagging and role-based visibility.
+- Department and property access configurations scoped per user.
+- Approval indicators surface pending admin/manager actions in context.
 
-- QR codes and labeling
-	- Single and bulk QR generation with labeled images
-	- Download as PNG, ZIP (PNGs), or PDF (via print flows)
-	- Label printing support with common presets and custom sizes
-	- Print history and status tracking for reprints and audits
+### QR Labelling & Printing Workflows
+- One-off and bulk QR generation with PNG, ZIP, and PDF export flows.
+- Label presets plus custom sizing for print hardware alignment.
+- Print history and reprint safeguards for audit evidence.
 
-- Views, filters, and productivity
-	- Grid and list views, date-range filtering, and quick search
-	- Column chooser with user preferences persisted across sessions
-	- Mobile-friendly layouts and responsive interactions
+### Tickets, Notifications & Collaboration
+- Role-aware maintenance tickets with Kanban and list views.
+- SLA and priority badges, comment locking on closed tickets.
+- Notification bell with deep links that open scoped context instantly.
 
-- Ticketing and collaboration
-	- Create, assign, and track maintenance tickets across properties
-	- List and Kanban (board) views with drag-to-change status
-	- Color-coded status and priority pills; SLA badge
-	- Closed-only toggle; closed tickets lock replies by design
-	- Deep-links from notifications open the exact ticket and auto-expand details
+### Insights & Reliability
+- Dashboard metrics, reports, and downloadable exports for audits.
+- PWA-ready install experience with offline asset list caching.
 
-- Announcements and release notes
-	- Sidebar “Announcement” card with quick preview and modal “Read more”
-	- Full “Status & Updates” page with searchable timeline/cards
-	- Predefined categories (Bug, API Down, Fixed, Resolved, Maintenance, Update) with badges
-	- Admins can create, edit, delete posts (Supabase-backed with local fallback)
+## Platform Modules
 
-- Governance and controls
-	- Role-based access with gated actions and views
-	- Approval workflow indicators for controlled changes
-	- Activity logging and notifications for key events
+| Module | What It Covers |
+| --- | --- |
+| **Dashboard** | Metrics, activity feed, quick actions, audit readiness snapshot |
+| **Assets** | Advanced table & grid views, QR generation, bulk actions, exports |
+| **Properties** | Location registry, status controls, per-role visibility |
+| **QR Codes** | History, preview, downloads, print orchestration |
+| **Tickets** | Maintenance lifecycle, SLA tracking, Kanban board |
+| **Announcements** | Release notes, maintenance bulletins, category badges |
+| **Reports** | Operational insights, audit exports, scoped access |
+| **Settings & Users** | Role management, permissions, department/property access |
 
-- Reporting and insights
-	- High-level dashboard metrics and charts
-	- Property and asset type summaries
+## Technology Stack
 
-- Installable and reliable
-	- Installable application with offline support
-	- Local caching of asset lists by property to keep work moving without connectivity
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Shadcn UI, Radix Primitives
+- **State & Data:** React Query, context providers, local caching fallbacks
+- **Backend Services:** Supabase (Auth, Database, Storage) with demo/local mock layers
+- **Utilities:** date-fns, ExcelJS, ZXing, JSZip, Zod schema validation
+- **Tooling:** ESLint, TypeScript, Prettier (via editor integration), pnpm/npm scripts
 
-## Modules
+## Getting Started
 
-- Dashboard: metrics, trends, quick actions, and activity
-- Assets: searchable table, QR generation, bulk actions, and exports
-- Properties: directory, health, and status controls
-- QR Codes: history, preview, downloads, print, and reprint
-- Tickets: create/assign, list and board, status/SLA, comments
-- Announcements: sidebar card + full page with categories and search
-- Reports: configurable outputs for operations and audit
-- Settings and Users: administrative controls and permissions
+### Prerequisites
+- Node.js 18+
+- pnpm (recommended) or npm
+- Supabase project (optional for local demo & auth features)
 
-## Tickets
+### Installation
 
-Role-aware ticket management for maintenance and requests.
+```bash
+# install dependencies
+pnpm install
 
-- Create tickets with property, assignee, priority, and target role
-- Board and list views with drag-and-drop status updates
-- Color-coded status and priority; SLA badge on deadlines
-- Closed-only filter; closed tickets cannot receive new comments
-- Notification deep-links expand the target ticket when opened
+# start the development server
+pnpm dev
+```
 
-## Announcements (Newsletter)
+Visit `http://localhost:5173` in your browser.
 
-Keep all users informed about changes, maintenance, and releases.
+### Environment Configuration
 
-- Sidebar Announcement card shows the latest post with a compact preview
-- “Read more” opens a modal; “View all” goes to the full page
-- Full page supports search, category badges, and admin CRUD
-- Predefined categories with colors: Bug (red), API Down (red), Fixed (green), Resolved (green), Maintenance (amber), Update (blue)
-- Supabase-backed with local fallback and demo seeding
+Copy `.env.example` to `.env.local` and populate the following when integrating with Supabase:
 
-## Notifications & Deep Links
+```bash
+VITE_SUPABASE_URL=
+VITE_SUPABASE_SERVICE_KEY=
+VITE_SUPABASE_ANON_KEY=
+```
 
-The bell menu lists recent notifications. Clicking navigates directly to the relevant view:
+When the environment variables are absent, SAMS gracefully falls back to seeded demo data, allowing evaluation without backend services.
 
-- Tickets: opens `/tickets?id=TCK-…` and auto-expands the ticket
-- QR: opens the asset details if an asset id is present, otherwise QR Codes
-- Reports/System: opens the corresponding page
+## Everyday Development
 
-## Benefits
+- `pnpm dev` &mdash; run locally with hot module replacement.
+- `pnpm lint` &mdash; enforce TypeScript and accessibility rules via ESLint.
+- `pnpm build` &mdash; create a production bundle through Vite.
+- `pnpm preview` &mdash; serve the production build locally.
 
-- Faster asset onboarding and updates
-- Greater audit readiness with consistent records and print history
-- Reduced duplication by unit-level normalization and natural ID sorting
-- Clear governance through role-based actions and approvals
+We recommend enabling the workspace ESLint and Tailwind extensions in VS Code for instant feedback.
 
-## Who It’s For
+## Quality & Observability
 
-- Administrators: governance, user access, global settings
-- Managers: asset oversight, property visibility, reporting
-- Operators: day-to-day asset creation, QR generation, labeling
-- Auditors: read-only access to reports, histories, and evidence
+- **Testing:** component level tests are being introduced alongside critical modules; snapshot and regression suites are planned for future milestones.
+- **Accessibility:** UI patterns follow Shadcn/Radix best practices (keyboard navigable, ARIA annotations).
+- **Logging:** application events are surfaced through toast notifications and audit trails; Supabase provides server-side logs when enabled.
 
-## Security and Access
+## Pending Initiatives
 
-- Role-aware navigation and actions
-- Sensitive elements hidden for non-privileged users
-- Visibility aligned with property access rules
+These items are actively tracked for upcoming releases:
 
-## Printing and Labels
+- Advanced analytics dashboard with multi-property drill downs.
+- Offline-first write queue for ticket updates made in the field.
+- Automated label layout designer with saved presets per printer model.
+- End-to-end testing harness (Playwright) integrated into CI.
+- Role-based data retention policies and export audit trails.
 
-- One-click print dialog for A4 sheets
-- Label print flows with exact page sizing
-- Presets for common label formats and custom width/height options
+## Deployment Notes
 
-## Reliability and Offline
-
-- Installable on desktop and mobile
-- Asset list caching by property for offline reference
-- Auto-update mechanism to keep the application current
+- Vercel is the reference deployment target (see `vercel.json`).
+- Configure environment variables through the Vercel dashboard or your hosting provider of choice.
+- For self-hosting, ensure HTTPS is enforced; QR download endpoints expect secure origins for camera access.
 
 ## Live Demo
 
-<div align="center">
-	<a href="https://sams-ams.vercel.app/demo/login" target="_blank" rel="noopener">
-		<img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
-	</a>
-	<br />
-	<b>Experience SAMS instantly in your browser.</b>
-	<br />
-	<b>Demo credentials</b>: Username <code>demo@demo.com</code> • Password <code>demo@123</code>
-	<br />
-	Want a demo for your company? Contact <a href="mailto:dev@karthiklal.in">dev@karthiklal.in</a>.
+<div align="left">
+  <a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+    <img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
+  </a>
+  <br />
+  <strong>Demo credentials</strong>: Username <code>demo@demo.com</code> &nbsp;&bull;&nbsp; Password <code>demo@123</code>
 </div>
 
-## Request a Demo
+## Support
 
-Want a demo for your company? Contact dev@karthiklal.in.
+Need help, feature guidance, or a tailored walkthrough?
+- Email: <a href="mailto:dev@karthiklal.in">dev@karthiklal.in</a>
+- Issues: open a GitHub ticket to report bugs or request enhancements.
 
-## Browser and Device Support
+## Browser & Device Support
 
-- Current desktop browsers and mobile webviews
-- Responsive layouts for phones, tablets, and desktops
+- Fully responsive layouts for desktop, tablet, and mobile breakpoints.
+- Optimized for the latest versions of Chrome, Edge, Firefox, and Safari.
+- Installable PWA for quick launch on mobile and desktop.
 
-## Versioning and Releases
+## License & Conduct
 
-- Semantic versioning for clarity and predictability
-- Release notes summarize notable changes and improvements
-## FAQ
+This project is open source under the MIT License. Contributions adhere to the community Code of Conduct; please review both before submitting pull requests.
 
-- Can I import existing assets? Yes; use the bulk import template and upload.
-- How does offline mode work? Asset lists per property are cached for reference when disconnected.
-- How do roles work? Navigation and actions are gated by assigned role.
-- How do I print labels? Use the QR Codes page or bulk flows; choose label presets or custom sizes.
-- Can I export data for audits? Reports support export; QR history retains print status.
+---
 
-## Troubleshooting
-
-- I don’t see certain cards on the dashboard: access is role-based.
-- QR image won’t download: try the print-to-PDF option or clear browser cache.
-- No assets visible: check filters, property access, and column visibility.
-
-
-## License
-
-This project is open source under a permissive license.
-
-## Code of Conduct
-
-All contributors are expected to uphold a professional and respectful environment.
+© SAMS Contributors. Built for resilient asset operations.
