@@ -104,7 +104,7 @@ export default function Login() {
       {/* Brand / Visual Side */}
       <div className="relative hidden md:block">
         <img
-          src="/sams_banner.jpg"
+          src="/login_image.png"
           alt="SAMS"
           className="absolute inset-0 h-full w-full object-cover"
         />
