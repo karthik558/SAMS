@@ -283,8 +283,15 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                 <Input
                   id="quantity"
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={formData.quantity}
                   onChange={(e) => handleInputChange("quantity", e.target.value)}
+                  onWheel={(e) => {
+                    // Prevent accidental value changes (and large rerenders) when scrolling over the input
+                    // Blurring is a simple, reliable way across browsers
+                    try { (e.currentTarget as HTMLInputElement).blur(); } catch {}
+                  }}
                   placeholder="Enter quantity"
                   min="1"
                   required
