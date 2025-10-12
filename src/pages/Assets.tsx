@@ -86,7 +86,10 @@ const mockAssets = [
     expiryDate: "2027-01-15",
     poNumber: "PO-2024-001",
     condition: "Excellent",
-    status: "Active"
+    status: "Active",
+    amcEnabled: true,
+    amcStartDate: "2024-03-01",
+    amcEndDate: "2025-03-01",
   },
   {
     id: "AST-002", 
@@ -669,6 +672,13 @@ export default function Assets() {
   // Sanitize a code by removing non-alphanumeric and uppercasing
   const sanitizeCode = (s: string) => (s || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
+  const toISODate = (value: any): string | null => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString().slice(0, 10);
+  };
+
   const handleAddAsset = async (assetData: any): Promise<boolean> => {
   const canCreate = canEditPage;
     if (!canCreate) {
@@ -704,9 +714,13 @@ export default function Assets() {
           return false;
         }
       }
-  if (isSupabase) {
-  const propertyCodeRaw = assetData.property; // Select provides property id/code
-  const prefix = typePrefix(assetData.itemType) + sanitizeCode(propertyCodeRaw);
+    const amcEnabled = Boolean(assetData.amcEnabled);
+    const amcStartDate = amcEnabled ? toISODate(assetData.amcStartDate) : null;
+    const amcEndDate = amcEnabled ? toISODate(assetData.amcEndDate) : null;
+
+    if (isSupabase) {
+      const propertyCodeRaw = assetData.property; // Select provides property id/code
+      const prefix = typePrefix(assetData.itemType) + sanitizeCode(propertyCodeRaw);
         const quantity = Math.max(1, Number(assetData.quantity) || 1);
         const baseSeq = nextSequence(assets, prefix);
         const ids = selectedAsset ? [selectedAsset.id] : Array.from({ length: quantity }, (_, i) => `${prefix}${String(baseSeq + i).padStart(4,'0')}`);
@@ -717,14 +731,17 @@ export default function Assets() {
           property_id: propertyCodeRaw as any,
           department: (() => { try { const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user'); const user = raw ? JSON.parse(raw) : null; return assetData.department || user?.department || null; } catch { return assetData.department || null; } })(),
           quantity: selectedAsset ? Number(assetData.quantity || 1) : 1,
-          purchaseDate: assetData.purchaseDate ? new Date(assetData.purchaseDate).toISOString().slice(0,10) : null,
-          expiryDate: assetData.expiryDate ? new Date(assetData.expiryDate).toISOString().slice(0,10) : null,
+          purchaseDate: toISODate(assetData.purchaseDate),
+          expiryDate: toISODate(assetData.expiryDate),
           poNumber: assetData.poNumber || null,
           condition: assetData.condition || null,
           status: selectedAsset?.status || 'Active',
           location: assetData.location || null,
           description: assetData.description || null,
           serialNumber: assetData.serialNumber || null,
+          amcEnabled,
+          amcStartDate,
+          amcEndDate,
         } as any;
         if (selectedAsset) {
           const id = ids[0];
@@ -741,7 +758,7 @@ export default function Assets() {
         const data = await listAssets();
         setAssets(data as any);
     // Defer success toast to AssetForm (it toasts when we return true)
-  } else {
+    } else {
         toast.info("Supabase not configured; using local data only");
   const propertyCode = sanitizeCode(assetData.property);
   const prefix = typePrefix(assetData.itemType) + propertyCode;
@@ -765,6 +782,9 @@ export default function Assets() {
             description: assetData.description || null,
             serialNumber: assetData.serialNumber || null,
             status: 'Active',
+            amcEnabled,
+            amcStartDate,
+            amcEndDate,
           }))
         ]));
         await logActivity("asset_created", `Asset ${assetData.itemName} created (local)`, "Local");
@@ -893,6 +913,9 @@ export default function Assets() {
           location: copy.location ?? null,
           description: copy.description ?? null,
           serialNumber: copy.serialNumber ?? null,
+          amcEnabled: Boolean(copy.amcEnabled),
+          amcStartDate: copy.amcStartDate ?? null,
+          amcEndDate: copy.amcEndDate ?? null,
         } as any);
       }
   // Refresh list from DB and return only the unit assets we created/updated
@@ -950,6 +973,9 @@ export default function Assets() {
           // Fields that may not exist on the asset record
           description: selectedAsset.description ?? "",
           serialNumber: selectedAsset.serialNumber ?? "",
+          amcEnabled: Boolean(selectedAsset.amcEnabled),
+          amcStartDate: selectedAsset.amcStartDate ? new Date(selectedAsset.amcStartDate) : undefined,
+          amcEndDate: selectedAsset.amcEndDate ? new Date(selectedAsset.amcEndDate) : undefined,
         }
       : undefined;
     return (

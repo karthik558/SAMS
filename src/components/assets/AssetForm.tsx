@@ -13,7 +13,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Package, Save, ClipboardList, MapPin, Info } from "lucide-react";
+import { CalendarIcon, Package, Save, ClipboardList, MapPin, Info, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import { listItemTypes, createItemType, deleteItemType } from "@/services/itemTy
 import { listDepartments, type Department } from "@/services/departments";
 import { listUserDepartmentAccess } from "@/services/userDeptAccess";
 import { isDemoMode } from "@/lib/demo";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface AssetFormProps {
   onSubmit?: (data: any) => boolean | void | Promise<boolean | void>;
@@ -44,6 +45,9 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     condition: initialData?.condition || "",
     serialNumber: initialData?.serialNumber || "",
   location: initialData?.location || "",
+    amcEnabled: initialData?.amcEnabled ?? false,
+    amcStartDate: initialData?.amcStartDate || undefined,
+    amcEndDate: initialData?.amcEndDate || undefined,
   });
   const [properties, setProperties] = useState<Property[]>([]);
   const [itemTypes, setItemTypes] = useState<string[]>([]);
@@ -158,9 +162,30 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  const role = (currentUser?.role || '').toLowerCase();
-  // For non-admins, if itemType not provided (hidden), default to "Other"
-  const toSubmit = { ...formData, itemType: (role === 'admin' ? formData.itemType : (formData.itemType || 'Other')) };
+    const role = (currentUser?.role || '').toLowerCase();
+    const amcEnabled = Boolean(formData.amcEnabled);
+    const amcStart = amcEnabled ? formData.amcStartDate : undefined;
+    const amcEnd = amcEnabled ? formData.amcEndDate : undefined;
+
+    if (amcEnabled) {
+      if (!amcStart || !amcEnd) {
+        toast.error("Select both AMC start and end dates");
+        return;
+      }
+      if (amcEnd.getTime() < amcStart.getTime()) {
+        toast.error("AMC end date must be after the start date");
+        return;
+      }
+    }
+
+    // For non-admins, if itemType not provided (hidden), default to "Other"
+    const toSubmit = {
+      ...formData,
+      itemType: role === 'admin' ? formData.itemType : (formData.itemType || "Other"),
+      amcEnabled,
+      amcStartDate: amcEnabled ? amcStart : undefined,
+      amcEndDate: amcEnabled ? amcEnd : undefined,
+    };
 
     // Basic validation
   const deptVal = (toSubmit as any).department?.toString().trim();
@@ -199,6 +224,9 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
             condition: "",
             serialNumber: "",
             location: "",
+            amcEnabled: false,
+            amcStartDate: undefined,
+            amcEndDate: undefined,
           });
         }
       }
@@ -209,6 +237,15 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleToggleAmc = (enabled: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      amcEnabled: enabled,
+      amcStartDate: enabled ? prev.amcStartDate : undefined,
+      amcEndDate: enabled ? prev.amcEndDate : undefined,
+    }));
   };
 
   return (
@@ -535,7 +572,121 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                   onChange={(e) => handleInputChange("poNumber", e.target.value)}
                   placeholder="Purchase Order Number"
                 />
+          </div>
+        </div>
+      </div>
+
+          <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <AlertTriangle className="h-4 w-4 text-primary" />
+              AMC Tracker
+            </div>
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Enable AMC tracking</p>
+                  <p className="text-xs text-muted-foreground">We’ll surface expiring contracts on the dashboard ahead of time.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="amcEnabled"
+                    checked={formData.amcEnabled}
+                    onCheckedChange={(checked) => handleToggleAmc(checked === true)}
+                  />
+                  <Label htmlFor="amcEnabled" className="text-sm font-medium">
+                    Track AMC
+                  </Label>
+                </div>
               </div>
+              {formData.amcEnabled && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>AMC Start Date</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formData.amcStartDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.amcStartDate ? format(formData.amcStartDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.amcStartDate}
+                            onSelect={(date) => handleInputChange("amcStartDate", date)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {formData.amcStartDate && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={() => handleInputChange("amcStartDate", undefined)}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>AMC End Date</Label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formData.amcEndDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formData.amcEndDate ? format(formData.amcEndDate, "PPP") : "Pick a date"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formData.amcEndDate}
+                            onSelect={(date) => handleInputChange("amcEndDate", date)}
+                            initialFocus
+                            disabled={(date) => {
+                              if (!formData.amcStartDate) return false;
+                              const start = new Date(
+                                formData.amcStartDate.getFullYear(),
+                                formData.amcStartDate.getMonth(),
+                                formData.amcStartDate.getDate(),
+                              );
+                              return date < start;
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      {formData.amcEndDate && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="w-full sm:w-auto"
+                          onClick={() => handleInputChange("amcEndDate", undefined)}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

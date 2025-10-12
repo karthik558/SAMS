@@ -122,6 +122,18 @@ const describeMonthlyChange = (current: number, previous: number) => {
   };
 };
 
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+type AmcAlertItem = {
+  id: string;
+  name: string;
+  propertyName: string;
+  startDate: Date | null;
+  endDate: Date;
+  daysRemaining: number;
+  severity: "urgent" | "soon" | "info";
+};
+
 const Index = () => {
   const navigate = useNavigate();
   const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
@@ -141,6 +153,8 @@ const Index = () => {
   const [loadingUI, setLoadingUI] = useState(true);
   const [announcements, setAnnouncements] = useState<NewsletterPost[]>([]);
   const [showAnnouncements, setShowAnnouncements] = useState(true);
+  const [scopedAssets, setScopedAssets] = useState<Asset[]>([]);
+  const [scopedProperties, setScopedProperties] = useState<Property[]>([]);
 
   useEffect(() => {
     return () => {
@@ -394,6 +408,72 @@ const Index = () => {
     return shared;
   }, [assignmentShare, backlogActive, completionRate, isAdmin, resolvedTotal, ticketSummary.awaitingAssignment, ticketSummary.assignedToMe, ticketSummary.slaRisk, ticketSummary.total]);
 
+  const severityBadgeClasses: Record<AmcAlertItem["severity"], string> = {
+    urgent: "border border-red-500/50 bg-red-500/15 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-200",
+    soon: "border border-amber-500/50 bg-amber-500/15 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200",
+    info: "border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200",
+  };
+
+  const amcTracker = useMemo(() => {
+    if (!scopedAssets.length) {
+      return { upcoming: [] as AmcAlertItem[], tracked: 0, overdue: 0 };
+    }
+    const propertyNames = new Map<string, string>();
+    scopedProperties.forEach((property) => {
+      const idKey = String(property.id);
+      propertyNames.set(idKey, property.name || idKey);
+      if (property.name) {
+        propertyNames.set(property.name, property.name);
+      }
+    });
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const cutoff = new Date(startOfToday);
+    cutoff.setMonth(cutoff.getMonth() + 2);
+    const tracked = scopedAssets.filter((asset) => Boolean(asset.amcEnabled)).length;
+    const normalized = scopedAssets
+      .filter((asset) => asset.amcEnabled && asset.amcEndDate)
+      .map((asset) => {
+        if (!asset.amcEndDate) return null;
+        const endDateRaw = new Date(asset.amcEndDate);
+        if (Number.isNaN(endDateRaw.getTime())) return null;
+        const normalizedEnd = new Date(endDateRaw.getFullYear(), endDateRaw.getMonth(), endDateRaw.getDate());
+        const diffMs = normalizedEnd.getTime() - startOfToday.getTime();
+        const daysRemaining = Math.ceil(diffMs / MS_IN_DAY);
+        const startDateRaw = asset.amcStartDate ? new Date(asset.amcStartDate) : null;
+        const normalizedStart =
+          startDateRaw && !Number.isNaN(startDateRaw.getTime())
+            ? new Date(startDateRaw.getFullYear(), startDateRaw.getMonth(), startDateRaw.getDate())
+            : null;
+        const propertyKey = asset.property_id ?? asset.property;
+        const propertyName =
+          propertyNames.get(String(propertyKey)) ||
+          propertyNames.get(String(asset.property)) ||
+          String(asset.property || "Unassigned");
+        const severity: AmcAlertItem["severity"] =
+          daysRemaining <= 7 ? "urgent" : daysRemaining <= 30 ? "soon" : "info";
+        return {
+          id: asset.id,
+          name: asset.name,
+          propertyName,
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          daysRemaining,
+          severity,
+        } as AmcAlertItem;
+      })
+      .filter((item): item is AmcAlertItem => Boolean(item));
+    const overdue = normalized.filter((item) => item.daysRemaining < 0).length;
+    const upcoming = normalized
+      .filter((item) => item.daysRemaining >= 0 && item.endDate.getTime() <= cutoff.getTime())
+      .sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
+    return { upcoming, tracked, overdue };
+  }, [scopedAssets, scopedProperties]);
+
+  const upcomingAmc = amcTracker.upcoming;
+  const trackedAmc = amcTracker.tracked;
+  const overdueAmc = amcTracker.overdue;
+
   const averageResolutionLabel = ticketSummary.averageResolutionHours !== null
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
     : 'Collecting data';
@@ -571,12 +651,18 @@ const Index = () => {
         setCounts({ assets: 0, properties: 0, users: 0, expiring: 0 });
       }
       try {
-        const [demoUsers, demoTickets] = await Promise.all([
+        const [demoAssets, demoProperties, demoUsers, demoTickets] = await Promise.all([
+          listAssets().catch(() => [] as Asset[]),
+          listProperties().catch(() => [] as Property[]),
           listUsers().catch(() => [] as AppUser[]),
           listTickets().catch(() => [] as Ticket[]),
         ]);
+        setScopedAssets(demoAssets);
+        setScopedProperties(demoProperties);
         hydrateTicketInsights(demoTickets, demoUsers);
       } catch {
+        setScopedAssets([]);
+        setScopedProperties([]);
         setTicketSummary(emptyTicketSummary);
         setTicketMonthlyTrend([]);
       } finally {
@@ -590,6 +676,8 @@ const Index = () => {
     }
 
     if (!hasSupabaseEnv) {
+      setScopedAssets([]);
+      setScopedProperties([]);
       setLoadingUI(false);
       return;
     }
@@ -630,6 +718,9 @@ const Index = () => {
             }
           }
         } catch {}
+
+        setScopedAssets(assets);
+        setScopedProperties(properties);
 
         const expiringSoon = assets.filter((a) => {
           if (!a.expiryDate) return false;
@@ -679,6 +770,8 @@ const Index = () => {
         console.error(e);
         setTicketSummary(emptyTicketSummary);
         setTicketMonthlyTrend([]);
+        setScopedAssets([]);
+        setScopedProperties([]);
         setLoadingUI(false);
       }
     })();
@@ -770,6 +863,95 @@ const Index = () => {
               iconClassName={item.iconClass}
             />
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-amber-500/40 bg-amber-50/80 p-6 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-amber-500/20 p-2 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">AMC Watchlist</h2>
+                <p className="text-xs text-muted-foreground">
+                  Renewals scheduled within the next 60 days
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+                {trackedAmc.toLocaleString()} {trackedAmc === 1 ? "AMC tracked" : "AMCs tracked"}
+              </span>
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
+                  overdueAmc > 0
+                    ? "border border-red-500/40 bg-red-500/15 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-200"
+                    : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
+                )}
+              >
+                {overdueAmc > 0 ? `${overdueAmc} overdue` : "No overdue AMC"}
+              </span>
+            </div>
+          </div>
+          {hasSupabaseEnv ? (
+            upcomingAmc.length ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {upcomingAmc.slice(0, 6).map((item) => {
+                    const dueLabel =
+                      item.daysRemaining === 0
+                        ? "Due today"
+                        : item.daysRemaining === 1
+                          ? "Due tomorrow"
+                          : `Due in ${item.daysRemaining} days`;
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/40 bg-white/90 p-4 dark:border-amber-500/30 dark:bg-slate-950/40"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-foreground">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.propertyName} • ends{" "}
+                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                          {item.startDate && (
+                            <p className="text-[11px] text-muted-foreground">
+                              Started {item.startDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                        <span className={cn("whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium", severityBadgeClasses[item.severity])}>
+                          {dueLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {upcomingAmc.length > 6 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {upcomingAmc.length - 6} more renewal{upcomingAmc.length - 6 === 1 ? "" : "s"} fall outside this window.
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-amber-400/60 bg-white/80 p-4 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+                <span>No AMC renewals are due in the next 60 days.</span>
+                {trackedAmc > 0 && (
+                  <span className="text-[11px] text-muted-foreground dark:text-amber-100/80">
+                    We’ll surface them here as they approach their end date.
+                  </span>
+                )}
+              </div>
+            )
+          ) : (
+            <div className="rounded-xl border border-dashed border-amber-400/60 bg-white/70 p-4 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+              Connect Supabase to enable AMC tracking and renewal reminders.
+            </div>
+          )}
         </div>
       </section>
 

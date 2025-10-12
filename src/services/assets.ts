@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets } from "@/lib/demo";
 import { getCachedValue, invalidateCache } from "@/lib/data-cache";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 export type Asset = {
   id: string; // e.g., AST-001
@@ -19,11 +20,18 @@ export type Asset = {
   description?: string | null;
   serialNumber?: string | null;
   created_at?: string;
+  amcEnabled?: boolean;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
 };
 
 const table = "assets";
 const ASSET_CACHE_KEY = "assets:list";
 const ASSET_CACHE_TTL = 60_000; // 1 minute keeps dashboards snappy without going stale
+const BASE_COLUMNS =
+  "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at";
+const AMC_COLUMNS = ",amc_enabled,amc_start_date,amc_end_date";
+let supportsAmcFields: boolean | null = hasSupabaseEnv ? null : false;
 
 // Helpers to convert between DB (snake_case) and app (camelCase)
 function toCamel(row: any): Asset {
@@ -32,7 +40,7 @@ function toCamel(row: any): Asset {
     name: row.name,
     type: row.type,
     property: row.property,
-  property_id: row.property_id ?? null,
+    property_id: row.property_id ?? null,
     department: row.department ?? null,
     quantity: row.quantity,
     purchaseDate: row.purchase_date ?? null,
@@ -40,14 +48,23 @@ function toCamel(row: any): Asset {
     poNumber: row.po_number ?? null,
     condition: row.condition ?? null,
     status: row.status,
-  location: row.location ?? null,
-  description: row.description ?? null,
-  serialNumber: row.serial_number ?? null,
+    location: row.location ?? null,
+    description: row.description ?? null,
+    serialNumber: row.serial_number ?? null,
     created_at: row.created_at,
+    amcEnabled: row.amc_enabled ?? false,
+    amcStartDate: row.amc_start_date ?? null,
+    amcEndDate: row.amc_end_date ?? null,
   };
 }
 
-function toSnake(asset: Partial<Asset>) {
+function isMissingColumnError(error?: PostgrestError | null): boolean {
+  if (!error) return false;
+  if (error.code === "42703") return true; // undefined_column
+  return /amc_/i.test(error.message || "");
+}
+
+function toSnake(asset: Partial<Asset>, options?: { includeAmc?: boolean }) {
   const row: any = {};
   if ("id" in asset) row.id = asset.id;
   if ("name" in asset) row.name = asset.name;
@@ -64,22 +81,40 @@ function toSnake(asset: Partial<Asset>) {
   if ("location" in asset) row.location = asset.location ?? null;
   if ("description" in asset) row.description = asset.description ?? null;
   if ("serialNumber" in asset) row.serial_number = asset.serialNumber ?? null;
+  const includeAmc = options?.includeAmc ?? supportsAmcFields !== false;
+  if (includeAmc) {
+    if ("amcEnabled" in asset) row.amc_enabled = asset.amcEnabled ?? false;
+    if ("amcStartDate" in asset) row.amc_start_date = asset.amcStartDate ?? null;
+    if ("amcEndDate" in asset) row.amc_end_date = asset.amcEndDate ?? null;
+  }
   return row;
 }
 
 export async function listAssets(options?: { force?: boolean }): Promise<Asset[]> {
   if (isDemoMode()) return getDemoAssets();
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  const columns =
+    supportsAmcFields === false ? BASE_COLUMNS : `${BASE_COLUMNS}${AMC_COLUMNS}`;
   return getCachedValue(
     ASSET_CACHE_KEY,
     async () => {
       const { data, error } = await supabase
         .from(table)
-        .select(
-          "id,name,type,property,property_id,department,quantity,purchase_date,expiry_date,po_number,condition,status,location,description,serial_number,created_at",
-        )
+        .select(columns)
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        if (supportsAmcFields !== false && isMissingColumnError(error)) {
+          supportsAmcFields = false;
+          const fallback = await supabase
+            .from(table)
+            .select(BASE_COLUMNS)
+            .order("created_at", { ascending: false });
+          if (fallback.error) throw fallback.error;
+          return (fallback.data ?? []).map(toCamel);
+        }
+        throw error;
+      }
+      if (supportsAmcFields === null) supportsAmcFields = true;
       return (data ?? []).map(toCamel);
     },
     { ttlMs: ASSET_CACHE_TTL, force: options?.force },
@@ -89,9 +124,27 @@ export async function listAssets(options?: { force?: boolean }): Promise<Asset[]
 export async function createAsset(asset: Asset): Promise<Asset> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const payload = toSnake(asset);
-  const { data, error } = await supabase.from(table).insert(payload).select().single();
+  let includeAmc = supportsAmcFields !== false;
+  const payload = toSnake(asset, { includeAmc });
+  let { data, error } = await supabase
+    .from(table)
+    .insert(payload)
+    .select()
+    .single();
+  if (error && includeAmc && isMissingColumnError(error)) {
+    supportsAmcFields = false;
+    includeAmc = false;
+    const retryPayload = toSnake(asset, { includeAmc: false });
+    const retry = await supabase
+      .from(table)
+      .insert(retryPayload)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
+  if (supportsAmcFields === null && includeAmc) supportsAmcFields = true;
   invalidateCache(ASSET_CACHE_KEY);
   return toCamel(data);
 }
@@ -99,9 +152,29 @@ export async function createAsset(asset: Asset): Promise<Asset> {
 export async function updateAsset(id: string, patch: Partial<Asset>): Promise<Asset> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const payload = toSnake(patch);
-  const { data, error } = await supabase.from(table).update(payload).eq("id", id).select().single();
+  let includeAmc = supportsAmcFields !== false;
+  const payload = toSnake(patch, { includeAmc });
+  let { data, error } = await supabase
+    .from(table)
+    .update(payload)
+    .eq("id", id)
+    .select()
+    .single();
+  if (error && includeAmc && isMissingColumnError(error)) {
+    supportsAmcFields = false;
+    includeAmc = false;
+    const retryPayload = toSnake(patch, { includeAmc: false });
+    const retry = await supabase
+      .from(table)
+      .update(retryPayload)
+      .eq("id", id)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
+  if (supportsAmcFields === null && includeAmc) supportsAmcFields = true;
   invalidateCache(ASSET_CACHE_KEY);
   return toCamel(data);
 }
