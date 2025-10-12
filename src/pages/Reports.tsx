@@ -245,14 +245,33 @@ export default function Reports() {
     (async () => {
       try {
         const dept = isAdminRole ? (apDeptFilter === 'ALL' ? null : apDeptFilter) : (role === 'manager' ? (myDept || null) : null);
-        const list = await listApprovals(undefined, dept as any, undefined);
-        setApprovalsAll(list);
+        if (role === 'manager') {
+          // Property-scope approvals to properties this manager has access to
+          try {
+            const allowed = allowedProps; // already loaded on mount
+            let assets = assetsCache;
+            if (!assets) {
+              try { assets = await listAssets(); } catch { assets = []; }
+            }
+            const allowedAssetIds = (assets || [])
+              .filter(a => a.property_id && allowed && allowed.has(String(a.property_id)))
+              .map(a => a.id);
+            const list = await listApprovals(undefined, dept as any, undefined, allowedAssetIds);
+            setApprovalsAll(list);
+          } catch {
+            const list = await listApprovals(undefined, dept as any, undefined, []);
+            setApprovalsAll(list);
+          }
+        } else {
+          const list = await listApprovals(undefined, dept as any, undefined);
+          setApprovalsAll(list);
+        }
       } catch (e) {
         console.error(e);
         setApprovalsAll([]);
       }
     })();
-  }, [role, myDept, apDeptFilter]);
+  }, [role, myDept, apDeptFilter, allowedProps, assetsCache]);
 
   // Export Tickets CSV (role-aware)
   const exportTicketsCsv = async () => {

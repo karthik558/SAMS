@@ -111,7 +111,7 @@ export async function resyncApprovalDepartments(): Promise<{ updated: number; to
   return { updated, total: list.length, errors: 0 };
 }
 
-export async function listApprovals(status?: ApprovalStatus, department?: string | null, requestedBy?: string | null): Promise<ApprovalRequest[]> {
+export async function listApprovals(status?: ApprovalStatus, department?: string | null, requestedBy?: string | null, assetIds?: string[] | null): Promise<ApprovalRequest[]> {
   if (hasSupabaseEnv) {
     try {
   let query = supabase.from(TABLE).select("*").order("requested_at", { ascending: false });
@@ -123,6 +123,7 @@ export async function listApprovals(status?: ApprovalStatus, department?: string
         }
       }
   if (requestedBy) query = (query as any).ilike("requested_by", String(requestedBy));
+      if (assetIds && assetIds.length) query = (query as any).in('asset_id', Array.from(new Set(assetIds.map(String))));
       const { data, error } = await query;
       if (error) throw error;
       return (data || []).map(toCamel);
@@ -135,6 +136,10 @@ export async function listApprovals(status?: ApprovalStatus, department?: string
   if (status) out = out.filter(a => a.status === status);
   if (department) out = out.filter(a => (a.department || '').toLowerCase() === (department || '').toLowerCase());
   if (requestedBy) out = out.filter(a => (a.requestedBy || '').toLowerCase() === (requestedBy || '').toLowerCase());
+  if (assetIds && assetIds.length) {
+    const set = new Set(assetIds.map((x) => String(x).toLowerCase()));
+    out = out.filter(a => set.has(String(a.assetId).toLowerCase()));
+  }
   return out;
 }
 

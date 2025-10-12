@@ -8,11 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
-import { getAssetById, type Asset } from "@/services/assets";
+import { getAssetById, listAssets, type Asset } from "@/services/assets";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { Separator } from "@/components/ui/separator";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import StatusChip from "@/components/ui/status-chip";
@@ -41,6 +42,7 @@ export default function Approvals() {
   const [adminNotes, setAdminNotes] = useState<string>("");
   const [selectedApproval, setSelectedApproval] = useState<ApprovalRequest | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [allowedPropertyIds, setAllowedPropertyIds] = useState<Set<string>>(new Set());
   const fmt = (v?: string | null) => {
     try {
       if (!v) return "-";
@@ -54,6 +56,22 @@ export default function Approvals() {
   const role = (auth?.role || '').toLowerCase();
   const myDept = auth?.department || '';
   const myIdentity = (auth?.email || auth?.id || '').toLowerCase();
+
+  // Load allowed properties for current user (managers are restricted property-wise)
+  useEffect(() => {
+    (async () => {
+      try {
+        if (role === 'manager') {
+          const props = await getAccessiblePropertyIdsForCurrentUser();
+          setAllowedPropertyIds(new Set(Array.from(props).map((p) => String(p))));
+        } else {
+          setAllowedPropertyIds(new Set());
+        }
+      } catch {
+        setAllowedPropertyIds(new Set());
+      }
+    })();
+  }, [role]);
   const [adminDeptFilter, setAdminDeptFilter] = useState<string>("ALL");
   const [departments, setDepartments] = useState<Department[]>([]);
   // Filters
@@ -85,7 +103,28 @@ export default function Approvals() {
           if (myDept && String(myDept).trim().length) {
             const status = statusFilter === 'pending' ? 'pending_manager' : (statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined));
             const data = await listApprovals(status as any, myDept);
-            setItems(Array.isArray(data) ? data : []);
+            let scoped = Array.isArray(data) ? data : [];
+            // Property-scope: If manager has explicit property access, filter approvals to those assets' properties
+            if (allowedPropertyIds && allowedPropertyIds.size > 0) {
+              try {
+                const assets = hasSupabaseEnv ? await listAssets() : [];
+                const byId = new Map<string, Asset>();
+                for (const a of assets as Asset[]) byId.set(String(a.id), a);
+                scoped = scoped.filter((ap) => {
+                  const a = byId.get(String(ap.assetId));
+                  if (!a) return false; // if asset unknown, do not leak
+                  const pid = String(a.property_id || '').trim();
+                  if (pid) return allowedPropertyIds.has(pid);
+                  // Fallback: if property_id missing, try property code/name match (best-effort)
+                  const pname = String(a.property || '').toLowerCase();
+                  return Array.from(allowedPropertyIds).some((p) => String(p).toLowerCase() === pname);
+                });
+              } catch {
+                // If anything fails, fail closed (no cross-property exposure)
+                scoped = [];
+              }
+            }
+            setItems(scoped);
           } else {
             // Manager has no department assigned; do not show cross-department approvals
             setItems([]);
@@ -116,7 +155,7 @@ export default function Approvals() {
         setLoading(false);
       }
     })();
-  }, [role, myDept, adminDeptFilter, myIdentity, statusFilter]);
+  }, [role, myDept, adminDeptFilter, myIdentity, statusFilter, allowedPropertyIds]);
 
   useEffect(() => {
     (async () => {
@@ -138,6 +177,14 @@ export default function Approvals() {
 
   const onForward = async (id: string) => {
     try {
+      // Guard: managers can only act on approvals within their property scope
+      if (role === 'manager' && selectedAsset && allowedPropertyIds && allowedPropertyIds.size > 0) {
+        const pid = String(selectedAsset.property_id || '').trim();
+        if (!pid || !allowedPropertyIds.has(pid)) {
+          toast.error('You are not allowed to act on approvals for this property');
+          return;
+        }
+      }
       const res = await forwardApprovalToAdmin(id, 'manager', managerNotes);
       if (res) setItems(s => s.map(i => i.id === id ? res : i));
       toast.success('Forwarded to admin');
@@ -145,6 +192,11 @@ export default function Approvals() {
   };
 
   const onDecision = async (id: string, d: "approved" | "rejected") => {
+    // Guard: managers shouldn't reach here; admins are allowed. Keep check for safety if reused.
+    if (role === 'manager') {
+      toast.error('Only admins can take final decisions');
+      return;
+    }
     const res = await decideApprovalFinal(id, d, "admin", adminNotes);
     if (res) setItems((s) => s.map(i => i.id === id ? res : i));
   };
