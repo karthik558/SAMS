@@ -509,7 +509,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                         {formData.purchaseDate ? format(formData.purchaseDate, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
                       <Calendar
                         mode="single"
                         selected={formData.purchaseDate}
@@ -548,7 +548,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                         {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
                       <Calendar
                         mode="single"
                         selected={formData.expiryDate}
@@ -623,7 +623,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                             {formData.amcStartDate ? format(formData.amcStartDate, "PPP") : "Pick a date"}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
+                        <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
                           <Calendar
                             mode="single"
                             selected={formData.amcStartDate}
@@ -661,7 +661,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
                             {formData.amcEndDate ? format(formData.amcEndDate, "PPP") : "Pick a date"}
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
+                        <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
                           <Calendar
                             mode="single"
                             selected={formData.amcEndDate}
