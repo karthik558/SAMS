@@ -1612,7 +1612,7 @@ export default function Assets() {
                         <TableCell>
                           <div className="flex gap-2">
                             {/* Allow inline edit/delete only when the group is a single item to avoid ambiguity */}
-                            {members.length === 1 && (role === 'admin' || approverPropIds.has(String(rep.property_id || rep.property || ''))) && (
+                            {(members.length === 1 || isExpanded) && (role === 'admin' || approverPropIds.has(String(rep.property_id || rep.property || ''))) && (
                               <Button
                                 size="sm"
                                 variant="outline"
