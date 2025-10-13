@@ -25,7 +25,7 @@ export function MetricCard({
   contentClassName,
 }: MetricCardProps) {
   return (
-    <Card className={cn("border border-border/50 bg-background/90 shadow-none", className)}>
+    <Card className={cn("surface-card-soft", className)}>
       <CardContent className={cn("space-y-3 p-5", contentClassName)}>
         <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <Icon className={cn("h-4 w-4 text-primary", iconClassName)} />

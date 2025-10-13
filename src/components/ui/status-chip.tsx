@@ -12,19 +12,19 @@ export type StatusChipProps = {
 const colorFor = (raw?: string | null) => {
   const s = (raw || "").toString().toLowerCase();
   // Approvals
-  if (s === "approved" || s === "success" || s === "completed") return "bg-success/15 text-success border-success/20";
-  if (s === "rejected" || s === "failed" || s === "error") return "bg-destructive/15 text-destructive border-destructive/20";
-  if (s.startsWith("pending")) return "bg-warning/15 text-warning border-warning/20";
+  if (s === "approved" || s === "success" || s === "completed") return "bg-success/10 text-success border-success/20";
+  if (s === "rejected" || s === "failed" || s === "error") return "bg-destructive/10 text-destructive border-destructive/20";
+  if (s.startsWith("pending")) return "bg-warning/10 text-warning border-warning/20";
   // Users / Properties
-  if (s === "active" || s === "enabled") return "bg-success/15 text-success border-success/20";
+  if (s === "active" || s === "enabled") return "bg-success/10 text-success border-success/20";
   if (s === "inactive" || s === "disabled") return "bg-muted text-foreground/70 border-border";
   // Assets
-  if (s === "expiring soon" || s === "warning") return "bg-warning/15 text-warning border-warning/20";
-  if (s === "expired") return "bg-destructive/15 text-destructive border-destructive/20";
+  if (s === "expiring soon" || s === "warning") return "bg-warning/10 text-warning border-warning/20";
+  if (s === "expired") return "bg-destructive/10 text-destructive border-destructive/20";
   // Tickets
-  if (s === "open") return "bg-warning/15 text-warning border-warning/20";
+  if (s === "open") return "bg-warning/10 text-warning border-warning/20";
   if (s === "in_progress" || s === "in progress") return "bg-primary/10 text-primary border-primary/20";
-  if (s === "resolved") return "bg-success/15 text-success border-success/20";
+  if (s === "resolved") return "bg-success/10 text-success border-success/20";
   if (s === "closed") return "bg-muted text-foreground/70 border-border";
   // QR Codes
   if (s === "generated") return "bg-secondary text-secondary-foreground border-transparent";

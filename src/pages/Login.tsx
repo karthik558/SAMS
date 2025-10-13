@@ -114,7 +114,7 @@ export default function Login() {
             <div className="h-12 w-12 rounded-xl bg-background/80 border border-border/60 backdrop-blur flex items-center justify-center shadow-sm">
               <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
             </div>
-            <span className="text-xl font-bold text-white drop-shadow">SAMS</span>
+            <span className="text-xl font-semibold text-primary-foreground drop-shadow">SAMS</span>
           </div>
         </div>
       </div>
@@ -122,10 +122,10 @@ export default function Login() {
       {/* Auth Form Side */}
       <div className="flex min-h-dvh items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
-          <Card className="w-full rounded-2xl border border-primary/30 bg-card/90 backdrop-blur-sm shadow-md">
+          <Card className="w-full surface-card-soft backdrop-blur-sm">
             <CardHeader className="space-y-3 text-center">
               <div className="mx-auto flex items-center justify-center">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/40 flex items-center justify-center shadow-sm text-primary">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center shadow-sm text-primary">
                   <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
                 </div>
               </div>

@@ -117,7 +117,7 @@ export default function AssetDetails() {
           </Button>
         </div>
 
-        <Card className="border-border/60 shadow-lg">
+        <Card className="surface-card-elevated">
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
               <div>
@@ -140,11 +140,11 @@ export default function AssetDetails() {
                   </Badge>
                 )}
                 {hasSupabaseEnv ? (
-                  <Badge className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs">
+                  <Badge className="badge-pill-success">
                     <ShieldCheck className="mr-1 h-3.5 w-3.5" /> Verified
                   </Badge>
                 ) : (
-                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs">
+                  <Badge className="badge-pill-warning">
                     <AlertTriangle className="mr-1 h-3.5 w-3.5" /> Offline preview
                   </Badge>
                 )}

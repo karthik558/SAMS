@@ -113,7 +113,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(item.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/15 group-data-[selected=true]:text-sidebar-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/20 group-data-[selected=true]:text-sidebar-accent-foreground">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="flex flex-1 flex-col items-start text-left">
@@ -135,7 +135,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(action.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/15 group-data-[selected=true]:text-sidebar-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/20 group-data-[selected=true]:text-sidebar-accent-foreground">
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="flex flex-1 flex-col items-start text-left">

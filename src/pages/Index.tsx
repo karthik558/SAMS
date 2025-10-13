@@ -409,9 +409,9 @@ const Index = () => {
   }, [assignmentShare, backlogActive, completionRate, isAdmin, resolvedTotal, ticketSummary.awaitingAssignment, ticketSummary.assignedToMe, ticketSummary.slaRisk, ticketSummary.total]);
 
   const severityBadgeClasses: Record<AmcAlertItem["severity"], string> = {
-    urgent: "border border-red-500/50 bg-red-500/15 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-200",
-    soon: "border border-amber-500/50 bg-amber-500/15 text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/20 dark:text-amber-200",
-    info: "border border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200",
+    urgent: "badge-pill-danger",
+    soon: "badge-pill-warning",
+    info: "badge-pill-success",
   };
 
   const amcTracker = useMemo(() => {
@@ -823,14 +823,14 @@ const Index = () => {
   }
 
   const chartColors = {
-    created: "hsl(217 91% 60%)",
-    resolved: "hsl(142 76% 40%)",
-    backlog: "hsl(38 92% 50%)",
+    created: "hsl(var(--chart-created))",
+    resolved: "hsl(var(--chart-resolved))",
+    backlog: "hsl(var(--chart-backlog))",
   };
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <section className="space-y-6 rounded-2xl border border-border/60 bg-card/80 p-6 shadow-sm md:p-8">
+      <section className="surface-card-soft space-y-6 p-6 md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
@@ -866,7 +866,7 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-amber-500/40 bg-amber-50/80 p-6 shadow-sm dark:border-amber-500/30 dark:bg-amber-500/10">
+      <section className="rounded-xl border border-warning/40 bg-warning/10 p-6 shadow-soft dark:bg-warning/20">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-3">
@@ -881,17 +881,10 @@ const Index = () => {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-white/80 px-3 py-1 text-xs font-medium text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+              <span className="badge-pill border-warning/30 bg-background/80 text-warning">
                 {trackedAmc.toLocaleString()} {trackedAmc === 1 ? "AMC tracked" : "AMCs tracked"}
               </span>
-              <span
-                className={cn(
-                  "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
-                  overdueAmc > 0
-                    ? "border border-red-500/40 bg-red-500/15 text-red-700 dark:border-red-500/40 dark:bg-red-500/20 dark:text-red-200"
-                    : "border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-200"
-                )}
-              >
+              <span className={overdueAmc > 0 ? "badge-pill-danger" : "badge-pill-success"}>
                 {overdueAmc > 0 ? `${overdueAmc} overdue` : "No overdue AMC"}
               </span>
             </div>
@@ -910,7 +903,7 @@ const Index = () => {
                     return (
                       <div
                         key={item.id}
-                        className="flex items-start justify-between gap-3 rounded-xl border border-amber-500/40 bg-white/90 p-4 dark:border-amber-500/30 dark:bg-slate-950/40"
+                        className="surface-card-soft flex items-start justify-between gap-3 border-warning/40 p-4"
                       >
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-foreground">{item.name}</p>
@@ -924,7 +917,7 @@ const Index = () => {
                             </p>
                           )}
                         </div>
-                        <span className={cn("whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium", severityBadgeClasses[item.severity])}>
+                        <span className={cn("whitespace-nowrap", severityBadgeClasses[item.severity])}>
                           {dueLabel}
                         </span>
                       </div>
@@ -938,17 +931,17 @@ const Index = () => {
                 )}
               </>
             ) : (
-              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-amber-400/60 bg-white/80 p-4 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-warning/40 bg-background/80 p-4 text-xs text-warning">
                 <span>No AMC renewals are due in the next 60 days.</span>
                 {trackedAmc > 0 && (
-                  <span className="text-[11px] text-muted-foreground dark:text-amber-100/80">
+                  <span className="text-[11px] text-muted-foreground">
                     We’ll surface them here as they approach their end date.
                   </span>
                 )}
               </div>
             )
           ) : (
-            <div className="rounded-xl border border-dashed border-amber-400/60 bg-white/70 p-4 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-slate-950/40 dark:text-amber-200">
+            <div className="rounded-xl border border-dashed border-warning/40 bg-background/75 p-4 text-xs text-warning">
               Connect Supabase to enable AMC tracking and renewal reminders.
             </div>
           )}

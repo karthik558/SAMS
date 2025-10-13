@@ -34,7 +34,7 @@ export default function Website() {
 
   {/* Screenshot */}
       <section className="relative mx-auto mt-12 max-w-6xl px-2 md:px-0">
-        <div className="absolute inset-x-12 -top-6 h-20 rounded-full bg-primary/15 blur-3xl" aria-hidden />
+        <div className="absolute inset-x-12 -top-6 h-20 rounded-full bg-primary/20 blur-3xl" aria-hidden />
         <Card className="relative overflow-hidden border-border/60 shadow-lg">
           <CardContent className="p-0">
             <img src="/sams_banner.jpg" alt="SAMS banner" className="w-full rounded-md" />
@@ -94,7 +94,7 @@ export default function Website() {
       </section>
 
       {/* CTA */}
-      <section className="relative mx-auto my-16 max-w-5xl overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-r from-primary/15 via-background to-background p-8 text-center shadow-lg md:px-12 md:py-14">
+      <section className="relative mx-auto my-16 max-w-5xl overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-r from-primary/20 via-background to-background p-8 text-center shadow-lg md:px-12 md:py-14">
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute inset-y-0 left-1/2 w-2/3 -translate-x-1/2 bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.18),_transparent_65%)]" />
         </div>

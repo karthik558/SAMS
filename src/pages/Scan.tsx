@@ -149,9 +149,9 @@ export default function Scan() {
             </div>
             <div className="hidden sm:flex items-center gap-2">
               {active ? (
-                <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30">Camera active</Badge>
+                <Badge variant="outline" className="badge-pill-success">Camera active</Badge>
               ) : (
-                <Badge variant="outline" className="bg-muted/40">Idle</Badge>
+                <Badge variant="outline" className="badge-pill-muted">Idle</Badge>
               )}
             </div>
           </div>

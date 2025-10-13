@@ -531,8 +531,8 @@ export default function Tickets() {
   };
   const slaBadge = (t: Ticket) => {
     if (!t.slaDueAt) return null;
-    let label = '';
-    let color = 'bg-muted text-foreground';
+    let label = "";
+    let tone = "badge-pill-muted";
     try {
       const now = Date.now();
       const due = new Date(t.slaDueAt).getTime();
@@ -542,44 +542,46 @@ export default function Tickets() {
       const mins = Math.floor((abs % 3600000) / 60000);
       if (diffMs < 0) {
         label = `Overdue ${hrs}h ${mins}m`;
-        color = 'bg-red-100 text-red-800 border-red-200';
+        tone = "badge-pill-danger";
       } else if (diffMs <= 24 * 3600000) {
         label = `Due in ${hrs}h ${mins}m`;
-        color = 'bg-amber-100 text-amber-900 border-amber-200';
+        tone = "badge-pill-warning";
       } else {
-        const days = Math.ceil(diffMs / (24*3600000));
+        const days = Math.ceil(diffMs / (24 * 3600000));
         label = `Due in ${days}d`;
-        color = 'bg-emerald-100 text-emerald-900 border-emerald-200';
+        tone = "badge-pill-success";
       }
-    } catch { label = fmt(t.slaDueAt); }
-    return <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs ${color}`}>SLA: {label}</span>;
+    } catch {
+      label = fmt(t.slaDueAt);
+    }
+    return <span className={tone}>SLA: {label}</span>;
   };
   const statusColor = (status: Ticket["status"]) => {
     switch (status) {
       case 'open':
-        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-800';
+        return 'bg-primary/10 text-primary border-primary/30';
       case 'in_progress':
-        return 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800';
+        return 'bg-warning/10 text-warning border-warning/40';
       case 'resolved':
-        return 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-900/40 dark:text-sky-200 dark:border-sky-800';
+        return 'bg-success/10 text-success border-success/30';
       case 'closed':
-        return 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800';
+        return 'bg-muted/40 text-muted-foreground border-muted/40';
       default:
-        return 'bg-muted text-foreground dark:bg-muted dark:text-foreground';
+        return 'bg-muted/50 text-muted-foreground border-muted/50';
     }
   };
   const priorityColor = (priority: NonNullable<Ticket["priority"]>) => {
     switch (priority) {
       case 'low':
-        return 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700';
+        return 'bg-muted/40 text-muted-foreground border-muted/40';
       case 'medium':
-        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/40 dark:text-blue-200 dark:border-blue-800';
+        return 'bg-primary/10 text-primary border-primary/30';
       case 'high':
-        return 'bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-800';
+        return 'bg-warning/10 text-warning border-warning/40';
       case 'urgent':
-        return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800';
+        return 'bg-destructive/10 text-destructive border-destructive/40';
       default:
-        return 'bg-muted text-foreground dark:bg-muted dark:text-foreground';
+        return 'bg-muted/50 text-muted-foreground border-muted/50';
     }
   };
   const addComment = async (id: string) => {
@@ -653,16 +655,16 @@ export default function Tickets() {
             title="Active Backlog"
             value={ticketMetrics.backlog.toLocaleString()}
             caption="Open plus in-progress tickets"
-            iconClassName="text-amber-500 dark:text-amber-300"
-            valueClassName="text-amber-600 dark:text-amber-300"
+            iconClassName="text-warning"
+            valueClassName="text-warning"
           />
           <MetricCard
             icon={TicketIcon}
             title="Completion Rate"
             value={`${ticketMetrics.completionRate}%`}
             caption="Resolved or closed in the current view"
-            iconClassName="text-emerald-500 dark:text-emerald-300"
-            valueClassName="text-emerald-600 dark:text-emerald-300"
+            iconClassName="text-success"
+            valueClassName="text-success"
           />
           <MetricCard
             icon={TicketIcon}
