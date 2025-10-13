@@ -274,7 +274,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, []);
 
   const iconBase = isMobile
-    ? (isAdminRole ? "relative h-11 w-11 rounded-full bg-muted/70 p-0 shadow-sm" : "h-9 w-9 rounded-full bg-muted/70 p-0 shadow-sm")
+    ? (isAdminRole ? "relative h-10 w-10 rounded-full bg-muted/70 p-0 shadow-sm" : "h-8 w-8 rounded-full bg-muted/70 p-0 shadow-sm")
     : (isAdminRole ? "relative h-10 w-10 p-0" : "h-8 w-8 p-0");
 
   const notificationsDropdown = (
@@ -293,11 +293,15 @@ export function Header({ onMenuClick }: HeaderProps) {
           aria-label="Open notifications"
           variant="ghost"
           size="sm"
-          className={cn("relative", iconBase)}
+          className={cn(
+            "relative flex items-center justify-center rounded-full p-0 transition-colors",
+            isMobile ? "bg-muted/70 shadow-sm" : "bg-transparent",
+            iconBase
+          )}
         >
-          <Bell className="h-4 w-4" />
+          <Bell className="h-4 w-4 text-muted-foreground" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-4 text-destructive-foreground">
+            <span className="absolute -top-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] leading-[14px] text-destructive-foreground shadow-sm">
               {badgeLabel}
             </span>
           )}
@@ -502,11 +506,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Search className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex items-center justify-center">
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border/60 bg-background shadow-sm">
-              <img src="/favicon.png" alt="SAMS" className="h-7 w-7 object-contain" />
-            </div>
-          </div>
+          <div className="flex items-center justify-center" aria-hidden />
           <div className="flex items-center justify-end gap-1.5">
             <Button
               variant="ghost"
