@@ -165,9 +165,16 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Mobile Sidebar Sheet */}
       {isMobile && (
-    <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent side="left" className="p-0 w-[85vw] sm:max-w-sm">
-      <Sidebar isMobile onNavigate={() => setSidebarOpen(false)} className="w-full" />
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent
+            side="left"
+            className="w-[320px] max-w-[90vw] border-0 bg-transparent p-0 shadow-[0_18px_40px_rgba(11,12,16,0.35)] [&>button]:hidden"
+          >
+            <Sidebar
+              isMobile
+              onNavigate={() => setSidebarOpen(false)}
+              className="w-full rounded-r-3xl shadow-[0_18px_40px_rgba(11,12,16,0.35)]"
+            />
           </SheetContent>
         </Sheet>
       )}

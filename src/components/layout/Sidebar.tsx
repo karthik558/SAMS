@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -16,6 +16,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listTickets } from "@/services/tickets";
@@ -41,7 +42,45 @@ const baseNav: NavItem[] = [
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "License", href: "/license", icon: ShieldCheck },
-] ;
+];
+
+type BadgeTone = "destructive" | "warning" | "primary" | "muted";
+
+type SidebarEntry = NavItem & {
+  href: string;
+  isActive: boolean;
+  badges: Array<{ value: string; tone: BadgeTone }>;
+};
+
+const badgeToneClasses: Record<BadgeTone, string> = {
+  destructive: "border border-destructive/35 bg-destructive/10 text-destructive",
+  warning: "border border-warning/40 bg-warning/10 text-warning",
+  primary: "border border-primary/35 bg-primary/10 text-primary",
+  muted: "border border-border/50 bg-muted/40 text-muted-foreground",
+};
+
+const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> = [
+  { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
+  { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "QR Codes", "Newsletter"] },
+  { key: "insights", title: "Insights", items: ["Reports", "Audit"] },
+  { key: "administration", title: "Administration", items: ["Users", "Settings", "License"] },
+];
+
+const pageNameToKey: Record<string, PageKey | null> = {
+  Dashboard: null,
+  Assets: "assets",
+  Properties: "properties",
+  "QR Codes": "qrcodes",
+  Approvals: null,
+  "Scan QR": null,
+  Tickets: null,
+  Reports: "reports",
+  Audit: "audit",
+  Users: "users",
+  Settings: "settings",
+  License: null,
+  Newsletter: null,
+} as const;
 
 interface SidebarProps {
   className?: string;
@@ -62,6 +101,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [ticketNewCount, setTicketNewCount] = useState<number>(0);
   const [ticketPendingCount, setTicketPendingCount] = useState<number>(0);
   const [role, setRole] = useState<string>("");
+  const [userName, setUserName] = useState<string>("");
   const [showNewsletter, setShowNewsletter] = useState<boolean>(false);
   useEffect(() => {
     (async () => {
@@ -131,6 +171,202 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     })();
   }, [location.pathname]);
 
+  const navEntries = useMemo<SidebarEntry[]>(() => {
+    const demo = isDemoMode();
+    let resolvedRole = (role || "").toLowerCase();
+    if (!resolvedRole) {
+      try {
+        const raw = demo
+          ? sessionStorage.getItem("demo_auth_user") || localStorage.getItem("demo_auth_user")
+          : localStorage.getItem("auth_user");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          resolvedRole = (parsed?.role || "").toLowerCase();
+        }
+      } catch {
+        resolvedRole = "";
+      }
+    }
+    const roleForPerm = demo ? resolvedRole || "admin" : resolvedRole;
+    const effective = mergeDefaultsWithOverrides(roleForPerm, (perm || {}) as any);
+
+    const working = [...baseNav];
+    if (showNewsletter && !working.find((item) => item.name === "Newsletter")) {
+      const idx = working.findIndex((item) => item.name === "Reports");
+      const insertAt = idx >= 0 ? idx : working.length - 1;
+      working.splice(insertAt, 0, { name: "Newsletter", href: "/newsletter", icon: FileBarChart });
+    }
+
+    const filtered = working.filter((item) => {
+      // Demo mode hides certain routes
+      if (demo && (item.name === "Audit" || item.name === "License")) return false;
+      if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
+      if (item.name === "Newsletter") return showNewsletter;
+      if (item.name === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
+      if (item.name === "License") return roleForPerm === "admin";
+      if (item.name === "Audit") {
+        const rule = (effective as any)["audit"];
+        return (
+          roleForPerm === "admin" ||
+          ((auditActive || hasAuditReports) && roleForPerm === "manager") ||
+          !!rule?.v
+        );
+      }
+      const key = pageNameToKey[item.name];
+      if (!key) return true;
+      const rule = (effective as any)[key as PageKey];
+      return !!rule?.v;
+    });
+
+    return filtered.map<SidebarEntry>((item) => {
+      const href = (() => {
+        if (!demo) return item.href;
+        if (item.href === "/") return "/demo";
+        if (item.href === "/scan") return "/scan";
+        return `/demo${item.href}`;
+      })();
+
+      const isActive =
+        location.pathname === href ||
+        (href !== "/" && location.pathname.startsWith(`${href}/`));
+
+      const badges: SidebarEntry["badges"] = [];
+      if (item.name === "Approvals" && pendingApprovals > 0) {
+        badges.push({ value: String(pendingApprovals), tone: "destructive" });
+      }
+      if (item.name === "Audit" && auditPendingCount > 0) {
+        badges.push({ value: String(auditPendingCount), tone: "destructive" });
+      }
+      if (item.name === "Tickets") {
+        if (ticketNewCount > 0) badges.push({ value: String(ticketNewCount), tone: "destructive" });
+        if (ticketPendingCount > 0) badges.push({ value: String(ticketPendingCount), tone: "warning" });
+      }
+
+      return { ...item, href, isActive, badges };
+    });
+  }, [
+    role,
+    perm,
+    showNewsletter,
+    auditActive,
+    hasAuditReports,
+    pendingApprovals,
+    auditPendingCount,
+    ticketNewCount,
+    ticketPendingCount,
+    location.pathname,
+  ]);
+
+  const groupedNav = useMemo(() => {
+    const used = new Set<string>();
+    const groups = navGroupBlueprint
+      .map((group) => {
+        const items = navEntries.filter((entry) => group.items.includes(entry.name));
+        items.forEach((item) => used.add(item.name));
+        return items.length ? { ...group, items } : null;
+      })
+      .filter((group): group is { key: string; title: string; items: SidebarEntry[] } => Boolean(group));
+
+    const leftovers = navEntries.filter((entry) => !used.has(entry.name));
+    if (leftovers.length) {
+      groups.push({ key: "more", title: "More", items: leftovers });
+    }
+    return groups;
+  }, [navEntries]);
+
+  const firstName = useMemo(() => {
+    if (!userName) return "";
+    const parts = userName.trim().split(/\s+/);
+    return parts[0] || userName;
+  }, [userName]);
+
+  if (isMobile) {
+    return (
+      <div className={cn("flex h-full flex-col overflow-hidden bg-sidebar text-sidebar-foreground", className)}>
+        <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-background via-background to-primary/10">
+          <div className="relative px-5 pt-6 pb-5 text-foreground">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-background shadow-soft">
+                  <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground/80">
+                    SAMS{isDemoMode() ? " • Demo" : ""}
+                  </span>
+                  <span className="text-base font-semibold leading-tight">
+                    {firstName ? `${firstName}, welcome back` : "Welcome back"}
+                  </span>
+                </div>
+              </div>
+              <SheetClose asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm transition hover:bg-background"
+                  aria-label="Close navigation"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+              </SheetClose>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+          {groupedNav.map((group) => (
+            <div key={group.key} className="space-y-2">
+              <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/80">
+                {group.title}
+              </p>
+              <div className="overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-soft">
+                {group.items.map((entry, idx) => (
+                  <NavLink
+                    key={entry.name}
+                    to={entry.href}
+                    onClick={onNavigate}
+                    className={cn(
+                      "relative flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-200",
+                      entry.isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-foreground hover:bg-primary/5 hover:text-primary",
+                      idx !== group.items.length - 1 ? "border-b border-border/60" : ""
+                    )}
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/40 text-primary">
+                      <entry.icon className="h-5 w-5" strokeWidth={1.6} />
+                    </span>
+                    <span className="flex flex-1 items-center justify-between gap-3">
+                      <span className="text-sm font-medium">{entry.name}</span>
+                      <span className="flex items-center gap-2">
+                        {entry.badges.map((badge) => (
+                          <span
+                            key={`${entry.name}-${badge.value}-${badge.tone}`}
+                            className={cn(
+                              "inline-flex min-w-[26px] justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none",
+                              badgeToneClasses[badge.tone]
+                            )}
+                          >
+                            {badge.value}
+                          </span>
+                        ))}
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                      </span>
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border/60 px-4 py-5">
+          <p className="text-xs text-muted-foreground">
+            © 2025 SAMS. Crafted for modern asset teams.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+
   // Load current user's pending approvals count
   useEffect(() => {
     (async () => {
@@ -144,7 +380,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         }
         let dept: string | null = null;
         let role: string = '';
-        if (raw) { const u = JSON.parse(raw); dept = u?.department || null; role = (u?.role || '').toLowerCase(); }
+        if (raw) {
+          const u = JSON.parse(raw);
+          dept = u?.department || null;
+          role = (u?.role || '').toLowerCase();
+          setUserName((u?.name || u?.email || "User") as string);
+        } else {
+          setUserName("User");
+        }
         setRole(role);
         setUserDept((dept || '').toLowerCase());
         if (role === 'admin') {
@@ -244,116 +487,38 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
-          {(() => {
-            let role: string = "";
-            try {
-              if (isDemoMode()) {
-                const raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
-                role = raw ? (JSON.parse(raw).role || "") : "";
-              } else {
-                const raw = localStorage.getItem("auth_user");
-                role = raw ? (JSON.parse(raw).role || "") : "";
-              }
-            } catch {}
-            const r = isDemoMode() ? (role ? role.toLowerCase() : 'admin') : role.toLowerCase();
-            // Merge role defaults with any stored overrides for this user
-            const effective = mergeDefaultsWithOverrides(r, (perm || {}) as any);
-            const pageNameToKey: Record<string, PageKey | null> = {
-              Dashboard: null,
-              Assets: "assets",
-              Properties: "properties",
-              "QR Codes": "qrcodes",
-              Approvals: null, // gated by role below
-              "Scan QR": null, // always visible per requirement
-              Tickets: null, // visible to all roles
-              Reports: "reports",
-              Audit: "audit",
-              Users: "users",
-              Settings: "settings",
-              License: null,
-              Newsletter: null,
-            } as const;
-            // Build a working array we can mutate to inject Newsletter
-            const working = [...baseNav];
-            if (showNewsletter && !working.find(i => i.name === 'Newsletter')) {
-              // Insert newsletter before Reports for visibility
-              const idx = working.findIndex(i => i.name === 'Reports');
-              const insertAt = idx >= 0 ? idx : working.length - 1;
-              working.splice(insertAt, 0, { name: 'Newsletter', href: '/newsletter', icon: FileBarChart });
-            }
-            const nav = working.filter((item) => {
-              // In demo mode, hide Audit and License entirely
-              if (isDemoMode() && (item.name === "Audit" || item.name === "License")) return false;
-              // Always visible
-              if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
-              if (item.name === 'Newsletter') return showNewsletter; // user preference controlled
-              // Approvals visible only to admin/manager
-              if (item.name === "Approvals") return r === "admin" || r === "manager";
-              // License only for admin
-              if (item.name === "License") return r === 'admin';
-              // Audit: admins always see (control page); managers see when an audit is active OR if there are reports; anyone with explicit permission sees
-              if (item.name === "Audit") {
-                const rule = (effective as any)['audit'];
-                return r === 'admin' || ((auditActive || hasAuditReports) && r === 'manager') || !!rule?.v;
-              }
-              // Items governed by permissions
-              const key = pageNameToKey[item.name];
-              if (!key) return true;
-              const rule = (effective as any)[key as PageKey];
-              return !!rule?.v;
-            });
-            return nav.map((item) => {
-              const href = (() => {
-                if (!isDemoMode()) return item.href;
-                if (item.href === "/") return "/demo";
-                // Keep Scan QR as public route
-                if (item.href === "/scan") return "/scan";
-                return `/demo${item.href}`;
-              })();
-              const isActive = location.pathname === href || location.pathname.startsWith(href + "/");
-              return (
-                <NavLink
-                  key={item.name}
-                  to={href}
-                  className={cn(
-                    "group/nav flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
-                    collapsed ? "justify-center" : "justify-start",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/30 dark:bg-sidebar-primary/25 dark:text-foreground dark:ring-sidebar-ring/30"
-                      : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 hover:shadow-sm hover:ring-1 hover:ring-sidebar-ring/20 dark:hover:bg-sidebar-accent/60"
-                  )}
-                  onClick={onNavigate}
-                >
-                  <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-                  {!collapsed && (
-                    <span className="truncate flex items-center gap-2">
-                      {item.name}
-                      {item.name === "Approvals" && pendingApprovals > 0 && (
-                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                          {pendingApprovals}
-                        </span>
+          {navEntries.map((entry) => (
+            <NavLink
+              key={entry.name}
+              to={entry.href}
+              className={cn(
+                "group/nav flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
+                collapsed ? "justify-center" : "justify-start",
+                entry.isActive
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/30 dark:bg-sidebar-primary/25 dark:text-foreground dark:ring-sidebar-ring/30"
+                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 hover:shadow-sm hover:ring-1 hover:ring-sidebar-ring/20 dark:hover:bg-sidebar-accent/60"
+              )}
+              onClick={onNavigate}
+            >
+              <entry.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+              {!collapsed && (
+                <span className="flex flex-1 items-center gap-2 truncate">
+                  <span className="truncate">{entry.name}</span>
+                  {entry.badges.map((badge) => (
+                    <span
+                      key={`${entry.name}-${badge.value}-${badge.tone}`}
+                      className={cn(
+                        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold",
+                        badgeToneClasses[badge.tone]
                       )}
-                      {item.name === "Audit" && auditPendingCount > 0 && (
-                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                          {auditPendingCount}
-                        </span>
-                      )}
-                      {item.name === "Tickets" && ticketNewCount > 0 && (
-                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
-                          {ticketNewCount}
-                        </span>
-                      )}
-                      {item.name === "Tickets" && ticketPendingCount > 0 && (
-                        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warning px-1 text-[10px] font-bold text-warning-foreground">
-                          {ticketPendingCount}
-                        </span>
-                      )}
+                    >
+                      {badge.value}
                     </span>
-                  )}
-                </NavLink>
-              );
-            });
-          })()}
+                  ))}
+                </span>
+              )}
+            </NavLink>
+          ))}
         </nav>
         {/* Footer */}
         <div className="border-t border-border/60 p-4">
