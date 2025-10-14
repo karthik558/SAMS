@@ -101,9 +101,11 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder={`Search pages and actions${hasSupabaseEnv ? '…' : ''}`} />
-      <CommandList className="mt-2 space-y-3 px-2 pb-5">
-        <CommandEmpty className="py-10 text-center text-sm text-muted-foreground/80">No results.</CommandEmpty>
-        <CommandGroup heading="Pages" className="space-y-1 [&_[cmdk-group-heading]]:text-muted-foreground/70">
+      <CommandList className="mt-3 space-y-3 px-3 pb-5">
+        <CommandEmpty className="py-10 text-center text-sm text-muted-foreground/70">
+          No results found.
+        </CommandEmpty>
+        <CommandGroup heading="Pages" className="space-y-1 rounded-2xl border border-border/70 bg-card/90 px-3 py-3 [&_[cmdk-group-heading]]:text-muted-foreground/70">
           {pages.map((item) => {
             const Icon = item.icon;
             return (
@@ -113,19 +115,21 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(item.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/20 group-data-[selected=true]:text-sidebar-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary group-data-[selected=true]:border-primary/40 group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:text-primary">
                   <Icon className="h-4 w-4" />
                 </span>
-                <div className="flex flex-1 flex-col items-start text-left">
-                  <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-sidebar-accent-foreground">{item.label}</span>
-                  <span className="text-xs text-muted-foreground/80">{item.path}</span>
+                <div className="flex flex-1 flex-col items-start gap-1 text-left">
+                  <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-primary">{item.label}</span>
+                  <span className="text-xs text-muted-foreground/80">
+                    {item.path}
+                  </span>
                 </div>
               </CommandItem>
             );
           })}
         </CommandGroup>
         <CommandSeparator className="my-2 bg-border/60" />
-        <CommandGroup heading="Actions" className="space-y-1 [&_[cmdk-group-heading]]:text-muted-foreground/70">
+        <CommandGroup heading="Actions" className="space-y-1 rounded-2xl border border-border/70 bg-card/90 px-3 py-3 [&_[cmdk-group-heading]]:text-muted-foreground/70">
           {actions.map((action) => {
             const Icon = action.icon;
             return (
@@ -135,11 +139,11 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(action.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-data-[selected=true]:border-transparent group-data-[selected=true]:bg-sidebar-accent-foreground/20 group-data-[selected=true]:text-sidebar-accent-foreground">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary group-data-[selected=true]:border-primary/40 group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:text-primary">
                   <Icon className="h-4 w-4" />
                 </span>
-                <div className="flex flex-1 flex-col items-start text-left">
-                  <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-sidebar-accent-foreground">{action.label}</span>
+                <div className="flex flex-1 flex-col items-start gap-1 text-left">
+                  <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-primary">{action.label}</span>
                   <span className="text-xs text-muted-foreground/80">{action.path}</span>
                 </div>
               </CommandItem>
