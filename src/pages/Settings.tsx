@@ -202,6 +202,10 @@ export default function Settings() {
       sticky_header: stickyHeader,
       auto_theme: autoTheme,
       density,
+      show_newsletter: showNewsletter,
+      show_announcements: showAnnouncements,
+      sidebar_collapsed: sidebarCollapsedPref,
+      enable_sounds: enableSounds,
     };
     // Cross-tab broadcast
     localStorage.setItem('user_preferences_patch', JSON.stringify(patch));

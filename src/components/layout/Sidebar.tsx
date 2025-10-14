@@ -274,6 +274,37 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     return groups;
   }, [navEntries]);
 
+  useEffect(() => {
+    const applyPatch = (detail: any) => {
+      if (detail && typeof detail.show_newsletter === "boolean") {
+        setShowNewsletter(detail.show_newsletter);
+      }
+      if (detail && typeof detail.sidebar_collapsed === "boolean" && !isMobile) {
+        setCollapsed(detail.sidebar_collapsed);
+      }
+    };
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key === "user_preferences_patch") {
+        try {
+          const payload = JSON.parse(event.newValue || "{}") || {};
+          applyPatch(payload);
+        } catch {}
+      }
+    };
+    const customHandler = (event: Event) => {
+      try {
+        const payload = (event as CustomEvent).detail || {};
+        applyPatch(payload);
+      } catch {}
+    };
+    window.addEventListener("storage", storageHandler);
+    window.addEventListener("user-preferences-changed", customHandler as any);
+    return () => {
+      window.removeEventListener("storage", storageHandler);
+      window.removeEventListener("user-preferences-changed", customHandler as any);
+    };
+  }, [isMobile]);
+
   const firstName = useMemo(() => {
     if (!userName) return "";
     const parts = userName.trim().split(/\s+/);
