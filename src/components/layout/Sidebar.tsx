@@ -291,7 +291,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground/80">
+                  <span className="text-xs font-extrabold uppercase tracking-[0.28em] text-muted-foreground/80">
                     SAMS{isDemoMode() ? " • Demo" : ""}
                   </span>
                   <span className="text-base font-semibold leading-tight">
@@ -359,7 +359,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </div>
         <div className="border-t border-border/60 px-4 py-5">
           <p className="text-xs text-muted-foreground">
-            © 2025 SAMS. Crafted for modern asset teams.
+            © 2025 SAMS. All rights reserved.
           </p>
         </div>
       </div>
