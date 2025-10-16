@@ -232,6 +232,13 @@ export default function Login() {
                 >
                   {loading ? "Signing in..." : "Sign in"}
                 </Button>
+                <p className="rounded-2xl bg-muted/40 px-4 py-3 text-xs text-muted-foreground text-center">
+                  Need help signing in? Email{" "}
+                  <a href="mailto:karthik@samsproject.in" className="font-medium text-primary hover:underline">
+                    karthik@samsproject.in
+                  </a>
+                  .
+                </p>
               </form>
               <Button
                 type="button"

@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Ticket as TicketIcon } from "lucide-react";
+import { Ticket as TicketIcon, Mail } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
@@ -640,6 +640,14 @@ export default function Tickets() {
           icon={TicketIcon}
           title="Maintenance Tickets"
           description="Monitor, triage, and resolve maintenance issues across your properties"
+          actions={
+            <Button asChild variant="outline" className="gap-2">
+              <a href="mailto:karthik@samsproject.in">
+                <Mail className="h-4 w-4" />
+                Email Support
+              </a>
+            </Button>
+          }
         />
       </div>
       <section className="space-y-4">
