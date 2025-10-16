@@ -3,7 +3,7 @@
   <h1>SAMS &mdash; Smart Asset Management System</h1>
   <p>Centralized asset lifecycle management, QR-enabled tracking, and collaborative operations for modern teams.</p>
   <p>
-    <a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+    <a href="https://samsproject.in/demo/login" target="_blank" rel="noopener">
       <img src="https://img.shields.io/badge/Live%20Demo-Open-2ea44f?style=for-the-badge&logo=vercel&logoColor=white" alt="Live Demo" />
     </a>
     &nbsp;
@@ -155,7 +155,7 @@ These items are actively tracked for upcoming releases:
 ## Live Demo
 
 <div align="left">
-  <a href="https://sams.karthiklal.in/demo/login" target="_blank" rel="noopener">
+  <a href="https://samsproject.in/demo/login" target="_blank" rel="noopener">
     <img src="https://img.shields.io/badge/LIVE%20DEMO-OPEN-orange?style=for-the-badge" alt="Live Demo" />
   </a>
   <br />
@@ -165,7 +165,7 @@ These items are actively tracked for upcoming releases:
 ## Support
 
 Need help, feature guidance, or a tailored walkthrough?
-- Email: <a href="mailto:dev@karthiklal.in">dev@karthiklal.in</a>
+- Email: <a href="mailto:karthik@samsproject.in">karthik@samsproject.in</a>
 - Issues: open a GitHub ticket to report bugs or request enhancements.
 
 ## Browser & Device Support
