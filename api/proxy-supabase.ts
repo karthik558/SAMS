@@ -18,8 +18,19 @@ function isAllowedTarget(url: string): boolean {
 }
 
 export default async function handler(req: any, res: any) {
+  // Basic CORS handling (also for corporate proxies doing strict checks)
+  const origin = req.headers?.origin || "*";
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  const reqHdrs = req.headers?.["access-control-request-headers"]; // may be string or undefined
+  res.setHeader("Access-Control-Allow-Headers", typeof reqHdrs === 'string' && reqHdrs ? reqHdrs : "content-type, authorization, apikey");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", "POST, OPTIONS");
     return res.status(405).json({ error: "Method Not Allowed" });
   }
   try {
@@ -34,7 +45,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: "Missing url or method" });
     }
     if (!isAllowedTarget(url)) {
-      return res.status(400).json({ error: "Target not allowed" });
+      return res.status(403).json({ error: "Target not allowed" });
     }
 
     // Filter out forbidden/request-specific headers
