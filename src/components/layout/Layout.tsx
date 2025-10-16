@@ -13,6 +13,22 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+const BASE_TITLE = "SAMS";
+const ROUTE_TITLE_MAP: Record<string, string> = {
+  "/": "Dashboard",
+  "/assets": "Assets",
+  "/properties": "Properties",
+  "/qr-codes": "QR Codes",
+  "/approvals": "Approvals",
+  "/tickets": "Tickets",
+  "/newsletter": "Newsletter",
+  "/reports": "Reports",
+  "/audit": "Audit",
+  "/users": "Users",
+  "/settings": "Settings",
+  "/license": "License",
+};
+
 export function Layout({ children }: LayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -153,6 +169,31 @@ export function Layout({ children }: LayoutProps) {
     { label: "QR", path: "/qr-codes", icon: QrCode },
     { label: "Tickets", path: "/tickets", icon: Ticket },
   ] as const;
+
+  useEffect(() => {
+    const rawPath = pathname.split("?")[0].replace(/\/+$/, "") || "/";
+    const segments = rawPath === "/" ? [] : rawPath.split("/").filter(Boolean);
+    const baseKey = segments.length === 0 ? "/" : `/${segments[0]}`;
+    const knownTitle = ROUTE_TITLE_MAP[baseKey];
+    const fallbackTitle = segments
+      .map((segment) =>
+        segment
+          .replace(/[-_]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/\b\w/g, (char) => char.toUpperCase())
+      )
+      .join(" / ");
+    const suffix =
+      knownTitle ||
+      (fallbackTitle ? fallbackTitle : ROUTE_TITLE_MAP["/"] || "Dashboard");
+    const nextTitle = `${BASE_TITLE} - ${suffix}`;
+    try {
+      document.title = nextTitle;
+    } catch {
+      // ignore if document unavailable (e.g., server rendering)
+    }
+  }, [pathname]);
 
   return (
     <div className="flex h-dvh bg-background">
