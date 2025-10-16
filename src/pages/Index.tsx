@@ -409,9 +409,9 @@ const Index = () => {
   }, [assignmentShare, backlogActive, completionRate, isAdmin, resolvedTotal, ticketSummary.awaitingAssignment, ticketSummary.assignedToMe, ticketSummary.slaRisk, ticketSummary.total]);
 
   const severityBadgeClasses: Record<AmcAlertItem["severity"], string> = {
-    urgent: "badge-pill-danger",
-    soon: "badge-pill-warning",
-    info: "badge-pill-success",
+    urgent: "badge-pill border-[#8f2d1f]/55 bg-[#c65947] text-white shadow-sm dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white",
+    soon: "badge-pill border-[#b98a3b]/50 bg-[#ffe3a3] text-[#3a1f12] shadow-sm dark:border-[#ffd470]/55 dark:bg-[#b8861b] dark:text-[#1b0f05]",
+    info: "badge-pill border-[#2e7d32]/55 bg-[#d4f5e3] text-[#1c4927] shadow-sm dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white",
   };
 
   const amcTracker = useMemo(() => {
@@ -866,25 +866,32 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="rounded-xl border border-warning/40 bg-warning/10 p-6 shadow-soft dark:bg-warning/20">
+      <section className="rounded-xl border border-transparent bg-gradient-to-br from-[#c17e62] to-[#dda88f] p-6 shadow-soft text-[#3a1f12] dark:from-[#7f432c] dark:to-[#a46348] dark:text-white">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="flex items-center gap-3">
-              <span className="rounded-full bg-amber-500/20 p-2 text-amber-700 dark:bg-amber-500/20 dark:text-amber-200">
+              <span className="rounded-full bg-white/75 p-2 text-[#8a472d] shadow-sm dark:bg-white/15 dark:text-white">
                 <AlertTriangle className="h-5 w-5" />
               </span>
               <div>
-                <h2 className="text-lg font-semibold text-foreground">AMC Watchlist</h2>
-                <p className="text-xs text-muted-foreground">
+                <h2 className="text-lg font-semibold text-[#2f160b] dark:text-white">AMC Watchlist</h2>
+                <p className="text-xs text-[#4d2715] dark:text-white/80">
                   Renewals scheduled within the next 60 days
                 </p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="badge-pill border-warning/30 bg-background/80 text-warning">
+              <span className="badge-pill border-[#8f462c]/40 bg-[#f4c9b0] text-[#3a1f12] shadow-sm dark:border-[#f5cbb1]/45 dark:bg-[#a46348] dark:text-white">
                 {trackedAmc.toLocaleString()} {trackedAmc === 1 ? "AMC tracked" : "AMCs tracked"}
               </span>
-              <span className={overdueAmc > 0 ? "badge-pill-danger" : "badge-pill-success"}>
+              <span
+                className={cn(
+                  "badge-pill shadow-sm",
+                  overdueAmc > 0
+                    ? "border-[#8f2d1f]/55 bg-[#c65947] text-white dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white"
+                    : "border-[#2e7d32]/55 bg-[#3ca370] text-white dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white"
+                )}
+              >
                 {overdueAmc > 0 ? `${overdueAmc} overdue` : "No overdue AMC"}
               </span>
             </div>
@@ -903,16 +910,16 @@ const Index = () => {
                     return (
                       <div
                         key={item.id}
-                        className="surface-card-soft flex items-start justify-between gap-3 border-warning/40 p-4"
+                        className="flex items-start justify-between gap-3 rounded-xl border border-white/60 bg-white/90 p-4 text-[#3a1f12] shadow-sm dark:border-white/20 dark:bg-black/30 dark:text-white"
                       >
                         <div className="space-y-1">
-                          <p className="text-sm font-medium text-foreground">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-sm font-medium text-[#2f160b] dark:text-white">{item.name}</p>
+                          <p className="text-xs text-[#55301b] dark:text-white/85">
                             {item.propertyName} • ends{" "}
                             {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                           </p>
                           {item.startDate && (
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-[11px] text-[#704029] dark:text-white/75">
                               Started {item.startDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                             </p>
                           )}
@@ -925,16 +932,16 @@ const Index = () => {
                   })}
                 </div>
                 {upcomingAmc.length > 6 && (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-[#55301b] dark:text-white/80">
                     {upcomingAmc.length - 6} more renewal{upcomingAmc.length - 6 === 1 ? "" : "s"} fall outside this window.
                   </p>
                 )}
               </>
             ) : (
-              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-warning/40 bg-background/80 p-4 text-xs text-warning">
+              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-white/70 bg-white/85 p-4 text-xs text-[#3a1f12] shadow-sm dark:border-white/35 dark:bg-white/10 dark:text-white/90">
                 <span>No AMC renewals are due in the next 60 days.</span>
                 {trackedAmc > 0 && (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-[11px] text-[#55301b] dark:text-white/80">
                     We’ll surface them here as they approach their end date.
                   </span>
                 )}
