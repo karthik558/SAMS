@@ -914,8 +914,11 @@ const Index = () => {
                       >
                         <div className="space-y-1">
                           <p className="text-sm font-medium text-[#2f160b] dark:text-white">{item.name}</p>
+                          <p className="text-[11px] tracking-wide text-[#704029] dark:text-white/65">
+                            Asset ID: <span className="font-medium">{item.id}</span>
+                          </p>
                           <p className="text-xs text-[#55301b] dark:text-white/85">
-                            {item.propertyName} • ends{" "}
+                            {item.propertyName} • Ends{" "}
                             {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                           </p>
                           {item.startDate && (
