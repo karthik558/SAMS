@@ -2,6 +2,9 @@ let audioEl: HTMLAudioElement | null = null;
 let unlocked = false;
 let pendingBeeps = 0;
 let soundsEnabled = true;
+const bootStarted = Date.now();
+const BOOT_SUPPRESS_MS = 2000;
+let suppressedInitialBeep = false;
 
 // Lazy load preference once (can be refreshed manually if needed)
 function loadPref() {
@@ -38,6 +41,15 @@ function ensureAudio(): HTMLAudioElement | null {
 
 export function playNotificationSound(): void {
   if (!soundsEnabled) return;
+  const now = Date.now();
+  if (!suppressedInitialBeep && now - bootStarted < BOOT_SUPPRESS_MS) {
+    suppressedInitialBeep = true;
+    return;
+  }
+  if (!unlocked) {
+    pendingBeeps = Math.min(pendingBeeps + 1, 3);
+    return;
+  }
   const el = ensureAudio();
   if (!el) return;
   try {

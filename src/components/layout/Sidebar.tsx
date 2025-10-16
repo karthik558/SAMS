@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -24,6 +24,8 @@ import { listApprovals } from "@/services/approvals";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { getUserPreferences } from "@/services/userPreferences";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { playNotificationSound } from "@/lib/sound";
 
 // Use a non-const assertion for dynamic injection (e.g., Newsletter)
 type NavItem = { name: string; href: string; icon: any };
@@ -311,6 +313,141 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     return parts[0] || userName;
   }, [userName]);
 
+  const loadPendingApprovals = useCallback(
+    async (opts?: { force?: boolean; roleOverride?: string; deptOverride?: string | null }) => {
+      const roleRaw = opts?.roleOverride ?? (role || "");
+      const roleValue = roleRaw.toLowerCase();
+      const deptRaw = opts?.deptOverride ?? userDept;
+      const deptValue = (deptRaw || "").toString().trim();
+      try {
+        if (roleValue === "admin") {
+          const list = await listApprovals("pending_admin", undefined, undefined, undefined, { force: opts?.force });
+          setPendingApprovals(list.length);
+        } else if (roleValue === "manager") {
+          if (!deptValue) {
+            setPendingApprovals(0);
+            return;
+          }
+          const list = await listApprovals("pending_manager", deptValue, undefined, undefined, { force: opts?.force });
+          const deptLower = deptValue.toLowerCase();
+          const count = list.filter(a => (a.department || '').toLowerCase() === deptLower).length;
+          setPendingApprovals(count);
+        } else {
+          setPendingApprovals(0);
+        }
+      } catch {
+        setPendingApprovals(0);
+      }
+    },
+    [role, userDept]
+  );
+
+  // Load current user's pending approvals count
+  useEffect(() => {
+    (async () => {
+      try {
+        let raw: string | null = null;
+        if (isDemoMode()) {
+          raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
+        }
+        if (!raw) {
+          raw = localStorage.getItem('auth_user');
+        }
+        let dept: string | null = null;
+        let roleValue: string = '';
+        if (raw) {
+          const u = JSON.parse(raw);
+          dept = u?.department || null;
+          roleValue = (u?.role || '').toLowerCase();
+          setUserName((u?.name || u?.email || "User") as string);
+        } else {
+          setUserName("User");
+        }
+        setRole(roleValue);
+        setUserDept((dept || '').toLowerCase());
+        await loadPendingApprovals({ roleOverride: roleValue, deptOverride: dept, force: true });
+      } catch {
+        setPendingApprovals(0);
+      }
+    })();
+  }, [location.pathname, loadPendingApprovals]);
+
+  useEffect(() => {
+    if (!hasSupabaseEnv) return;
+    const roleValue = (role || "").toLowerCase();
+    if (roleValue !== "admin" && roleValue !== "manager") return;
+    const deptLower = (userDept || "").toLowerCase();
+    if (roleValue === "manager" && !deptLower) return;
+
+    const channel = supabase
+      .channel(`approvals_sidebar_${roleValue}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "approvals" }, (payload) => {
+        const relevant = (record: any) => {
+          if (!record) return false;
+          const status = String(record.status || "").toLowerCase();
+          if (roleValue === "admin") {
+            return status === "pending_admin";
+          }
+          if (roleValue === "manager") {
+            const recDept = String(record.department || "").toLowerCase();
+            return status === "pending_manager" && recDept === deptLower;
+          }
+          return false;
+        };
+        const before = relevant(payload?.old);
+        const after = relevant(payload?.new);
+        if (before === after) return;
+        if (!before && after) {
+          try { playNotificationSound(); } catch {}
+        }
+        loadPendingApprovals({ force: true });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, userDept, loadPendingApprovals]);
+
+  
+  // Load ticket badges: red = new open for my role; yellow = assigned to me and in progress/resolved
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+        const u = raw ? JSON.parse(raw) : null;
+        const role = ((u?.role || '') as string).toLowerCase();
+        const meId = u?.id as string | undefined;
+        const meEmail = u?.email as string | undefined;
+        // Red badge: open tickets for my role
+        if (role === 'admin' || role === 'manager') {
+          try {
+            const roleTickets = await listTickets({ targetRole: role as any });
+            const openCount = (roleTickets || []).filter(t => t.status === 'open').length;
+            setTicketNewCount(openCount);
+          } catch { setTicketNewCount(0); }
+        } else {
+          setTicketNewCount(0);
+        }
+        // Yellow badge: tickets assigned to me that are not closed and not open (i.e., in progress or awaiting resolution)
+        const assignedLists: any[][] = [];
+        try { if (meId) assignedLists.push(await listTickets({ assignee: meId })); } catch {}
+        try { if (meEmail && meEmail !== meId) assignedLists.push(await listTickets({ assignee: meEmail })); } catch {}
+        const seen = new Set<string>();
+        const mine = assignedLists.flat().filter((t) => {
+          if (!t?.id) return false;
+          if (seen.has(t.id)) return false;
+          seen.add(t.id);
+          return true;
+        });
+        const pendingMine = mine.filter(t => t.status === 'in_progress' || t.status === 'resolved');
+        setTicketPendingCount(pendingMine.length);
+      } catch {
+        setTicketNewCount(0);
+        setTicketPendingCount(0);
+      }
+    })();
+  }, [location.pathname]);
   if (isMobile) {
     return (
       <div className={cn("flex h-full flex-col overflow-hidden bg-sidebar text-sidebar-foreground", className)}>
@@ -396,89 +533,6 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       </div>
     );
   }
-
-
-  // Load current user's pending approvals count
-  useEffect(() => {
-    (async () => {
-      try {
-        let raw: string | null = null;
-        if (isDemoMode()) {
-          raw = sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user');
-        }
-        if (!raw) {
-          raw = localStorage.getItem('auth_user');
-        }
-        let dept: string | null = null;
-        let role: string = '';
-        if (raw) {
-          const u = JSON.parse(raw);
-          dept = u?.department || null;
-          role = (u?.role || '').toLowerCase();
-          setUserName((u?.name || u?.email || "User") as string);
-        } else {
-          setUserName("User");
-        }
-        setRole(role);
-        setUserDept((dept || '').toLowerCase());
-        if (role === 'admin') {
-          // Admin sees all pending_admin approvals
-          const list = await listApprovals();
-          setPendingApprovals(list.filter(a => a.status === 'pending_admin').length);
-        } else if (role === 'manager') {
-          // Manager sees pending_manager for their department
-          if (dept && String(dept).trim().length) {
-            const list = await listApprovals(undefined, dept);
-            setPendingApprovals(list.filter(a => a.status === 'pending_manager').length);
-          } else {
-            setPendingApprovals(0);
-          }
-        } else {
-          // Users: no global badge
-          setPendingApprovals(0);
-        }
-      } catch {}
-    })();
-  }, [location.pathname]);
-
-  // Load ticket badges: red = new open for my role; yellow = assigned to me and in progress/resolved
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
-        const u = raw ? JSON.parse(raw) : null;
-        const role = ((u?.role || '') as string).toLowerCase();
-        const meId = u?.id as string | undefined;
-        const meEmail = u?.email as string | undefined;
-        // Red badge: open tickets for my role
-        if (role === 'admin' || role === 'manager') {
-          try {
-            const roleTickets = await listTickets({ targetRole: role as any });
-            const openCount = (roleTickets || []).filter(t => t.status === 'open').length;
-            setTicketNewCount(openCount);
-          } catch { setTicketNewCount(0); }
-        } else {
-          setTicketNewCount(0);
-        }
-        // Yellow badge: tickets assigned to me that are not closed and not open (i.e., in progress or awaiting resolution)
-        const assignedLists: any[][] = [];
-        try { if (meId) assignedLists.push(await listTickets({ assignee: meId })); } catch {}
-        try { if (meEmail && meEmail !== meId) assignedLists.push(await listTickets({ assignee: meEmail })); } catch {}
-        const seen = new Set<string>();
-        const mine = assignedLists.flat().filter((t) => {
-          if (!t?.id) return false;
-          if (seen.has(t.id)) return false;
-          seen.add(t.id);
-          return true;
-        });
-        const pendingMine = mine.filter(t => t.status === 'in_progress' || t.status === 'resolved');
-        setTicketPendingCount(pendingMine.length);
-      } catch {
-        setTicketNewCount(0);
-        setTicketPendingCount(0);
-      }
-    })();
-  }, [location.pathname]);
 
   return (
     <div

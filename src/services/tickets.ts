@@ -4,6 +4,7 @@ import { addNotification, addRoleNotification } from "@/services/notifications";
 import { listUsers } from "@/services/users";
 // property-aware assignee filtering helpers
 import { listUserPropertyAccess } from "@/services/userAccess";
+import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -29,6 +30,8 @@ const LS_KEY = "tickets";
 const LS_EVENTS_KEY = "ticket_events";
 const DEMO_TICKETS_KEY = "demo_tickets";
 const DEMO_TICKET_EVENTS_KEY = "demo_ticket_events";
+const TICKET_CACHE_PREFIX = "tickets:list";
+const TICKET_CACHE_TTL = 30_000;
 
 function loadLocal(): Ticket[] {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]") as Ticket[]; } catch { return []; }
@@ -127,7 +130,20 @@ function seedDemoTicketsOnce() {
   saveDemoEvents(events);
 }
 
-export async function listTickets(filter?: Partial<Pick<Ticket, "status" | "assignee" | "targetRole" | "createdBy">>): Promise<Ticket[]> {
+function makeTicketCacheKey(filter?: Partial<Pick<Ticket, "status" | "assignee" | "targetRole" | "createdBy">>): string {
+  const normalized = {
+    status: filter?.status ?? null,
+    assignee: filter?.assignee ?? null,
+    targetRole: filter?.targetRole ?? null,
+    createdBy: filter?.createdBy ?? null,
+  };
+  return `${TICKET_CACHE_PREFIX}:${JSON.stringify(normalized)}`;
+}
+
+export async function listTickets(
+  filter?: Partial<Pick<Ticket, "status" | "assignee" | "targetRole" | "createdBy">>,
+  options?: { force?: boolean }
+): Promise<Ticket[]> {
   if (isDemoMode()) {
     seedDemoTicketsOnce();
     const list = loadDemoTickets();
@@ -141,15 +157,22 @@ export async function listTickets(filter?: Partial<Pick<Ticket, "status" | "assi
   }
   if (hasSupabaseEnv) {
     try {
-      let query = supabase.from(TABLE).select("*").order("created_at", { ascending: false });
-      if (filter?.status) query = query.eq("status", filter.status);
-      if (filter?.assignee) query = query.eq("assignee", filter.assignee);
-      if (filter?.targetRole) query = query.eq("target_role", filter.targetRole);
-      if (filter?.createdBy) query = query.eq("created_by", filter.createdBy);
-      const { data, error } = await query;
-      if (error) throw error;
-  try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
-  return (data || []).map(toCamel);
+      const cacheKey = makeTicketCacheKey(filter);
+      return await getCachedValue(
+        cacheKey,
+        async () => {
+          let query = supabase.from(TABLE).select("*").order("created_at", { ascending: false });
+          if (filter?.status) query = query.eq("status", filter.status);
+          if (filter?.assignee) query = query.eq("assignee", filter.assignee);
+          if (filter?.targetRole) query = query.eq("target_role", filter.targetRole);
+          if (filter?.createdBy) query = query.eq("created_by", filter.createdBy);
+          const { data, error } = await query;
+          if (error) throw error;
+          try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+          return (data || []).map(toCamel);
+        },
+        { ttlMs: TICKET_CACHE_TTL, force: options?.force }
+      );
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'select_failed'); } catch {}
       console.warn("tickets table unavailable, using localStorage", e);
@@ -252,6 +275,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
     const ev: TicketEvent = { id: `EV-${Math.floor(Math.random()*900000+100000)}`, ticketId: payload.id, eventType: 'created', author: input.createdBy, message: payload.title, createdAt: new Date().toISOString() };
     saveDemoEvents([ev, ...events]);
     await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
+    invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
     return payload;
   }
   if (hasSupabaseEnv) {
@@ -273,6 +297,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
         message: `${created.id}: ${created.title}`,
         type: `ticket-${created.targetRole}`,
       }, created.targetRole);
+      invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
       return created;
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'insert_failed'); } catch {}
@@ -287,6 +312,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
   saveLocalEvents([ev, ...events]);
   // Notify
   await addRoleNotification({ title: `New ticket for ${payload.targetRole}`, message: `${payload.id}: ${payload.title}`, type: `ticket-${payload.targetRole}` }, payload.targetRole);
+  invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
   return payload;
 }
 
@@ -353,7 +379,8 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
           type: `ticket-status`,
         });
       }
-  try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+      try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
+      invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
       return updated;
     } catch (e) {
       console.warn("tickets update failed, using localStorage", e);
@@ -374,6 +401,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
         saveDemoEvents([ev, ...events]);
         await addNotification({ title: `Ticket ${id} ${patch.status}`, message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`, type: `ticket-status` });
       }
+      invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
       return updated;
     }
     return null;
@@ -392,6 +420,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
       saveLocalEvents([ev, ...events]);
       await addNotification({ title: `Ticket ${id} ${patch.status}`, message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`, type: `ticket-status` });
     }
+    invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
     return updated;
   }
   return null;

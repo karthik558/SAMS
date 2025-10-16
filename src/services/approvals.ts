@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { updateAsset } from "@/services/assets";
+import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
 
 export type ApprovalAction = "create" | "edit" | "decommission";
 export type ApprovalStatus = "pending_manager" | "pending_admin" | "approved" | "rejected";
@@ -32,6 +33,25 @@ export type ApprovalEvent = {
 const TABLE = "approvals";
 const LS_KEY = "approvals";
 const EV_LS_KEY = "approval_events";
+const APPROVAL_CACHE_PREFIX = "approvals:list";
+const APPROVAL_CACHE_TTL = 30_000;
+
+function makeApprovalCacheKey(
+  status?: ApprovalStatus,
+  department?: string | null,
+  requestedBy?: string | null,
+  assetIds?: string[] | null
+): string {
+  const parts = [
+    status || "all",
+    ((department || "").toString().trim().toLowerCase()) || "all",
+    ((requestedBy || "").toString().trim().toLowerCase()) || "all",
+    assetIds && assetIds.length
+      ? assetIds.map((id) => String(id).toLowerCase()).sort().join(",")
+      : "all",
+  ];
+  return `${APPROVAL_CACHE_PREFIX}:${parts.join("|")}`;
+}
 
 function loadLocal(): ApprovalRequest[] {
   try {
@@ -111,22 +131,37 @@ export async function resyncApprovalDepartments(): Promise<{ updated: number; to
   return { updated, total: list.length, errors: 0 };
 }
 
-export async function listApprovals(status?: ApprovalStatus, department?: string | null, requestedBy?: string | null, assetIds?: string[] | null): Promise<ApprovalRequest[]> {
+export async function listApprovals(
+  status?: ApprovalStatus,
+  department?: string | null,
+  requestedBy?: string | null,
+  assetIds?: string[] | null,
+  options?: { force?: boolean }
+): Promise<ApprovalRequest[]> {
   if (hasSupabaseEnv) {
     try {
-  let query = supabase.from(TABLE).select("*").order("requested_at", { ascending: false });
-      if (status) query = query.eq("status", status);
-      if (department) {
-        const d = String(department).trim();
-        if (d.length) {
-          query = (query as any).ilike("department", d);
-        }
-      }
-  if (requestedBy) query = (query as any).ilike("requested_by", String(requestedBy));
-      if (assetIds && assetIds.length) query = (query as any).in('asset_id', Array.from(new Set(assetIds.map(String))));
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []).map(toCamel);
+      const cacheKey = makeApprovalCacheKey(status, department, requestedBy, assetIds);
+      return await getCachedValue(
+        cacheKey,
+        async () => {
+          let query = supabase.from(TABLE).select("*").order("requested_at", { ascending: false });
+          if (status) query = query.eq("status", status);
+          if (department) {
+            const d = String(department).trim();
+            if (d.length) {
+              query = (query as any).ilike("department", d);
+            }
+          }
+          if (requestedBy) query = (query as any).ilike("requested_by", String(requestedBy));
+          if (assetIds && assetIds.length) {
+            query = (query as any).in("asset_id", Array.from(new Set(assetIds.map(String))));
+          }
+          const { data, error } = await query;
+          if (error) throw error;
+          return (data || []).map(toCamel);
+        },
+        { ttlMs: APPROVAL_CACHE_TTL, force: options?.force }
+      );
     } catch (e) {
       console.warn("approvals table unavailable, using localStorage", e);
     }
@@ -200,6 +235,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
       const created = toCamel(data);
   // log submitted event
   try { await supabase.from('approval_events').insert({ approval_id: created.id, event_type: 'submitted', author: created.requestedBy, message: created.notes || created.action }); } catch {}
+      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return created;
     } catch (e) {
       console.warn("approvals insert failed, using localStorage", e);
@@ -207,6 +243,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
   }
   const list = loadLocal();
   saveLocal([payload, ...list]);
+  invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
   return payload;
 }
 
@@ -218,6 +255,7 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
       if (error) throw error;
       const updated = toCamel(data);
   try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'forwarded', author: manager, message: notes || 'Forwarded to admin' }); } catch {}
+      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return updated;
     } catch (e) {
       console.warn("approvals update failed, using localStorage", e);
@@ -230,6 +268,7 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
     const next = [...list];
     next[idx] = updated;
     saveLocal(next);
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
     return updated;
   }
   return null;
@@ -253,6 +292,7 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
           try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'applied', author: admin, message: 'Patch could not be applied: ' + (e as any)?.message }); } catch {}
         }
       }
+      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return updated;
     } catch (e) {
       console.warn("approvals final decision failed, using localStorage", e);
@@ -265,6 +305,7 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
     const next = [...list];
     next[idx] = updated;
     saveLocal(next);
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
     return updated;
   }
   return null;
@@ -295,6 +336,7 @@ export async function updateApprovalPatch(id: string, manager: string, patchData
       if (error) throw error;
       const updated = toCamel(data);
   try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'manager_updated', author: manager, message: 'Manager updated patch' }); } catch {}
+      invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return updated;
     } catch (e) {
       console.warn('updateApprovalPatch failed, using localStorage', e);
@@ -307,6 +349,7 @@ export async function updateApprovalPatch(id: string, manager: string, patchData
     const next = [...list];
     next[idx] = updated;
     saveLocal(next);
+    invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
     return updated;
   }
   return null;

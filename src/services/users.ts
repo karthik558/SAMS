@@ -1,6 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoUsers } from "@/lib/demo";
 import { createPasswordHash } from "@/services/auth";
+import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
 
 export type AppUser = {
   id: string;
@@ -19,15 +20,23 @@ export type AppUser = {
 };
 
 const table = "app_users";
+const USERS_CACHE_KEY = "users:list";
+const USERS_CACHE_TTL = 30_000;
 
-export async function listUsers(): Promise<AppUser[]> {
+export async function listUsers(options?: { force?: boolean }): Promise<AppUser[]> {
   if (isDemoMode()) return getDemoUsers() as any;
   if (!hasSupabaseEnv) { return []; }
   try {
     const columns = "id, name, email, role, department, phone, last_login, status, avatar_url, must_change_password, password_changed_at, active_session_id";
-    const { data, error } = await supabase.from(table).select(columns).order("name");
-    if (error) throw error;
-    return data ?? [];
+    return await getCachedValue(
+      USERS_CACHE_KEY,
+      async () => {
+        const { data, error } = await supabase.from(table).select(columns).order("name");
+        if (error) throw error;
+        return data ?? [];
+      },
+      { ttlMs: USERS_CACHE_TTL, force: options?.force }
+    );
   } catch {
     return [];
   }
@@ -51,6 +60,7 @@ export async function createUser(payload: Omit<AppUser, "id"> & { password?: str
   }
   const { data, error } = await supabase.from(table).insert(insertPayload).select().single();
   if (error) throw error;
+  invalidateCacheByPrefix(USERS_CACHE_KEY);
   return data as AppUser;
 }
 
@@ -59,6 +69,7 @@ export async function updateUser(id: string, patch: Partial<AppUser>): Promise<A
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).update(patch).eq("id", id).select().single();
   if (error) throw error;
+  invalidateCacheByPrefix(USERS_CACHE_KEY);
   return data as AppUser;
 }
 
@@ -67,4 +78,5 @@ export async function deleteUser(id: string): Promise<void> {
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
+  invalidateCacheByPrefix(USERS_CACHE_KEY);
 }

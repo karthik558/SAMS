@@ -76,6 +76,21 @@ const emptyTicketSummary: TicketSummary = {
   averageResolutionHours: null,
 };
 
+const defaultCounts = { assets: 1247, properties: 8, users: 24, expiring: 15 };
+const defaultMetrics = { totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0, assetTypes: 0 };
+
+type DashboardSnapshot = {
+  counts: typeof defaultCounts;
+  metrics: typeof defaultMetrics;
+  ticketSummary: TicketSummary;
+  ticketMonthlyTrend: Array<{ month: string; created: number; resolved: number }>;
+  scopedAssets: Asset[];
+  scopedProperties: Property[];
+  storedAt: number;
+};
+
+const DASHBOARD_SNAPSHOT_KEY = "dashboard_snapshot_v1";
+
 const announcementHueClasses: Record<string, string> = {
   red: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800',
   emerald: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800',
@@ -136,13 +151,23 @@ type AmcAlertItem = {
 
 const Index = () => {
   const navigate = useNavigate();
-  const [counts, setCounts] = useState({ assets: 1247, properties: 8, users: 24, expiring: 15 });
-  const [metrics, setMetrics] = useState({ totalQuantity: 20, monthlyPurchases: 0, monthlyPurchasesPrev: 0, codesTotal: 156, codesReady: 0, assetTypes: 0 });
+  const initialSnapshot = useMemo<DashboardSnapshot | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = window.sessionStorage?.getItem(DASHBOARD_SNAPSHOT_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw) as DashboardSnapshot;
+    } catch {
+      return null;
+    }
+  }, []);
+  const [counts, setCounts] = useState(() => initialSnapshot?.counts ?? { ...defaultCounts });
+  const [metrics, setMetrics] = useState(() => initialSnapshot?.metrics ?? { ...defaultMetrics });
   const [firstName, setFirstName] = useState<string>("");
   const [bulkOpen, setBulkOpen] = useState(false);
   const [role, setRole] = useState<string>("");
-  const [ticketSummary, setTicketSummary] = useState<TicketSummary>(emptyTicketSummary);
-  const [ticketMonthlyTrend, setTicketMonthlyTrend] = useState<Array<{ month: string; created: number; resolved: number }>>([]);
+  const [ticketSummary, setTicketSummary] = useState<TicketSummary>(() => initialSnapshot?.ticketSummary ?? emptyTicketSummary);
+  const [ticketMonthlyTrend, setTicketMonthlyTrend] = useState<Array<{ month: string; created: number; resolved: number }>>(() => initialSnapshot?.ticketMonthlyTrend ?? []);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [lastImportSummary, setLastImportSummary] = useState<string>("");
@@ -150,11 +175,11 @@ const Index = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [isDragActive, setIsDragActive] = useState(false);
   const progressResetRef = useRef<number | null>(null);
-  const [loadingUI, setLoadingUI] = useState(true);
+  const [loadingUI, setLoadingUI] = useState(!initialSnapshot);
   const [announcements, setAnnouncements] = useState<NewsletterPost[]>([]);
   const [showAnnouncements, setShowAnnouncements] = useState(true);
-  const [scopedAssets, setScopedAssets] = useState<Asset[]>([]);
-  const [scopedProperties, setScopedProperties] = useState<Property[]>([]);
+  const [scopedAssets, setScopedAssets] = useState<Asset[]>(() => initialSnapshot?.scopedAssets ?? []);
+  const [scopedProperties, setScopedProperties] = useState<Property[]>(() => initialSnapshot?.scopedProperties ?? []);
 
   useEffect(() => {
     return () => {
@@ -622,7 +647,7 @@ const Index = () => {
         }
       });
 
-      setTicketSummary({
+      const summary: TicketSummary = {
         total: tickets.length,
         open: statusTally.open,
         inProgress: statusTally.inProgress,
@@ -634,21 +659,25 @@ const Index = () => {
         byPriority,
         topAssignees,
         averageResolutionHours,
-      });
-      setTicketMonthlyTrend(
-        Array.from(buckets.values())
-          .sort((a, b) => a.start - b.start)
-          .map((bucket) => ({ month: bucket.month, created: bucket.created, resolved: bucket.resolved }))
-      );
+      };
+      const trend = Array.from(buckets.values())
+        .sort((a, b) => a.start - b.start)
+        .map((bucket) => ({ month: bucket.month, created: bucket.created, resolved: bucket.resolved }));
+
+      setTicketSummary(summary);
+      setTicketMonthlyTrend(trend);
+      return { summary, trend };
     };
 
     const seedDemo = async () => {
+      let seededStats: ReturnType<typeof demoStats> | null = null;
       try {
-        const s = demoStats();
-        setCounts(s.counts);
-        setMetrics(s.metrics);
+        seededStats = demoStats();
+        setCounts(seededStats.counts);
+        setMetrics(seededStats.metrics);
       } catch {
-        setCounts({ assets: 0, properties: 0, users: 0, expiring: 0 });
+        setCounts({ ...defaultCounts });
+        setMetrics({ ...defaultMetrics });
       }
       try {
         const [demoAssets, demoProperties, demoUsers, demoTickets] = await Promise.all([
@@ -659,7 +688,19 @@ const Index = () => {
         ]);
         setScopedAssets(demoAssets);
         setScopedProperties(demoProperties);
-        hydrateTicketInsights(demoTickets, demoUsers);
+        const { summary, trend } = hydrateTicketInsights(demoTickets, demoUsers);
+        try {
+          const snapshotData: DashboardSnapshot = {
+            counts: seededStats?.counts ?? defaultCounts,
+            metrics: seededStats?.metrics ?? defaultMetrics,
+            ticketSummary: summary,
+            ticketMonthlyTrend: trend,
+            scopedAssets: demoAssets,
+            scopedProperties: demoProperties,
+            storedAt: Date.now(),
+          };
+          sessionStorage.setItem(DASHBOARD_SNAPSHOT_KEY, JSON.stringify(snapshotData));
+        } catch {}
       } catch {
         setScopedAssets([]);
         setScopedProperties([]);
@@ -684,7 +725,7 @@ const Index = () => {
 
     (async () => {
       try {
-        const uiTimer = setTimeout(() => setLoadingUI(true), 100); // ensure skeleton visible if slow
+        const uiTimer = !initialSnapshot ? setTimeout(() => setLoadingUI(true), 100) : undefined; // ensure skeleton visible if slow
         const [assetsRaw, propertiesRaw, users, qrs, ticketsRaw] = await Promise.all([
           listAssets().catch(() => [] as Asset[]),
           listProperties().catch(() => [] as Property[]),
@@ -729,7 +770,8 @@ const Index = () => {
           const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
           return diff >= 0 && diff <= 30;
         }).length;
-        setCounts({ assets: assets.length, properties: properties.length, users: users.length, expiring: expiringSoon });
+        const countsPayload = { assets: assets.length, properties: properties.length, users: users.length, expiring: expiringSoon };
+        setCounts(countsPayload);
 
         const now = new Date();
         const year = now.getFullYear();
@@ -760,11 +802,25 @@ const Index = () => {
         ).length;
         const codesTotal = qrsScoped.length;
         const codesReady = qrsScoped.filter((q) => !q.printed).length;
-        setMetrics({ totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady, assetTypes });
+        const metricsPayload = { totalQuantity, monthlyPurchases, monthlyPurchasesPrev, codesTotal, codesReady, assetTypes };
+        setMetrics(metricsPayload);
 
-        hydrateTicketInsights(ticketsScoped, users);
+        const { summary, trend } = hydrateTicketInsights(ticketsScoped, users);
 
-        clearTimeout(uiTimer);
+        try {
+          const snapshotData: DashboardSnapshot = {
+            counts: countsPayload,
+            metrics: metricsPayload,
+            ticketSummary: summary,
+            ticketMonthlyTrend: trend,
+            scopedAssets: assets,
+            scopedProperties: properties,
+            storedAt: Date.now(),
+          };
+          sessionStorage.setItem(DASHBOARD_SNAPSHOT_KEY, JSON.stringify(snapshotData));
+        } catch {}
+
+        if (uiTimer) clearTimeout(uiTimer);
         setLoadingUI(false);
       } catch (e) {
         console.error(e);
@@ -775,7 +831,7 @@ const Index = () => {
         setLoadingUI(false);
       }
     })();
-  }, []);
+  }, [initialSnapshot]);
 
   // Load current user's first name for greeting
   useEffect(() => {
