@@ -910,19 +910,19 @@ const Index = () => {
                     return (
                       <div
                         key={item.id}
-                        className="flex items-start justify-between gap-3 rounded-xl border border-white/60 bg-white/90 p-4 text-[#3a1f12] shadow-sm dark:border-white/20 dark:bg-black/30 dark:text-white"
+                        className="flex items-start justify-between gap-3 rounded-xl border border-white/40 bg-white p-4 text-[#2f160b] shadow-sm dark:border-white/15 dark:bg-zinc-900/80 dark:text-white"
                       >
                         <div className="space-y-1">
-                          <p className="text-sm font-medium text-[#2f160b] dark:text-white">{item.name}</p>
-                          <p className="text-[11px] tracking-wide text-[#704029] dark:text-white/65">
+                          <p className="text-sm font-semibold text-inherit">{item.name}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-[#704029] dark:text-white/65">
                             Asset ID: <span className="font-medium">{item.id}</span>
                           </p>
-                          <p className="text-xs text-[#55301b] dark:text-white/85">
+                          <p className="text-xs text-[#51301b] dark:text-white/85">
                             {item.propertyName} • Ends{" "}
                             {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                           </p>
                           {item.startDate && (
-                            <p className="text-[11px] text-[#704029] dark:text-white/75">
+                            <p className="text-[11px] text-[#704029] dark:text-white/70">
                               Started {item.startDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
                             </p>
                           )}
