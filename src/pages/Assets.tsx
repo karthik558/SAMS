@@ -1631,7 +1631,7 @@ export default function Assets() {
                             >
                               <QrCode className="h-4 w-4" />
                             </Button>
-                            {members.length === 1 && role === 'admin' && (
+                            {role === 'admin' && (
                               <Button
                                 size="sm"
                                 variant="outline"
