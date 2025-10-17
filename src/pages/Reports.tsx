@@ -143,7 +143,7 @@ export default function Reports() {
   const scopeRecentReports = (reports: Report[] | null | undefined, allowed: Set<string>): Report[] => {
     const list = Array.isArray(reports) ? reports : [];
     // Treat as admin if role indicates admin OR if no property restrictions are recorded
-    const treatAsAdmin = isAdminRole || (allowed && allowed.size === 0);
+    const treatAsAdmin = isAdminRole;
     if (treatAsAdmin) return list;
     const uid = String(currentUser?.id || '');
     const email = String(currentUser?.email || '');
@@ -174,8 +174,19 @@ export default function Reports() {
     (async () => {
       // Load allowed property IDs for current user
       const isAdmin = isAdminRole;
-      let allowed = new Set<string>();
-      try { if (!isAdmin) allowed = await getAccessiblePropertyIdsForCurrentUser(); } catch { /* ignore */ }
+      const allowed = new Set<string>();
+      if (!isAdmin) {
+        try {
+          const raw = await getAccessiblePropertyIdsForCurrentUser();
+          if (raw) {
+            for (const value of raw as any) {
+              allowed.add(String(value));
+            }
+          }
+        } catch {
+          // ignore; keep empty set
+        }
+      }
       setAllowedProps(allowed);
       try {
 
@@ -184,13 +195,17 @@ export default function Reports() {
             listProperties().catch(() => []),
             listItemTypes().catch(() => []),
           ]);
-          const propsScoped = (isAdmin || !allowed.size) ? (props as Property[]) : (props as Property[]).filter(p => allowed.has(String(p.id)));
+          const propsScoped = isAdmin
+            ? (props as Property[])
+            : (allowed.size ? (props as Property[]).filter((p) => allowed.has(String(p.id))) : []);
           setProperties(propsScoped);
           setItemTypes((types as ItemType[]).map(t => t.name));
           // Preload assets for downloads/export
           try {
             const assets = await listAssets();
-            const assetsScoped = (isAdmin || !allowed.size) ? (assets as Asset[]) : (assets as Asset[]).filter(a => allowed.has(String(a.property || a.property_id || '')));
+            const assetsScoped = isAdmin
+              ? (assets as Asset[])
+              : (allowed.size ? (assets as Asset[]).filter((a) => allowed.has(String(a.property || a.property_id || ''))) : []);
             setAssetsCache(assetsScoped);
           } catch { /* ignore */ }
           // Load departments for admin Approvals Log filter and for department-wise reports
@@ -224,14 +239,10 @@ export default function Reports() {
       try {
         if (hasSupabaseEnv || isDemoMode()) {
           const sess = await listSessions(200);
-          // Scope sessions by allowed property for non-admins; if no allowed or none match, fall back to all sessions to avoid empty dropdowns
-          if (isAdmin) {
-            setAuditSessions(sess || []);
-          } else {
-            let scoped = (sess || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
-            if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sess || []);
-            setAuditSessions(scoped);
-          }
+          const scoped = isAdmin
+            ? (sess || [])
+            : (allowed.size ? (sess || []).filter((s: any) => s?.property_id && allowed.has(String(s.property_id))) : []);
+          setAuditSessions(scoped);
         }
       } catch (e) {
         console.error(e);
@@ -424,7 +435,9 @@ export default function Reports() {
         } else {
           const assetsAll = assetsCache ?? await listAssets().catch(() => [] as Asset[]);
           const isAdmin = isAdminRole;
-          const assets = (isAdmin || !allowedProps.size) ? (assetsAll as Asset[]) : (assetsAll as Asset[]).filter(a => allowedProps.has(String(a.property || a.property_id || '')));
+          const assets = isAdmin
+            ? (assetsAll as Asset[])
+            : (allowedProps.size ? (assetsAll as Asset[]).filter((a) => allowedProps.has(String(a.property || a.property_id || ''))) : []);
           const rows = buildRows({
             type: selectedReportType,
             assets: assets as Asset[],
@@ -461,8 +474,11 @@ export default function Reports() {
         try {
           if (!sid && !auditSessions.length) {
             const sess = await listSessions(200);
-            setAuditSessions(sess || []);
-            if (sess && sess.length) sid = sess[0].id;
+            const scoped = isAdminRole
+              ? (sess || [])
+              : (allowedProps.size ? (sess || []).filter((s: any) => s?.property_id && allowedProps.has(String(s.property_id))) : []);
+            setAuditSessions(scoped);
+            if (scoped && scoped.length) sid = scoped[0].id;
           } else if (!sid && auditSessions.length) {
             sid = auditSessions[0].id;
           }
@@ -475,7 +491,9 @@ export default function Reports() {
       } else {
         const assetsAll = assetsCache ?? await listAssets().catch(() => [] as Asset[]);
         const isAdmin = isAdminRole;
-        const assets = (isAdmin || !allowedProps.size) ? (assetsAll as Asset[]) : (assetsAll as Asset[]).filter(a => allowedProps.has(String(a.property || a.property_id || '')));
+        const assets = isAdmin
+          ? (assetsAll as Asset[])
+          : (allowedProps.size ? (assetsAll as Asset[]).filter((a) => allowedProps.has(String(a.property || a.property_id || ''))) : []);
         setAssetsCache(Array.isArray(assets) ? assets : []);
         // Build rows
         const rows = buildRows({
@@ -722,9 +740,9 @@ export default function Reports() {
     const isAdmin = isAdminRole;
     // Be tolerant when property_id is unreadable due to RLS; don't drop rows just because property can't be resolved
     const rows2Unscoped = rows.filter(r => !propertyId || !r.property_id || String(r.property_id) === String(propertyId));
-    const rows2 = (isAdmin || propertyId || !allowedProps.size)
+    const rows2 = (isAdmin || propertyId)
       ? rows2Unscoped
-      : rows2Unscoped.filter(r => r.property_id && allowedProps.has(String(r.property_id)));
+      : (allowedProps.size ? rows2Unscoped.filter((r) => r.property_id && allowedProps.has(String(r.property_id))) : []);
       // Put issues first to make them prominent
       const order = { missing: 0, damaged: 1, verified: 2 } as any;
     return rows2.sort((a,b) => (order[a.status] ?? 9) - (order[b.status] ?? 9));

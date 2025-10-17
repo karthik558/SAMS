@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -54,6 +54,7 @@ export default function Audit() {
   const [detailDept, setDetailDept] = useState<string>("");
   const [properties, setProperties] = useState<Property[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [allowedPropertyIds, setAllowedPropertyIds] = useState<Set<string> | null>(null);
   // When viewing a specific report (including history), resolve its session's property id for display
   const [viewPropertyId, setViewPropertyId] = useState<string>("");
   // Auditor Incharge for selected property (read-only in this page)
@@ -255,7 +256,10 @@ export default function Audit() {
       try {
         const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
         const user = raw ? JSON.parse(raw) : null;
-        setRole((user?.role || '').toLowerCase());
+        const roleName = (user?.role || '').toLowerCase();
+        setRole(roleName);
+        const isAdminUser = roleName === 'admin';
+        let allowedProps: Set<string> | null = null;
         try {
           let uid = getCurrentUserId();
           if (!uid) {
@@ -264,6 +268,23 @@ export default function Audit() {
           const allowed = uid ? await canUserEdit(uid, 'audit') : null;
           setCanAuditAdmin(Boolean(allowed));
         } catch { setCanAuditAdmin(false); }
+        if (!isAdminUser) {
+          try {
+            const allowedRaw = await getAccessiblePropertyIdsForCurrentUser();
+            const normalized = new Set<string>();
+            if (allowedRaw) {
+              for (const value of allowedRaw) normalized.add(String(value));
+            }
+            allowedProps = normalized;
+            setAllowedPropertyIds(normalized);
+          } catch {
+            const empty = new Set<string>();
+            allowedProps = empty;
+            setAllowedPropertyIds(empty);
+          }
+        } else {
+          setAllowedPropertyIds(null);
+        }
         const dept = user?.department || "";
         setDepartment(dept);
         const active = await isAuditActive();
@@ -280,13 +301,17 @@ export default function Audit() {
               try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
             }
             setMyId(uid || "");
-            const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
-            if (!isAdmin) {
+            if (!isAdminUser) {
               if (uid) {
                 const mine = await listAuditInchargeForUser(uid, (user?.email || undefined));
                 // if user has any incharge properties, allow admin controls implicitly
                 try { setCanAuditAdmin((prev) => prev || (mine && mine.length > 0)); } catch {}
-                filtered = (props as Property[]).filter(p => mine.includes(String(p.id)) || mine.includes(String(p.id).toLowerCase()));
+                filtered = (props as Property[]).filter(p => {
+                  const idStr = String(p.id);
+                  const matchesIncharge = mine.includes(idStr) || mine.includes(idStr.toLowerCase());
+                  const hasAccess = !allowedProps ? false : allowedProps.has(idStr);
+                  return matchesIncharge && hasAccess;
+                });
               } else {
                 filtered = [];
               }
@@ -358,43 +383,33 @@ export default function Audit() {
             // Also load sessions and recent reports even while active
             try {
               let rec = await listRecentAuditReports(20);
-              // Restrict recent reports by user property access for non-admins
-              try {
-                const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
-                if (!isAdmin) {
-                  const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                  if (allowed && allowed.size) {
-                    const filtered: typeof rec = [] as any;
-                    for (const r of rec) {
-                      try {
-                        const sess = await getSessionById(r.session_id);
-                        const pid = (sess as any)?.property_id;
-                        if (pid && allowed.has(String(pid))) filtered.push(r);
-                      } catch {}
-                    }
-                    rec = filtered;
-                  } else {
-                    rec = [] as any;
+              if (!isAdminUser) {
+                if (allowedProps && allowedProps.size) {
+                  const filtered: typeof rec = [] as any;
+                  for (const r of rec) {
+                    try {
+                      const sess = await getSessionById(r.session_id);
+                      const pidValue = (sess as any)?.property_id;
+                      if (pidValue && allowedProps.has(String(pidValue))) filtered.push(r);
+                    } catch {}
                   }
+                  rec = filtered;
+                } else {
+                  rec = [] as any;
                 }
-              } catch {}
+              }
               setRecentReports(rec);
               try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
               if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
               const sessList = await listSessions(200);
-              // Filter sessions to allowed properties for non-admins; if we can't determine allowed
-              // or filtering yields nothing, fall back to showing all sessions to avoid empty dropdowns
-              try {
-                const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
-                if (!isAdmin) {
-                  const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                  let scoped = (sessList || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
-                  if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sessList || []);
-                  setSessions(scoped);
-                } else {
-                  setSessions(sessList);
-                }
-              } catch {
+              if (!isAdminUser) {
+                const scoped = (sessList || []).filter((s: any) => {
+                  const pidValue = s?.property_id;
+                  if (!pidValue) return false;
+                  return Boolean(allowedProps && allowedProps.has(String(pidValue)));
+                });
+                setSessions(scoped);
+              } else {
                 setSessions(sessList);
               }
             } catch {}
@@ -408,43 +423,36 @@ export default function Audit() {
           // Load recent reports across sessions (persisted history)
           try {
             let rec = await listRecentAuditReports(20);
-            // Restrict recent reports by user property access for non-admins
-            try {
-              const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
-              if (!isAdmin) {
-                const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                if (allowed && allowed.size) {
-                  const filtered: typeof rec = [] as any;
-                  for (const r of rec) {
-                    try {
-                      const sess = await getSessionById(r.session_id);
-                      const pid = (sess as any)?.property_id;
-                      if (pid && allowed.has(String(pid))) filtered.push(r);
-                    } catch {}
-                  }
-                  rec = filtered;
-                } else {
-                  rec = [] as any;
+            if (!isAdminUser) {
+              if (allowedProps && allowedProps.size) {
+                const filtered: typeof rec = [] as any;
+                for (const r of rec) {
+                  try {
+                    const sessInfo = await getSessionById(r.session_id);
+                    const pidValue = (sessInfo as any)?.property_id;
+                    if (pidValue && allowedProps.has(String(pidValue))) filtered.push(r);
+                  } catch {}
                 }
+                rec = filtered;
+              } else {
+                rec = [] as any;
               }
-            } catch {}
+            }
             setRecentReports(rec);
             try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
             // If no local latest picked, show the most recent one
             if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
-            const sess = await listSessions(200);
-            // Filter sessions to allowed properties for non-admins; fallback to all when none
-            try {
-              const isAdmin = ((user?.role || '').toLowerCase() === 'admin');
-              if (!isAdmin) {
-                const allowed = await getAccessiblePropertyIdsForCurrentUser();
-                let scoped = (sess || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
-                if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sess || []);
-                setSessions(scoped);
-              } else {
-                setSessions(sess);
-              }
-            } catch { setSessions(sess); }
+            const sessList = await listSessions(200);
+            if (!isAdminUser) {
+              const scoped = (sessList || []).filter((s: any) => {
+                const pidValue = s?.property_id;
+                if (!pidValue) return false;
+                return Boolean(allowedProps && allowedProps.has(String(pidValue)));
+              });
+              setSessions(scoped);
+            } else {
+              setSessions(sessList);
+            }
           } catch {}
             // Fallback: if we have a locally tracked active session ID, try to restore it
             try {
@@ -452,9 +460,18 @@ export default function Audit() {
               if (cachedSid) {
                 const sess = await getSessionById(cachedSid);
                 if (sess && sess.is_active) {
+                  const sessionPidRaw = (sess as any)?.property_id;
+                  if (!isAdminUser) {
+                    const pidCandidate = sessionPidRaw ? String(sessionPidRaw) : "";
+                    if (!pidCandidate || !(allowedProps && allowedProps.has(pidCandidate))) {
+                      try { localStorage.removeItem('active_audit_session_id'); } catch {}
+                      try { localStorage.removeItem('active_audit_property_id'); } catch {}
+                      return;
+                    }
+                  }
                   setAuditOn(true);
                   setSessionId(sess.id);
-                  const pid = (sess as any)?.property_id || localStorage.getItem('active_audit_property_id') || '';
+                  const pid = sessionPidRaw || localStorage.getItem('active_audit_property_id') || '';
                   setSelectedPropertyId(String(pid || ''));
                   // Load initial dept rows and admin summary similar to active branch
                   const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
@@ -630,30 +647,46 @@ export default function Audit() {
   const progressText = progress ? `${progress.submitted} of ${progress.total} departments submitted` : "No active session";
   const progressPercent = progress && progress.total ? Math.round((progress.submitted / progress.total) * 100) : 0;
 
+  const ensureAllowedPropertyIds = useCallback(async () => {
+    if (isAdmin) return null;
+    if (allowedPropertyIds) return allowedPropertyIds;
+    try {
+      const allowedRaw = await getAccessiblePropertyIdsForCurrentUser();
+      const normalized = new Set<string>();
+      if (allowedRaw) {
+        for (const value of allowedRaw) normalized.add(String(value));
+      }
+      setAllowedPropertyIds(normalized);
+      return normalized;
+    } catch {
+      const empty = new Set<string>();
+      setAllowedPropertyIds(empty);
+      return empty;
+    }
+  }, [isAdmin, allowedPropertyIds]);
+
   const scrollToTop = () => {
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
   };
 
-  const refreshRecentReports = async () => {
+  const refreshRecentReports = useCallback(async () => {
     try {
       let rec = await listRecentAuditReports(20);
       if (!isAdmin) {
-        try {
-          const allowed = await getAccessiblePropertyIdsForCurrentUser();
-          if (allowed && allowed.size) {
-            const filtered: AuditReport[] = [];
-            for (const r of rec) {
-              try {
-                const sess = await getSessionById(r.session_id);
-                const pid = (sess as any)?.property_id;
-                if (pid && allowed.has(String(pid))) filtered.push(r);
-              } catch {}
-            }
-            rec = filtered;
-          } else {
-            rec = [];
+        const allowed = await ensureAllowedPropertyIds();
+        if (allowed && allowed.size) {
+          const filtered: AuditReport[] = [];
+          for (const r of rec) {
+            try {
+              const sess = await getSessionById(r.session_id);
+              const pid = (sess as any)?.property_id;
+              if (pid && allowed.has(String(pid))) filtered.push(r);
+            } catch {}
           }
-        } catch {}
+          rec = filtered;
+        } else {
+          rec = [];
+        }
       }
       setRecentReports(rec);
       try { localStorage.setItem("has_audit_reports", rec.length > 0 ? "1" : "0"); } catch {}
@@ -663,27 +696,26 @@ export default function Audit() {
       console.error(e);
       return [];
     }
-  };
+  }, [ensureAllowedPropertyIds, isAdmin, latestReport]);
 
-  const refreshSessions = async () => {
+  const refreshSessions = useCallback(async () => {
     try {
       const sessList = await listSessions(200);
       if (!isAdmin) {
-        try {
-          const allowed = await getAccessiblePropertyIdsForCurrentUser();
-          let scoped = (sessList || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
-          if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sessList || []);
-          setSessions(scoped);
-        } catch {
-          setSessions(sessList || []);
-        }
+        const allowed = await ensureAllowedPropertyIds();
+        const scoped = (sessList || []).filter((s: any) => {
+          const pid = s?.property_id;
+          if (!pid) return false;
+          return Boolean(allowed && allowed.has(String(pid)));
+        });
+        setSessions(scoped);
       } else {
         setSessions(sessList || []);
       }
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [ensureAllowedPropertyIds, isAdmin]);
 
   const handleStartAudit = async () => {
     try {
@@ -822,16 +854,24 @@ export default function Audit() {
   const handleViewReport = async (reportId: string) => {
     try {
       const rep = await getAuditReport(reportId);
-      if (rep) {
-        setLatestReport(rep);
-        setViewReportId(reportId);
-        try {
-          const sess = await getSessionById(rep.session_id);
-          const pid = (sess as any)?.property_id || "";
-          setViewPropertyId(String(pid || ""));
-        } catch {}
-        scrollToTop();
+      if (!rep) return;
+      let pidValue = "";
+      try {
+        const sess = await getSessionById(rep.session_id);
+        const rawPid = (sess as any)?.property_id;
+        pidValue = rawPid ? String(rawPid) : "";
+      } catch {}
+      if (!isAdmin) {
+        const allowed = await ensureAllowedPropertyIds();
+        if (!pidValue || !(allowed && allowed.has(pidValue))) {
+          toast.error("You do not have access to this report.");
+          return;
+        }
       }
+      setLatestReport(rep);
+      setViewReportId(reportId);
+      setViewPropertyId(pidValue);
+      scrollToTop();
     } catch (e) {
       console.error(e);
     }
@@ -840,6 +880,20 @@ export default function Audit() {
   const handleGenerateReportForSession = async (sid: string) => {
     if (!sid) return;
     try {
+      let sessionMeta: AuditSession | null = null;
+      try {
+        sessionMeta = sessions.find((s) => s.id === sid) || (await getSessionById(sid));
+      } catch {
+        sessionMeta = await getSessionById(sid);
+      }
+      const sessionPid = sessionMeta ? (sessionMeta as any)?.property_id : undefined;
+      if (!isAdmin) {
+        const allowed = await ensureAllowedPropertyIds();
+        if (!sessionPid || !(allowed && allowed.has(String(sessionPid)))) {
+          toast.error("You do not have access to this session.");
+          return;
+        }
+      }
       const existing = await listAuditReports(sid);
       if ((existing?.length || 0) >= 2) {
         const latest = [...(existing || [])].sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
@@ -871,11 +925,21 @@ export default function Audit() {
   };
 
   const handleSelectSession = async (sid: string) => {
-    setSelectedSessionId(sid);
     if (!sid) {
+      setSelectedSessionId("");
       setSessionReports([]);
       return;
     }
+    if (!isAdmin) {
+      const allowed = await ensureAllowedPropertyIds();
+      const targetSession = sessions.find((s) => s.id === sid) || (await getSessionById(sid));
+      const pidValue = targetSession ? (targetSession as any)?.property_id : undefined;
+      if (!pidValue || !(allowed && allowed.has(String(pidValue)))) {
+        toast.error("You do not have access to this session.");
+        return;
+      }
+    }
+    setSelectedSessionId(sid);
     setLoadingSessionReports(true);
     try {
       const reps = await listAuditReports(sid);
