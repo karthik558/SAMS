@@ -462,14 +462,14 @@ export function Header({ onMenuClick }: HeaderProps) {
                 className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
               >
                 <UsersIcon className="h-4 w-4" />
-                <span>Manage users</span>
+                <span>Users</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
                 className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
               >
                 <SettingsIcon className="h-4 w-4" />
-                <span>Organization settings</span>
+                <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="my-2" />
             </>
