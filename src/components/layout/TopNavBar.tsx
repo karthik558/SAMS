@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { getUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
 import { isDemoMode } from '@/lib/demo';
-import { Button } from '@/components/ui/button';
+import { isAuditActive } from '@/services/audit';
 
 interface TopNavBarProps {
   onMenuToggle?: () => void;
@@ -16,6 +16,8 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   const [role, setRole] = useState('');
   const navigate = useNavigate();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
+  const [auditActive, setAuditActive] = useState(false);
+  const [hasAuditReports, setHasAuditReports] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -35,6 +37,17 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         const p = await listUserPermissions(uid);
         setPerm(p as any);
       } catch {}
+      try {
+        const active = await isAuditActive();
+        setAuditActive(Boolean(active));
+      } catch {
+        setAuditActive(false);
+      }
+      try {
+        setHasAuditReports(localStorage.getItem('has_audit_reports') === '1');
+      } catch {
+        setHasAuditReports(false);
+      }
     })();
   }, []);
 
@@ -53,17 +66,60 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     { label: 'License', href: '/license', icon: ShieldCheck, roles: ['admin'] },
   ];
 
-  const items = navItemsBase
-    .filter(i => !i.roles || i.roles.includes(role))
-    .filter(i => !(isDemoMode() && (i.label === 'Audit' || i.label === 'License')));
-  if (showNewsletter) {
-    const idx = items.findIndex(i => i.label === 'Reports');
-    const newsletterItem = { label: 'Newsletter', href: '/newsletter', icon: FileBarChart };
-    if (!items.find(i => i.href === '/newsletter')) {
-      if (idx >= 0) items.splice(idx + 1, 0, newsletterItem);
-      else items.push(newsletterItem);
+  const demo = isDemoMode();
+  const labelToKey: Record<string, PageKey | null> = {
+    Dashboard: null,
+    Properties: 'properties',
+    Assets: 'assets',
+    Approvals: null,
+    'QR Codes': 'qrcodes',
+    Scan: null,
+    Reports: 'reports',
+    Audit: 'audit',
+    Tickets: null,
+    Users: 'users',
+    Settings: 'settings',
+    License: null,
+    Newsletter: null,
+  };
+
+  const roleLower = role?.toLowerCase() || '';
+  const roleForPerm = demo ? roleLower || 'admin' : roleLower;
+  const effectivePerm = mergeDefaultsWithOverrides(roleForPerm, (perm || {}) as any);
+
+  const computedItems = (() => {
+    const working = [...navItemsBase];
+    if (showNewsletter && !working.find((item) => item.label === 'Newsletter')) {
+      const idx = working.findIndex((item) => item.label === 'Reports');
+      const newsletterItem = { label: 'Newsletter', href: '/newsletter', icon: FileBarChart };
+      if (idx >= 0) working.splice(idx + 1, 0, newsletterItem);
+      else working.push(newsletterItem);
     }
-  }
+
+    const filtered = working
+      .filter((item) => !item.roles || item.roles.includes(roleLower))
+      .filter((item) => {
+        if (demo && (item.label === 'Audit' || item.label === 'License')) return false;
+        if (item.label === 'Dashboard' || item.label === 'Scan' || item.label === 'Tickets') return true;
+        if (item.label === 'Newsletter') return showNewsletter;
+        if (item.label === 'Approvals') return roleForPerm === 'admin' || roleForPerm === 'manager';
+        if (item.label === 'License') return roleForPerm === 'admin';
+        if (item.label === 'Audit') {
+          const rule = (effectivePerm as any)['audit'];
+          return (
+            roleForPerm === 'admin' ||
+            ((auditActive || hasAuditReports) && roleForPerm === 'manager') ||
+            !!rule?.v
+          );
+        }
+        const key = labelToKey[item.label];
+        if (!key) return true;
+        const rule = (effectivePerm as any)[key];
+        return !!rule?.v;
+      });
+
+    return filtered;
+  })();
 
   return (
     <div className="flex w-full items-stretch border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-2">
@@ -88,7 +144,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
       </div>
       {/* Center nav – wraps on smaller widths */}
       <nav className="flex flex-1 items-center justify-center gap-0.5 overflow-x-auto no-scrollbar py-1">
-        {items.map(item => (
+        {computedItems.map(item => (
           <NavLink
             key={item.href}
             to={item.href}
