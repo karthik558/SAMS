@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CommandDialog,
@@ -11,6 +11,9 @@ import {
 } from "@/components/ui/command";
 import { isDemoMode } from "@/lib/demo";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { getUserPreferences } from "@/services/userPreferences";
+import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
+import { isAuditActive } from "@/services/audit";
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
@@ -24,6 +27,8 @@ import {
   ScanLine,
   PlusCircle,
   UploadCloud,
+  ClipboardCheck,
+  ShieldCheck,
 } from "lucide-react";
 
 type Props = {
@@ -35,7 +40,6 @@ type Props = {
 type PageItem = {
   label: string;
   path: string;
-  roles: string[];
   icon: LucideIcon;
 };
 
@@ -45,41 +49,153 @@ type ActionItem = {
   icon: LucideIcon;
 };
 
+const PAGE_LABEL_TO_KEY: Record<string, PageKey | null> = {
+  Dashboard: null,
+  Assets: "assets",
+  Properties: "properties",
+  "QR Codes": "qrcodes",
+  Reports: "reports",
+  Users: "users",
+  Settings: "settings",
+  Audit: "audit",
+  Newsletter: null,
+};
+
 export default function CommandPalette({ open, onOpenChange, role }: Props) {
   const navigate = useNavigate();
   const roleLower = (role || '').toLowerCase();
   const prefix = isDemoMode() ? '/demo' : '';
+  const [showNewsletter, setShowNewsletter] = useState(false);
+  const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
+  const [auditActive, setAuditActive] = useState(false);
+  const [hasAuditReports, setHasAuditReports] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const uid = getCurrentUserId();
+        if (!uid) return;
+        const prefs = await getUserPreferences(uid);
+        setShowNewsletter(Boolean(prefs.show_newsletter));
+      } catch {
+        setShowNewsletter(false);
+      }
+      try {
+        const uid = getCurrentUserId();
+        if (uid) {
+          const permissions = await listUserPermissions(uid);
+          setPerm(permissions as any);
+        }
+      } catch {
+        setPerm({} as any);
+      }
+      try {
+        const active = await isAuditActive();
+        setAuditActive(Boolean(active));
+      } catch {
+        setAuditActive(false);
+      }
+      try {
+        setHasAuditReports(localStorage.getItem("has_audit_reports") === "1");
+      } catch {
+        setHasAuditReports(false);
+      }
+    })();
+  }, []);
+
+  const demo = isDemoMode();
+  const normalizedRole = roleLower || "user";
+  const roleForPerm = demo ? roleLower || "admin" : normalizedRole;
+  const effectivePerm = mergeDefaultsWithOverrides(roleForPerm, (perm || {}) as any);
+
+  const applyPrefix = useCallback(
+    (route: string) => {
+      if (!prefix) return route;
+      if (route === "/") return prefix || "/";
+      return `${prefix}${route}`;
+    },
+    [prefix]
+  );
 
   const pages = useMemo<PageItem[]>(() => {
-    const rootPath = prefix ? prefix : '/';
-    const list: PageItem[] = (
-      [
-        { label: 'Dashboard', path: rootPath, roles: ['admin', 'manager', 'user'], icon: LayoutDashboard },
-        { label: 'Assets', path: `${prefix}/assets`, roles: ['admin', 'manager', 'user'], icon: Package },
-        { label: 'Properties', path: `${prefix}/properties`, roles: ['admin', 'manager', 'user'], icon: Building2 },
-        { label: 'QR Codes', path: `${prefix}/qr-codes`, roles: ['admin', 'manager', 'user'], icon: QrCode },
-        { label: 'Tickets', path: `${prefix}/tickets`, roles: ['admin', 'manager', 'user'], icon: Ticket },
-        { label: 'Reports', path: `${prefix}/reports`, roles: ['admin', 'manager'], icon: FileBarChart },
-        { label: 'Users', path: `${prefix}/users`, roles: ['admin'], icon: Users },
-        { label: 'Settings', path: `${prefix}/settings`, roles: ['admin'], icon: Settings },
-        { label: 'Scan', path: `${prefix}/scan`, roles: ['admin', 'manager', 'user'], icon: ScanLine },
-      ]
-    ).filter((item) => item.roles.includes(roleLower || 'user'));
-    // In demo mode, ensure Audit and License are not present (they aren't explicitly listed here,
-    // but if added later, this guard will filter them out by label/path)
-    return list.filter((i) => !isDemoMode() || (!/\baudit\b/i.test(i.label) && !/\/license$/.test(i.path)));
-  }, [prefix, roleLower]);
+    const base = [
+      { label: "Dashboard", route: "/", icon: LayoutDashboard },
+      { label: "Assets", route: "/assets", icon: Package },
+      { label: "Properties", route: "/properties", icon: Building2 },
+      { label: "QR Codes", route: "/qr-codes", icon: QrCode },
+      { label: "Tickets", route: "/tickets", icon: Ticket },
+      { label: "Reports", route: "/reports", icon: FileBarChart },
+      { label: "Users", route: "/users", icon: Users, roles: ["admin"] },
+      { label: "Settings", route: "/settings", icon: Settings, roles: ["admin"] },
+      { label: "Scan", route: "/scan", icon: ScanLine },
+      { label: "Approvals", route: "/approvals", icon: ClipboardCheck, roles: ["admin", "manager"] },
+      { label: "Audit", route: "/audit", icon: ClipboardCheck, roles: ["admin", "manager"] },
+      { label: "License", route: "/license", icon: ShieldCheck, roles: ["admin"] },
+    ] as Array<{ label: string; route: string; icon: LucideIcon; roles?: string[] }>;
+
+    if (showNewsletter && !base.find((item) => item.label === "Newsletter")) {
+      const insertAt = base.findIndex((item) => item.label === "Reports");
+      const newsletterItem = { label: "Newsletter", route: "/newsletter", icon: FileBarChart };
+      if (insertAt >= 0) base.splice(insertAt + 1, 0, newsletterItem as any);
+      else base.push(newsletterItem as any);
+    }
+
+    const filtered = base
+      .filter((item) => !item.roles || item.roles.includes(normalizedRole))
+      .map((item) => ({ ...item, path: applyPrefix(item.route) }))
+      .filter((item) => {
+        if (demo && (item.label === "Audit" || item.label === "License")) return false;
+        if (item.label === "Dashboard" || item.label === "Scan" || item.label === "Tickets") return true;
+        if (item.label === "Newsletter") return showNewsletter;
+        if (item.label === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
+        if (item.label === "License") return roleForPerm === "admin";
+        if (item.label === "Audit") {
+          const rule = (effectivePerm as any)["audit"];
+          return (
+            roleForPerm === "admin" ||
+            ((auditActive || hasAuditReports) && roleForPerm === "manager") ||
+            !!rule?.v
+          );
+        }
+        const key = PAGE_LABEL_TO_KEY[item.label];
+        if (!key) return true;
+        const rule = (effectivePerm as any)[key];
+        return !!rule?.v;
+      });
+
+    return filtered;
+  }, [
+    applyPrefix,
+    auditActive,
+    demo,
+    effectivePerm,
+    hasAuditReports,
+    normalizedRole,
+    roleForPerm,
+    showNewsletter,
+  ]);
 
   const actions = useMemo<ActionItem[]>(() => {
-    const rootPath = prefix ? prefix : '/';
-    return [
-      { label: 'Add Asset', path: `${prefix}/assets?new=1`, icon: PlusCircle },
-      { label: 'Bulk Import Assets', path: rootPath, icon: UploadCloud },
-      { label: 'Generate QR Codes', path: `${prefix}/qr-codes`, icon: QrCode },
-      { label: 'New Ticket', path: `${prefix}/tickets`, icon: Ticket },
-      { label: 'Open Scanner', path: `${prefix}/scan`, icon: ScanLine },
-    ]
-  }, [prefix]);
+    const assetsRule = (effectivePerm as any)?.assets;
+    const qrRule = (effectivePerm as any)?.qrcodes;
+    const allowAssetEdit = roleForPerm === "admin" || !!assetsRule?.e;
+    const allowQrView = roleForPerm === "admin" || !!qrRule?.v;
+
+    const defs = [
+      { label: "Add Asset", route: "/assets?new=1", icon: PlusCircle, allowed: allowAssetEdit },
+      { label: "Bulk Import Assets", route: "/", icon: UploadCloud, allowed: allowAssetEdit },
+      { label: "Generate QR Codes", route: "/qr-codes", icon: QrCode, allowed: allowQrView },
+      { label: "New Ticket", route: "/tickets", icon: Ticket, allowed: true },
+      { label: "Open Scanner", route: "/scan", icon: ScanLine, allowed: true },
+    ];
+
+    return defs
+      .filter((item) => item.allowed)
+      .map(({ route, allowed, ...rest }) => ({
+        ...rest,
+        path: applyPrefix(route),
+      }));
+  }, [applyPrefix, effectivePerm, roleForPerm]);
 
   // Keyboard shortcut: Cmd/Ctrl+K handled in parent, but also keep here as safety
   useEffect(() => {
