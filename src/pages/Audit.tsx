@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
@@ -22,7 +24,6 @@ import { listProperties, type Property } from "@/services/properties";
 import { verifyAssetViaScan, listMyScansForSession } from "@/services/auditScans";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useRef } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
 
 type Row = { id: string; name: string; status: "verified" | "missing" | "damaged"; comment: string };
@@ -41,14 +42,12 @@ export default function Audit() {
   const [progress, setProgress] = useState<{ total: number; submitted: number } | null>(null);
   const [summary, setSummary] = useState<Record<string, { verified: number; missing: number; damaged: number }>>({});
   const [adminDept, setAdminDept] = useState<string>("");
-  const [reports, setReports] = useState<AuditReport[]>([]);
   const [latestReport, setLatestReport] = useState<AuditReport | null>(null);
   const [viewReportId, setViewReportId] = useState<string | null>(null);
   const [recentReports, setRecentReports] = useState<AuditReport[]>([]);
   const [sessions, setSessions] = useState<AuditSession[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [sessionReports, setSessionReports] = useState<AuditReport[]>([]);
-  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
   const [loadingSessionReports, setLoadingSessionReports] = useState<boolean>(false);
   const [assignmentStatus, setAssignmentStatus] = useState<"pending" | "submitted" | "">("");
   const [reportReviews, setReportReviews] = useState<AuditReview[]>([]);
@@ -600,1018 +599,1120 @@ export default function Audit() {
     })();
   }, [latestReport?.session_id]);
 
+  const isAdmin = role === "admin";
+  const selectedDept = isAdmin ? adminDept : department;
+  const canEditRows = !(assignmentStatus === "submitted" && !isAdmin);
+  const canScanAssets = auditOn && canEditRows;
+  const canManageSession = Boolean(isAdmin || canAuditAdmin || (inchargeUserId && myId && String(myId) === String(inchargeUserId)));
+
+  const selectedProperty = useMemo(() => {
+    if (!selectedPropertyId) return null;
+    return properties.find((p) => String(p.id) === String(selectedPropertyId)) || null;
+  }, [properties, selectedPropertyId]);
+
+  const propertyLabel = selectedProperty ? `${selectedProperty.name} (${selectedProperty.id})` : selectedPropertyId || "";
+
+  const statusCounts = useMemo(() => {
+    return rows.reduce(
+      (acc, row) => {
+        acc[row.status] = (acc[row.status] || 0) + 1;
+        return acc;
+      },
+      { verified: 0, missing: 0, damaged: 0 } as Record<"verified" | "missing" | "damaged", number>
+    );
+  }, [rows]);
+
+  const summaryEntries = useMemo(() => Object.entries(summary), [summary]);
+
+  const sessionStatus = auditOn ? "active" : sessionId ? "paused" : "idle";
+  const sessionStatusLabel = sessionStatus === "active" ? "Active" : sessionStatus === "paused" ? "Paused" : "Idle";
+  const sessionBadgeVariant = sessionStatus === "active" ? ("default" as const) : sessionStatus === "paused" ? ("secondary" as const) : ("outline" as const);
+  const progressText = progress ? `${progress.submitted} of ${progress.total} departments submitted` : "No active session";
+  const progressPercent = progress && progress.total ? Math.round((progress.submitted / progress.total) * 100) : 0;
+
+  const scrollToTop = () => {
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch {}
+  };
+
+  const refreshRecentReports = async () => {
+    try {
+      let rec = await listRecentAuditReports(20);
+      if (!isAdmin) {
+        try {
+          const allowed = await getAccessiblePropertyIdsForCurrentUser();
+          if (allowed && allowed.size) {
+            const filtered: AuditReport[] = [];
+            for (const r of rec) {
+              try {
+                const sess = await getSessionById(r.session_id);
+                const pid = (sess as any)?.property_id;
+                if (pid && allowed.has(String(pid))) filtered.push(r);
+              } catch {}
+            }
+            rec = filtered;
+          } else {
+            rec = [];
+          }
+        } catch {}
+      }
+      setRecentReports(rec);
+      try { localStorage.setItem("has_audit_reports", rec.length > 0 ? "1" : "0"); } catch {}
+      if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
+      return rec;
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  };
+
+  const refreshSessions = async () => {
+    try {
+      const sessList = await listSessions(200);
+      if (!isAdmin) {
+        try {
+          const allowed = await getAccessiblePropertyIdsForCurrentUser();
+          let scoped = (sessList || []).filter((s: any) => s?.property_id && allowed && allowed.has(String(s.property_id)));
+          if (!allowed || allowed.size === 0 || scoped.length === 0) scoped = (sessList || []);
+          setSessions(scoped);
+        } catch {
+          setSessions(sessList || []);
+        }
+      } else {
+        setSessions(sessList || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleStartAudit = async () => {
+    try {
+      if (!selectedPropertyId) {
+        toast.error("Please select a property for this audit");
+        return;
+      }
+      const raw = localStorage.getItem("auth_user");
+      const au = raw ? JSON.parse(raw) : null;
+      const created = await startAuditSession(auditFreq, au?.name || au?.email || au?.id || null, selectedPropertyId);
+      const sid = created?.id || "";
+      if (!sid) {
+        toast.error("Failed to start audit session");
+        return;
+      }
+      setAuditOn(true);
+      setSessionId(sid);
+      try { localStorage.setItem("active_audit_session_id", sid); } catch {}
+      try { localStorage.setItem("active_audit_property_id", String(selectedPropertyId)); } catch {}
+      try {
+        const prog = await getProgress(sid, departments.map((d) => d.name));
+        setProgress(prog);
+      } catch {}
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to start audit session");
+    }
+  };
+
+  const handleStopAudit = async () => {
+    if (!sessionId) {
+      toast.info("No active session to stop");
+      return;
+    }
+    const sid = sessionId;
+    try {
+      await endAuditSession();
+      setAuditOn(false);
+      setSessionId("");
+      setProgress(null);
+      setSummary({});
+      setDeptTotals({});
+      try { localStorage.removeItem("active_audit_session_id"); } catch {}
+      try { localStorage.removeItem("active_audit_property_id"); } catch {}
+      try {
+        const existing = await listAuditReports(sid);
+        if ((existing?.length || 0) >= 2) {
+          const latest = [...(existing || [])].sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+          if (latest) {
+            setLatestReport(latest);
+            setViewReportId(latest.id);
+            toast.info("This session already has 2 reports. Showing the latest report.");
+            scrollToTop();
+          }
+        } else {
+          const raw = localStorage.getItem("auth_user");
+          const au = raw ? JSON.parse(raw) : null;
+          const rep = await createAuditReport(sid, au?.name || au?.email || au?.id || null);
+          setLatestReport(rep);
+          setViewReportId(rep?.id || null);
+          toast.message("Audit ended. A report was generated.", { description: "Scroll to Reports to review details." });
+          scrollToTop();
+        }
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err?.message || "Failed to create audit report");
+      }
+      await refreshRecentReports();
+      await refreshSessions();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "Failed to stop audit session");
+    }
+  };
+
+  const handleResumeAudit = async () => {
+    try {
+      const sess = await getActiveSession();
+      if (!sess || !sess.id) {
+        toast.info("No active session to resume");
+        return;
+      }
+      setAuditOn(true);
+      setSessionId(sess.id);
+      const pid = (sess as any)?.property_id || "";
+      if (pid) {
+        setSelectedPropertyId(String(pid));
+        try { localStorage.setItem("active_audit_property_id", String(pid)); } catch {}
+      }
+      try { localStorage.setItem("active_audit_session_id", String(sess.id)); } catch {}
+      try {
+        const prog = await getProgress(sess.id, departments.map((d) => d.name));
+        setProgress(prog);
+      } catch {}
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to resume audit session");
+    }
+  };
+
+  const handleExportCsv = async () => {
+    try {
+      if (!sessionId) {
+        toast.info("No active session");
+        return;
+      }
+      const data = await listReviewsForSession(sessionId);
+      const headers = ["session_id", "department", "asset_id", "status", "comment", "updated_at"];
+      const esc = (v: any) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const csv = [
+        headers.join(","),
+        ...data.map((r) => [r.session_id, r.department, r.asset_id, r.status, r.comment || "", r.updated_at || ""].map(esc).join(",")),
+      ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const pid = (viewPropertyId || selectedPropertyId || "").toString();
+      const propSlug = pid ? `-${pid}` : "";
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-reviews-${sessionId || "latest"}${propSlug}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e?.message || "Export failed");
+    }
+  };
+
+  const handleOpenScanner = () => {
+    setScanOpen(true);
+    setTimeout(() => {
+      try { startScan(); } catch {}
+    }, 200);
+  };
+
+  const handleViewReport = async (reportId: string) => {
+    try {
+      const rep = await getAuditReport(reportId);
+      if (rep) {
+        setLatestReport(rep);
+        setViewReportId(reportId);
+        try {
+          const sess = await getSessionById(rep.session_id);
+          const pid = (sess as any)?.property_id || "";
+          setViewPropertyId(String(pid || ""));
+        } catch {}
+        scrollToTop();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleGenerateReportForSession = async (sid: string) => {
+    if (!sid) return;
+    try {
+      const existing = await listAuditReports(sid);
+      if ((existing?.length || 0) >= 2) {
+        const latest = [...(existing || [])].sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+        if (latest) {
+          setLatestReport(latest);
+          setViewReportId(latest.id);
+          toast.info("This session already has 2 reports. Showing the latest report.");
+          scrollToTop();
+        }
+        return;
+      }
+      const raw = localStorage.getItem("auth_user");
+      const au = raw ? JSON.parse(raw) : null;
+      const rep = await createAuditReport(sid, au?.name || au?.email || au?.id || null);
+      setLatestReport(rep);
+      setViewReportId(rep?.id || null);
+      if (sid === selectedSessionId) {
+        try {
+          const reps = await listAuditReports(sid);
+          setSessionReports(reps || []);
+        } catch {}
+      }
+      await refreshRecentReports();
+      toast.success("Report created");
+      scrollToTop();
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to create report");
+    }
+  };
+
+  const handleSelectSession = async (sid: string) => {
+    setSelectedSessionId(sid);
+    if (!sid) {
+      setSessionReports([]);
+      return;
+    }
+    setLoadingSessionReports(true);
+    try {
+      const reps = await listAuditReports(sid);
+      setSessionReports(reps || []);
+      if (reps && reps.length) {
+        setLatestReport(reps[0]);
+        setViewReportId(reps[0].id);
+        scrollToTop();
+      }
+    } catch (e) {
+      console.error(e);
+      setSessionReports([]);
+    } finally {
+      setLoadingSessionReports(false);
+    }
+  };
+
+  const headerActions = (
+    <div className="flex flex-wrap items-center gap-2">
+      {sessionId && (
+        <Button variant="outline" size="sm" onClick={handleExportCsv}>
+          Export CSV
+        </Button>
+      )}
+      {canScanAssets && (
+        <Button size="sm" className="gap-2" onClick={handleOpenScanner}>
+          <QrCode className="h-4 w-4" />
+          Scan Asset
+        </Button>
+      )}
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="print:hidden space-y-6">
+    <div className="space-y-8 pb-16">
+      <div className="space-y-4 print:hidden">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
         <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-          <PageHeader icon={ClipboardCheck} title="Inventory Audit" description="Verify assets in your department and submit results" />
+          <PageHeader
+            icon={ClipboardCheck}
+            title="Inventory Audit"
+            description="Verify assets in your department and submit results"
+            actions={headerActions}
+          />
         </div>
-        {/* Incharge banner + property filter at top */}
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="text-sm text-muted-foreground">
-                <div className="font-medium text-foreground">Property</div>
-                <div className="flex items-center gap-2">
-                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} disabled={auditOn}>
-                    <SelectTrigger className="w-[260px]">
-                      <SelectValue placeholder="Select a property" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {auditOn && <span className="text-xs text-muted-foreground">(Locked while session is active)</span>}
-                </div>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <div className="font-medium text-foreground">Auditor Incharge</div>
-                <div>{inchargeUserName || inchargeUserId || '—'}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
-  {/* Admin Control Panel */}
-  {(role === 'admin' || canAuditAdmin || (inchargeUserId && (() => {
-      try { const me = JSON.parse(localStorage.getItem('auth_user')||'null'); return me?.id && String(me.id)===String(inchargeUserId); } catch { return false; }
-    })())) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Admin Controls</CardTitle>
-            <CardDescription>Start/stop sessions and monitor progress.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Show current incharge info */}
-            {selectedPropertyId && (inchargeUserId || inchargeUserName) && (
-              <div className="text-sm text-muted-foreground">Incharge: <span className="font-medium text-foreground">{inchargeUserName || inchargeUserId}</span></div>
-            )}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 print:hidden">
-              <div className="space-y-1">
-                <Label>Frequency</Label>
-                <Select value={String(auditFreq)} onValueChange={(v) => setAuditFreq(Number(v) as 1 | 3 | 6)} disabled={auditOn}>
-                  <SelectTrigger className="w-[220px]">
-                    <SelectValue placeholder="Select frequency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Every 1 month</SelectItem>
-                    <SelectItem value="3">Every 3 months</SelectItem>
-                    <SelectItem value="6">Every 6 months</SelectItem>
-                  </SelectContent>
-                </Select>
+      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Session Overview</CardTitle>
+                  <CardDescription>Scope and ownership of the current audit.</CardDescription>
+                </div>
+                <Badge variant={sessionBadgeVariant}>{sessionStatusLabel}</Badge>
               </div>
-    <div className="flex items-center gap-2 w-full md:w-auto">
-                {!auditOn ? (
-                  <Button className="w-full md:w-auto" onClick={async () => {
-                    try {
-                      const raw = localStorage.getItem('auth_user');
-                      const au = raw ? JSON.parse(raw) : null;
-          if (!selectedPropertyId) { toast.error('Please select a property for this audit'); return; }
-          const created = await startAuditSession(auditFreq, (au?.name || au?.email || au?.id || null), selectedPropertyId);
-                      const sid = created?.id || '';
-                      if (!sid) {
-                        toast.error('Failed to start audit session');
-                        return;
-                      }
-                      setAuditOn(true);
-                      setSessionId(sid);
-          try { localStorage.setItem('active_audit_session_id', sid); } catch (e) { console.error(e); }
-          try { localStorage.setItem('active_audit_property_id', String(selectedPropertyId)); } catch {}
-                      try {
-                        const prog = await getProgress(sid, departments.map(d => d.name));
-                        setProgress(prog);
-                      } catch {}
-                    } catch (e: any) {
-                      toast.error(e?.message || 'Failed to start audit session');
-                    }
-                  }}>Start Audit</Button>
-                ) : (
-                  <Button className="w-full md:w-auto" variant="destructive" onClick={async () => {
-                    const sid = sessionId;
-                    try {
-                      await endAuditSession();
-                      setAuditOn(false);
-                      setProgress(null);
-                      setSummary({});
-                      try { localStorage.removeItem('active_audit_session_id'); } catch (e) { console.error(e); }
-                      if (sid) {
-                        try {
-                          // Enforce at most 2 reports per session when auto-generating on stop
-                          const existing = await listAuditReports(sid);
-                          if ((existing?.length || 0) >= 2) {
-                            const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
-                            if (latest) {
-                              setLatestReport(latest);
-                              setViewReportId(latest.id);
-                              toast.info('This session already has 2 reports. Showing the latest report.');
-                              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                            }
-                          } else {
-                            const raw = localStorage.getItem('auth_user');
-                            const au = raw ? JSON.parse(raw) : null;
-                            const rep = await createAuditReport(sid, au?.name || au?.email || au?.id || null);
-                            setLatestReport(rep);
-                            setViewReportId(rep?.id || null);
-                            const list = await listAuditReports(sid);
-                            setReports(list);
-                            toast.message('Audit ended. A report was generated.', { description: 'Scroll below to view charts or print.' });
-                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                          }
-                        } catch (e: any) {
-                          console.error(e);
-                          toast.error(e?.message || 'Failed to create audit report');
-                        }
-                      }
-                      try {
-                        const rec = await listRecentAuditReports(20);
-                        setRecentReports(rec);
-                        try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
-                        if (!latestReport && rec.length > 0) setLatestReport(rec[0]);
-                        const sessList = await listSessions(200);
-                        setSessions(sessList);
-                      } catch (e) { console.error(e); }
-                    } catch (e: any) {
-                      console.error(e);
-                      toast.error(e?.message || 'Failed to stop audit session');
-                    }
-                  }}>Stop Audit</Button>
-                )}
-                {!auditOn && (
-                  <Button className="w-full md:w-auto" variant="secondary" onClick={async () => {
-                    try {
-                      const sess = await getActiveSession();
-                      if (!sess || !sess.id) { toast.info('No active session to resume'); return; }
-                      setAuditOn(true);
-                      setSessionId(sess.id);
-                      const pid = (sess as any)?.property_id || '';
-                      if (pid) { setSelectedPropertyId(String(pid)); try { localStorage.setItem('active_audit_property_id', String(pid)); } catch {} }
-                      try { localStorage.setItem('active_audit_session_id', String(sess.id)); } catch {}
-                      try {
-                        const prog = await getProgress(sess.id, departments.map(d => d.name));
-                        setProgress(prog);
-                      } catch {}
-                    } catch (e) {
-                      console.error(e);
-                      toast.error('Failed to resume');
-                    }
-                  }}>Resume</Button>
-                )}
-              </div>
-            </div>
-            {/* Property selection for property-scoped auditing */}
-            {!auditOn && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:hidden">
-                <div className="space-y-1">
-                  <Label>Property</Label>
-                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId}>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Property</Label>
+                {canManageSession ? (
+                  <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} disabled={auditOn}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select a property" />
                     </SelectTrigger>
                     <SelectContent>
                       {properties.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground">This audit will only include assets from the selected property.</p>
+                ) : (
+                  <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-foreground">
+                    {selectedProperty?.name || "—"}
+                  </div>
+                )}
+                {auditOn && canManageSession && (
+                  <p className="text-xs text-muted-foreground">Property cannot be changed while the session is active.</p>
+                )}
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Auditor in charge</Label>
+                  <div className="mt-1 text-sm font-medium text-foreground">{inchargeUserName || inchargeUserId || "—"}</div>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Audit frequency</Label>
+                  {canManageSession ? (
+                    <Select value={String(auditFreq)} onValueChange={(v) => setAuditFreq(Number(v) as 1 | 3 | 6)} disabled={auditOn}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Every 1 month</SelectItem>
+                        <SelectItem value="3">Every 3 months</SelectItem>
+                        <SelectItem value="6">Every 6 months</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-1 text-sm font-medium text-foreground">
+                      {auditFreq === 1 ? "Every 1 month" : auditFreq === 3 ? "Every 3 months" : "Every 6 months"}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
 
-            <div className="print:hidden">
-              <Label>Progress</Label>
-              {progress ? (
-                <p className="text-sm text-muted-foreground">{progress.submitted} of {progress.total} departments submitted</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">No active session</p>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Department submissions</span>
+                  <span className="font-medium">{progress ? `${progress.submitted}/${progress.total}` : "—"}</span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
+                </div>
+                <p className="text-xs text-muted-foreground">{progressText}</p>
+              </div>
+
+              {canManageSession && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {auditOn ? (
+                    <Button variant="destructive" className="gap-2" onClick={handleStopAudit}>
+                      Stop Audit
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="outline" className="gap-2" onClick={handleResumeAudit}>
+                        Resume
+                      </Button>
+                      <Button className="gap-2" onClick={handleStartAudit}>
+                        Start Audit
+                      </Button>
+                    </>
+                  )}
+                </div>
               )}
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="flex flex-wrap items-center gap-2 print:hidden">
-              <Button variant="outline" onClick={async () => {
-                try {
-                  if (!sessionId) { toast.info('No active session'); return; }
-                  const rows = await listReviewsForSession(sessionId);
-                  const headers = ['session_id','department','asset_id','status','comment','updated_at'];
-                  const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-                  const csv = [
-                    headers.join(','),
-                    ...rows.map(r => [r.session_id, r.department, r.asset_id, r.status, r.comment || '', r.updated_at || ''].map(esc).join(','))
-                  ].join('\n');
-                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  const pid = (viewPropertyId || selectedPropertyId || '').toString();
-                  const propSlug = pid ? `-${pid}` : '';
-                  a.download = `audit-reviews-${sessionId || 'latest'}${propSlug}.csv`;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                } catch (e: any) { toast.error(e?.message || 'Export failed'); }
-              }}>Export CSV</Button>
-              {auditOn && !(assignmentStatus === 'submitted' && role !== 'admin') && (
-                <Button onClick={() => { setScanOpen(true); setTimeout(() => { try { startScan(); } catch {} }, 200); }} className="gap-2"><QrCode className="h-4 w-4" /> Scan QR</Button>
-              )}
-            </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>Department Snapshot</CardTitle>
+              <CardDescription>
+                {selectedDept ? `Asset status for ${selectedDept}` : "Asset status for your department"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-card/50 p-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Assets</div>
+                  <div className="mt-1 text-2xl font-semibold">{rows.length}</div>
+                </div>
+                <div className="rounded-lg border bg-card/50 p-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Verified</div>
+                  <div className="mt-1 text-2xl font-semibold text-emerald-600">{statusCounts.verified}</div>
+                </div>
+                <div className="rounded-lg border bg-card/50 p-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Missing</div>
+                  <div className="mt-1 text-2xl font-semibold text-destructive">{statusCounts.missing}</div>
+                </div>
+                <div className="rounded-lg border bg-card/50 p-3">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Damaged</div>
+                  <div className="mt-1 text-2xl font-semibold text-amber-500">{statusCounts.damaged}</div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Assignment</span>
+                <Badge variant={assignmentStatus === "submitted" ? "secondary" : "outline"}>
+                  {assignmentStatus ? assignmentStatus.charAt(0).toUpperCase() + assignmentStatus.slice(1) : "Pending"}
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
 
-            {Object.keys(summary).length > 0 && (
-              <div className="overflow-auto print:hidden space-y-4">
-                {/* Department progress rings */}
-                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-                  {Object.entries(summary).map(([dept, s]) => {
-                    const reviewed = (s?.verified || 0) + (s?.missing || 0) + (s?.damaged || 0);
+          {summaryEntries.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Department Progress</CardTitle>
+                <CardDescription>Overview of submissions across departments.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {summaryEntries.map(([dept, s]) => {
+                    const reviewed = (s.verified || 0) + (s.missing || 0) + (s.damaged || 0);
                     const total = Math.max(0, Number(deptTotals[dept] || 0));
                     const pct = total > 0 ? Math.min(100, Math.round((reviewed / total) * 100)) : 0;
-                    const radius = 32; const circ = 2 * Math.PI * radius; const dash = (pct/100) * circ;
+                    const radius = 32;
+                    const circumference = 2 * Math.PI * radius;
+                    const dash = (pct / 100) * circumference;
                     return (
-                      <Card key={dept}>
-                        <CardContent className="p-4 flex items-center gap-3">
+                      <Card key={dept} className="border-dashed">
+                        <CardContent className="flex items-center gap-4 p-4">
                           <svg width="80" height="80" className="shrink-0">
                             <circle cx="40" cy="40" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                            <circle cx="40" cy="40" r={radius} fill="none" stroke="#10b981" strokeWidth="8" strokeDasharray={`${dash} ${circ-dash}`} strokeLinecap="round" transform="rotate(-90 40 40)" />
-                            <text x="40" y="44" textAnchor="middle" fontSize="14" fill="currentColor">{pct}%</text>
+                            <circle
+                              cx="40"
+                              cy="40"
+                              r={radius}
+                              fill="none"
+                              stroke="#0ea5e9"
+                              strokeWidth="8"
+                              strokeDasharray={`${dash} ${circumference - dash}`}
+                              strokeLinecap="round"
+                              transform="rotate(-90 40 40)"
+                            />
+                            <text x="40" y="44" textAnchor="middle" fontSize="14" className="fill-foreground">
+                              {pct}%
+                            </text>
                           </svg>
                           <div className="space-y-1">
-                            <div className="font-medium">{dept}</div>
-                            <div className="text-xs text-muted-foreground">{reviewed} of {total || '—'} reviewed</div>
+                            <div className="font-medium text-foreground">{dept}</div>
+                            <div className="text-xs text-muted-foreground">{reviewed} of {total || "—"} reviewed</div>
                           </div>
                         </CardContent>
                       </Card>
                     );
                   })}
                 </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Verified</TableHead>
-                      <TableHead>Missing</TableHead>
-                      <TableHead>Damaged</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(summary).map(([dept, s]) => (
-                      <TableRow key={dept}>
-                        <TableCell>{dept}</TableCell>
-                        <TableCell>{s.verified}</TableCell>
-                        <TableCell>{s.missing}</TableCell>
-                        <TableCell>{s.damaged}</TableCell>
+                <div className="overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Verified</TableHead>
+                        <TableHead>Missing</TableHead>
+                        <TableHead>Damaged</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                    </TableHeader>
+                    <TableBody>
+                      {summaryEntries.map(([dept, s]) => (
+                        <TableRow key={dept}>
+                          <TableCell>{dept}</TableCell>
+                          <TableCell>{s.verified}</TableCell>
+                          <TableCell>{s.missing}</TableCell>
+                          <TableCell>{s.damaged}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-            {role === 'admin' && (latestReport || recentReports.length > 0) && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
-                  <div className="text-sm text-muted-foreground">
-                    {(() => {
-                      if (!latestReport) return `Reports available: ${recentReports.length}`;
-                      const pid = viewPropertyId || selectedPropertyId;
-                      const propLabel = pid ? (() => {
-                        const p = (properties || []).find(pp => String(pp.id) === String(pid));
-                        return p ? `${p.name} (${p.id})` : pid;
-                      })() : null;
-                      return `Generated at ${new Date(latestReport.generated_at).toLocaleString()}${propLabel ? ` • Property: ${propLabel}` : ''}`;
-                    })()}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => window.print()}>Print</Button>
-                    <Button variant="outline" onClick={() => window.print()}>Export PDF</Button>
-                  </div>
+          {myScans.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>My Recent Scans</CardTitle>
+                <CardDescription>Log of assets verified via QR scanning.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>When</TableHead>
+                        <TableHead>Asset</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {myScans.map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-xs text-muted-foreground">{new Date(s.scanned_at).toLocaleString()}</TableCell>
+                          <TableCell className="font-mono text-xs">{s.asset_id}</TableCell>
+                          <TableCell className={s.status === "damaged" ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
+                            {s.status}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-                <div className="hidden print:block mb-4">
-                  <div className="flex items-center gap-3">
-                    <picture>
-                      <source srcSet="/favicon.png" type="image/png" />
-                      <img src="/favicon.ico" alt="Logo" className="h-8 w-8" />
-                    </picture>
-                    <div>
-                      <div className="text-lg font-semibold">Audit Report</div>
-                      {latestReport?.generated_at && (
-                        <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
-                      )}
-                      {(() => {
-                        const pid = viewPropertyId || selectedPropertyId;
-                        if (!pid) return null;
-                        const p = (properties || []).find(pp => String(pp.id) === String(pid));
-                        return <div className="text-xs text-muted-foreground">Property: {p ? `${p.name} (${p.id})` : pid}</div>;
-                      })()}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <CardTitle>Department Review</CardTitle>
+                  <CardDescription>
+                    {isAdmin ? "Select a department to review and update asset statuses." : "Mark each asset and add optional notes."}
+                  </CardDescription>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {isAdmin ? (
+                    <Select value={adminDept} onValueChange={setAdminDept}>
+                      <SelectTrigger className="min-w-[200px]">
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((d) => (
+                          <SelectItem key={d.id || d.name} value={d.name}>
+                            {d.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge variant="outline">{department || "—"}</Badge>
+                  )}
+                  {canScanAssets && (
+                    <Button size="sm" variant="secondary" className="gap-2" onClick={handleOpenScanner}>
+                      <QrCode className="h-4 w-4" />
+                      Scan
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {(() => {
+                const pid = viewPropertyId || selectedPropertyId;
+                if (!pid) return null;
+                const p = properties.find((pp) => String(pp.id) === String(pid));
+                return <p className="text-xs text-muted-foreground mt-2">Property: {p ? `${p.name} (${p.id})` : pid}</p>;
+              })()}
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No assets found for this department.</p>
+              ) : (
+                <div className="overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-32">Asset ID</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead className="w-40">Status</TableHead>
+                        <TableHead className="min-w-[240px]">Comments</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((r, idx) => (
+                        <TableRow key={r.id}>
+                          <TableCell className="font-mono text-xs">{r.id}</TableCell>
+                          <TableCell>{r.name}</TableCell>
+                          <TableCell>
+                            <Select
+                              value={r.status}
+                              onValueChange={(v: any) =>
+                                setRows((prev) => prev.map((x, i) => (i === idx ? { ...x, status: v } : x)))
+                              }
+                              disabled={!canEditRows}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="verified">Verified</SelectItem>
+                                <SelectItem value="missing">Missing</SelectItem>
+                                <SelectItem value="damaged">Damaged</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              placeholder="Optional notes"
+                              value={r.comment}
+                              onChange={(e) =>
+                                setRows((prev) => prev.map((x, i) => (i === idx ? { ...x, comment: e.target.value } : x)))
+                              }
+                              disabled={!canEditRows}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                {canEditRows
+                  ? "Save drafts as you go. Submit when the department review is complete."
+                  : "This review has been submitted. Only administrators can make further changes."}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={saveProgress} disabled={!rows.length || (!canEditRows && !isAdmin)}>
+                  Save Draft
+                </Button>
+                <Button onClick={submit} disabled={submitting || !canEditRows || !rows.length}>
+                  {submitting ? "Submitting…" : "Submit"}
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+
+          {(latestReport || recentReports.length > 0) && (
+            <Card>
+              <CardHeader className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <CardTitle>Reports &amp; Insights</CardTitle>
+                    <CardDescription>Visualise outcomes and revisit historical audits.</CardDescription>
+                  </div>
+                  {latestReport && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => exportAuditSessionPdf(latestReport.session_id)}>
+                        Export PDF
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => window.print()}>
+                        Print
+                      </Button>
                     </div>
+                  )}
+                </div>
+                {latestReport ? (
+                  <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Latest report</span>{" "}
+                    {new Date(latestReport.generated_at).toLocaleString()}
+                    {propertyLabel ? <span className="ml-1">• Property: {propertyLabel}</span> : null}
                   </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Overall Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {(() => {
-                        const payload = (latestReport?.payload) || {};
-                        const totals = payload.totals || { verified: 0, missing: 0, damaged: 0 };
-                        const data = [{ name: 'All', Verified: Number(totals.verified || 0), Missing: Number(totals.missing || 0), Damaged: Number(totals.damaged || 0) }];
-                        return (
-                          <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
-                            <BarChart data={data}>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                              <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                              <YAxis allowDecimals={false} />
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Bar dataKey="Verified" radius={[4,4,0,0]} fill="var(--color-Verified)" />
-                              <Bar dataKey="Missing" radius={[4,4,0,0]} fill="var(--color-Missing)" />
-                              <Bar dataKey="Damaged" radius={[4,4,0,0]} fill="var(--color-Damaged)" />
-                              <ChartLegend content={<ChartLegendContent />} />
-                            </BarChart>
-                          </ChartContainer>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                  <Card className="col-span-1 lg:col-span-1">
-                    <CardHeader>
-                      <CardTitle>By Department</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {(() => {
-                        const payload = (latestReport?.payload) || {};
-                        const byDept = (payload.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>;
-                        const data = byDept.map(d => ({ name: d.department, Verified: d.verified, Missing: d.missing, Damaged: d.damaged }));
-                        return (
-                          <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
-                            <BarChart data={data}>
-                              <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                              <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} />
-                              <YAxis allowDecimals={false} />
-                              <ChartTooltip content={<ChartTooltipContent />} />
-                              <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" />
-                              <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" />
-                              <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" />
-                              <ChartLegend content={<ChartLegendContent />} />
-                            </BarChart>
-                          </ChartContainer>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                </div>
-                {/* Department breakdown with drill-down */}
-                {latestReport && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Department Breakdown</CardTitle>
-                      <CardDescription>View department-level results and details</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      {(() => {
-                        const byDept = (latestReport?.payload?.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>
-                        if (!byDept.length) return <p className="text-sm text-muted-foreground">No breakdown available.</p>;
-                        return (
-                          <div className="space-y-4">
+                ) : (
+                  <p className="text-xs text-muted-foreground">Generate a report to unlock insights.</p>
+                )}
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="overview">
+                  <TabsList>
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="departments">Departments</TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="overview" className="space-y-4">
+                    {latestReport ? (
+                      <div className="space-y-4">
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <Card className="border-dashed">
+                            <CardHeader>
+                              <CardTitle className="text-base">Overall Summary</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {(() => {
+                                const payload = latestReport?.payload || {};
+                                const totals = payload.totals || { verified: 0, missing: 0, damaged: 0 };
+                                const data = [
+                                  {
+                                    name: "All",
+                                    Verified: Number(totals.verified || 0),
+                                    Missing: Number(totals.missing || 0),
+                                    Damaged: Number(totals.damaged || 0),
+                                  },
+                                ];
+                                return (
+                                  <ChartContainer
+                                    config={{
+                                      Verified: { color: "hsl(var(--primary))" },
+                                      Missing: { color: "hsl(var(--destructive))" },
+                                      Damaged: { color: "hsl(46 93% 50%)" },
+                                    }}
+                                  >
+                                    <BarChart data={data}>
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                      <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                                      <YAxis allowDecimals={false} />
+                                      <ChartTooltip content={<ChartTooltipContent />} />
+                                      <Bar dataKey="Verified" radius={[4, 4, 0, 0]} fill="var(--color-Verified)" />
+                                      <Bar dataKey="Missing" radius={[4, 4, 0, 0]} fill="var(--color-Missing)" />
+                                      <Bar dataKey="Damaged" radius={[4, 4, 0, 0]} fill="var(--color-Damaged)" />
+                                      <ChartLegend content={<ChartLegendContent />} />
+                                    </BarChart>
+                                  </ChartContainer>
+                                );
+                              })()}
+                            </CardContent>
+                          </Card>
+                          <Card className="border-dashed">
+                            <CardHeader>
+                              <CardTitle className="text-base">By Department</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                              {(() => {
+                                const payload = latestReport?.payload || {};
+                                const byDept = (payload.byDepartment || []) as Array<{
+                                  department: string;
+                                  verified: number;
+                                  missing: number;
+                                  damaged: number;
+                                }>;
+                                const data = byDept.map((d) => ({
+                                  name: d.department,
+                                  Verified: d.verified,
+                                  Missing: d.missing,
+                                  Damaged: d.damaged,
+                                }));
+                                return (
+                                  <ChartContainer
+                                    config={{
+                                      Verified: { color: "hsl(var(--primary))" },
+                                      Missing: { color: "hsl(var(--destructive))" },
+                                      Damaged: { color: "hsl(46 93% 50%)" },
+                                    }}
+                                  >
+                                    <BarChart data={data}>
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                      <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} />
+                                      <YAxis allowDecimals={false} />
+                                      <ChartTooltip content={<ChartTooltipContent />} />
+                                      <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" />
+                                      <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" />
+                                      <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" />
+                                      <ChartLegend content={<ChartLegendContent />} />
+                                    </BarChart>
+                                  </ChartContainer>
+                                );
+                              })()}
+                            </CardContent>
+                          </Card>
+                        </div>
+                        {latestReport?.payload?.contributors && (
+                          <div>
+                            <Label>Contributors</Label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {latestReport.payload.contributors.map((c: any, idx: number) => (
+                                <Badge key={idx} variant="outline" className="gap-1">
+                                  {c.department} • {c.status === "submitted" ? "Submitted" : "Pending"}
+                                  {c.submitted_at ? ` • ${c.submitted_at}` : ""}
+                                  {c.submitted_by ? ` • ${c.submitted_by}` : ""}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Generate a report to unlock insights.</p>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="departments" className="space-y-4">
+                    {latestReport ? (
+                      <div className="space-y-4">
+                        <div className="overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Department</TableHead>
+                                <TableHead>Verified</TableHead>
+                                <TableHead>Missing</TableHead>
+                                <TableHead>Damaged</TableHead>
+                                <TableHead>Total</TableHead>
+                                <TableHead className="w-32">Details</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {(latestReport?.payload?.byDepartment || []).map((d: any) => (
+                                <TableRow key={d.department}>
+                                  <TableCell>{d.department}</TableCell>
+                                  <TableCell>{d.verified}</TableCell>
+                                  <TableCell>{d.missing}</TableCell>
+                                  <TableCell>{d.damaged}</TableCell>
+                                  <TableCell>{d.total}</TableCell>
+                                  <TableCell>
+                                    <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>
+                                      View
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {detailDept && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label>Details • {detailDept}</Label>
+                              <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>
+                                Clear
+                              </Button>
+                            </div>
                             <div className="overflow-auto">
                               <Table>
                                 <TableHeader>
                                   <TableRow>
-                                    <TableHead>Department</TableHead>
-                                    <TableHead>Verified</TableHead>
-                                    <TableHead>Missing</TableHead>
-                                    <TableHead>Damaged</TableHead>
-                                    <TableHead>Total</TableHead>
-                                    <TableHead className="w-28">Details</TableHead>
+                                    <TableHead>Asset ID</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Comment</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {byDept.map((d) => (
-                                    <TableRow key={d.department}>
-                                      <TableCell>{d.department}</TableCell>
-                                      <TableCell>{d.verified}</TableCell>
-                                      <TableCell>{d.missing}</TableCell>
-                                      <TableCell>{d.damaged}</TableCell>
-                                      <TableCell>{d.total}</TableCell>
-                                      <TableCell>
-                                        <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>View</Button>
-                                      </TableCell>
-                                    </TableRow>
-                                  ))}
+                                  {reportReviews
+                                    .filter((r) => r.department === detailDept)
+                                    .map((r, i) => (
+                                      <TableRow key={`${r.asset_id}-${i}`}>
+                                        <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
+                                        <TableCell className={r.status === "missing" ? "text-destructive" : r.status === "damaged" ? "text-amber-500" : ""}>
+                                          {r.status}
+                                        </TableCell>
+                                        <TableCell>{r.comment || ""}</TableCell>
+                                      </TableRow>
+                                    ))}
                                 </TableBody>
                               </Table>
                             </div>
-                            {detailDept && (
-                              <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                  <Label>Details • {detailDept}</Label>
-                                  <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>Clear</Button>
-                                </div>
-                                <div className="overflow-auto">
-                                  <Table>
-                                    <TableHeader>
-                                      <TableRow>
-                                        <TableHead>Asset ID</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead>Comment</TableHead>
-                                      </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                      {(reportReviews || []).filter(r => r.department === detailDept).map((r, i) => (
-                                        <TableRow key={`${r.asset_id}-${i}`}>
-                                          <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
-                                          <TableCell className={r.status === 'missing' ? 'text-red-600' : r.status === 'damaged' ? 'text-yellow-600' : ''}>{r.status}</TableCell>
-                                          <TableCell>{r.comment || ''}</TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </div>
-                              </div>
-                            )}
                           </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-                )}
-                <Card className="print:hidden">
-                  <CardHeader>
-                    <CardTitle>Audit History</CardTitle>
-                    <CardDescription>Previous audit reports with status and contributors</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="mb-4 flex items-center justify-between gap-2">
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Generate a report to view department breakdown.</p>
+                    )}
+                  </TabsContent>
+                  <TabsContent value="history" className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <Label>Sessions</Label>
-                        <Select value={selectedSessionId} onValueChange={async (sid) => {
-                          setSelectedSessionId(sid);
-                          setHistoryOpen(true); // auto-open history when a session is picked
-                          setLoadingSessionReports(true);
-                          try {
-                            const reps = await listAuditReports(sid);
-                            setSessionReports(reps || []);
-                            if (reps && reps.length) {
-                              setLatestReport(reps[0]);
-                              setViewReportId(reps[0].id);
-                              try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                            }
-                          } catch (e) {
-                            console.error(e);
-                            setSessionReports([]);
-                          } finally {
-                            setLoadingSessionReports(false);
-                          }
-                        }}>
-                          <SelectTrigger className="min-w-[220px]"><SelectValue placeholder="Select session" /></SelectTrigger>
+                        <Label className="text-sm">Session</Label>
+                        <Select value={selectedSessionId} onValueChange={handleSelectSession}>
+                          <SelectTrigger className="min-w-[220px]">
+                            <SelectValue placeholder="Select session" />
+                          </SelectTrigger>
                           <SelectContent>
-                            {sessions.map(s => (
-                              <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
+                            {sessions.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {formatAuditSessionName(s)}
+                                {s.is_active ? " (Active)" : ""}
+                              </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
                       </div>
-                      <Button variant="outline" onClick={() => setHistoryOpen(v => !v)}>{historyOpen ? 'Hide' : 'Show'} History</Button>
-                    </div>
-                    {/* Empty state or loading for selected session */}
-                    {selectedSessionId && (
-                      <div className="mb-2 text-sm text-muted-foreground">
-                        {loadingSessionReports
-                          ? 'Loading reports for selected session…'
-                          : (sessionReports.length === 0 ? (
-                              <div className="flex items-center justify-between gap-2">
-                                <span>No reports found for this session yet.</span>
-                                <Button size="sm" variant="secondary" onClick={async () => {
-                                  try {
-                                    const raw = localStorage.getItem('auth_user');
-                                    const au = raw ? JSON.parse(raw) : null;
-                                    const rep = await createAuditReport(selectedSessionId, au?.name || au?.email || au?.id || null);
-                                    setLatestReport(rep);
-                                    setViewReportId(rep?.id || null);
-                                    const reps = await listAuditReports(selectedSessionId);
-                                    setSessionReports(reps || []);
-                                    const rec = await listRecentAuditReports(20);
-                                    setRecentReports(rec);
-                                    try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
-                                    toast.success('Report created');
-                                    try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                                  } catch (e: any) {
-                                    toast.error(e?.message || 'Failed to create report');
-                                  }
-                                }}>Generate First Report</Button>
-                              </div>
-                            ) : null)
-                        }
-                      </div>
-                    )}
-                    <div className="mb-4 flex items-center justify-end gap-2">
-                      {sessionId && (
-                        <Button size="sm" onClick={async () => {
-                          try {
-                            // Enforce at most 2 reports per session (active)
-                            const existing = await listAuditReports(sessionId);
-                            if ((existing?.length || 0) >= 2) {
-                              const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
-                              if (latest) { setLatestReport(latest); setViewReportId(latest.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }
-                              toast.info('This session already has 2 reports. Showing the latest report.');
-                              return;
-                            }
-                            const raw = localStorage.getItem('auth_user');
-                            const au = raw ? JSON.parse(raw) : null;
-                            const rep = await createAuditReport(sessionId, au?.name || au?.email || au?.id || null);
-                            setLatestReport(rep);
-                            setViewReportId(rep?.id || null);
-                            const rec = await listRecentAuditReports(20);
-                            setRecentReports(rec);
-                            try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
-                            toast.success('Report created for active session');
-                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                          } catch (e: any) {
-                            toast.error(e?.message || 'Failed to create report');
-                          }
-                        }}>Generate Report (Active Session)</Button>
-                      )}
-                      {selectedSessionId && (
-                        <Button size="sm" variant="outline" onClick={async () => {
-                          try {
-                            // Enforce at most 2 reports per session (selected)
-                            const existing = await listAuditReports(selectedSessionId);
-                            if ((existing?.length || 0) >= 2) {
-                              const latest = [...(existing||[])].sort((a,b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
-                              if (latest) { setLatestReport(latest); setViewReportId(latest.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} }
-                              toast.info('This session already has 2 reports. Showing the latest report.');
-                              return;
-                            }
-                            const raw = localStorage.getItem('auth_user');
-                            const au = raw ? JSON.parse(raw) : null;
-                            const rep = await createAuditReport(selectedSessionId, au?.name || au?.email || au?.id || null);
-                            setLatestReport(rep);
-                            setViewReportId(rep?.id || null);
-                            const reps = await listAuditReports(selectedSessionId);
-                            setSessionReports(reps || []);
-                            const rec = await listRecentAuditReports(20);
-                            setRecentReports(rec);
-                            try { localStorage.setItem('has_audit_reports', rec.length > 0 ? '1' : '0'); } catch {}
-                            toast.success('Report created');
-                            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
-                          } catch (e: any) {
-                            toast.error(e?.message || 'Failed to create report');
-                          }
-                        }}>Generate Report (Selected Session)</Button>
-                      )}
-                    </div>
-                    {historyOpen && (
-                      <div className="overflow-auto mb-6">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Generated By</TableHead>
-                              <TableHead>Submissions</TableHead>
-                              <TableHead>Damaged</TableHead>
-                              <TableHead className="w-32">Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(selectedSessionId ? sessionReports : recentReports).map(r => {
-                              const p = r.payload || {};
-                              const totals = p.totals || {};
-                              const subs = p.submissions || {};
-                              const damaged = Number(totals.damaged || 0);
-                              return (
-                                <TableRow key={r.id}>
-                                  <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
-                                  <TableCell>{r.generated_by || '-'}</TableCell>
-                                  <TableCell>{Number(subs.submitted || 0)} / {Number(subs.total || 0)}</TableCell>
-                                  <TableCell>
-                                    <span className={damaged > 0 ? 'text-red-600 font-semibold' : 'text-muted-foreground'}>{damaged}</span>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-2">
-                          <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); try { const sess = await getSessionById(rep.session_id); const pid = (sess as any)?.property_id || ''; setViewPropertyId(String(pid||'')); } catch {} try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} } } catch {} }}>View</Button>
-                              <Button size="sm" variant="outline" onClick={() => { try { exportAuditSessionPdf(r.session_id); } catch {} }}>Export PDF</Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                    
-                    {latestReport?.payload?.contributors && (
-                      <div className="mt-4">
-                        <Label>Contributors</Label>
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {latestReport.payload.contributors.map((c: any, idx: number) => (
-                            <span key={idx} className="inline-flex items-center rounded-full border px-3 py-1 text-xs">
-                              {c.department} • {c.status === 'submitted' ? 'Submitted' : 'Pending'}{c.submitted_at ? ` • ${c.submitted_at}` : ''}{c.submitted_by ? ` • ${c.submitted_by}` : ''}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-  <Card className="print:hidden">
-        <CardHeader>
-          <CardTitle>Department</CardTitle>
-          <CardDescription>{role === 'admin' ? 'Select a department to review' : 'Your assigned department for this audit'}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {role === 'admin' ? (
-            <Select value={adminDept} onValueChange={setAdminDept}>
-              <SelectTrigger className="max-w-sm"><SelectValue placeholder="Select department" /></SelectTrigger>
-              <SelectContent>
-                {departments.map(d => (
-                  <SelectItem value={d.name} key={d.id || d.name}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : (
-            <Input value={department} readOnly className="max-w-sm" />
-          )}
-        </CardContent>
-      </Card>
-
-  {sessionId && (
-  <Card className="print:hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle>Review Items</CardTitle>
-            {auditOn && !(assignmentStatus === 'submitted' && role !== 'admin') && (
-              <Button size="sm" variant="secondary" className="gap-2" onClick={() => { setScanOpen(true); setTimeout(() => { try { startScan(); } catch {} }, 200); }}><Camera className="h-4 w-4" /> Scan QR</Button>
-            )}
-          </div>
-          <CardDescription>
-            {role === 'admin' ? 'Admin review for selected department' : 'Mark each asset as verified, missing, or damaged. Add comments if needed.'}
-            {(() => {
-              const pid = viewPropertyId || selectedPropertyId;
-              if (!pid) return null;
-              const p = (properties || []).find(pp => String(pp.id) === String(pid));
-              return <span className="ml-2 text-muted-foreground">• Property: {p ? `${p.name} (${p.id})` : pid}</span>;
-            })()}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : rows.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No items found for your department.</p>
-          ) : (
-            <div className="overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-32">Asset ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="w-40">Status</TableHead>
-                    <TableHead className="min-w-[240px]">Comments</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rows.map((r, idx) => (
-                    <TableRow key={r.id}>
-                      <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                      <TableCell>{r.name}</TableCell>
-                      <TableCell>
-                        <Select value={r.status} onValueChange={(v: any) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, status: v } : x))} disabled={assignmentStatus === 'submitted' && role !== 'admin'}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="verified">Verified</SelectItem>
-                            <SelectItem value="missing">Missing</SelectItem>
-                            <SelectItem value="damaged">Damaged</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <Input placeholder="Optional notes" value={r.comment} onChange={(e) => setRows(prev => prev.map((x, i) => i === idx ? { ...x, comment: e.target.value } : x))} disabled={assignmentStatus === 'submitted' && role !== 'admin'} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          {role !== 'admin' && assignmentStatus === 'submitted' ? (
-            <div className="flex justify-end mt-4 text-sm text-muted-foreground">Submitted</div>
-          ) : (
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={saveProgress}>Save</Button>
-              <Button onClick={submit} disabled={submitting || !rows.length}>Submit</Button>
-            </div>
-          )}
-          {/* My scan history */}
-          {myScans.length > 0 && (
-            <div className="mt-6">
-              <Label>My recent scans</Label>
-              <div className="mt-2 overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>When</TableHead>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {myScans.map(s => (
-                      <TableRow key={s.id}>
-                        <TableCell className="text-xs text-muted-foreground">{new Date(s.scanned_at).toLocaleString()}</TableCell>
-                        <TableCell className="font-mono text-xs">{s.asset_id}</TableCell>
-                        <TableCell className={s.status === 'damaged' ? 'text-yellow-600' : 'text-emerald-600'}>{s.status}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          )}
-        </CardContent>
-  </Card>
-  )}
-
-      {/* Reports section visible to non-admins as well, with printable scope */}
-      {role !== 'admin' && (latestReport || recentReports.length > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Audit Reports</CardTitle>
-            <CardDescription>View and print your department's audit outcomes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between gap-2 flex-wrap print:hidden">
-              <div className="text-sm text-muted-foreground">
-                {(() => {
-                  if (!latestReport) return `Reports available: ${recentReports.length}`;
-                  const pid = viewPropertyId || selectedPropertyId;
-                  const propLabel = pid ? (() => {
-                    const p = (properties || []).find(pp => String(pp.id) === String(pid));
-                    return p ? `${p.name} (${p.id})` : pid;
-                  })() : null;
-                  return `Generated at ${new Date(latestReport.generated_at).toLocaleString()}${propLabel ? ` • Property: ${propLabel}` : ''}`;
-                })()}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={() => { try { if (latestReport) exportAuditSessionPdf(latestReport.session_id); } catch {} }}>Export PDF</Button>
-              </div>
-            </div>
-            {/* Printable report area */}
-            <div className="mt-4">
-              <div className="hidden print:block mb-4">
-                <div className="flex items-center gap-3">
-                  <picture>
-                    <source srcSet="/favicon.png" type="image/png" />
-                    <img src="/favicon.ico" alt="Logo" className="h-8 w-8" />
-                  </picture>
-                  <div>
-                    <div className="text-lg font-semibold">Audit Report</div>
-                    {latestReport?.generated_at && (
-                      <div className="text-xs text-muted-foreground">Generated: {new Date(latestReport.generated_at).toLocaleString()}</div>
-                    )}
-                    {(() => {
-                      const pid = viewPropertyId || selectedPropertyId;
-                      if (!pid) return null;
-                      const p = (properties || []).find(pp => String(pp.id) === String(pid));
-                      return <div className="text-xs text-muted-foreground">Property: {p ? `${p.name} (${p.id})` : pid}</div>;
-                    })()}
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Overall Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const payload = (latestReport?.payload) || {};
-                      const totals = payload.totals || { verified: 0, missing: 0, damaged: 0 };
-                      const data = [{ name: 'All', Verified: Number(totals.verified || 0), Missing: Number(totals.missing || 0), Damaged: Number(totals.damaged || 0) }];
-                      return (
-                        <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
-                          <BarChart data={data}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                            <YAxis allowDecimals={false} />
-                            <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="Verified" radius={[4,4,0,0]} fill="var(--color-Verified)" />
-                            <Bar dataKey="Missing" radius={[4,4,0,0]} fill="var(--color-Missing)" />
-                            <Bar dataKey="Damaged" radius={[4,4,0,0]} fill="var(--color-Damaged)" />
-                            <ChartLegend content={<ChartLegendContent />} />
-                          </BarChart>
-                        </ChartContainer>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-                <Card className="col-span-1 lg:col-span-1">
-                  <CardHeader>
-                    <CardTitle>By Department</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const payload = (latestReport?.payload) || {};
-                      const byDept = (payload.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>;
-                      const data = byDept.map(d => ({ name: d.department, Verified: d.verified, Missing: d.missing, Damaged: d.damaged }));
-                      return (
-                        <ChartContainer config={{ Verified: { color: 'hsl(var(--primary))' }, Missing: { color: 'hsl(var(--destructive))' }, Damaged: { color: 'hsl(46 93% 50%)' }}}>
-                          <BarChart data={data}>
-                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                            <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} />
-                            <YAxis allowDecimals={false} />
-                            <ChartTooltip content={<ChartTooltipContent />} />
-                            <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" />
-                            <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" />
-                            <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" />
-                            <ChartLegend content={<ChartLegendContent />} />
-                          </BarChart>
-                        </ChartContainer>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-              </div>
-              {/* Department breakdown with drill-down */}
-              {latestReport && (
-                <Card className="mt-4">
-                  <CardHeader>
-                    <CardTitle>Department Breakdown</CardTitle>
-                    <CardDescription>View department-level results and details</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const byDept = (latestReport?.payload?.byDepartment || []) as Array<{ department: string; verified: number; missing: number; damaged: number; total: number }>
-                      if (!byDept.length) return <p className="text-sm text-muted-foreground">No breakdown available.</p>;
-                      return (
-                        <div className="space-y-4">
-                          <div className="overflow-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Department</TableHead>
-                                  <TableHead>Verified</TableHead>
-                                  <TableHead>Missing</TableHead>
-                                  <TableHead>Damaged</TableHead>
-                                  <TableHead>Total</TableHead>
-                                  <TableHead className="w-28">Details</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {byDept.map((d) => (
-                                  <TableRow key={d.department}>
-                                    <TableCell>{d.department}</TableCell>
-                                    <TableCell>{d.verified}</TableCell>
-                                    <TableCell>{d.missing}</TableCell>
-                                    <TableCell>{d.damaged}</TableCell>
-                                    <TableCell>{d.total}</TableCell>
-                                    <TableCell>
-                                      <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>View</Button>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </div>
-                          {detailDept && (
-                            <div>
-                              <div className="mb-2 flex items-center justify-between">
-                                <Label>Details • {detailDept}</Label>
-                                <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>Clear</Button>
-                              </div>
-                              <div className="overflow-auto">
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Asset ID</TableHead>
-                                      <TableHead>Status</TableHead>
-                                      <TableHead>Comment</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {(reportReviews || []).filter(r => r.department === detailDept).map((r, i) => (
-                                      <TableRow key={`${r.asset_id}-${i}`}>
-                                        <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
-                                        <TableCell className={r.status === 'missing' ? 'text-red-600' : r.status === 'damaged' ? 'text-yellow-600' : ''}>{r.status}</TableCell>
-                                        <TableCell>{r.comment || ''}</TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-                              </div>
-                            </div>
+                      {canManageSession && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {sessionId && (
+                            <Button size="sm" onClick={() => handleGenerateReportForSession(sessionId)}>
+                              Generate Report (Active)
+                            </Button>
+                          )}
+                          {selectedSessionId && (
+                            <Button size="sm" variant="outline" onClick={() => handleGenerateReportForSession(selectedSessionId)}>
+                              Generate Report (Selected)
+                            </Button>
                           )}
                         </div>
-                      );
-                    })()}
-                  </CardContent>
-                </Card>
-              )}
-              {recentReports.length > 0 && (
-                <Card className="mt-4">
-                  <CardHeader>
-                    <CardTitle>Audit History</CardTitle>
-                    <CardDescription>Recent audit reports for your properties</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                      )}
+                    </div>
+                    {selectedSessionId ? (
+                      <p className="text-xs text-muted-foreground">
+                        {loadingSessionReports
+                          ? "Loading reports for selected session…"
+                          : sessionReports.length === 0
+                            ? "No reports found for this session yet."
+                            : `${sessionReports.length} report${sessionReports.length === 1 ? "" : "s"} available.`}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Select a session to filter history, or browse recent reports below.</p>
+                    )}
                     <div className="overflow-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
                             <TableHead>Date</TableHead>
                             <TableHead>Generated By</TableHead>
-                            <TableHead className="w-32">Actions</TableHead>
+                            <TableHead>Submissions</TableHead>
+                            <TableHead>Damaged</TableHead>
+                            <TableHead className="w-40">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {recentReports.map(r => (
-                            <TableRow key={r.id}>
-                              <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
-                              <TableCell>{r.generated_by || '-'}</TableCell>
-                              <TableCell>
-                                <div className="flex gap-2">
-                                  <Button size="sm" variant="outline" onClick={async () => { try { const rep = await getAuditReport(r.id); if (rep) { setLatestReport(rep); setViewReportId(r.id); try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {} } } catch {} }}>View</Button>
-                                  <Button size="sm" variant="outline" onClick={() => window.print()}>Print</Button>
-                                </div>
+                          {(selectedSessionId ? sessionReports : recentReports).map((r) => {
+                            const totals = (r.payload?.totals || {}) as any;
+                            const subs = (r.payload?.submissions || {}) as any;
+                            const damaged = Number(totals.damaged || 0);
+                            return (
+                              <TableRow key={r.id}>
+                                <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
+                                <TableCell>{r.generated_by || "-"}</TableCell>
+                                <TableCell>
+                                  {Number(subs.submitted || 0)} / {Number(subs.total || 0)}
+                                </TableCell>
+                                <TableCell>
+                                  <span className={damaged > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{damaged}</span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button size="sm" variant="outline" onClick={() => handleViewReport(r.id)}>
+                                      View
+                                    </Button>
+                                    <Button size="sm" variant="outline" onClick={() => exportAuditSessionPdf(r.session_id)}>
+                                      Export PDF
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                          {(selectedSessionId ? sessionReports : recentReports).length === 0 && (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
+                                No reports available yet.
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-            {/* Removed duplicate bottom Audit History list for managers */}
-          </CardContent>
-        </Card>
-      )}
-      {/* Scan modal */}
-  <Dialog open={scanOpen} onOpenChange={(v) => { setScanOpen(v); if (v) { setTimeout(() => { try { startScan(); } catch {} }, 200); } else { stopScan(); setScanAssetId(""); setScanAssetName(""); setScanComment(""); } }}>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      <Dialog
+        open={scanOpen}
+        onOpenChange={(v) => {
+          setScanOpen(v);
+          if (v) {
+            setTimeout(() => {
+              try {
+                startScan();
+              } catch {}
+            }, 200);
+          } else {
+            stopScan();
+            setScanAssetId("");
+            setScanAssetName("");
+            setScanComment("");
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><QrCode className="h-5 w-5" /> Scan asset QR</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5" />
+              Scan asset QR
+            </DialogTitle>
             <DialogDescription>Point your camera at the asset QR. Pick a status and save.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="relative aspect-square bg-black/80 rounded-md overflow-hidden">
-              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-              <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[70%] aspect-square border-2 border-primary/60 rounded-lg" />
+            <div className="relative aspect-square overflow-hidden rounded-md bg-black/80">
+              <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute left-1/2 top-1/2 h-[70%] -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-primary/60" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button variant={scanStatus==='verified' ? 'default' : 'outline'} className="gap-2" onClick={() => setScanStatus('verified')}><CheckCircle2 className="h-4 w-4" /> Verified</Button>
-              <Button variant={scanStatus==='damaged' ? 'destructive' : 'outline'} className="gap-2" onClick={() => setScanStatus('damaged')}><TriangleAlert className="h-4 w-4" /> Damaged</Button>
+              <Button
+                variant={scanStatus === "verified" ? "default" : "outline"}
+                className="gap-2"
+                onClick={() => setScanStatus("verified")}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Verified
+              </Button>
+              <Button
+                variant={scanStatus === "damaged" ? "destructive" : "outline"}
+                className="gap-2"
+                onClick={() => setScanStatus("damaged")}
+              >
+                <TriangleAlert className="h-4 w-4" />
+                Damaged
+              </Button>
             </div>
-            <div className="text-sm text-muted-foreground">Scanned asset: <span className="font-mono text-foreground">{scanAssetId || '—'}</span>{scanAssetId && (<span> — <span className="text-foreground">{scanAssetName || 'Unknown'}</span></span>)}</div>
+            <div className="text-sm text-muted-foreground">
+              Scanned asset:{" "}
+              <span className="font-mono text-foreground">{scanAssetId || "—"}</span>
+              {scanAssetId && (
+                <span>
+                  {" "}— <span className="text-foreground">{scanAssetName || "Unknown"}</span>
+                </span>
+              )}
+            </div>
             <div className="space-y-2">
               <Label>Optional note</Label>
-              <Textarea placeholder="Add a note (e.g., issue observed, location)" value={scanComment} onChange={(e) => setScanComment(e.target.value)} disabled={!scanAssetId || scanBusy} />
+              <Textarea
+                placeholder="Add a note (e.g., issue observed, location)"
+                value={scanComment}
+                onChange={(e) => setScanComment(e.target.value)}
+                disabled={!scanAssetId || scanBusy}
+              />
             </div>
           </div>
           <DialogFooter className="gap-2">
-            {!scanActive && <Button onClick={startScan} className="gap-2"><Camera className="h-4 w-4" /> Start</Button>}
-            {scanActive && <Button variant="outline" onClick={stopScan}>Stop</Button>}
-            <Button disabled={!scanAssetId || scanBusy} onClick={async () => {
-              if (!sessionId || !scanAssetId) return;
-              try {
-                setScanBusy(true);
-                await verifyAssetViaScan({ sessionId, assetId: scanAssetId, status: scanStatus, comment: scanComment || null });
-                toast.success(`Marked ${scanAssetId} as ${scanStatus}`);
-                // Refresh rows and my scans
+            {!scanActive && (
+              <Button onClick={startScan} className="gap-2">
+                <Camera className="h-4 w-4" />
+                Start
+              </Button>
+            )}
+            {scanActive && (
+              <Button variant="outline" onClick={stopScan}>
+                Stop
+              </Button>
+            )}
+            <Button
+              disabled={!scanAssetId || scanBusy}
+              onClick={async () => {
+                if (!sessionId || !scanAssetId) return;
                 try {
-                  const dep = role === 'admin' ? adminDept : department;
-                  if (dep) {
-                    // Optimistic update for the scanned row
-                    setRows(prev => prev.map(rr => rr.id === scanAssetId ? { ...rr, status: scanStatus, comment: scanComment } : rr));
-                    // Sync from server to ensure comment/status match authoritative values
-                    const prior = await getReviewsFor(sessionId, dep);
-                    setRows(prev => prev.map(rr => {
-                      if (rr.id !== scanAssetId) return rr;
-                      const r = prior.find(p => p.asset_id === rr.id);
-                      return r ? { ...rr, status: r.status as any, comment: r.comment || '' } : rr;
-                    }));
-                  }
-                } catch {}
-                try { const hist = await listMyScansForSession(sessionId); setMyScans(hist.map(r => ({ id: r.id, asset_id: r.asset_id, status: r.status, scanned_at: r.scanned_at }))); } catch {}
-                setScanAssetId("");
-                setScanAssetName("");
-                setScanComment("");
-                try { if (sessionId) { const sum = await getDepartmentReviewSummary(sessionId); setSummary(sum); } } catch {}
-              } catch (e: any) {
-                toast.error(e?.message || 'Failed to verify');
-              } finally { setScanBusy(false); }
-            }}>Save</Button>
+                  setScanBusy(true);
+                  await verifyAssetViaScan({ sessionId, assetId: scanAssetId, status: scanStatus, comment: scanComment || null });
+                  toast.success(`Marked ${scanAssetId} as ${scanStatus}`);
+                  try {
+                    const dep = isAdmin ? adminDept : department;
+                    if (dep) {
+                      setRows((prev) => prev.map((rr) => (rr.id === scanAssetId ? { ...rr, status: scanStatus, comment: scanComment } : rr)));
+                      const prior = await getReviewsFor(sessionId, dep);
+                      setRows((prev) =>
+                        prev.map((rr) => {
+                          if (rr.id !== scanAssetId) return rr;
+                          const r = prior.find((p) => p.asset_id === rr.id);
+                          return r ? { ...rr, status: r.status as any, comment: r.comment || "" } : rr;
+                        })
+                      );
+                    }
+                  } catch {}
+                  try {
+                    const hist = await listMyScansForSession(sessionId);
+                    setMyScans(hist.map((r) => ({ id: r.id, asset_id: r.asset_id, status: r.status, scanned_at: r.scanned_at })));
+                  } catch {}
+                  setScanAssetId("");
+                  setScanAssetName("");
+                  setScanComment("");
+                  try {
+                    if (sessionId) {
+                      const sum = await getDepartmentReviewSummary(sessionId);
+                      setSummary(sum);
+                    }
+                  } catch {}
+                } catch (e: any) {
+                  toast.error(e?.message || "Failed to verify");
+                } finally {
+                  setScanBusy(false);
+                }
+              }}
+            >
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
