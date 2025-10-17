@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { isDemoMode } from "@/lib/demo";
 
 export type MinimalUser = {
   id: string;
@@ -242,6 +243,27 @@ export async function loginWithPassword(email: string, password: string): Promis
     await upgradeLocalHash(local.id, password);
   }
   return sanitizeUser(local);
+}
+
+export async function verifyCurrentUserPassword(password: string): Promise<boolean> {
+  try {
+    if (!password) return false;
+    if (typeof window === "undefined") return false;
+    const raw = (isDemoMode()
+      ? sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')
+      : null) || localStorage.getItem('auth_user');
+    if (!raw) return false;
+    const current = JSON.parse(raw);
+    const email = current?.email || null;
+    const expectedId = current?.id || null;
+    if (!email) return false;
+    const result = await loginWithPassword(email, password);
+    if (!result) return false;
+    if (expectedId && result.id && result.id !== expectedId) return false;
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Change own password via secure RPC (validates current password server-side)

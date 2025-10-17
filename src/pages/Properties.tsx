@@ -6,6 +6,7 @@ import MetricCard from "@/components/ui/metric-card";
 import { Building2, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
+import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
 import { isDemoMode } from "@/lib/demo";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,10 @@ export default function Properties() {
     manager: "",
   });
   const [canEditPage, setCanEditPage] = useState<boolean>(false);
+  const { confirm: requirePassword, dialog: passwordDialog } = usePasswordConfirmation({
+    title: "Verify password",
+    description: "Enter your password to continue.",
+  });
   useEffect(() => {
     (async () => {
       try {
@@ -251,16 +256,22 @@ export default function Properties() {
     }
     const ok = window.confirm(`Are you sure you want to delete property ${propertyId}? This action cannot be undone.`);
     if (!ok) return;
+    const verified = await requirePassword({
+      title: "Confirm property deletion",
+      description: `Enter your password to delete property ${propertyId}.`,
+      confirmLabel: "Delete Property",
+    });
+    if (!verified) return;
     try {
       if (isSupabase) {
         await sbDeleteProperty(propertyId);
         setProperties(prev => prev.filter(p => p.id !== propertyId));
         toast.success(`Property ${propertyId} deleted`);
-  await logActivity("property_deleted", `Property ${propertyId} deleted`);
+        await logActivity("property_deleted", `Property ${propertyId} deleted`);
       } else {
         setProperties(prev => prev.filter(p => p.id !== propertyId));
         toast.info("Supabase not configured; deleted locally only");
-  await logActivity("property_deleted", `Property ${propertyId} deleted (local)`, "Local");
+        await logActivity("property_deleted", `Property ${propertyId} deleted (local)`, "Local");
       }
     } catch (e: any) {
       console.error(e);
@@ -275,6 +286,14 @@ export default function Properties() {
         return;
       }
       const id = editingId ? editingId : (form.id || `PROP-${Math.floor(Math.random()*900+100)}`);
+      if (!editingId) {
+        const verified = await requirePassword({
+          title: "Confirm property creation",
+          description: "Enter your password to create this property.",
+          confirmLabel: "Create Property",
+        });
+        if (!verified) return;
+      }
       if (isSupabase) {
         if (editingId) {
           await sbUpdateProperty(editingId, {
@@ -472,7 +491,8 @@ export default function Properties() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
         <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
           <PageHeader
@@ -817,6 +837,8 @@ export default function Properties() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-    </div>
+      </div>
+      {passwordDialog}
+    </>
   );
 }

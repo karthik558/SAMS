@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -209,6 +210,10 @@ export default function Users() {
   const [ePassword, setEPassword] = useState("");
   const [eMustChange, setEMustChange] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const { confirm: requirePassword, dialog: passwordDialog } = usePasswordConfirmation({
+    title: "Verify password",
+    description: "Enter your password to continue.",
+  });
 
   // Local fallback properties (ids align with demo data used elsewhere)
   const fallbackProperties: Property[] = [
@@ -664,8 +669,14 @@ export default function Users() {
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
-  const ok = window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`);
-  if (!ok) return;
+    const ok = window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`);
+    if (!ok) return;
+    const verified = await requirePassword({
+      title: "Confirm user deletion",
+      description: `Enter your password to delete ${name}.`,
+      confirmLabel: "Delete User",
+    });
+    if (!verified) return;
     try {
       await deleteUser(userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
@@ -2047,6 +2058,7 @@ export default function Users() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {passwordDialog}
     </div>
   );
 }
