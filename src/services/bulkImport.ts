@@ -289,6 +289,16 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
     return `${prefix}${String(next).padStart(4, "0")}`;
   };
 
+  const registerSeqForId = (assetId: string) => {
+    if (!assetId) return;
+    const match = String(assetId).match(/^(.*?)(\d{1,})$/);
+    if (!match) return;
+    const prefix = match[1];
+    const num = Number(match[2]);
+    if (!Number.isFinite(num)) return;
+    seqByPrefix[prefix] = Math.max(seqByPrefix[prefix] || 0, num);
+  };
+
   let inserted = 0;
   let skipped = 0;
   const errors: { row: number; message: string }[] = [];
@@ -327,21 +337,22 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
   const type = String(r["type"] ?? "").trim();
   const property = String(r["property"] ?? "").trim();
   const department = String(r["department"] ?? "").trim();
-  const quantity = Number(r["quantity"] ?? NaN);
+  const quantityRaw = Number(r["quantity"] ?? NaN);
   const status = String(r["status"] ?? "").trim() || "Active";
 
-    if (!name || !type || !property || !Number.isFinite(quantity) || !department) {
+    if (!name || !type || !property || !Number.isFinite(quantityRaw) || !department) {
       skipped++;
       errors.push({ row: rowNum, message: "Missing required fields (name, type, property, department, quantity) or invalid quantity" });
       continue;
     }
+
+  const quantityUnits = Math.max(1, Math.floor(quantityRaw));
 
   // Resolve property code (prefer code, else map from name)
   const propertyCode = propCodeToId[property] ?? propNameToId[property] ?? property;
 
   // Prefer provided id if present, else auto-generate
   const providedId = String(r["id"] || "").trim();
-  const id = providedId || nextId(type, propertyCode);
 
       const effectiveDept = department || currentUser?.department || '';
       if (role !== 'admin' && allowedDepartmentsLower && allowedDepartmentsLower.size > 0) {
@@ -362,14 +373,13 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
         }
       }
 
-      const asset: Asset = {
-      id,
+      const baseAsset: Omit<Asset, "id"> = {
       name,
       type,
   property: propertyCode,
   property_id: propertyCode,
     department: effectiveDept || null,
-      quantity,
+      quantity: 1,
   purchaseDate: r["purchaseDate"] ? String(r["purchaseDate"]).slice(0, 10) : null,
   expiryDate: r["expiryDate"] ? String(r["expiryDate"]).slice(0, 10) : null,
       poNumber: r["poNumber"] ? String(r["poNumber"]).trim() : null,
@@ -382,9 +392,9 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
 
     try {
       if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-      // License check (each row counts as 1 asset regardless of quantity in import template; quantity can represent units but creation is per row)
+      // License check accounts for each unit we are about to create
       try {
-        const check = await checkLicenseBeforeCreate(propertyCode, 1);
+        const check = await checkLicenseBeforeCreate(propertyCode, quantityUnits);
         if (!check.ok) {
           skipped++;
           errors.push({ row: rowNum, message: check.message || 'License Exceed: upgrade required' });
@@ -395,8 +405,18 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
           skipped++; errors.push({ row: rowNum, message: e.message }); continue;
         }
       }
-      await createAsset(asset);
-      inserted++;
+      const unitIds: string[] = [];
+      const firstId = providedId || nextId(type, propertyCode);
+      unitIds.push(firstId);
+      registerSeqForId(firstId);
+      while (unitIds.length < quantityUnits) {
+        const next = nextId(type, propertyCode);
+        unitIds.push(next);
+      }
+      for (const unitId of unitIds) {
+        await createAsset({ ...baseAsset, id: unitId } as Asset);
+        inserted++;
+      }
     } catch (e: any) {
       skipped++;
       errors.push({ row: rowNum, message: e?.message || "Failed to insert asset" });
