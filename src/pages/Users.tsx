@@ -43,7 +43,7 @@ import {
   Phone,
   Filter
 } from "lucide-react";
-import { Key } from "lucide-react";
+import { Key, Maximize2, Minimize2 } from "lucide-react";
 import { format } from "date-fns";
 import {
   DropdownMenu,
@@ -161,7 +161,9 @@ export default function Users() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isAddDialogMaximized, setIsAddDialogMaximized] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [isEditDialogMaximized, setIsEditDialogMaximized] = useState(false);
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   // Reset password popup state
   const [isResetPwOpen, setIsResetPwOpen] = useState(false);
@@ -502,11 +504,32 @@ export default function Users() {
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
     }
     setIsAddUserOpen(false);
+    setIsAddDialogMaximized(false);
     resetForm();
     // Reset permission toggles
   setPermView({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
   setPermEdit({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false });
   };
+
+  const propertyAccessSummary = useMemo(() => {
+    if (editSelectedPropertyIds.length === 0) return "No properties";
+    return `${editSelectedPropertyIds.length} selected`;
+  }, [editSelectedPropertyIds]);
+
+  const inchargeSummary = useMemo(() => {
+    if (editInchargePropertyIds.length === 0) return "No assignments";
+    return `${editInchargePropertyIds.length} selected`;
+  }, [editInchargePropertyIds]);
+
+  const approverSummary = useMemo(() => {
+    if (editApproverPropertyIds.length === 0) return "Not configured";
+    return `${editApproverPropertyIds.length} selected`;
+  }, [editApproverPropertyIds]);
+
+  const deptAccessSummary = useMemo(() => {
+    if (editSelectedDepartments.length === 0) return "No departments";
+    return `${editSelectedDepartments.length} selected`;
+  }, [editSelectedDepartments]);
 
   const openEditUser = async (user: AppUser) => {
     setEditingUser(user);
@@ -662,6 +685,7 @@ export default function Users() {
       } catch {}
       toast({ title: "User updated", description: `${name} has been saved.` });
       setIsEditUserOpen(false);
+      setIsEditDialogMaximized(false);
       setEditingUser(null);
     } catch (e: any) {
       toast({ title: "Update failed", description: e?.message || "Unable to update user.", variant: "destructive" });
@@ -766,51 +790,79 @@ export default function Users() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-8">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
-      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-        <PageHeader
-          icon={User}
-          title="User Management"
-          description="Manage user accounts, roles, and permissions"
-          actions={
-            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
+      <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card shadow-xl">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/10 to-background/90" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/85 via-background/40 to-transparent" />
+        <div className="relative z-10 space-y-6 p-6 sm:p-8 lg:p-10">
+          <PageHeader
+            icon={User}
+            title="People & Access"
+            description="Curate roles, onboarding, and audit trails for everyone using SAMS"
+            className="text-foreground"
+            actions={
+            <Dialog
+              open={isAddUserOpen}
+              onOpenChange={(open) => {
+                setIsAddUserOpen(open);
+                if (!open) {
+                  setIsAddDialogMaximized(false);
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
+                <Button className="w-full rounded-full px-5 py-2 shadow-sm sm:w-auto">
                   <Plus className="mr-2 h-4 w-4" />
                   Add User
                 </Button>
               </DialogTrigger>
               <DialogContent
                 className={cn(
-                  "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
+                  "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+                  isAddDialogMaximized
+                    ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
+                    : "h-[min(92vh,760px)] w-[calc(100vw-1.5rem)] max-w-4xl sm:w-full"
                 )}
               >
-                <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
-                  <DialogTitle>Add New User</DialogTitle>
-                  <DialogDescription>
-                    Create a new user account for the system
-                  </DialogDescription>
+                <DialogHeader className="space-y-1.5 border-b border-border/60 bg-muted/10 px-6 py-6 text-left sm:px-8 sm:py-8">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <DialogTitle>Add New User</DialogTitle>
+                      <DialogDescription>
+                        Create a new user account for the system
+                      </DialogDescription>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsAddDialogMaximized((prev) => !prev)}
+                      aria-label={isAddDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
+                      className="rounded-full border border-border/60 bg-background/80 shadow-sm hover:bg-background"
+                    >
+                      {isAddDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
                 </DialogHeader>
                 {authRole !== 'admin' && (
-                  <div className="mx-2 mb-2 rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground sm:mx-4 md:mx-8 lg:mx-12">
+                  <div className="mx-6 mt-4 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-xs text-destructive-foreground sm:mx-8">
                     You have view-only access. Contact an administrator to add users.
                   </div>
                 )}
                 {/* Summary chips */}
-                <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
-                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 px-6 pb-3 pt-4 sm:px-8">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Properties: <span className="font-medium text-foreground">{selectedPropertyIds.length}</span>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Departments: <span className="font-medium text-foreground">{selectedDepartments.length}</span>
                   </span>
                 </div>
                 {/* Quick preview header for clarity */}
-                <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
+                <div className="mx-6 flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 sm:mx-8">
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-muted text-foreground font-medium">
                       {getInitials(`${firstName} ${lastName}`.trim())}
@@ -826,31 +878,31 @@ export default function Users() {
                     </div>
                   )}
                 </div>
-            <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-4 sm:px-4 md:space-y-3 md:px-8 lg:px-12 lg:pb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
-                <div className="space-y-2">
-          <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
-          <Input id="firstName" placeholder="Abc" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={authRole !== 'admin'} />
-          {!firstName.trim() && (<p className="text-xs text-destructive">First name is required.</p>)}
-                </div>
-                <div className="space-y-2">
-          <Label htmlFor="lastName">Last Name <span className="text-destructive">*</span></Label>
-          <Input id="lastName" placeholder="Abc" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={authRole !== 'admin'} />
-          {!lastName.trim() && (<p className="text-xs text-destructive">Last name is required.</p>)}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
-                <Input id="email" type="email" placeholder="abc@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={authRole !== 'admin'} />
-                {(!email.trim()) && (<p className="text-xs text-destructive">Email is required.</p>)}
-                {emailInvalid && (<p className="text-xs text-destructive">Enter a valid email address.</p>)}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={authRole !== 'admin'} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-3">
-                <div className="space-y-2">
+                <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-6 pb-6 sm:px-8 sm:pb-10">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="firstName">First Name <span className="text-destructive">*</span></Label>
+                      <Input id="firstName" placeholder="Abc" value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={authRole !== 'admin'} />
+                      {!firstName.trim() && (<p className="text-xs text-destructive">First name is required.</p>)}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName">Last Name <span className="text-destructive">*</span></Label>
+                      <Input id="lastName" placeholder="Abc" value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={authRole !== 'admin'} />
+                      {!lastName.trim() && (<p className="text-xs text-destructive">Last name is required.</p>)}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email <span className="text-destructive">*</span></Label>
+                    <Input id="email" type="email" placeholder="abc@example.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={authRole !== 'admin'} />
+                    {(!email.trim()) && (<p className="text-xs text-destructive">Email is required.</p>)}
+                    {emailInvalid && (<p className="text-xs text-destructive">Enter a valid email address.</p>)}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input id="phone" type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={authRole !== 'admin'} />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
                   <Label htmlFor="password">{mustChangePassword ? "Temporary Password" : "Password"}</Label>
                   <Input id="password" type="password" placeholder={mustChangePassword ? "Set a temporary password" : "Set a password"} value={password} onChange={(e) => setPassword(e.target.value)} disabled={authRole !== 'admin'} />
                   <p className="text-xs text-muted-foreground">{mustChangePassword ? "User will be asked to change this on first login." : "This will be the user's password."}</p>
@@ -1195,8 +1247,15 @@ export default function Users() {
                 <Label htmlFor="mustChange">Require password change on first login</Label>
               </div>
             </div>
-            <DialogFooter className="gap-2 border-t border-border/60 bg-muted/10 px-2 pb-4 pt-4 sm:px-4 md:px-8 md:pb-6 lg:px-12 lg:pb-12">
-              <Button type="button" variant="outline" onClick={() => setIsAddUserOpen(false)}>
+            <DialogFooter className="gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:px-8 sm:py-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setIsAddUserOpen(false);
+                  setIsAddDialogMaximized(false);
+                }}
+              >
                 Cancel
               </Button>
               <Button type="button" onClick={handleAddUser} disabled={authRole !== 'admin' || addRequiredMissing || emailInvalid}>
@@ -1208,36 +1267,43 @@ export default function Users() {
             </Dialog>
           }
         />
-      </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {userHighlights.map(({ key, title, icon: Icon, value, caption }) => (
+              <Card
+                key={key}
+                className="rounded-2xl border border-border/60 bg-card/90 p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+                      {title}
+                    </p>
+                    <p className="text-3xl font-semibold text-foreground">{value}</p>
+                  </div>
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{caption}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
 
-      <Card className="border border-border/60 shadow-sm backdrop-blur">
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="rounded-3xl border border-border/60 bg-card/95 shadow-sm">
+        <CardHeader className="space-y-4 border-b border-border/60 pb-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <CardTitle>System Users</CardTitle>
+              <CardTitle className="text-xl font-semibold text-foreground">Directory</CardTitle>
               <CardDescription>
-                {filteredUsers.length} of {users.length} users
+                Showing {filteredUsers.length} of {users.length} users
               </CardDescription>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {userHighlights.map((item) => {
-              const Icon = item.icon;
-              return (
-                <span
-                  key={item.key}
-                  className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground"
-                >
-                  <Icon className={cn("h-3.5 w-3.5", item.iconClassName)} />
-                  <span className="font-medium text-foreground/90">{item.title}</span>
-                  <span className={cn("text-foreground", item.valueClassName)}>{item.value}</span>
-                </span>
-              );
-            })}
-          </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-6 sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full lg:max-w-sm">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1446,40 +1512,38 @@ export default function Users() {
 
       {/* Departments management (moved from Settings) - Admin only and hidden in Demo */}
       {authRole === 'admin' && !isDemoMode() && (
-        <Card className="border border-border/60 shadow-sm backdrop-blur">
-          <CardHeader className="space-y-2">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="rounded-3xl border border-border/60 bg-card/95 shadow-sm">
+          <CardHeader className="space-y-4 border-b border-border/60 pb-6">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <CardTitle>Departments</CardTitle>
-                <CardDescription>Manage departments used for routing approvals and user assignments</CardDescription>
+                <CardTitle className="text-xl font-semibold">Departments</CardTitle>
+                <CardDescription>Manage department visibility, routing, and ownership</CardDescription>
               </div>
-              <div className="flex items-center gap-2">
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm" className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Add Department
-                    </Button>
-                  </DialogTrigger>
-                  <DepartmentEditorDialog
-                    onSave={async (name, code) => {
-                      if (!name.trim()) return;
-                      try {
-                        const created = await createDepartment({ name: name.trim(), code: code?.trim() || null });
-                        setDepartmentsAll((prev) => [created, ...prev]);
-                        // refresh active options
-                        setDeptOptions((prev) => [created, ...prev]);
-                        toast({ title: 'Department added', description: `${created.name} created.` });
-                      } catch (e: any) {
-                        toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
-                      }
-                    }}
-                  />
-                </Dialog>
-              </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="gap-2 rounded-full px-4 py-2">
+                    <Plus className="h-4 w-4" />
+                    Add Department
+                  </Button>
+                </DialogTrigger>
+                <DepartmentEditorDialog
+                  onSave={async (name, code) => {
+                    if (!name.trim()) return;
+                    try {
+                      const created = await createDepartment({ name: name.trim(), code: code?.trim() || null });
+                      setDepartmentsAll((prev) => [created, ...prev]);
+                      // refresh active options
+                      setDeptOptions((prev) => [created, ...prev]);
+                      toast({ title: 'Department added', description: `${created.name} created.` });
+                    } catch (e: any) {
+                      toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
+                    }
+                  }}
+                />
+              </Dialog>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="sm:p-8">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1628,33 +1692,57 @@ export default function Users() {
       </Dialog>
 
       {/* Edit User Dialog */}
-      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+      <Dialog
+        open={isEditUserOpen}
+        onOpenChange={(open) => {
+          setIsEditUserOpen(open);
+          if (!open) {
+            setIsEditDialogMaximized(false);
+          }
+        }}
+      >
         <DialogContent
           className={cn(
-            "flex h-[92vh] w-[96vw] max-w-[min(640px,96vw)] flex-col overflow-hidden border border-border/70 bg-background/95 shadow-2xl sm:max-w-3xl md:w-[88vw] md:max-w-4xl lg:h-screen lg:w-screen lg:max-w-none lg:rounded-none lg:border-none lg:bg-background lg:p-0"
+            "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+            isEditDialogMaximized
+              ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
+              : "h-[min(92vh,780px)] w-[calc(100vw-1.5rem)] max-w-5xl sm:w-full"
           )}
         >
-          <DialogHeader className="px-2 py-4 text-left sm:px-4 md:px-8 lg:px-12 lg:py-8">
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>Update user details and access</DialogDescription>
+          <DialogHeader className="space-y-1.5 border-b border-border/60 bg-muted/10 px-6 py-6 text-left sm:px-8 sm:py-8">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <DialogTitle>Edit User</DialogTitle>
+                <DialogDescription>Update user details and access</DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsEditDialogMaximized((prev) => !prev)}
+                aria-label={isEditDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
+                className="rounded-full border border-border/60 bg-background/80 shadow-sm hover:bg-background"
+              >
+                {isEditDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+              </Button>
+            </div>
           </DialogHeader>
           {/* Summary chips */}
-          <div className="flex flex-wrap items-center gap-2 px-2 pb-2 sm:px-4 md:px-8 lg:px-12">
-            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 px-6 pb-3 pt-4 sm:px-8">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Role: <Badge variant={getRoleBadgeVariant(mapRole(eRole))}>{mapRole(eRole) || '—'}</Badge>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Properties: <span className="font-medium text-foreground">{editSelectedPropertyIds.length}</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Departments: <span className="font-medium text-foreground">{editSelectedDepartments.length}</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Status: <Badge variant={getStatusBadgeVariant(eStatus)}>{toTitle(eStatus)}</Badge>
             </span>
           </div>
           {/* Preview */}
-          <div className="mx-2 flex items-center gap-3 rounded-md border bg-muted/30 p-3 sm:mx-4 md:mx-8 lg:mx-12">
+          <div className="mx-6 flex items-center gap-3 rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 sm:mx-8">
             <Avatar className="h-10 w-10">
               {editingUser?.avatar_url && !String(editingUser.avatar_url).includes('placeholder') ? (
                 <AvatarImage src={editingUser.avatar_url} alt={editingUser.name} />
@@ -1673,392 +1761,434 @@ export default function Users() {
               <StatusChip status={toTitle(eStatus)} />
             </div>
           </div>
-          <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 pb-4 sm:px-4 md:space-y-3 md:px-8 lg:px-12 lg:pb-12">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="efirstName">First Name</Label>
-                <Input id="efirstName" placeholder="Abc" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="elastName">Last Name</Label>
-                <Input id="elastName" placeholder="Abc" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="eemail">Email</Label>
-              <Input id="eemail" type="email" placeholder="abc@example.com" value={eEmail} onChange={(e) => setEEmail(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ephone">Phone</Label>
-              <Input id="ephone" type="tel" placeholder="+1 (555) 123-4567" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="erole">Role</Label>
-                <Select value={eRole} onValueChange={setERole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edepartment">Department</Label>
-                <Select value={eDepartment} onValueChange={setEDepartment}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select dept" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {deptOptions.map(d => (
-                      <SelectItem key={d.id} value={(d.name || '').toLowerCase()}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="estatus">Status</Label>
-                <Select value={eStatus} onValueChange={setEStatus}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="etemp">Set Password</Label>
-                <Input
-                  id="etemp"
-                  type="password"
-                  placeholder="Leave blank to keep unchanged"
-                  value={ePassword}
-                  onChange={(e) => setEPassword(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">Updates the user's password in the backend.</p>
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    id="emust"
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={eMustChange}
-                    onChange={(e) => setEMustChange(e.target.checked)}
-                  />
-                  <Label htmlFor="emust">Require password change on next login</Label>
+          <div className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-6 pb-6 sm:px-8 sm:pb-10">
+            <section className="space-y-4 rounded-2xl border border-border/60 bg-background/85 p-4 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Profile</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="efirstName">First Name</Label>
+                  <Input id="efirstName" placeholder="Abc" value={eFirstName} onChange={(e) => setEFirstName(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="elastName">Last Name</Label>
+                  <Input id="elastName" placeholder="Abc" value={eLastName} onChange={(e) => setELastName(e.target.value)} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="eemail">Email</Label>
+                  <Input id="eemail" type="email" placeholder="abc@example.com" value={eEmail} onChange={(e) => setEEmail(e.target.value)} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="ephone">Phone</Label>
+                  <Input id="ephone" type="tel" placeholder="+1 (555) 123-4567" value={ePhone} onChange={(e) => setEPhone(e.target.value)} />
                 </div>
               </div>
-            </div>
-      {/* Page Permissions (edit) */}
-            <div className="space-y-2">
-              <Label>Page Permissions</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
-          .filter((p) => !(p === 'audit' && (eRole || '').toLowerCase() === 'user'))
-          .map((p) => (
-                  <div key={p} className="flex items-center justify-between gap-4 border rounded p-2 bg-muted/30">
-                    <div className="text-sm font-medium capitalize">{p}</div>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs">
-                        <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
-                        View
-                      </label>
-                      <label className="flex items-center gap-2 text-xs">
-                        <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
-                        Edit
-                      </label>
-                    </div>
+            </section>
+            <section className="space-y-4 rounded-2xl border border-border/60 bg-background/85 p-4 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Role & Credentials</p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="erole">Role</Label>
+                  <Select value={eRole} onValueChange={setERole}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="user">User</SelectItem>
+                      <SelectItem value="manager">Manager</SelectItem>
+                      <SelectItem value="admin">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edepartment">Department</Label>
+                  <Select value={eDepartment} onValueChange={setEDepartment}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select dept" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {deptOptions.map(d => (
+                        <SelectItem key={d.id} value={(d.name || '').toLowerCase()}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="estatus">Status</Label>
+                  <Select value={eStatus} onValueChange={setEStatus}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="etemp">Set Password</Label>
+                  <Input
+                    id="etemp"
+                    type="password"
+                    placeholder="Leave blank to keep unchanged"
+                    value={ePassword}
+                    onChange={(e) => setEPassword(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Updates the user's password in the backend.</p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      id="emust"
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={eMustChange}
+                      onChange={(e) => setEMustChange(e.target.checked)}
+                    />
+                    <Label htmlFor="emust">Require password change on next login</Label>
                   </div>
-                ))}
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Overrides apply on top of role defaults.</p>
-            </div>
-            {/* Final Approver (by Property) - edit; visible for Manager/Admin target role only */}
-            <div className="space-y-2">
-              <Label>Final Approver (by Property)</Label>
-              {((eRole || '').toLowerCase() !== 'manager' && (eRole || '').toLowerCase() !== 'admin') && (
-                <div className="text-xs text-muted-foreground">Visible for Manager/Admin only</div>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))}>
-                    <span className="truncate text-left flex-1 min-w-0">
-                      {editApproverPropertyIds.length > 0
-                        ? (() => {
-                            const map = new Map(properties.map(p => [p.id, p.name] as const));
-                            const names = editApproverPropertyIds.map(id => map.get(id) || id);
-                            const preview = names.slice(0, 2).join(", ");
-                            const extra = names.length - 2;
-                            const label = preview.length > 24 ? `${names.length} selected` : preview;
-                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
-                          })()
-                        : "Select approver properties"}
-                    </span>
-                    <MoreHorizontal className="h-4 w-4 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
-                    const checked = editApproverPropertyIds.includes(p.id);
-                    return (
-                      <DropdownMenuItem
-                        key={p.id}
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          if (authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))) return;
-                          const next = new Set(editApproverPropertyIds);
-                          if (checked) next.delete(p.id); else next.add(p.id);
-                          setEditApproverPropertyIds(Array.from(next));
-                        }}
-                        className="gap-2 w-full"
-                      >
-                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))} onCheckedChange={() => {}} />
-                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+            </section>
+            <section className="space-y-4 rounded-2xl border border-border/60 bg-background/85 p-4 sm:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Access Controls</p>
+
+              <div className="space-y-3">
+                <Label>Page Permissions</Label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
+                    .filter((p) => !(p === 'audit' && (eRole || '').toLowerCase() === 'user'))
+                    .map((p) => (
+                      <div key={p} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-muted/20 p-3">
+                        <div className="text-sm font-medium capitalize">{p}</div>
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-2 text-xs">
+                            <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} />
+                            View
+                          </label>
+                          <label className="flex items-center gap-2 text-xs">
+                            <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} />
+                            Edit
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Overrides apply on top of role defaults.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div className="space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">Final Approver (by Property)</span>
+                    <Badge variant="outline" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {approverSummary}
+                    </Badge>
+                  </div>
+                  {((eRole || '').toLowerCase() !== 'manager' && (eRole || '').toLowerCase() !== 'admin') && (
+                    <div className="text-xs text-muted-foreground">Visible for Manager/Admin only</div>
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {/* Property Access - Dropdown multi-select (edit) */}
-            <div className="space-y-2">
-              <Label>Property Access</Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0">
-                    <span className="truncate text-left flex-1 min-w-0">
-                      {editSelectedPropertyIds.length > 0
-                        ? (() => {
-                            const map = new Map(properties.map(p => [p.id, p.name] as const));
-                            const names = editSelectedPropertyIds.map(id => map.get(id) || id);
-                            const preview = names.slice(0, 2).join(", ");
-                            const extra = names.length - 2;
-                            const label = preview.length > 24 ? `${names.length} selected` : preview;
-                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
-                          })()
-                        : "Select properties (e.g., Abc, Abc)"}
-                    </span>
-                    <MoreHorizontal className="h-4 w-4 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
-                    const checked = editSelectedPropertyIds.includes(p.id);
-                    return (
-                      <DropdownMenuItem
-                        key={p.id}
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          const next = new Set(editSelectedPropertyIds);
-                          if (checked) next.delete(p.id); else next.add(p.id);
-                          setEditSelectedPropertyIds(Array.from(next));
-                        }}
-                        className="gap-2 w-full"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="min-w-0 justify-between gap-2 rounded-xl"
+                        disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))}
                       >
-                        <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
-                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                        <span className="truncate text-left flex-1 min-w-0">
+                          {editApproverPropertyIds.length > 0
+                            ? (() => {
+                                const map = new Map(properties.map(p => [p.id, p.name] as const));
+                                const names = editApproverPropertyIds.map(id => map.get(id) || id);
+                                const preview = names.slice(0, 2).join(', ');
+                                const extra = names.length - 2;
+                                const label = preview.length > 24 ? `${names.length} selected` : preview;
+                                return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ''}`;
+                              })()
+                            : 'Select approver properties'}
+                        </span>
+                        <MoreHorizontal className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-64 w-64 overflow-auto">
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                        const checked = editApproverPropertyIds.includes(p.id);
+                        return (
+                          <DropdownMenuItem
+                            key={p.id}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))) return;
+                              const next = new Set(editApproverPropertyIds);
+                              if (checked) next.delete(p.id); else next.add(p.id);
+                              setEditApproverPropertyIds(Array.from(next));
+                            }}
+                            className="w-full gap-2"
+                          >
+                            <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin' || !(['manager','admin'].includes((eRole || '').toLowerCase()))} onCheckedChange={() => {}} />
+                            <span className="min-w-0 flex-1 truncate" title={p.name}>{p.name}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">Property Access</span>
+                    <Badge variant="outline" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {propertyAccessSummary}
+                    </Badge>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="min-w-0 justify-between gap-2 rounded-xl">
+                        <span className="truncate text-left flex-1 min-w-0">
+                          {editSelectedPropertyIds.length > 0
+                            ? (() => {
+                                const map = new Map(properties.map(p => [p.id, p.name] as const));
+                                const names = editSelectedPropertyIds.map(id => map.get(id) || id);
+                                const preview = names.slice(0, 2).join(', ');
+                                const extra = names.length - 2;
+                                const label = preview.length > 24 ? `${names.length} selected` : preview;
+                                return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ''}`;
+                              })()
+                            : 'Select properties'}
+                        </span>
+                        <MoreHorizontal className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-64 w-64 overflow-auto">
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                        const checked = editSelectedPropertyIds.includes(p.id);
+                        return (
+                          <DropdownMenuItem
+                            key={p.id}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              const next = new Set(editSelectedPropertyIds);
+                              if (checked) next.delete(p.id); else next.add(p.id);
+                              setEditSelectedPropertyIds(Array.from(next));
+                            }}
+                            className="w-full gap-2"
+                          >
+                            <Checkbox className="shrink-0" checked={checked} onCheckedChange={() => {}} />
+                            <span className="min-w-0 flex-1 truncate" title={p.name}>{p.name}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                      )}
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
+                        <>
+                          <div className="my-1 h-px bg-border" />
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
+                              setEditSelectedPropertyIds(ids);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Select all
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setEditSelectedPropertyIds([]);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Clear selection
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">Auditor Incharge (by Property)</span>
+                    <Badge variant="outline" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {inchargeSummary}
+                    </Badge>
+                  </div>
+                  {authRole !== 'admin' && (
+                    <div className="text-xs text-muted-foreground">Admin only</div>
                   )}
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
-                    <>
-                      <div className="my-1 h-px bg-border" />
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
-                          setEditSelectedPropertyIds(ids);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Select all
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          setEditSelectedPropertyIds([]);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Clear selection
-                      </DropdownMenuItem>
-                    </>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="min-w-0 justify-between gap-2 rounded-xl" disabled={authRole !== 'admin'}>
+                        <span className="truncate text-left flex-1 min-w-0">
+                          {editInchargePropertyIds.length > 0
+                            ? (() => {
+                                const map = new Map(properties.map(p => [p.id, p.name] as const));
+                                const names = editInchargePropertyIds.map(id => map.get(id) || id);
+                                const preview = names.slice(0, 2).join(', ');
+                                const extra = names.length - 2;
+                                const label = preview.length > 24 ? `${names.length} selected` : preview;
+                                return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ''}`;
+                              })()
+                            : 'Select incharge properties'}
+                        </span>
+                        <MoreHorizontal className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-64 w-64 overflow-auto">
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
+                        const checked = editInchargePropertyIds.some(id => String(id).toLowerCase() === String(p.id).toLowerCase());
+                        return (
+                          <DropdownMenuItem
+                            key={p.id}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (authRole !== 'admin') return;
+                              const next = new Set(editInchargePropertyIds);
+                              if (checked) next.delete(p.id); else next.add(p.id);
+                              setEditInchargePropertyIds(Array.from(next));
+                            }}
+                            className="w-full gap-2"
+                          >
+                            <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
+                            <span className="min-w-0 flex-1 truncate" title={p.name}>{p.name}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
+                      )}
+                      {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
+                        <>
+                          <div className="my-1 h-px bg-border" />
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
+                              setEditInchargePropertyIds(ids);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Select all
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              setEditInchargePropertyIds([]);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Clear selection
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="space-y-3 rounded-2xl border border-border/60 bg-background/80 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground">Department Access</span>
+                    <Badge variant="outline" className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      {deptAccessSummary}
+                    </Badge>
+                  </div>
+                  {authRole !== 'admin' && (
+                    <div className="text-xs text-muted-foreground">Admin only</div>
                   )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {/* Auditor Incharge - Dropdown multi-select (edit; admin only) */}
-            <div className="space-y-2">
-              <Label>Auditor Incharge (by Property)</Label>
-              {authRole !== 'admin' && (
-                <div className="text-xs text-muted-foreground">Admin only</div>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
-                    <span className="truncate text-left flex-1 min-w-0">
-                      {editInchargePropertyIds.length > 0
-                        ? (() => {
-                            const map = new Map(properties.map(p => [p.id, p.name] as const));
-                            const names = editInchargePropertyIds.map(id => map.get(id) || id);
-                            const preview = names.slice(0, 2).join(", ");
-                            const extra = names.length - 2;
-                            const label = preview.length > 24 ? `${names.length} selected` : preview;
-                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
-                          })()
-                        : "Select incharge properties"}
-                    </span>
-                    <MoreHorizontal className="h-4 w-4 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
-                    {properties.filter(p => (p.status || '').toLowerCase() === 'active').map((p) => {
-                    const checked = editInchargePropertyIds.some(id => String(id).toLowerCase() === String(p.id).toLowerCase());
-                    return (
-                      <DropdownMenuItem
-                        key={p.id}
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          if (authRole !== 'admin') return;
-                          const next = new Set(editInchargePropertyIds);
-                          if (checked) next.delete(p.id); else next.add(p.id);
-                          setEditInchargePropertyIds(Array.from(next));
-                        }}
-                        className="gap-2 w-full"
-                      >
-                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
-                        <span className="truncate flex-1 min-w-0" title={p.name}>{p.name}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active properties available.</div>
-                  )}
-                  {properties.filter(p => (p.status || '').toLowerCase() === 'active').length > 0 && (
-                    <>
-                      <div className="my-1 h-px bg-border" />
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          const ids = properties.filter(p => (p.status || '').toLowerCase() === 'active').map(p => p.id);
-                          setEditInchargePropertyIds(ids);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Select all
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          setEditInchargePropertyIds([]);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Clear selection
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-            {/* Department Access - Dropdown multi-select (edit) */}
-            <div className="space-y-2">
-              <Label>Department Access</Label>
-              {authRole !== 'admin' && (
-                <div className="text-xs text-muted-foreground">Admin only</div>
-              )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="justify-between w-full gap-2 min-w-0" disabled={authRole !== 'admin'}>
-                    <span className="truncate text-left flex-1 min-w-0">
-                      {editSelectedDepartments.length > 0
-                        ? (() => {
-                            const names = editSelectedDepartments;
-                            const preview = names.slice(0, 3).join(", ");
-                            const extra = names.length - 3;
-                            const label = preview.length > 24 ? `${names.length} selected` : preview;
-                            return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
-                          })()
-                        : "Select departments"}
-                    </span>
-                    <MoreHorizontal className="h-4 w-4 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64 max-h-64 overflow-auto">
-                  {deptOptions.filter(d => d.is_active).map((d) => {
-                    const checked = editSelectedDepartments.includes(d.name);
-                    return (
-                      <DropdownMenuItem
-                        key={d.id}
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          if (authRole !== 'admin') return;
-                          const next = new Set(editSelectedDepartments);
-                          if (checked) next.delete(d.name); else next.add(d.name);
-                          setEditSelectedDepartments(Array.from(next));
-                        }}
-                        className="gap-2 w-full"
-                      >
-                        <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
-                        <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  {deptOptions.filter(d => d.is_active).length === 0 && (
-                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active departments available.</div>
-                  )}
-                  {deptOptions.filter(d => d.is_active).length > 0 && (
-                    <>
-                      <div className="my-1 h-px bg-border" />
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          if (authRole !== 'admin') return;
-                          const names = deptOptions.filter(d => d.is_active).map(d => d.name);
-                          setEditSelectedDepartments(names);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Select all
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          if (authRole !== 'admin') return;
-                          setEditSelectedDepartments([]);
-                        }}
-                        className="text-muted-foreground"
-                      >
-                        Clear selection
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="min-w-0 justify-between gap-2 rounded-xl" disabled={authRole !== 'admin'}>
+                        <span className="truncate text-left flex-1 min-w-0">
+                          {editSelectedDepartments.length > 0
+                            ? (() => {
+                                const names = editSelectedDepartments;
+                                const preview = names.slice(0, 3).join(', ');
+                                const extra = names.length - 3;
+                                const label = preview.length > 24 ? `${names.length} selected` : preview;
+                                return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ''}`;
+                              })()
+                            : 'Select departments'}
+                        </span>
+                        <MoreHorizontal className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="max-h-64 w-64 overflow-auto">
+                      {deptOptions.filter(d => d.is_active).map((d) => {
+                        const checked = editSelectedDepartments.includes(d.name);
+                        return (
+                          <DropdownMenuItem
+                            key={d.id}
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (authRole !== 'admin') return;
+                              const next = new Set(editSelectedDepartments);
+                              if (checked) next.delete(d.name); else next.add(d.name);
+                              setEditSelectedDepartments(Array.from(next));
+                            }}
+                            className="gap-2 w-full"
+                          >
+                            <Checkbox className="shrink-0" checked={checked} disabled={authRole !== 'admin'} onCheckedChange={() => {}} />
+                            <span className="truncate flex-1 min-w-0" title={d.name}>{d.name}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                      {deptOptions.filter(d => d.is_active).length === 0 && (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">No active departments available.</div>
+                      )}
+                      {deptOptions.filter(d => d.is_active).length > 0 && (
+                        <>
+                          <div className="my-1 h-px bg-border" />
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (authRole !== 'admin') return;
+                              const names = deptOptions.filter(d => d.is_active).map(d => d.name);
+                              setEditSelectedDepartments(names);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Select all
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              if (authRole !== 'admin') return;
+                              setEditSelectedDepartments([]);
+                            }}
+                            className="text-muted-foreground"
+                          >
+                            Clear selection
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </section>
+
           </div>
-          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/10 px-2 pb-4 pt-4 sm:px-4 md:px-8 md:pb-6 lg:px-12 lg:pb-12">
-            <Button variant="outline" onClick={() => setIsEditUserOpen(false)}>Cancel</Button>
+          <DialogFooter className="gap-2 border-t border-border/60 bg-muted/20 px-6 py-4 sm:px-8 sm:py-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditUserOpen(false);
+                setIsEditDialogMaximized(false);
+              }}
+            >
+              Cancel
+            </Button>
             <Button onClick={handleSaveEditUser}>
               <Edit className="h-4 w-4 mr-2" />
               Save Changes
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {passwordDialog}
+          </DialogContent>
+        </Dialog>
+        {passwordDialog}
     </div>
   );
 }
