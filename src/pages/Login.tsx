@@ -118,11 +118,8 @@ export default function Login() {
         />
         <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/55 to-primary/25" />
         <div className="relative z-10 flex h-full flex-col justify-between p-10">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/30 bg-background/90 shadow-soft">
-              <img src="/favicon.png" alt="SAMS logo" className="h-8 w-8 object-contain" />
-            </div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">SAMS</h1>
+          <div className="max-w-[200px]">
+            <img src="/sams_logo.png" alt="SAMS" className="h-10 w-full object-contain" />
           </div>
           <ul className="space-y-3 text-sm text-foreground/90">
             {["Bring every asset online", "Stay inspection ready", "Sign in securely from any device"].map((point) => (
@@ -146,12 +143,8 @@ export default function Login() {
               <img src="/login_image.png" alt="SAMS workspace" className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/35 to-primary/20" />
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/30 bg-background/90 shadow-sm">
-                  <img src="/favicon.png" alt="SAMS logo" className="h-7 w-7 object-contain" />
-                </div>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.32em] text-primary">SAMS</p>
-                  <p className="text-base font-semibold text-foreground">Sign in to continue</p>
+                <div className="max-w-[160px]">
+                  <img src="/sams_logo.png" alt="SAMS" className="h-9 w-full object-contain" />
                 </div>
               </div>
             </div>

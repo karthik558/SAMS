@@ -511,7 +511,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             aria-label="Go to dashboard"
           >
-            <img src="/favicon.png" alt="SAMS" className="h-8 w-auto" />
+            <img src="/sams_logo.png" alt="SAMS" className="h-8 w-auto" />
           </Link>
           <div className="ml-auto flex items-center gap-1.5">
             <Button

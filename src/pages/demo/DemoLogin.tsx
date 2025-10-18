@@ -23,10 +23,8 @@ export default function DemoLogin() {
       <main className="flex flex-1 items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-soft border-border">
           <CardHeader className="space-y-3 text-center">
-            <div className="mx-auto flex items-center justify-center">
-              <div className="h-12 w-12 rounded-xl bg-background border border-border flex items-center justify-center shadow-sm">
-                <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
-              </div>
+            <div className="mx-auto flex max-w-[160px] items-center justify-center">
+              <img src="/sams_logo.png" alt="SAMS" className="h-10 w-full object-contain" />
             </div>
             <div className="space-y-1">
               <CardTitle className="text-2xl">Demo Login</CardTitle>

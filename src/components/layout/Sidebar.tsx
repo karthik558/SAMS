@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -105,6 +105,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [role, setRole] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [showNewsletter, setShowNewsletter] = useState<boolean>(false);
+  const homeHref = isDemoMode() ? "/demo" : "/";
   useEffect(() => {
     (async () => {
       try {
@@ -455,16 +456,25 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           <div className="relative px-5 pt-6 pb-5 text-foreground">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-background shadow-soft">
-                  <img src="/favicon.png" alt="SAMS" className="h-8 w-8 object-contain" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-xs font-extrabold uppercase tracking-[0.28em] text-muted-foreground/80">
-                    SAMS{isDemoMode() ? " • Demo" : ""}
-                  </span>
-                  <span className="text-base font-semibold leading-tight">
-                    {firstName ? `${firstName}, welcome back` : "Welcome back"}
-                  </span>
+                <Link
+                  to={homeHref}
+                  className="inline-flex items-center justify-center"
+                  aria-label="Go to dashboard"
+                >
+                  <img src="/sams_logo.png" alt="SAMS" className="h-10 w-auto" />
+                </Link>
+                <div className="flex flex-col max-w-[128px] leading-tight">
+                  {firstName ? (
+                    <>
+                      <span className="text-sm font-semibold text-foreground">{firstName},</span>
+                      <span className="text-xs font-medium text-muted-foreground">welcome back</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-semibold text-foreground">Welcome back</span>
+                      <span className="text-xs font-medium text-muted-foreground">to SAMS</span>
+                    </>
+                  )}
                 </div>
               </div>
               <SheetClose asChild>
@@ -547,12 +557,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         {/* Header */}
         <div className="flex h-14 md:h-16 items-center justify-between border-b border-border/60 bg-sidebar px-4">
           {!collapsed && (
-            <div className="flex items-center space-x-3">
-              <Package className="h-8 w-8 text-primary" />
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-bold text-foreground">SAMS{isDemoMode() ? ' • Demo' : ''}</span>
-              </div>
-            </div>
+            <Link
+              to={homeHref}
+              className="inline-flex items-center"
+              aria-label="Go to dashboard"
+            >
+              <img src="/sams_logo.png" alt="SAMS" className="h-9 w-auto" />
+            </Link>
           )}
           {!isMobile && (
           <Button
