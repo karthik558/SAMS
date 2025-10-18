@@ -489,7 +489,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="app-header h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {isMobile ? (
-        <div className="grid h-full w-full grid-cols-[auto,1fr,auto] items-center gap-2 px-3">
+        <div className="relative flex h-full w-full items-center px-3">
           <div className="flex items-center gap-2">
             <button
               aria-label="Open menu"
@@ -506,8 +506,14 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Search className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex items-center justify-center" aria-hidden />
-          <div className="flex items-center justify-end gap-1.5">
+          <Link
+            to={prefix || "/"}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            aria-label="Go to dashboard"
+          >
+            <img src="/favicon.png" alt="SAMS" className="h-8 w-auto" />
+          </Link>
+          <div className="ml-auto flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="sm"
