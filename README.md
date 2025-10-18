@@ -1,4 +1,6 @@
-<img src="public/sams_logo.png" alt="SAMS"/>
+<div align="center">
+  <img src="public/sams_logo.png" alt="SAMS" />
+</div>
 <div align="center">
   <h1>SAMS &mdash; Smart Asset Management System</h1>
   <p>Centralized asset lifecycle management, QR-enabled tracking, and collaborative operations for modern teams.</p>

@@ -36,6 +36,7 @@ export default function Settings() {
   const [showAnnouncements, setShowAnnouncements] = useState(true);
   const [stickyHeader, setStickyHeader] = useState(false);
   const [topNavMode, setTopNavMode] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(true);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
@@ -110,6 +111,7 @@ export default function Settings() {
           if (typeof p.show_announcements === 'boolean') setShowAnnouncements(p.show_announcements);
           if (typeof p.sticky_header === 'boolean') setStickyHeader(p.sticky_header);
           if (typeof p.top_nav_mode === 'boolean') setTopNavMode(p.top_nav_mode);
+          if (typeof p.show_help_center === 'boolean') setShowHelpCenter(p.show_help_center);
         }
       } catch {}
       finally { setPrefsLoaded(true); }
@@ -161,6 +163,7 @@ export default function Settings() {
             show_announcements: showAnnouncements,
             sticky_header: stickyHeader,
             top_nav_mode: topNavMode,
+            show_help_center: showHelpCenter,
           });
         }
       } else {
@@ -168,7 +171,7 @@ export default function Settings() {
         if (currentUserId) {
           try {
             const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
-            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader, top_nav_mode: topNavMode };
+            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, show_help_center: showHelpCenter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader, top_nav_mode: topNavMode };
             localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
           } catch {}
         }
@@ -203,6 +206,7 @@ export default function Settings() {
       auto_theme: autoTheme,
       density,
       show_newsletter: showNewsletter,
+      show_help_center: showHelpCenter,
       show_announcements: showAnnouncements,
       sidebar_collapsed: sidebarCollapsedPref,
       enable_sounds: enableSounds,
@@ -394,6 +398,14 @@ export default function Settings() {
                       <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
                     </div>
                     <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
+                  </div>
+                  <Separator />
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <Label>Show Help Center</Label>
+                      <p className="text-sm text-muted-foreground">Keep the Help Center entry visible in your navigation</p>
+                    </div>
+                    <Switch checked={showHelpCenter} onCheckedChange={setShowHelpCenter} />
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-3">

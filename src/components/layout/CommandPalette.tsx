@@ -29,6 +29,7 @@ import {
   UploadCloud,
   ClipboardCheck,
   ShieldCheck,
+  LifeBuoy,
 } from "lucide-react";
 
 type Props = {
@@ -59,6 +60,7 @@ const PAGE_LABEL_TO_KEY: Record<string, PageKey | null> = {
   Settings: "settings",
   Audit: "audit",
   Newsletter: null,
+  "Help Center": null,
 };
 
 export default function CommandPalette({ open, onOpenChange, role }: Props) {
@@ -124,6 +126,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
       { label: "Properties", route: "/properties", icon: Building2 },
       { label: "QR Codes", route: "/qr-codes", icon: QrCode },
       { label: "Tickets", route: "/tickets", icon: Ticket },
+      { label: "Help Center", route: "/help", icon: LifeBuoy },
       { label: "Reports", route: "/reports", icon: FileBarChart },
       { label: "Users", route: "/users", icon: Users, roles: ["admin"] },
       { label: "Settings", route: "/settings", icon: Settings, roles: ["admin"] },

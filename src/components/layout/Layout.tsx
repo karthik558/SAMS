@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { getUserPreferences } from "@/services/userPreferences";
 import { Home, Package, QrCode, ScanLine, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HelpGuideProvider } from "@/components/help/HelpGuideProvider";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -22,6 +23,7 @@ const ROUTE_TITLE_MAP: Record<string, string> = {
   "/approvals": "Approvals",
   "/tickets": "Tickets",
   "/newsletter": "Newsletter",
+  "/help": "Help Center",
   "/reports": "Reports",
   "/audit": "Audit",
   "/users": "Users",
@@ -196,7 +198,8 @@ export function Layout({ children }: LayoutProps) {
   }, [pathname]);
 
   return (
-    <div className="flex h-dvh bg-background">
+    <HelpGuideProvider>
+      <div className="flex h-dvh bg-background">
       {/* Desktop Primary Navigation (Sidebar or TopNav) */}
       {!effectiveTopNavMode && (
         <div className="hidden md:block">
@@ -270,6 +273,7 @@ export function Layout({ children }: LayoutProps) {
           </nav>
         )}
       </div>
-    </div>
+      </div>
+    </HelpGuideProvider>
   );
 }

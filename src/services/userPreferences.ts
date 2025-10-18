@@ -5,6 +5,7 @@ export type UserPreferences = {
   user_id: string;
   user_email?: string | null;
   show_newsletter: boolean;
+  show_help_center?: boolean;
   compact_mode: boolean;
   enable_beta_features: boolean;
   default_landing_page: string | null; // e.g., '/assets'
@@ -36,6 +37,7 @@ function defaults(userId: string): UserPreferences {
     user_id: userId,
     user_email: null,
     show_newsletter: false,
+    show_help_center: true,
     compact_mode: false,
     enable_beta_features: false,
     default_landing_page: null,
@@ -130,6 +132,7 @@ function applyPostLoadDefaults(p: UserPreferences): UserPreferences {
   if (typeof p.show_announcements === 'undefined') p.show_announcements = true;
   if (typeof p.sticky_header === 'undefined') p.sticky_header = false;
   if (typeof p.top_nav_mode === 'undefined') p.top_nav_mode = false;
+  if (typeof p.show_help_center === 'undefined') p.show_help_center = true;
   if (!p.density) {
     // Map legacy compact_mode
     p.density = p.compact_mode ? 'compact' : 'comfortable';

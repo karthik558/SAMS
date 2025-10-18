@@ -209,7 +209,7 @@ export default function Audit() {
       // Build HTML
       const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
       const normalizedBase = (base || '').replace(/\/$/, '');
-      const logoSrc = `${normalizedBase}/favicon1.png`;
+      const logoSrc = `${normalizedBase}/favicon.png`;
       const parts: string[] = [];
       // Summary across departments
       const totals = reviews.reduce((acc: Record<string, number>, r) => { const k = String(r.status||'').toLowerCase(); acc[k] = (acc[k]||0)+1; return acc; }, {});

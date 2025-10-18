@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box } from 'lucide-react';
+import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
@@ -13,6 +13,7 @@ interface TopNavBarProps {
 
 export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   const [showNewsletter, setShowNewsletter] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(true);
   const [role, setRole] = useState('');
   const navigate = useNavigate();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
@@ -26,6 +27,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         if (!uid) return;
         const pref = await getUserPreferences(uid);
         setShowNewsletter(!!pref.show_newsletter);
+        setShowHelpCenter(pref.show_help_center !== false);
       } catch {}
       try {
         const raw = localStorage.getItem('auth_user');
@@ -51,6 +53,37 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     })();
   }, []);
 
+  useEffect(() => {
+    const applyPatch = (detail: any) => {
+      if (detail && typeof detail.show_newsletter === 'boolean') {
+        setShowNewsletter(detail.show_newsletter);
+      }
+      if (detail && typeof detail.show_help_center === 'boolean') {
+        setShowHelpCenter(detail.show_help_center);
+      }
+    };
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key === 'user_preferences_patch') {
+        try {
+          const payload = JSON.parse(event.newValue || '{}') || {};
+          applyPatch(payload);
+        } catch {}
+      }
+    };
+    const customHandler = (event: Event) => {
+      try {
+        const payload = (event as CustomEvent).detail || {};
+        applyPatch(payload);
+      } catch {}
+    };
+    window.addEventListener('storage', storageHandler);
+    window.addEventListener('user-preferences-changed', customHandler as any);
+    return () => {
+      window.removeEventListener('storage', storageHandler);
+      window.removeEventListener('user-preferences-changed', customHandler as any);
+    };
+  }, []);
+
   const navItemsBase = [
     { label: 'Dashboard', href: '/', icon: LayoutDashboard },
     { label: 'Properties', href: '/properties', icon: Building2 },
@@ -61,6 +94,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     { label: 'Reports', href: '/reports', icon: FileBarChart },
     { label: 'Audit', href: '/audit', icon: ClipboardCheck, roles: ['admin','manager'] },
     { label: 'Tickets', href: '/tickets', icon: Ticket },
+    { label: 'Help Center', href: '/help', icon: LifeBuoy },
     { label: 'Users', href: '/users', icon: Users, roles: ['admin'] },
     { label: 'Settings', href: '/settings', icon: Settings },
     { label: 'License', href: '/license', icon: ShieldCheck, roles: ['admin'] },
@@ -77,6 +111,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     Reports: 'reports',
     Audit: 'audit',
     Tickets: null,
+    'Help Center': null,
     Users: 'users',
     Settings: 'settings',
     License: null,
@@ -95,6 +130,10 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
       if (idx >= 0) working.splice(idx + 1, 0, newsletterItem);
       else working.push(newsletterItem);
     }
+    if (!showHelpCenter) {
+      const idx = working.findIndex((item) => item.label === 'Help Center');
+      if (idx >= 0) working.splice(idx, 1);
+    }
 
     const filtered = working
       .filter((item) => !item.roles || item.roles.includes(roleLower))
@@ -102,6 +141,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         if (demo && (item.label === 'Audit' || item.label === 'License')) return false;
         if (item.label === 'Dashboard' || item.label === 'Scan' || item.label === 'Tickets') return true;
         if (item.label === 'Newsletter') return showNewsletter;
+        if (item.label === 'Help Center') return showHelpCenter;
         if (item.label === 'Approvals') return roleForPerm === 'admin' || roleForPerm === 'manager';
         if (item.label === 'License') return roleForPerm === 'admin';
         if (item.label === 'Audit') {

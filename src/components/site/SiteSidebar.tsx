@@ -104,7 +104,7 @@ export function SiteSidebar({ className, isMobile, onNavigate }: SiteSidebarProp
         )}>
           {isMobile ? (
             <>
-              <img src="/favicon1.png" alt="SAMS" className="h-6 w-6" />
+              <img src="/favicon.png" alt="SAMS" className="h-6 w-6" />
               <button
                 type="button"
                 aria-label="Toggle navigation"

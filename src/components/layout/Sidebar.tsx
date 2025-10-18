@@ -14,6 +14,7 @@ import {
   ScanLine,
   Ticket,
   ShieldCheck,
+  LifeBuoy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
@@ -41,6 +42,7 @@ const baseNav: NavItem[] = [
   // Newsletter is injected conditionally later based on user preferences
   { name: "Audit", href: "/audit", icon: ClipboardCheck },
   { name: "Tickets", href: "/tickets", icon: Ticket },
+  { name: "Help Center", href: "/help", icon: LifeBuoy },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
   { name: "License", href: "/license", icon: ShieldCheck },
@@ -63,7 +65,7 @@ const badgeToneClasses: Record<BadgeTone, string> = {
 
 const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> = [
   { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
-  { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "QR Codes", "Newsletter"] },
+  { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "Help Center", "QR Codes", "Newsletter"] },
   { key: "insights", title: "Insights", items: ["Reports", "Audit"] },
   { key: "administration", title: "Administration", items: ["Users", "Settings", "License"] },
 ];
@@ -82,6 +84,7 @@ const pageNameToKey: Record<string, PageKey | null> = {
   Settings: "settings",
   License: null,
   Newsletter: null,
+  "Help Center": null,
 } as const;
 
 interface SidebarProps {
@@ -105,6 +108,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [role, setRole] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
   const [showNewsletter, setShowNewsletter] = useState<boolean>(false);
+  const [showHelpCenter, setShowHelpCenter] = useState<boolean>(true);
   const homeHref = isDemoMode() ? "/demo" : "/";
   useEffect(() => {
     (async () => {
@@ -113,6 +117,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         if (!uid) return;
         const pref = await getUserPreferences(uid);
         setShowNewsletter(!!pref.show_newsletter);
+        setShowHelpCenter(pref.show_help_center !== false);
         if (pref.compact_mode || pref.density === 'compact' || pref.density === 'ultra') {
           try { document.documentElement.classList.add('compact-ui'); if (pref.density === 'ultra') document.documentElement.classList.add('ultra-ui'); } catch {}
         }
@@ -199,6 +204,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       const insertAt = idx >= 0 ? idx : working.length - 1;
       working.splice(insertAt, 0, { name: "Newsletter", href: "/newsletter", icon: FileBarChart });
     }
+    if (!showHelpCenter) {
+      const idx = working.findIndex((item) => item.name === "Help Center");
+      if (idx >= 0) working.splice(idx, 1);
+    }
 
     const filtered = working.filter((item) => {
       // Demo mode hides certain routes
@@ -251,6 +260,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     role,
     perm,
     showNewsletter,
+    showHelpCenter,
     auditActive,
     hasAuditReports,
     pendingApprovals,
@@ -281,6 +291,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     const applyPatch = (detail: any) => {
       if (detail && typeof detail.show_newsletter === "boolean") {
         setShowNewsletter(detail.show_newsletter);
+      }
+      if (detail && typeof detail.show_help_center === "boolean") {
+        setShowHelpCenter(detail.show_help_center);
       }
       if (detail && typeof detail.sidebar_collapsed === "boolean" && !isMobile) {
         setCollapsed(detail.sidebar_collapsed);
