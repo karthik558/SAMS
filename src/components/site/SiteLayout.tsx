@@ -7,7 +7,7 @@ export function SiteLayout({ children }: SiteLayoutProps) {
       <header className="sticky top-0 z-30 border-b bg-background/80 backdrop-blur">
         <div className="container flex h-14 items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/favicon.png" alt="SAMS" className="h-5 w-5" />
+            <img src="/favicon1.png" alt="SAMS" className="h-5 w-5" />
             <span className="font-semibold tracking-tight">SAMS</span>
           </div>
           {/* simple header, external links removed per request */}
@@ -23,7 +23,7 @@ export function SiteLayout({ children }: SiteLayoutProps) {
         <div className="container flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-2 text-foreground">
             <div className="flex items-center gap-2">
-              <img src="/favicon.png" alt="SAMS" className="h-5 w-5" />
+              <img src="/favicon1.png" alt="SAMS" className="h-5 w-5" />
               <span className="font-semibold tracking-tight">SAMS</span>
             </div>
             <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">A modern asset management platform built for teams who value clarity, auditability, and speed.</p>
