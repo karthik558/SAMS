@@ -30,24 +30,10 @@ export default function DemoLogin() {
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/55 to-primary/25" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-background via-background/85 to-transparent" />
         <div className="relative z-10 flex h-full flex-col justify-between p-10">
           <div className="max-w-[200px]">
-            <img src="/sams_logo.png" alt="SAMS" className="h-10 w-full object-contain" />
           </div>
-          <ul className="space-y-3 text-sm text-foreground/90">
-            {[
-              "Explore the full SAMS experience",
-              "Try asset workflows without affecting live data",
-              "Reset the demo anytime with a quick refresh",
-            ].map((point) => (
-              <li key={point} className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/15 text-primary">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-                <span>{point}</span>
-              </li>
-            ))}
-          </ul>
           <p className="text-xs text-foreground/70">
             © {currentYear} SAMS Demo. Experience the platform risk-free.
           </p>
@@ -57,15 +43,14 @@ export default function DemoLogin() {
         <div className="w-full max-w-md space-y-8">
           <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/80 shadow-soft md:hidden">
             <div className="relative h-40 w-full">
-              <img src="/login_image.png" alt="SAMS workspace" className="h-full w-full object-cover" />
+              <img src="/sams_logo.png" alt="SAMS workspace" className="h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/35 to-primary/20" />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-background via-background/85 to-transparent" />
               <div className="absolute bottom-4 left-4 flex items-center gap-3">
                 <div className="max-w-[160px]">
-                  <img src="/sams_logo.png" alt="SAMS" className="h-9 w-full object-contain" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.32em] text-primary">SAMS Demo</p>
-                  <p className="text-base font-semibold text-foreground">Sign in to explore</p>
                 </div>
               </div>
             </div>
