@@ -41,9 +41,12 @@ import {
   Users as UsersIcon,
   Mail,
   Phone,
-  Filter
+  Filter,
+  Building2,
+  Key,
+  Maximize2,
+  Minimize2
 } from "lucide-react";
-import { Key, Maximize2, Minimize2 } from "lucide-react";
 import { format } from "date-fns";
 import {
   DropdownMenu,
@@ -160,6 +163,7 @@ export default function Users() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [propertyFilter, setPropertyFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
   const [isAddDialogMaximized, setIsAddDialogMaximized] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
@@ -181,6 +185,7 @@ export default function Users() {
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
   const [inchargePropertyIds, setInchargePropertyIds] = useState<string[]>([]);
   const [approverPropertyIds, setApproverPropertyIds] = useState<string[]>([]);
+  const [userPropertyMap, setUserPropertyMap] = useState<Record<string, string[]>>({});
   const [authRole, setAuthRole] = useState<string>("");
   const [editSelectedPropertyIds, setEditSelectedPropertyIds] = useState<string[]>([]);
   const [editInchargePropertyIds, setEditInchargePropertyIds] = useState<string[]>([]);
@@ -290,6 +295,44 @@ export default function Users() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!users.length) {
+        if (!cancelled) setUserPropertyMap({});
+        return;
+      }
+      try {
+        const entries = await Promise.all(
+          users.map(async (user) => {
+            try {
+              const ids = await listUserPropertyAccess(user.id);
+              return [user.id, ids.map((id) => String(id))] as const;
+            } catch {
+              return [user.id, [] as string[]] as const;
+            }
+          })
+        );
+        if (!cancelled) {
+          const map: Record<string, string[]> = {};
+          for (const [uid, ids] of entries) map[uid] = ids;
+          setUserPropertyMap(map);
+        }
+      } catch {
+        if (!cancelled) setUserPropertyMap({});
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [users]);
+
+  useEffect(() => {
+    if (propertyFilter === "all") return;
+    const exists = properties.some((p) => String(p.id) === propertyFilter);
+    if (!exists) setPropertyFilter("all");
+  }, [properties, propertyFilter]);
+
   const filteredUsers = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return users.filter((user) => {
@@ -298,9 +341,12 @@ export default function Users() {
       const matchesRole = roleFilter === "all" || user.role.toLowerCase() === roleFilter;
       const matchesStatus =
         statusFilter === "all" || user.status.toLowerCase() === statusFilter;
-      return matchesSearch && matchesRole && matchesStatus;
+      const propertyIds = userPropertyMap[user.id] || [];
+      const matchesProperty =
+        propertyFilter === "all" || propertyIds.some((pid) => String(pid) === propertyFilter);
+      return matchesSearch && matchesRole && matchesStatus && matchesProperty;
     });
-  }, [users, searchTerm, roleFilter, statusFilter]);
+  }, [users, searchTerm, roleFilter, statusFilter, propertyFilter, userPropertyMap]);
 
   const userHighlights = useMemo(() => {
     const totalUsers = users.length;
@@ -460,6 +506,10 @@ export default function Users() {
         }
       } catch {}
       setUsers((prev) => [created, ...prev]);
+      setUserPropertyMap((prev) => ({
+        ...prev,
+        [created.id]: Array.from(new Set(selectedPropertyIds.map((id) => String(id)))),
+      }));
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
       // Fallback: persist to localStorage
@@ -502,6 +552,10 @@ export default function Users() {
       } catch {}
   // Final Approver assignments are Supabase-only. No local fallback.
       toast({ title: "User added (local)", description: `${local.name} stored locally.` });
+      setUserPropertyMap((prev) => ({
+        ...prev,
+        [local.id]: Array.from(new Set(selectedPropertyIds.map((id) => String(id)))),
+      }));
     }
     setIsAddUserOpen(false);
     setIsAddDialogMaximized(false);
@@ -649,6 +703,10 @@ export default function Users() {
       }
       // Persist property access mapping
       try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
+      setUserPropertyMap((prev) => ({
+        ...prev,
+        [editingUser.id]: Array.from(new Set(editSelectedPropertyIds.map((id) => String(id)))),
+      }));
   // Persist department access mapping
   try {
         const res = await setUserDepartmentAccess(editingUser.id, editSelectedDepartments);
@@ -1330,6 +1388,26 @@ export default function Users() {
                   <SelectItem value="user">User</SelectItem>
                 </SelectContent>
               </Select>
+
+              {properties.length > 0 ? (
+                <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+                  <SelectTrigger className="relative w-full pl-9 sm:w-40">
+                    <Building2
+                      className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <SelectValue placeholder="Property" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="all">All Properties</SelectItem>
+                    {properties.map((prop) => (
+                      <SelectItem key={prop.id} value={String(prop.id)}>
+                        {prop.name || String(prop.id)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
 
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-32">
