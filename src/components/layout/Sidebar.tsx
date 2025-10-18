@@ -15,6 +15,7 @@ import {
   Ticket,
   ShieldCheck,
   LifeBuoy,
+  Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
@@ -202,7 +203,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     if (showNewsletter && !working.find((item) => item.name === "Newsletter")) {
       const idx = working.findIndex((item) => item.name === "Reports");
       const insertAt = idx >= 0 ? idx : working.length - 1;
-      working.splice(insertAt, 0, { name: "Newsletter", href: "/newsletter", icon: FileBarChart });
+      working.splice(insertAt, 0, { name: "Newsletter", href: "/newsletter", icon: Megaphone });
     }
     if (!showHelpCenter) {
       const idx = working.findIndex((item) => item.name === "Help Center");

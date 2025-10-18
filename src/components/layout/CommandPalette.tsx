@@ -30,6 +30,7 @@ import {
   ClipboardCheck,
   ShieldCheck,
   LifeBuoy,
+  Megaphone,
 } from "lucide-react";
 
 type Props = {
@@ -138,7 +139,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
 
     if (showNewsletter && !base.find((item) => item.label === "Newsletter")) {
       const insertAt = base.findIndex((item) => item.label === "Reports");
-      const newsletterItem = { label: "Newsletter", route: "/newsletter", icon: FileBarChart };
+      const newsletterItem = { label: "Newsletter", route: "/newsletter", icon: Megaphone };
       if (insertAt >= 0) base.splice(insertAt + 1, 0, newsletterItem as any);
       else base.push(newsletterItem as any);
     }

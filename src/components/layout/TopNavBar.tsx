@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy } from 'lucide-react';
+import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
@@ -126,7 +126,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     const working = [...navItemsBase];
     if (showNewsletter && !working.find((item) => item.label === 'Newsletter')) {
       const idx = working.findIndex((item) => item.label === 'Reports');
-      const newsletterItem = { label: 'Newsletter', href: '/newsletter', icon: FileBarChart };
+      const newsletterItem = { label: 'Newsletter', href: '/newsletter', icon: Megaphone };
       if (idx >= 0) working.splice(idx + 1, 0, newsletterItem);
       else working.push(newsletterItem);
     }
