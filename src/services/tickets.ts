@@ -5,6 +5,7 @@ import { listUsers } from "@/services/users";
 // property-aware assignee filtering helpers
 import { listUserPropertyAccess } from "@/services/userAccess";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
+import { sendTicketAssignedEmail, sendTicketStatusUpdateEmail } from "@/services/email";
 
 export type TicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
@@ -297,6 +298,33 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
         message: `${created.id}: ${created.title}`,
         type: `ticket-${created.targetRole}`,
       }, created.targetRole);
+      
+      // Send email notification if assignee is set
+      if (created.assignee) {
+        try {
+          // Get creator name
+          let creatorName = input.createdBy;
+          try {
+            const authUser = localStorage.getItem('auth_user');
+            if (authUser) {
+              const user = JSON.parse(authUser);
+              creatorName = user?.name || user?.email || creatorName;
+            }
+          } catch {}
+          
+          await sendTicketAssignedEmail({
+            ticketId: created.id,
+            title: created.title,
+            description: created.description,
+            priority: created.priority || 'medium',
+            assignedBy: creatorName,
+            assignedToEmail: created.assignee,
+          });
+        } catch (error) {
+          console.warn('Failed to send ticket assigned email:', error);
+        }
+      }
+      
       invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
       return created;
     } catch (e) {
@@ -378,6 +406,35 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
           message: opts?.message ? `${patch.status}: ${opts.message}` : `Status changed to ${patch.status}`,
           type: `ticket-status`,
         });
+        
+        // Send email notification for status change
+        try {
+          const actor = getActorInfo();
+          const recipients: string[] = [];
+          
+          // Add creator and assignee
+          if (updated.createdBy) recipients.push(updated.createdBy);
+          if (updated.assignee && updated.assignee !== actor.email && updated.assignee !== actor.id) {
+            recipients.push(updated.assignee);
+          }
+          
+          // Remove duplicates
+          const uniqueRecipients = Array.from(new Set(recipients));
+          
+          if (uniqueRecipients.length > 0) {
+            await sendTicketStatusUpdateEmail({
+              ticketId: updated.id,
+              title: updated.title,
+              oldStatus: 'unknown', // Would need to fetch from DB for accurate old status
+              newStatus: patch.status,
+              updatedBy: actor.label,
+              comment: opts?.message,
+              recipientEmails: uniqueRecipients,
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to send ticket status update email:', error);
+        }
       }
       try { localStorage.removeItem('tickets_fallback_reason'); } catch {}
       invalidateCacheByPrefix(TICKET_CACHE_PREFIX);

@@ -2,6 +2,13 @@ import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { updateAsset } from "@/services/assets";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
+import {
+  sendApprovalSubmittedEmail,
+  sendApprovalForwardedEmail,
+  sendApprovalDecisionEmail,
+  getManagerEmails,
+  getAdminEmails,
+} from "@/services/email";
 
 export type ApprovalAction = "create" | "edit" | "decommission";
 export type ApprovalStatus = "pending_manager" | "pending_admin" | "approved" | "rejected";
@@ -244,6 +251,34 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
   const list = loadLocal();
   saveLocal([payload, ...list]);
   invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+  
+  // Send email notification to managers
+  try {
+    const managerEmails = await getManagerEmails(payload.department ?? undefined);
+    if (managerEmails.length > 0) {
+      // Get requester name
+      let requesterName = payload.requestedBy;
+      try {
+        const authUser = localStorage.getItem('auth_user');
+        if (authUser) {
+          const user = JSON.parse(authUser);
+          requesterName = user?.name || user?.email || requesterName;
+        }
+      } catch {}
+      
+      await sendApprovalSubmittedEmail({
+        approvalId: payload.id,
+        requesterName,
+        assetName: `Asset ${payload.assetId}`,
+        action: payload.action,
+        notes: payload.notes ?? undefined,
+        managersToNotify: managerEmails,
+      });
+    }
+  } catch (error) {
+    console.warn('Failed to send approval submitted email:', error);
+  }
+  
   return payload;
 }
 
@@ -256,6 +291,34 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
       const updated = toCamel(data);
   try { await supabase.from('approval_events').insert({ approval_id: id, event_type: 'forwarded', author: manager, message: notes || 'Forwarded to admin' }); } catch {}
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+      
+      // Send email notification to admins
+      try {
+        const adminEmails = await getAdminEmails();
+        if (adminEmails.length > 0) {
+          // Get manager name
+          let managerName = manager;
+          try {
+            const authUser = localStorage.getItem('auth_user');
+            if (authUser) {
+              const user = JSON.parse(authUser);
+              managerName = user?.name || user?.email || manager;
+            }
+          } catch {}
+          
+          await sendApprovalForwardedEmail({
+            approvalId: updated.id,
+            managerName,
+            assetName: `Asset ${updated.assetId}`,
+            action: updated.action,
+            notes: notes ?? undefined,
+            adminsToNotify: adminEmails,
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to send approval forwarded email:', error);
+      }
+      
       return updated;
     } catch (e) {
       console.warn("approvals update failed, using localStorage", e);
@@ -293,6 +356,53 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
         }
       }
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
+      
+      // Send email notification to requester (and manager if rejected)
+      try {
+        // Get admin name
+        let adminName = admin;
+        try {
+          const authUser = localStorage.getItem('auth_user');
+          if (authUser) {
+            const user = JSON.parse(authUser);
+            adminName = user?.name || user?.email || admin;
+          }
+        } catch {}
+        
+        // Get forwarding manager's email if this was forwarded to admin
+        let forwardingManagerEmail: string | undefined;
+        if (decision === 'rejected' && updated.reviewedBy) {
+          try {
+            const { data: managerData } = await supabase
+              .from('app_users')
+              .select('email')
+              .eq('id', updated.reviewedBy)
+              .eq('role', 'manager')
+              .single();
+            
+            if (managerData?.email) {
+              forwardingManagerEmail = managerData.email;
+            }
+          } catch (e) {
+            console.warn('Could not fetch forwarding manager email:', e);
+          }
+        }
+        
+        await sendApprovalDecisionEmail({
+          approvalId: updated.id,
+          approverName: adminName,
+          requesterEmail: updated.requestedBy,
+          assetName: `Asset ${updated.assetId}`,
+          action: updated.action,
+          decision: decision === 'approved' ? 'approved' : 'rejected',
+          notes: notes ?? undefined,
+          forwardingManagerEmail,
+          department: updated.department,
+        });
+      } catch (error) {
+        console.warn('Failed to send approval decision email:', error);
+      }
+      
       return updated;
     } catch (e) {
       console.warn("approvals final decision failed, using localStorage", e);

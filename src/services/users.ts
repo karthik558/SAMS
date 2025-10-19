@@ -47,6 +47,12 @@ export async function createUser(payload: Omit<AppUser, "id"> & { password?: str
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { password, ...dbPayload } = payload as any;
+  
+  // Ensure role is lowercase
+  if (dbPayload.role) {
+    dbPayload.role = dbPayload.role.toLowerCase();
+  }
+  
   const hashed = password ? await createPasswordHash(password) : null;
   const insertPayload: any = {
     ...dbPayload,
@@ -60,6 +66,19 @@ export async function createUser(payload: Omit<AppUser, "id"> & { password?: str
   }
   const { data, error } = await supabase.from(table).insert(insertPayload).select().single();
   if (error) throw error;
+  
+  // Create user_settings entry with email notifications enabled
+  // This is a fallback in case the database trigger doesn't exist
+  try {
+    await supabase.from('user_settings').insert({
+      user_id: data.id,
+      email_notifications: true,
+    }).select().single();
+  } catch (settingsError) {
+    // Ignore conflict errors (user_settings already exists from trigger)
+    console.log('user_settings creation skipped (already exists or trigger handled it)');
+  }
+  
   invalidateCacheByPrefix(USERS_CACHE_KEY);
   return data as AppUser;
 }

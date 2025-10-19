@@ -1,5 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
+import { sendNewsletterEmail, getAllUserEmails } from "@/services/email";
 
 export type NewsletterPost = {
   id: string;
@@ -157,7 +158,27 @@ export async function createNewsletterPost(input: { title: string; body: string;
         .single();
       if (error) throw error;
       try { localStorage.removeItem(FB_KEY); } catch {}
-      return data as NewsletterPost;
+      
+      // Send email notification if published
+      const created = data as NewsletterPost;
+      if (created.published) {
+        try {
+          const recipientEmails = await getAllUserEmails();
+          if (recipientEmails.length > 0) {
+            await sendNewsletterEmail({
+              title: created.title,
+              body: created.body,
+              category: created.category,
+              author: created.author ?? undefined,
+              recipientEmails,
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to send newsletter email:', error);
+        }
+      }
+      
+      return created;
     } catch (e) {
       console.warn('newsletter create failed, using localStorage', e);
       try { localStorage.setItem(FB_KEY, 'insert_failed'); } catch {}
@@ -179,7 +200,27 @@ export async function updateNewsletterPost(id: string, patch: Partial<Pick<Newsl
         .single();
       if (error) throw error;
       try { localStorage.removeItem(FB_KEY); } catch {}
-      return data as NewsletterPost;
+      
+      // Send email notification if newly published
+      const updated = data as NewsletterPost;
+      if (updated.published && patch.published === true) {
+        try {
+          const recipientEmails = await getAllUserEmails();
+          if (recipientEmails.length > 0) {
+            await sendNewsletterEmail({
+              title: updated.title,
+              body: updated.body,
+              category: updated.category,
+              author: updated.author ?? undefined,
+              recipientEmails,
+            });
+          }
+        } catch (error) {
+          console.warn('Failed to send newsletter email:', error);
+        }
+      }
+      
+      return updated;
     } catch (e) {
       console.warn('newsletter update failed, using localStorage', e);
       try { localStorage.setItem(FB_KEY, 'update_failed'); } catch {}
