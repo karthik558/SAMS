@@ -16,6 +16,7 @@ import {
   auditSubmittedTemplate,
   welcomeEmailTemplate,
   passwordResetTemplate,
+  passwordResetOtpTemplate,
   type EmailTemplate,
 } from "./emailTemplates";
 
@@ -532,6 +533,29 @@ export async function sendPasswordResetEmail(params: {
   });
 
   await sendEmail({
+    to: params.userEmail,
+    subject: template.subject,
+    html: template.html,
+    text: template.text,
+  });
+}
+
+export async function sendPasswordResetCodeEmail(params: {
+  userName: string;
+  userEmail: string;
+  code: string;
+  expiresInMinutes: number;
+  attemptsAllowed?: number;
+}): Promise<boolean> {
+  const template = passwordResetOtpTemplate({
+    userName: params.userName,
+    code: params.code,
+    expiresInMinutes: params.expiresInMinutes,
+    attemptsAllowed: params.attemptsAllowed,
+    dashboardUrl: getDashboardUrl(),
+  });
+
+  return sendEmail({
     to: params.userEmail,
     subject: template.subject,
     html: template.html,

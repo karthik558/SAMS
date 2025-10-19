@@ -863,3 +863,55 @@ If you didn't request a password reset, you can safely ignore this email.
   
   return { subject, html, text };
 }
+
+export function passwordResetOtpTemplate(data: {
+  userName: string;
+  code: string;
+  expiresInMinutes: number;
+  attemptsAllowed?: number;
+  dashboardUrl?: string;
+}): EmailTemplate {
+  const subject = `Your SAMS verification code`;
+  const attempts = data.attemptsAllowed ?? 3;
+  const expiresText = data.expiresInMinutes === 1 ? "1 minute" : `${data.expiresInMinutes} minutes`;
+
+  const html = wrapTemplate(`
+    <div class="email-body">
+      <h2>Reset your password</h2>
+      <p>Hello <strong>${data.userName || "there"}</strong>,</p>
+      <p>Use the verification code below to reset the password for your SAMS account.</p>
+
+      <div class="info-box" style="font-size: 28px; letter-spacing: 12px; text-align: center;">
+        <strong style="font-family: 'SFMono-Regular', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
+          ${data.code}
+        </strong>
+      </div>
+
+      <p>This code will expire in <strong>${expiresText}</strong>. You have <strong>${attempts}</strong> attempts before a new code is issued.</p>
+
+      <div class="divider"></div>
+
+      <p>If you didn’t request a password reset, you can safely ignore this email. Your password will stay the same.</p>
+
+      <p style="font-size: 13px; color: #6c757d;">
+        For security, do not share this code. Enter it only on the official SAMS portal: ${data.dashboardUrl || "https://samsproject.in/login"}.
+      </p>
+    </div>
+  `, `SAMS verification code: ${data.code}`);
+
+  const text = `
+Reset your SAMS password
+
+Hello ${data.userName || "there"},
+
+Use this verification code to reset your password: ${data.code}
+
+The code expires in ${expiresText}. You have ${attempts} attempts before a new code is issued.
+
+If you didn't request this reset, you can ignore this email.
+
+Log in at: ${data.dashboardUrl || "https://samsproject.in/login"}
+  `.trim();
+
+  return { subject, html, text };
+}
