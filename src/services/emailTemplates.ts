@@ -51,29 +51,17 @@ function wrapTemplate(content: string, preheader?: string): string {
       box-shadow: 0 2px 16px rgba(204, 124, 94, 0.08);
     }
     .email-header {
-      background-color: #cc7c5e;
-      color: #ffffff;
+      background-color: #ffffff;
       padding: 40px;
       text-align: center;
+      border-bottom: 1px solid #e9ecef;
     }
     .logo-container {
-      margin-bottom: 20px;
+      margin: 0;
     }
     .logo {
-      max-width: 80px;
+      max-width: 100px;
       height: auto;
-    }
-    .email-header h1 {
-      margin: 0 0 8px 0;
-      font-size: 32px;
-      font-weight: 600;
-      letter-spacing: -0.5px;
-    }
-    .email-header p {
-      margin: 0;
-      font-size: 14px;
-      opacity: 0.95;
-      font-weight: 400;
     }
     .email-body {
       padding: 40px;
@@ -92,26 +80,66 @@ function wrapTemplate(content: string, preheader?: string): string {
       margin: 0 0 16px 0;
     }
     .info-box {
-      background-color: #f8f9fa;
-      border-left: 3px solid #cc7c5e;
-      padding: 20px;
+      background-color: #ffffff;
+      border: 2px solid #e9ecef;
+      padding: 24px;
       margin: 24px 0;
-      border-radius: 4px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
-    .info-box p {
-      margin: 10px 0;
-      font-size: 14px;
-      color: #5a6c7d;
-    }
-    .info-box p:first-child {
-      margin-top: 0;
-    }
-    .info-box p:last-child {
-      margin-bottom: 0;
-    }
-    .info-box strong {
-      color: #2c3e50;
+    .info-box-header {
+      font-size: 12px;
       font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #8b95a1;
+      margin-bottom: 16px;
+    }
+    .info-box-row {
+      display: flex;
+      padding: 12px 0;
+      border-bottom: 1px solid #f1f3f5;
+    }
+    .info-box-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .info-box-row:first-child {
+      padding-top: 0;
+    }
+    .info-box-label {
+      width: 120px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #5a6c7d;
+      flex-shrink: 0;
+    }
+    .info-box-value {
+      flex: 1;
+      font-size: 14px;
+      color: #2c3e50;
+      word-break: break-word;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .status-pending {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .status-approved {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .status-rejected {
+      background-color: #f8d7da;
+      color: #721c24;
     }
     .button {
       display: inline-block;
@@ -147,7 +175,7 @@ function wrapTemplate(content: string, preheader?: string): string {
       margin: 32px 0;
     }
     .email-footer {
-      background-color: #2c3e50;
+      background-color: #222220;
       color: #ffffff;
       padding: 40px;
       text-align: center;
@@ -203,21 +231,20 @@ function wrapTemplate(content: string, preheader?: string): string {
         <div class="logo-container">
           <img src="https://raw.githubusercontent.com/karthik558/SAMS/main/public/sams_logo.png" alt="SAMS Logo" class="logo" />
         </div>
-        <h1>SAMS</h1>
-        <p>Smart Asset Management System</p>
       </div>
       ${content}
       <div class="email-footer">
-        <p><strong>SAMS</strong> — Smart Asset Management System</p>
-        <p>Centralized asset lifecycle tracking with QR-enabled workflows and audit-ready reporting</p>
         <div class="footer-links">
           <p>
             <a href="https://samsproject.in">Visit Website</a> • 
             <a href="https://github.com/karthik558/SAMS">GitHub</a> • 
             <a href="mailto:karthik@samsproject.in">Contact Support</a>
           </p>
-          <p style="margin-top: 16px; font-size: 12px;">
-            This is an automated notification from SAMS. Please do not reply to this email.
+          <p style="margin-top: 20px; font-size: 12px; opacity: 0.8;">
+            This is an automated notification. Please do not reply to this email.
+          </p>
+          <p style="margin-top: 12px; font-size: 12px;">
+            © 2025 SAMS. All rights reserved.
           </p>
         </div>
       </div>
@@ -249,10 +276,29 @@ export function approvalSubmittedTemplate(data: {
       <p><strong>${data.requesterName}</strong> has submitted a new approval request that requires your review.</p>
       
       <div class="info-box">
-        <p><strong>Request ID:</strong> ${data.approvalId}</p>
-        <p><strong>Action:</strong> ${data.action}</p>
-        <p><strong>Asset:</strong> ${data.assetName}</p>
-        ${data.notes ? `<p><strong>Notes:</strong> ${data.notes}</p>` : ''}
+        <div class="info-box-header">Request Details</div>
+        <div class="info-box-row">
+          <div class="info-box-label">Request ID</div>
+          <div class="info-box-value">${data.approvalId}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Action</div>
+          <div class="info-box-value">${data.action.toUpperCase()}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Status</div>
+          <div class="info-box-value"><span class="status-badge status-pending">Pending Manager</span></div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Asset</div>
+          <div class="info-box-value">${data.assetName}</div>
+        </div>
+        ${data.notes ? `
+        <div class="info-box-row">
+          <div class="info-box-label">Notes</div>
+          <div class="info-box-value">${data.notes}</div>
+        </div>
+        ` : ''}
       </div>
       
       <p>Please review and take appropriate action.</p>
@@ -293,11 +339,30 @@ export function approvalForwardedTemplate(data: {
       <p>Hello,</p>
       <p><strong>${data.managerName}</strong> has forwarded an approval request to you for final decision.</p>
       
-      <div class="warning-box">
-        <p><strong>Request ID:</strong> ${data.approvalId}</p>
-        <p><strong>Action:</strong> ${data.action}</p>
-        <p><strong>Asset:</strong> ${data.assetName}</p>
-        ${data.notes ? `<p><strong>Manager Notes:</strong> ${data.notes}</p>` : ''}
+      <div class="info-box">
+        <div class="info-box-header">Request Details</div>
+        <div class="info-box-row">
+          <div class="info-box-label">Request ID</div>
+          <div class="info-box-value">${data.approvalId}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Action</div>
+          <div class="info-box-value">${data.action.toUpperCase()}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Status</div>
+          <div class="info-box-value"><span class="status-badge status-pending">Pending Admin</span></div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Asset</div>
+          <div class="info-box-value">${data.assetName}</div>
+        </div>
+        ${data.notes ? `
+        <div class="info-box-row">
+          <div class="info-box-label">Manager Notes</div>
+          <div class="info-box-value">${data.notes}</div>
+        </div>
+        ` : ''}
       </div>
       
       <p>Your approval is required to proceed with this request.</p>
@@ -335,15 +400,34 @@ export function approvalApprovedTemplate(data: {
   
   const html = wrapTemplate(`
     <div class="email-body">
-      <h2>Request Approved</h2>
+      <h2>✅ Request Approved</h2>
       <p>Great news!</p>
       <p>Your approval request for <strong>${data.assetName}</strong> has been approved by <strong>${data.approverName}</strong>.</p>
       
-      <div class="success-box">
-        <p><strong>Request ID:</strong> ${data.approvalId}</p>
-        <p><strong>Action:</strong> ${data.action}</p>
-        <p><strong>Status:</strong> Approved</p>
-        ${data.notes ? `<p><strong>Comments:</strong> ${data.notes}</p>` : ''}
+      <div class="info-box">
+        <div class="info-box-header">Request Details</div>
+        <div class="info-box-row">
+          <div class="info-box-label">Request ID</div>
+          <div class="info-box-value">${data.approvalId}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Action</div>
+          <div class="info-box-value">${data.action.toUpperCase()}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Status</div>
+          <div class="info-box-value"><span class="status-badge status-approved">Approved</span></div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Asset</div>
+          <div class="info-box-value">${data.assetName}</div>
+        </div>
+        ${data.notes ? `
+        <div class="info-box-row">
+          <div class="info-box-label">Comments</div>
+          <div class="info-box-value">${data.notes}</div>
+        </div>
+        ` : ''}
       </div>
       
       <p>You can now proceed with your planned action.</p>
@@ -381,15 +465,34 @@ export function approvalRejectedTemplate(data: {
   
   const html = wrapTemplate(`
     <div class="email-body">
-      <h2>Request Rejected</h2>
+      <h2>❌ Request Rejected</h2>
       <p>Hello,</p>
       <p>Your approval request for <strong>${data.assetName}</strong> has been rejected by <strong>${data.approverName}</strong>.</p>
       
-      <div class="error-box">
-        <p><strong>Request ID:</strong> ${data.approvalId}</p>
-        <p><strong>Action:</strong> ${data.action}</p>
-        <p><strong>Status:</strong> Rejected</p>
-        ${data.notes ? `<p><strong>Reason:</strong> ${data.notes}</p>` : ''}
+      <div class="info-box">
+        <div class="info-box-header">Request Details</div>
+        <div class="info-box-row">
+          <div class="info-box-label">Request ID</div>
+          <div class="info-box-value">${data.approvalId}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Action</div>
+          <div class="info-box-value">${data.action.toUpperCase()}</div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Status</div>
+          <div class="info-box-value"><span class="status-badge status-rejected">Rejected</span></div>
+        </div>
+        <div class="info-box-row">
+          <div class="info-box-label">Asset</div>
+          <div class="info-box-value">${data.assetName}</div>
+        </div>
+        ${data.notes ? `
+        <div class="info-box-row">
+          <div class="info-box-label">Reason</div>
+          <div class="info-box-value">${data.notes}</div>
+        </div>
+        ` : ''}
       </div>
       
       <p>Please review the feedback and consider resubmitting your request if needed.</p>
