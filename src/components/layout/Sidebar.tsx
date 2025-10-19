@@ -25,7 +25,7 @@ import { listTickets } from "@/services/tickets";
 import { listApprovals } from "@/services/approvals";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
-import { getUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 
@@ -95,6 +95,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
+  const cachedPrefs = useMemo(() => {
+    try {
+      const uid = getCurrentUserId();
+      return peekCachedUserPreferences(uid);
+    } catch {
+      return null;
+    }
+  }, []);
   const [collapsed, setCollapsed] = useState(false);
   const [isTablet, setIsTablet] = useState(false);
   const location = useLocation();
@@ -108,8 +116,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [ticketPendingCount, setTicketPendingCount] = useState<number>(0);
   const [role, setRole] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
-  const [showNewsletter, setShowNewsletter] = useState<boolean>(false);
-  const [showHelpCenter, setShowHelpCenter] = useState<boolean>(true);
+  const [showNewsletter, setShowNewsletter] = useState<boolean>(() => Boolean(cachedPrefs?.show_newsletter));
+  const [showHelpCenter, setShowHelpCenter] = useState<boolean>(() => cachedPrefs?.show_help_center !== false);
   const homeHref = isDemoMode() ? "/demo" : "/";
   useEffect(() => {
     (async () => {

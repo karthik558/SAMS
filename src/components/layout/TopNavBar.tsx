@@ -1,8 +1,8 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy, Megaphone } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getUserPreferences } from '@/services/userPreferences';
+import { getUserPreferences, peekCachedUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
 import { isDemoMode } from '@/lib/demo';
 import { isAuditActive } from '@/services/audit';
@@ -12,8 +12,16 @@ interface TopNavBarProps {
 }
 
 export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
-  const [showNewsletter, setShowNewsletter] = useState(false);
-  const [showHelpCenter, setShowHelpCenter] = useState(true);
+  const cachedPrefs = useMemo(() => {
+    try {
+      const uid = getCurrentUserId();
+      return peekCachedUserPreferences(uid);
+    } catch {
+      return null;
+    }
+  }, []);
+  const [showNewsletter, setShowNewsletter] = useState(() => Boolean(cachedPrefs?.show_newsletter));
+  const [showHelpCenter, setShowHelpCenter] = useState(() => cachedPrefs?.show_help_center !== false);
   const [role, setRole] = useState('');
   const navigate = useNavigate();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);

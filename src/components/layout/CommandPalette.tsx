@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/command";
 import { isDemoMode } from "@/lib/demo";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { getUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { isAuditActive } from "@/services/audit";
 import type { LucideIcon } from "lucide-react";
@@ -68,7 +68,15 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
   const navigate = useNavigate();
   const roleLower = (role || '').toLowerCase();
   const prefix = isDemoMode() ? '/demo' : '';
-  const [showNewsletter, setShowNewsletter] = useState(false);
+  const cachedPrefs = useMemo(() => {
+    try {
+      const uid = getCurrentUserId();
+      return peekCachedUserPreferences(uid);
+    } catch {
+      return null;
+    }
+  }, []);
+  const [showNewsletter, setShowNewsletter] = useState(() => Boolean(cachedPrefs?.show_newsletter));
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [auditActive, setAuditActive] = useState(false);
   const [hasAuditReports, setHasAuditReports] = useState(false);

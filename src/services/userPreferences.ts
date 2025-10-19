@@ -25,11 +25,44 @@ export type UserPreferences = {
 const TABLE = 'user_preferences';
 const LS_KEY = 'user_preferences_';
 
-function loadLocal(userId: string): UserPreferences | null {
+function loadLocal(userId: string | null | undefined): UserPreferences | null {
+  if (!userId) return null;
   try { return JSON.parse(localStorage.getItem(LS_KEY + userId) || 'null'); } catch { return null; }
 }
+function saveLocalFor(userId: string | null | undefined, prefs: UserPreferences) {
+  if (!userId) return;
+  try {
+    const payload = { ...prefs, user_id: userId };
+    localStorage.setItem(LS_KEY + userId, JSON.stringify(payload));
+  } catch {}
+}
 function saveLocal(p: UserPreferences) {
-  try { localStorage.setItem(LS_KEY + p.user_id, JSON.stringify(p)); } catch {}
+  saveLocalFor(p.user_id, p);
+}
+
+function cachePreferences(pref: UserPreferences, aliasIds: Array<string | null | undefined> = []) {
+  saveLocal(pref);
+  aliasIds
+    .filter((id): id is string => Boolean(id) && id !== pref.user_id)
+    .forEach((id) => saveLocalFor(id, pref));
+}
+
+function collectAliasIds(primary: string | null | undefined, effective: string | null | undefined): string[] {
+  const aliases = new Set<string>();
+  if (primary && primary !== effective) aliases.add(primary);
+  try {
+    const authRaw = localStorage.getItem('auth_user');
+    if (authRaw) {
+      const auth = JSON.parse(authRaw) as { id?: string } | null;
+      const authId = auth?.id;
+      if (authId && authId !== effective) aliases.add(authId);
+    }
+  } catch {}
+  try {
+    const storedCurrent = localStorage.getItem('current_user_id');
+    if (storedCurrent && storedCurrent !== effective) aliases.add(storedCurrent);
+  } catch {}
+  return Array.from(aliases);
 }
 
 function defaults(userId: string): UserPreferences {
@@ -75,19 +108,33 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
       const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', effectiveId).maybeSingle();
       if (error) throw error;
       if (data) {
-        return applyPostLoadDefaults(data as UserPreferences);
+        const resolved = applyPostLoadDefaults({ ...(data as UserPreferences), user_id: effectiveId });
+        cachePreferences(resolved, collectAliasIds(userId, effectiveId));
+        return resolved;
       }
       const def = { ...defaults(effectiveId), user_email: effectiveEmail };
       const { data: created, error: e2 } = await supabase.from(TABLE).upsert(def, { onConflict: 'user_id' }).select().single();
       if (e2) throw e2;
-      return applyPostLoadDefaults(created as UserPreferences);
+      const seeded = applyPostLoadDefaults({ ...(created as UserPreferences), user_id: effectiveId });
+      cachePreferences(seeded, collectAliasIds(userId, effectiveId));
+      return seeded;
     } catch (error) {
       console.warn('getUserPreferences falling back to local storage', error);
     }
   }
-  const localRaw = loadLocal(userId) || defaults(userId);
-  const local = applyPostLoadDefaults(localRaw);
-  if (!loadLocal(userId)) saveLocal(local);
+  const aliasIds = collectAliasIds(userId, null);
+  const candidates = [userId, ...aliasIds];
+  let localRaw: UserPreferences | null = null;
+  for (const candidate of candidates) {
+    localRaw = loadLocal(candidate);
+    if (localRaw) break;
+  }
+  if (!localRaw) {
+    const baseId = (candidates.find((id) => typeof id === 'string') as string | undefined) || userId || 'local';
+    localRaw = defaults(baseId);
+  }
+  const local = applyPostLoadDefaults({ ...localRaw });
+  cachePreferences(local, candidates);
   return local;
 }
 
@@ -113,7 +160,9 @@ export async function upsertUserPreferences(userId: string, patch: Partial<UserP
       const row = { user_id: effectiveId, user_email: email, ...patch } as any;
       const { data, error } = await supabase.from(TABLE).upsert(row, { onConflict: 'user_id' }).select().single();
       if (error) throw error;
-      return applyPostLoadDefaults(data as UserPreferences);
+      const updated = applyPostLoadDefaults({ ...(data as UserPreferences), user_id: effectiveId });
+      cachePreferences(updated, collectAliasIds(userId, effectiveId));
+      return updated;
     } catch (error) {
       console.warn('upsertUserPreferences falling back to local storage', error);
     }
@@ -124,8 +173,22 @@ export async function upsertUserPreferences(userId: string, patch: Partial<UserP
   return next;
 }
 
+export function peekCachedUserPreferences(userId?: string | null): UserPreferences | null {
+  const primary = userId ?? null;
+  const aliasIds = collectAliasIds(primary, null);
+  const candidates = [primary, ...aliasIds].filter((id): id is string => Boolean(id));
+  for (const candidate of candidates) {
+    const cached = loadLocal(candidate);
+    if (cached) {
+      return applyPostLoadDefaults({ ...cached });
+    }
+  }
+  return null;
+}
+
 function applyPostLoadDefaults(p: UserPreferences): UserPreferences {
   // Fill any missing new fields with defaults
+  if (typeof p.show_newsletter !== 'boolean') p.show_newsletter = Boolean(p.show_newsletter);
   if (typeof p.sidebar_collapsed === 'undefined') p.sidebar_collapsed = false;
   if (typeof p.enable_sounds === 'undefined') p.enable_sounds = true;
   if (typeof p.auto_theme === 'undefined') p.auto_theme = false;

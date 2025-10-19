@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Bell, Shield, Save, Settings as SettingsIcon } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserSettings, upsertUserSettings } from "@/services/settings";
-import { getUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
 import { refreshSoundPreference } from "@/lib/sound";
 import { changeOwnPassword } from "@/services/auth";
 import PageHeader from "@/components/layout/PageHeader";
@@ -20,23 +20,34 @@ import Breadcrumbs from "@/components/layout/Breadcrumbs";
 
 export default function Settings() {
   const { toast } = useToast();
+  const cachedPrefs = useMemo(() => {
+    try {
+      const uid = localStorage.getItem("current_user_id");
+      return peekCachedUserPreferences(uid);
+    } catch {
+      return null;
+    }
+  }, []);
   const [darkMode, setDarkMode] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [emailNotifications, setEmailNotifications] = useState(true);
   // Personalization preferences
-  const [showNewsletter, setShowNewsletter] = useState(false);
-  const [compactMode, setCompactMode] = useState(false); // legacy
-  const [betaFeatures, setBetaFeatures] = useState(false);
-  const [defaultLanding, setDefaultLanding] = useState<string>("");
+  const [showNewsletter, setShowNewsletter] = useState(() => Boolean(cachedPrefs?.show_newsletter));
+  const [compactMode, setCompactMode] = useState(() => Boolean(cachedPrefs?.compact_mode)); // legacy
+  const [betaFeatures, setBetaFeatures] = useState(() => Boolean(cachedPrefs?.enable_beta_features));
+  const [defaultLanding, setDefaultLanding] = useState<string>(() => cachedPrefs?.default_landing_page || "");
   // New personalization fields
-  const [density, setDensity] = useState<'comfortable'|'compact'|'ultra'>('comfortable');
-  const [autoTheme, setAutoTheme] = useState(false);
-  const [enableSounds, setEnableSounds] = useState(true);
-  const [sidebarCollapsedPref, setSidebarCollapsedPref] = useState(false);
-  const [showAnnouncements, setShowAnnouncements] = useState(true);
-  const [stickyHeader, setStickyHeader] = useState(false);
-  const [topNavMode, setTopNavMode] = useState(false);
-  const [showHelpCenter, setShowHelpCenter] = useState(true);
+  const [density, setDensity] = useState<'comfortable'|'compact'|'ultra'>(() => {
+    if (cachedPrefs?.density) return cachedPrefs.density;
+    return cachedPrefs?.compact_mode ? 'compact' : 'comfortable';
+  });
+  const [autoTheme, setAutoTheme] = useState(() => Boolean(cachedPrefs?.auto_theme));
+  const [enableSounds, setEnableSounds] = useState(() => (typeof cachedPrefs?.enable_sounds === 'boolean' ? Boolean(cachedPrefs?.enable_sounds) : true));
+  const [sidebarCollapsedPref, setSidebarCollapsedPref] = useState(() => Boolean(cachedPrefs?.sidebar_collapsed));
+  const [showAnnouncements, setShowAnnouncements] = useState(() => cachedPrefs?.show_announcements !== false);
+  const [stickyHeader, setStickyHeader] = useState(() => Boolean(cachedPrefs?.sticky_header));
+  const [topNavMode, setTopNavMode] = useState(() => Boolean(cachedPrefs?.top_nav_mode));
+  const [showHelpCenter, setShowHelpCenter] = useState(() => cachedPrefs?.show_help_center !== false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
