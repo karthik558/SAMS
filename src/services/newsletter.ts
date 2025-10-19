@@ -25,19 +25,33 @@ const LS_KEY = "newsletter_posts";
 const FB_KEY = "newsletter_fallback_reason";
 
 function loadLocal(): NewsletterPost[] {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]") as NewsletterPost[]; } catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(LS_KEY) || "[]") as NewsletterPost[];
+  } catch {
+    return [];
+  }
 }
 function saveLocal(list: NewsletterPost[]) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch {}
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  } catch {}
+}
+function purgeLocalIfProduction() {
+  if (!isDemoMode() && hasSupabaseEnv) {
+    try {
+      localStorage.removeItem(LS_KEY);
+      localStorage.removeItem(FB_KEY);
+    } catch {}
+  }
 }
 
 const DEFAULT_CATEGORIES: NewsletterCategory[] = [
-  { key: 'bug', label: 'Bug', hue: 'red' },
-  { key: 'api_down', label: 'API Down', hue: 'red' },
-  { key: 'fixed', label: 'Fixed', hue: 'emerald' },
-  { key: 'resolved', label: 'Resolved', hue: 'emerald' },
-  { key: 'maintenance', label: 'Maintenance', hue: 'amber' },
-  { key: 'update', label: 'Update', hue: 'blue' },
+  { key: 'release_notes', label: 'Release Notes', hue: 'blue' },
+  { key: 'design_refresh', label: 'Design Refresh', hue: 'sky' },
+  { key: 'content_update', label: 'Content Update', hue: 'amber' },
+  { key: 'website_launch', label: 'Website Launch', hue: 'emerald' },
+  { key: 'performance', label: 'Performance', hue: 'red' },
+  { key: 'maintenance', label: 'Maintenance', hue: 'zinc' },
 ];
 
 export async function listNewsletterCategories(): Promise<NewsletterCategory[]> {
@@ -65,14 +79,16 @@ export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]>
         .limit(limit);
       if (error) throw error;
       const rows = (data || []) as NewsletterPost[];
+      purgeLocalIfProduction();
       if (rows.length > 0) {
-        try { localStorage.removeItem(FB_KEY); } catch {}
+        try {
+          localStorage.removeItem(FB_KEY);
+        } catch {}
         return rows;
       }
-      // If Supabase returns empty but we have local items or a prior fallback, return local feed
-      const local = loadLocal().filter(p => p.published).sort((a,b)=>(a.created_at < b.created_at ? 1 : -1));
-      const hadFallback = (() => { try { return Boolean(localStorage.getItem(FB_KEY)); } catch { return false; } })();
-      if (local.length > 0 || hadFallback) return local.slice(0, limit);
+      try {
+        localStorage.removeItem(FB_KEY);
+      } catch {}
       return rows;
     } catch (e) {
       console.warn('newsletter list failed, using localStorage', e);
@@ -87,18 +103,21 @@ export async function listNewsletterPosts(limit = 20): Promise<NewsletterPost[]>
         const now = Date.now();
         const mk = (minsAgo: number) => new Date(now - minsAgo * 60000).toISOString();
         const seed: NewsletterPost[] = [
-          { id: 'NEWS-900003', title: 'Planned Maintenance — Database Upgrade', body: 'We will perform scheduled maintenance on the database at 22:00 local time. Expected downtime: ~10 minutes. Services may be intermittently unavailable.', author: 'admin@sams.demo', published: true, created_at: mk(90), updated_at: null, category: 'maintenance' },
-          { id: 'NEWS-900002', title: 'API Error Spike (Resolved)', body: 'Earlier today, some requests failed intermittently due to a misconfigured cache layer. The issue has been fixed and systems are operating normally.', author: 'admin@sams.demo', published: true, created_at: mk(240), updated_at: null, category: 'resolved' },
-          { id: 'NEWS-900001', title: 'Bug: Report Export CSV', body: 'We identified a bug causing CSV exports to include duplicate headers in some cases. A fix is in progress and will be deployed tomorrow.', author: 'admin@sams.demo', published: true, created_at: mk(480), updated_at: null, category: 'bug' },
+          { id: 'NEWS-900003', title: 'Homepage Refresh Now Live', body: 'Our primary landing page has been updated with the new hero layout, improved typography scale, and refined call-to-action block. Let us know if you spot spacing issues on tablet breakpoints.', author: 'design@sams.demo', published: true, created_at: mk(90), updated_at: null, category: 'design_refresh' },
+          { id: 'NEWS-900002', title: 'Pricing Page Performance Win', body: 'Lazy loading and responsive image sets cut LCP to 1.6s on the pricing page. Marketing assets were recompressed and the testimonials carousel now defers below-the-fold rendering.', author: 'webops@sams.demo', published: true, created_at: mk(240), updated_at: null, category: 'performance' },
+          { id: 'NEWS-900001', title: 'New Resource Center Navigation', body: 'We rolled out a streamlined navigation for resources with audience tags and contextual breadcrumbs. Content owners should review featured cards before Friday.', author: 'content@sams.demo', published: true, created_at: mk(480), updated_at: null, category: 'content_update' },
         ];
         saveLocal(seed);
       }
     }
   } catch {}
-  return loadLocal()
-    .filter(p => p.published)
-    .sort((a,b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, limit);
+  if (isDemoMode()) {
+    return loadLocal()
+      .filter(p => p.published)
+      .sort((a,b) => (a.created_at < b.created_at ? 1 : -1))
+      .slice(0, limit);
+  }
+  return [];
 }
 
 export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPost[]> {
@@ -111,9 +130,13 @@ export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPos
         .limit(limit);
       if (error) throw error;
       const rows = (data || []) as NewsletterPost[];
-      if (rows.length > 0) { try { localStorage.removeItem(FB_KEY); } catch {} }
-      else { try { localStorage.setItem(FB_KEY, 'empty_remote'); } catch {} }
-      return rows.length > 0 ? rows : loadLocal().sort((a,b)=>(a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
+      purgeLocalIfProduction();
+      if (rows.length > 0) {
+        try { localStorage.removeItem(FB_KEY); } catch {}
+        return rows;
+      }
+      try { localStorage.removeItem(FB_KEY); } catch {}
+      return [];
     } catch (e) {
       console.warn('newsletter listAll failed, using localStorage', e);
       try { localStorage.setItem(FB_KEY, 'select_failed'); } catch {}
@@ -127,15 +150,18 @@ export async function listAllNewsletterPosts(limit = 200): Promise<NewsletterPos
         const now = Date.now();
         const mk = (minsAgo: number) => new Date(now - minsAgo * 60000).toISOString();
         const seed: NewsletterPost[] = [
-          { id: 'NEWS-900003', title: 'Planned Maintenance — Database Upgrade', body: 'We will perform scheduled maintenance on the database at 22:00 local time. Expected downtime: ~10 minutes. Services may be intermittently unavailable.', author: 'admin@sams.demo', published: true, created_at: mk(90), updated_at: null, category: 'maintenance' },
-          { id: 'NEWS-900002', title: 'API Error Spike (Resolved)', body: 'Earlier today, some requests failed intermittently due to a misconfigured cache layer. The issue has been fixed and systems are operating normally.', author: 'admin@sams.demo', published: true, created_at: mk(240), updated_at: null, category: 'resolved' },
-          { id: 'NEWS-900001', title: 'Bug: Report Export CSV', body: 'We identified a bug causing CSV exports to include duplicate headers in some cases. A fix is in progress and will be deployed tomorrow.', author: 'admin@sams.demo', published: true, created_at: mk(480), updated_at: null, category: 'bug' },
+          { id: 'NEWS-900003', title: 'Homepage Refresh Now Live', body: 'Our primary landing page has been updated with the new hero layout, improved typography scale, and refined call-to-action block. Let us know if you spot spacing issues on tablet breakpoints.', author: 'design@sams.demo', published: true, created_at: mk(90), updated_at: null, category: 'design_refresh' },
+          { id: 'NEWS-900002', title: 'Pricing Page Performance Win', body: 'Lazy loading and responsive image sets cut LCP to 1.6s on the pricing page. Marketing assets were recompressed and the testimonials carousel now defers below-the-fold rendering.', author: 'webops@sams.demo', published: true, created_at: mk(240), updated_at: null, category: 'performance' },
+          { id: 'NEWS-900001', title: 'New Resource Center Navigation', body: 'We rolled out a streamlined navigation for resources with audience tags and contextual breadcrumbs. Content owners should review featured cards before Friday.', author: 'content@sams.demo', published: true, created_at: mk(480), updated_at: null, category: 'content_update' },
         ];
         saveLocal(seed);
       }
     }
   } catch {}
-  return loadLocal().sort((a,b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
+  if (isDemoMode()) {
+    return loadLocal().sort((a,b) => (a.created_at < b.created_at ? 1 : -1)).slice(0, limit);
+  }
+  return [];
 }
 
 export async function createNewsletterPost(input: { title: string; body: string; category?: string; published?: boolean; author?: string | null }): Promise<NewsletterPost> {
@@ -147,7 +173,7 @@ export async function createNewsletterPost(input: { title: string; body: string;
     author: input.author ?? null,
     created_at: new Date().toISOString(),
     updated_at: null,
-    category: input.category || 'update',
+    category: input.category || 'release_notes',
   };
   if (!isDemoMode() && hasSupabaseEnv) {
     try {

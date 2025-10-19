@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import PageHeader from "@/components/layout/PageHeader";
 import { Megaphone, Filter, Pencil, Trash2, Search } from "lucide-react";
 import { createNewsletterPost, deleteNewsletterPost, listAllNewsletterPosts, updateNewsletterPost, listNewsletterCategories, type NewsletterPost, type NewsletterCategory } from "@/services/newsletter";
 import { isDemoMode } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 
 export default function Newsletter() {
   const [posts, setPosts] = useState<NewsletterPost[]>([]);
@@ -21,10 +23,11 @@ export default function Newsletter() {
   const [published, setPublished] = useState(true);
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<NewsletterCategory[]>([]);
-  const [category, setCategory] = useState<string>('update');
+  const [category, setCategory] = useState<string>('release_notes');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
+  const [composeExpanded, setComposeExpanded] = useState(false);
 
   // Read role to enable admin actions
   const role = (() => {
@@ -51,9 +54,9 @@ export default function Newsletter() {
     })();
   }, []);
 
-  const resetForm = () => { setEditing(null); setTitle(''); setBody(''); setPublished(true); setCategory('update'); };
+  const resetForm = () => { setEditing(null); setTitle(''); setBody(''); setPublished(true); setCategory('release_notes'); setComposeExpanded(false); };
   const openCreate = () => { resetForm(); setOpen(true); };
-  const openEdit = (p: NewsletterPost) => { setEditing(p); setTitle(p.title); setBody(p.body); setPublished(p.published); setCategory(p.category || 'update'); setOpen(true); };
+  const openEdit = (p: NewsletterPost) => { setEditing(p); setTitle(p.title); setBody(p.body); setPublished(p.published); setCategory(p.category || 'release_notes'); setComposeExpanded(false); setOpen(true); };
 
   const save = async () => {
     if (!title.trim() || !body.trim()) { toast.error('Title and content are required'); return; }
@@ -98,14 +101,14 @@ export default function Newsletter() {
   };
   const statusOf = (p: NewsletterPost): { label: string; cls: string } => {
     if (!p.published) return { label: 'Draft', cls: hueBadge('zinc') };
-    const cat = categories.find(c => c.key === (p.category||'update')) || { label: 'Update', hue: 'blue' } as NewsletterCategory;
+    const cat = categories.find(c => c.key === (p.category||'release_notes')) || { label: 'Release Notes', hue: 'blue' } as NewsletterCategory;
     return { label: cat.label, cls: hueBadge(cat.hue) };
   };
 
   const filtered = posts.filter(p => {
     const q = query.trim().toLowerCase();
     const matchesQuery = !q || p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q) || (p.author || '').toLowerCase().includes(q);
-    const matchesCategory = selectedCategory === 'all' || (p.category || 'update') === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || (p.category || 'release_notes') === selectedCategory;
     const matchesStatus = statusFilter === 'all' || (statusFilter === 'published' ? p.published : !p.published);
     return matchesQuery && matchesCategory && matchesStatus;
   });
@@ -125,7 +128,7 @@ export default function Newsletter() {
       key: c.key,
       label: c.label,
       hue: c.hue,
-      count: posts.filter((p) => (p.category || 'update') === c.key).length,
+      count: posts.filter((p) => (p.category || 'release_notes') === c.key).length,
     }));
   }, [categories, posts]);
 
@@ -320,29 +323,64 @@ export default function Newsletter() {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Post' : 'New Post'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3">
-            <Input placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
-            <Textarea value={body} onChange={e => setBody(e.target.value)} className="min-h-[240px]" placeholder={"Write your update…\n\nTips:\n- Start with a short summary.\n- Add details, timelines, and links.\n- Include keywords like Maintenance, Incident, Resolved for status badges."} />
-            <div className="flex items-center gap-3">
-              <label className="text-sm">Category</label>
-              <select className="h-9 rounded border bg-background px-2 text-sm" value={category} onChange={(e)=> setCategory(e.target.value)}>
-                {categories.map(c => (
-                  <option key={c.key} value={c.key}>{c.label}</option>
-                ))}
-              </select>
+        <DialogContent className={cn("w-[calc(100vw-2rem)]", composeExpanded ? "sm:max-w-5xl" : "sm:max-w-xl")}>
+          <DialogHeader className="flex flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <DialogTitle>{editing ? "Edit Post" : "New Post"}</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Craft a concise update, add the highlights, and choose the destination feed.
+              </p>
             </div>
-            <label className="inline-flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={published} onChange={e => setPublished(e.target.checked)} />
-              <span>Published</span>
-            </label>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setComposeExpanded((prev) => !prev)}>
+                {composeExpanded ? "Collapse" : "Expand"}
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Input
+              placeholder="Title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="h-11 rounded-xl border-border/60 bg-muted/20"
+            />
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              className={cn("min-h-[260px] rounded-xl border-border/60 bg-muted/10", composeExpanded && "min-h-[380px]")}
+              placeholder={
+                "Write your update…\n\nSuggestions:\n• Start with a headline summary.\n• Add context, timelines, and links.\n• Mention visual tweaks, performance metrics, or content shifts."
+              }
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Category</span>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger className="h-11 rounded-xl border-border/60 bg-muted/20">
+                    <SelectValue placeholder="Pick a category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {categories.map((c) => (
+                        <SelectItem key={c.key} value={c.key}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <label className="mt-6 inline-flex items-center gap-2 text-sm sm:mt-0">
+                <input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />
+                <span>Publish immediately</span>
+              </label>
+            </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editing ? 'Save Changes' : 'Create Post'}</Button>
+          <DialogFooter className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={save}>{editing ? "Save Changes" : "Create Post"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
