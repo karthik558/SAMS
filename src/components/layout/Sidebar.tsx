@@ -58,10 +58,10 @@ type SidebarEntry = NavItem & {
 };
 
 const badgeToneClasses: Record<BadgeTone, string> = {
-  destructive: "border border-destructive/35 bg-destructive/10 text-destructive",
-  warning: "border border-warning/40 bg-warning/10 text-warning",
-  primary: "border border-primary/35 bg-primary/10 text-primary",
-  muted: "border border-border/50 bg-muted/40 text-muted-foreground",
+  destructive: "border border-destructive/60 bg-destructive text-destructive-foreground shadow-sm dark:bg-destructive/80",
+  warning: "border border-warning/60 bg-warning text-warning-foreground shadow-sm dark:bg-warning/80",
+  primary: "border border-primary/50 bg-primary text-primary-foreground shadow-sm dark:bg-primary/80",
+  muted: "border border-border/60 bg-muted/70 text-foreground shadow-sm dark:bg-sidebar-accent dark:text-foreground",
 };
 
 const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> = [
