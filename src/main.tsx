@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { initNotificationSound } from '@/lib/sound'
 import './index.css'
+import { HelmetProvider } from 'react-helmet-async'
 
 // Apply saved theme (or system preference) before React renders to avoid flash
 try {
@@ -28,7 +29,11 @@ try {
 
 try { initNotificationSound(); } catch {}
 const rootEl = document.getElementById("root")!;
-createRoot(rootEl).render(<App />);
+createRoot(rootEl).render(
+	<HelmetProvider>
+		<App />
+	</HelmetProvider>
+);
 
 // Hide preloader once the current frame renders
 try {

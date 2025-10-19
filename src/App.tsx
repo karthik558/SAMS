@@ -52,6 +52,29 @@ function RoleGate({ roles, children }: { roles: string[]; children: React.ReactN
   return <>{children}</>;
 }
 
+function isAuthenticated() {
+  try {
+    return isDemoMode()
+      ? Boolean(sessionStorage.getItem("demo_current_user_id"))
+      : Boolean(localStorage.getItem("current_user_id"));
+  } catch {
+    return false;
+  }
+}
+
+function LandingPage() {
+  if (isAuthenticated()) {
+    return (
+      <RequireAuth>
+        <Layout>
+          <Index />
+        </Layout>
+      </RequireAuth>
+    );
+  }
+  return <Website />;
+}
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -62,6 +85,7 @@ const App = () => (
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           {/* Public minimal marketing website */}
           <Route path="/site" element={<Website />} />
