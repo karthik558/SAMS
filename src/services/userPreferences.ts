@@ -119,7 +119,13 @@ export async function getUserPreferences(userId: string): Promise<UserPreference
       cachePreferences(seeded, collectAliasIds(userId, effectiveId));
       return seeded;
     } catch (error) {
-      console.warn('getUserPreferences falling back to local storage', error);
+      // Reduce noise in production for common NO_SESSION cases
+      const msg = (error as any)?.message || String(error);
+      if (msg === 'NO_SESSION' || msg === 'SESSION_MISMATCH') {
+        console.debug('getUserPreferences falling back to local storage:', msg);
+      } else {
+        console.warn('getUserPreferences falling back to local storage', error);
+      }
     }
   }
   const aliasIds = collectAliasIds(userId, null);
@@ -164,7 +170,12 @@ export async function upsertUserPreferences(userId: string, patch: Partial<UserP
       cachePreferences(updated, collectAliasIds(userId, effectiveId));
       return updated;
     } catch (error) {
-      console.warn('upsertUserPreferences falling back to local storage', error);
+      const msg = (error as any)?.message || String(error);
+      if (msg === 'NO_SESSION' || msg === 'SESSION_MISMATCH') {
+        console.debug('upsertUserPreferences falling back to local storage:', msg);
+      } else {
+        console.warn('upsertUserPreferences falling back to local storage', error);
+      }
     }
   }
   const cur = loadLocal(userId) || defaults(userId);

@@ -21,15 +21,16 @@ interface EmailRequest {
   html: string;
   text: string;
   replyTo?: string;
-  config: {
-    host: string;
-    port: number;
-    secure: boolean;
-    auth: {
-      user: string;
-      pass: string;
+  // Optional client-provided config (ignored for secrets). Retained for backward compatibility.
+  config?: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    auth?: {
+      user?: string;
+      pass?: string;
     };
-    from: string;
+    from?: string;
   };
 }
 
@@ -56,8 +57,27 @@ serve(async (req: Request) => {
     if (!body.subject || !body.html || !body.text) {
       throw new Error("Subject, HTML, and text content are required");
     }
-    if (!body.config || !body.config.host || !body.config.auth) {
-      throw new Error("SMTP configuration is required");
+
+    // Feature flag to globally disable email from server env
+    const serverEmailEnabled = (Deno.env.get("EMAIL_ENABLED") ?? Deno.env.get("VITE_EMAIL_ENABLED") ?? "true") !== "false";
+    if (!serverEmailEnabled) {
+      console.log("[send-email] Email disabled by server environment, skipping send:", body.subject);
+      return new Response(
+        JSON.stringify({ success: false, skipped: true, reason: "disabled" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+      );
+    }
+
+    // Resolve SMTP configuration from server environment first; never trust client secrets
+    const ENV_HOST = Deno.env.get("SMTP_HOST") ?? Deno.env.get("VITE_SMTP_HOST") ?? body.config?.host ?? "";
+    const ENV_PORT = parseInt(Deno.env.get("SMTP_PORT") ?? "" + (body.config?.port ?? "587"));
+    const ENV_SECURE = (Deno.env.get("SMTP_SECURE") ?? (body.config?.secure ? "true" : "false")) === "true";
+    const ENV_USER = Deno.env.get("SMTP_USER") ?? body.config?.auth?.user ?? "";
+    const ENV_PASS = Deno.env.get("SMTP_PASSWORD") ?? body.config?.auth?.pass ?? "";
+    const ENV_FROM = Deno.env.get("SMTP_FROM") ?? body.config?.from ?? (ENV_USER ? `"SAMS" <${ENV_USER}>` : "SAMS <noreply@example.com>");
+
+    if (!ENV_HOST || !ENV_USER || !ENV_PASS) {
+      throw new Error("SMTP server credentials are not configured on the server environment");
     }
 
     // Import nodemailer dynamically (Deno npm specifier)
@@ -66,17 +86,11 @@ serve(async (req: Request) => {
 
     // Create transporter
     const transporter = nodemailer.createTransport({
-      host: body.config.host,
-      port: body.config.port,
-      secure: body.config.secure, // true for 465, false for other ports
-      auth: {
-        user: body.config.auth.user,
-        pass: body.config.auth.pass,
-      },
-      tls: {
-        // Don't fail on invalid certs (optional, for development)
-        rejectUnauthorized: false,
-      },
+      host: ENV_HOST,
+      port: ENV_PORT,
+      secure: ENV_SECURE, // true for 465, false for other ports
+      auth: { user: ENV_USER, pass: ENV_PASS },
+      tls: { rejectUnauthorized: false },
     });
 
     // Verify connection
@@ -85,7 +99,7 @@ serve(async (req: Request) => {
 
     // Prepare email options
     const mailOptions: any = {
-      from: body.config.from,
+      from: ENV_FROM,
       to: body.to.join(", "),
       subject: body.subject,
       text: body.text,

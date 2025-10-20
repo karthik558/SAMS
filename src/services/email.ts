@@ -22,13 +22,14 @@ import {
 
 export interface EmailConfig {
   enabled: boolean;
-  host: string;
-  port: number;
-  secure: boolean;
-  user: string;
-  password: string;
-  from: string;
-  fromName: string;
+  // Server will inject SMTP settings; client does not need secrets
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  password?: string;
+  from?: string;
+  fromName?: string;
 }
 
 export interface SendEmailParams {
@@ -43,36 +44,11 @@ export interface SendEmailParams {
 
 // Get email configuration from environment or settings
 export function getEmailConfig(): EmailConfig | null {
-  // Check if email is enabled via environment variable
-  const emailEnabled = import.meta.env.VITE_EMAIL_ENABLED === "true";
-  
-  if (!emailEnabled) {
-    return null;
-  }
-
-  const host = import.meta.env.VITE_SMTP_HOST;
-  const port = parseInt(import.meta.env.VITE_SMTP_PORT || "587", 10);
-  const secure = import.meta.env.VITE_SMTP_SECURE === "true";
-  const user = import.meta.env.VITE_SMTP_USER;
-  const password = import.meta.env.VITE_SMTP_PASSWORD;
-  const from = import.meta.env.VITE_SMTP_FROM || user;
-  const fromName = import.meta.env.VITE_SMTP_FROM_NAME || "SAMS Notifications";
-
-  if (!host || !user || !password) {
-    console.warn("Email configuration incomplete. Please check environment variables.");
-    return null;
-  }
-
-  return {
-    enabled: true,
-    host,
-    port,
-    secure,
-    user,
-    password,
-    from,
-    fromName,
-  };
+  // Primary flag from build-time env; server can override at runtime
+  const clientEnabled = import.meta.env.VITE_EMAIL_ENABLED !== "false";
+  if (!clientEnabled) return null;
+  // No need to expose SMTP secrets on client; Edge Function will read from server env
+  return { enabled: true, fromName: import.meta.env.VITE_SMTP_FROM_NAME || "SAMS Notifications" };
 }
 
 // Get dashboard URL for email links
@@ -108,21 +84,20 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
         html: params.html,
         text: params.text,
         replyTo: params.replyTo,
+        // Do not send SMTP secrets from client. Server will read from env.
         config: {
-          host: config.host,
-          port: config.port,
-          secure: config.secure,
-          auth: {
-            user: config.user,
-            pass: config.password,
-          },
-          from: `"${config.fromName}" <${config.from}>`,
+          from: config?.from && config?.fromName ? `"${config.fromName}" <${config.from}>` : undefined,
         },
       },
     });
 
     if (error) {
       console.error("Failed to send email:", error);
+      return false;
+    }
+
+    if ((data as any)?.skipped) {
+      console.log("Email delivery skipped by server:", (data as any)?.reason, params.subject);
       return false;
     }
 
