@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QrCode, Eye, EyeOff, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { loginWithPassword, updateLastLogin, type MinimalUser } from "@/services/auth";
+import { loginWithPassword, loginWithUsernameOrEmail, updateLastLogin, type MinimalUser } from "@/services/auth";
 import { getUserPreferences } from "@/services/userPreferences";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -124,7 +124,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      toast({ title: "Email is required", variant: "destructive" });
+      toast({ title: "Email or username is required", variant: "destructive" });
       return;
     }
     if (!password) {
@@ -136,10 +136,11 @@ export default function Login() {
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
     try {
-      const user = await loginWithPassword(email.trim(), password);
+      // Accept either username (local-part) or full email
+      const user = await loginWithUsernameOrEmail(email.trim(), password);
       if (!user) {
         setAttempts((a) => a + 1);
-        toast({ title: "Invalid credentials", description: "Email or password is incorrect.", variant: "destructive" });
+        toast({ title: "Invalid credentials", description: "Email/username or password is incorrect.", variant: "destructive" });
         return;
       }
       await finishLogin(user);
@@ -362,12 +363,12 @@ export default function Login() {
               <form onSubmit={handleLogin} className="space-y-5">
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium text-muted-foreground/90">
-                    Email
+                    Email or Username
                   </label>
                   <Input
                     id="email"
-                    type="email"
-                    placeholder="you@company.com"
+                    type="text"
+                    placeholder="you@company.com or your username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     autoFocus

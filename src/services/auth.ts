@@ -101,6 +101,48 @@ async function fetchRemoteUserByEmail(email: string): Promise<any | null> {
   return data ?? null;
 }
 
+/**
+ * Resolve a user-provided identifier (email or username/local-part) to a full email address.
+ * - If identifier already looks like an email, returns it normalized.
+ * - If it's a local-part (e.g., "dev"), finds the first matching user with email like "dev@%".
+ *   Prefers users with status === 'active'.
+ */
+export async function resolveIdentifierToEmail(identifier: string): Promise<string | null> {
+  const input = (identifier || "").trim().toLowerCase();
+  if (!input) return null;
+  if (input.includes("@")) return normalizeEmail(input);
+
+  // Treat as username/local-part
+  if (hasSupabaseEnv) {
+    try {
+      const { data, error } = await supabase
+        .from(USERS_TABLE)
+        .select("email, status")
+        .ilike("email", `${input}@%`)
+        .limit(25);
+      if (error) throw error;
+      const rows = Array.isArray(data) ? data : [];
+      if (rows.length === 0) return null;
+      const active = rows.find((r: any) => (r?.status || "").toLowerCase() === "active");
+      return normalizeEmail((active?.email || rows[0]?.email || "").trim());
+    } catch {
+      return null;
+    }
+  }
+
+  // Local fallback (demo/dev): search local users by local-part
+  const users = readLocalUsers();
+  const matches = users.filter((u) => {
+    const email = (u?.email || "").toLowerCase();
+    const local = email.split("@")[0] || "";
+    return local === input;
+  });
+  if (matches.length === 0) return null;
+  const active = matches.find((u) => (u?.status || "").toLowerCase() === "active");
+  const target = active || matches[0];
+  return normalizeEmail(target.email || "");
+}
+
 function readLocalUsers(): any[] {
   try {
     const raw = localStorage.getItem(LS_USERS_KEY);
@@ -243,6 +285,16 @@ export async function loginWithPassword(email: string, password: string): Promis
     await upgradeLocalHash(local.id, password);
   }
   return sanitizeUser(local);
+}
+
+/**
+ * Accepts either an email or a username/local-part and performs password login.
+ * Resolves to the user's email first, then delegates to loginWithPassword.
+ */
+export async function loginWithUsernameOrEmail(identifier: string, password: string): Promise<MinimalUser | null> {
+  const email = await resolveIdentifierToEmail(identifier);
+  if (!email) return null;
+  return loginWithPassword(email, password);
 }
 
 export async function verifyCurrentUserPassword(password: string): Promise<boolean> {
