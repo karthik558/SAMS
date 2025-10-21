@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import Index from "./pages/Index";
 import Assets from "./pages/Assets";
@@ -75,6 +75,16 @@ function LandingPage() {
   return <Website />;
 }
 
+function AppShell() {
+  return (
+    <RequireAuth>
+      <Layout>
+        <Outlet />
+      </Layout>
+    </RequireAuth>
+  );
+}
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -96,31 +106,21 @@ const App = () => (
           <Route path="/assets/:id" element={<AssetDetails />} />
           {/* Public in-app QR scanner */}
           <Route path="/scan" element={<Scan />} />
-          <Route
-            path="*"
-            element={
-              <RequireAuth>
-                <Layout>
-                  <Routes>
-                    <Route path="/" element={<Index />} />
-                    <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
-                    <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
-                    <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />
-                    <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
-                    <Route path="/tickets" element={<Tickets />} />
-                    <Route path="/newsletter" element={<Newsletter />} />
-                    <Route path="/help" element={<Help />} />
-                    <Route path="/reports" element={<RequireView page="reports"><Reports /></RequireView>} />
-                    <Route path="/audit" element={<RoleGate roles={["manager","admin"]}><Audit /></RoleGate>} />
-                    <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
-                    <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
-                    <Route path="/license" element={<RoleGate roles={['admin']}><LicensePage /></RoleGate>} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Layout>
-              </RequireAuth>
-            }
-          />
+          <Route element={<AppShell />}>
+            <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
+            <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
+            <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />
+            <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
+            <Route path="/tickets" element={<Tickets />} />
+            <Route path="/newsletter" element={<Newsletter />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/reports" element={<RequireView page="reports"><Reports /></RequireView>} />
+            <Route path="/audit" element={<RoleGate roles={["manager","admin"]}><Audit /></RoleGate>} />
+            <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
+            <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
+            <Route path="/license" element={<RoleGate roles={['admin']}><LicensePage /></RoleGate>} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
