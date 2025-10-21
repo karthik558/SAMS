@@ -181,7 +181,7 @@ export async function createNewsletterPost(input: { title: string; body: string;
         .from(TABLE)
         .insert({ id: payload.id, title: payload.title, body: payload.body, published: payload.published, author: payload.author, category: payload.category })
         .select("id, title, body, created_at, updated_at, author, published, category")
-        .single();
+        .maybeSingle();
       if (error) throw error;
       try { localStorage.removeItem(FB_KEY); } catch {}
       
@@ -223,7 +223,7 @@ export async function updateNewsletterPost(id: string, patch: Partial<Pick<Newsl
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq('id', id)
         .select("id, title, body, created_at, updated_at, author, published, category")
-        .single();
+        .maybeSingle();
       if (error) throw error;
       try { localStorage.removeItem(FB_KEY); } catch {}
       

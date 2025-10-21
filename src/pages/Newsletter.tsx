@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
@@ -327,9 +327,9 @@ export default function Newsletter() {
           <DialogHeader className="flex flex-row items-center justify-between gap-4">
             <div className="space-y-1">
               <DialogTitle>{editing ? "Edit Post" : "New Post"}</DialogTitle>
-              <p className="text-sm text-muted-foreground">
+              <DialogDescription className="text-sm">
                 Craft a concise update, add the highlights, and choose the destination feed.
-              </p>
+              </DialogDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" onClick={() => setComposeExpanded((prev) => !prev)}>
