@@ -735,7 +735,7 @@ export default function QRCodes() {
             {role === 'admin' && (
               <Button
                 onClick={handleClearAll}
-                variant="destructive"
+                variant="outline"
                 className="gap-2 w-full sm:w-auto"
                 disabled={purging || (!isDemoMode() && !hasSupabaseEnv)}
               >
