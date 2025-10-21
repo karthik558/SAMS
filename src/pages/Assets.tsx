@@ -1377,29 +1377,7 @@ export default function Assets() {
               >
     Generate & Download QR Sheet
               </Button>
-              {role !== 'admin' && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (selectedIds.size !== 1) { toast.info('Select exactly one asset'); return; }
-                    const id = Array.from(selectedIds)[0];
-                    const target = assets.find(a => a.id === id);
-                    if (!target) { toast.error('Asset not found'); return; }
-                    const pid = getAssetPropertyId(target);
-                    if (approverPropIds.has(pid)) {
-                      setSelectedAsset(target);
-                      setShowAddForm(true);
-                    } else {
-                      setRequestEditAsset(target);
-                      setRequestEditOpen(true);
-                    }
-                  }}
-                  disabled={selectedIds.size !== 1}
-                >
-                  Request Edit (with Approval)
-                </Button>
-              )}
+              {/* Removed top-level Request Edit button; action moved inline per item */}
               <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
             </div>
           </div>
@@ -1622,6 +1600,22 @@ export default function Assets() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                             )}
+                            {(members.length === 1 || isExpanded) && role !== 'admin' && !approverPropIds.has(String(rep.property_id || rep.property || '')) && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  const target = members.length === 1 ? members[0] : rep;
+                                  setRequestEditAsset(target as any);
+                                  setRequestEditOpen(true);
+                                }}
+                                className="h-8 w-8 p-0"
+                                aria-label="Request edit with approval"
+                                title="Request edit with approval"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
                             {/* Keep quick QR on the representative item; for bulk/grouped use the Export QR Sheet */}
                             <Button
                               size="sm"
@@ -1761,6 +1755,18 @@ export default function Assets() {
                                         variant="outline"
                                         onClick={() => handleEditAsset(asset)}
                                         className="h-8 w-8 p-0"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    {role !== 'admin' && !approverPropIds.has(String(asset.property_id || asset.property || '')) && (
+                                      <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        onClick={() => { setRequestEditAsset(asset as any); setRequestEditOpen(true); }}
+                                        className="h-8 w-8 p-0"
+                                        aria-label="Request edit with approval"
+                                        title="Request edit with approval"
                                       >
                                         <Edit className="h-4 w-4" />
                                       </Button>
