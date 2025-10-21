@@ -850,10 +850,8 @@ export default function Users() {
   return (
     <div className="space-y-6 sm:space-y-8">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
-      <section className="relative overflow-hidden rounded-3xl border border-border/60 bg-card shadow-xl">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-primary/10 to-background/90" />
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/85 via-background/40 to-transparent" />
-        <div className="relative z-10 space-y-6 p-6 sm:p-8 lg:p-10">
+      <section className="rounded-2xl border border-border/60 bg-card shadow-sm">
+        <div className="space-y-6 p-6 sm:p-8 lg:p-10">
           <PageHeader
             icon={User}
             title="People & Access"
@@ -870,14 +868,14 @@ export default function Users() {
               }}
             >
               <DialogTrigger asChild>
-                <Button className="w-full rounded-full px-5 py-2 shadow-sm sm:w-auto">
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button className="w-full gap-2 sm:w-auto">
+                  <Plus className="h-4 w-4" />
                   Add User
                 </Button>
               </DialogTrigger>
               <DialogContent
                 className={cn(
-                  "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+                  "mx-auto flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/95 shadow-xl",
                   isAddDialogMaximized
                     ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
                     : "h-[min(92vh,760px)] w-[calc(100vw-1.5rem)] max-w-4xl sm:w-full"
@@ -896,7 +894,7 @@ export default function Users() {
                       size="icon"
                       onClick={() => setIsAddDialogMaximized((prev) => !prev)}
                       aria-label={isAddDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
-                      className="rounded-full border border-border/60 bg-background/80 shadow-sm hover:bg-background"
+                      className="rounded-lg border border-border/60 bg-background/80 shadow-sm hover:bg-background"
                     >
                       {isAddDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                     </Button>
@@ -909,13 +907,13 @@ export default function Users() {
                 )}
                 {/* Summary chips */}
                 <div className="flex flex-wrap items-center gap-2 px-6 pb-3 pt-4 sm:px-8">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Role: <Badge variant={getRoleBadgeVariant(mapRole(role))}>{mapRole(role) || '—'}</Badge>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Properties: <span className="font-medium text-foreground">{selectedPropertyIds.length}</span>
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
                     Departments: <span className="font-medium text-foreground">{selectedDepartments.length}</span>
                   </span>
                 </div>
@@ -1349,7 +1347,7 @@ export default function Users() {
         </div>
       </section>
 
-      <Card className="rounded-3xl border border-border/60 bg-card/95 shadow-sm">
+      <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
         <CardHeader className="space-y-4 border-b border-border/60 pb-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1590,7 +1588,7 @@ export default function Users() {
 
       {/* Departments management (moved from Settings) - Admin only and hidden in Demo */}
       {authRole === 'admin' && !isDemoMode() && (
-        <Card className="rounded-3xl border border-border/60 bg-card/95 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
           <CardHeader className="space-y-4 border-b border-border/60 pb-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -1599,7 +1597,7 @@ export default function Users() {
               </div>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="gap-2 rounded-full px-4 py-2">
+                  <Button className="gap-2 px-4 py-2">
                     <Plus className="h-4 w-4" />
                     Add Department
                   </Button>
@@ -1781,7 +1779,7 @@ export default function Users() {
       >
         <DialogContent
           className={cn(
-            "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+            "mx-auto flex flex-col overflow-hidden rounded-2xl border border-border/60 bg-background/95 shadow-xl",
             isEditDialogMaximized
               ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
               : "h-[min(92vh,780px)] w-[calc(100vw-1.5rem)] max-w-5xl sm:w-full"
@@ -1798,7 +1796,7 @@ export default function Users() {
                 size="icon"
                 onClick={() => setIsEditDialogMaximized((prev) => !prev)}
                 aria-label={isEditDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
-                className="rounded-full border border-border/60 bg-background/80 shadow-sm hover:bg-background"
+                className="rounded-lg border border-border/60 bg-background/80 shadow-sm hover:bg-background"
               >
                 {isEditDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
@@ -1806,16 +1804,16 @@ export default function Users() {
           </DialogHeader>
           {/* Summary chips */}
           <div className="flex flex-wrap items-center gap-2 px-6 pb-3 pt-4 sm:px-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Role: <Badge variant={getRoleBadgeVariant(mapRole(eRole))}>{mapRole(eRole) || '—'}</Badge>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Properties: <span className="font-medium text-foreground">{editSelectedPropertyIds.length}</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Departments: <span className="font-medium text-foreground">{editSelectedDepartments.length}</span>
             </span>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground">
               Status: <Badge variant={getStatusBadgeVariant(eStatus)}>{toTitle(eStatus)}</Badge>
             </span>
           </div>

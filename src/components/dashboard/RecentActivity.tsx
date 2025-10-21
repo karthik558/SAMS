@@ -61,7 +61,7 @@ export function RecentActivity() {
   }, [sorted]);
   const rows = useMemo(() => {
     if (showAll) return todays;
-    return todays.slice(0, 8);
+    return todays.slice(0, 7);
   }, [todays, showAll]);
 
   return (
@@ -78,7 +78,7 @@ export function RecentActivity() {
             </CardDescription>
           </div>
         </div>
-        {todays.length > 8 && (
+        {todays.length > 7 && (
           <Button
             variant="ghost"
             size="sm"

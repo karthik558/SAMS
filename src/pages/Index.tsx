@@ -899,14 +899,6 @@ const Index = () => {
                 <Plus className="h-4 w-4" />
                 Add Asset
               </Button>
-              <Button variant="outline" onClick={() => handleQuickAction("Generate Report")} className="gap-2">
-                <FileText className="h-4 w-4" />
-                Generate Report
-              </Button>
-              <Button variant="outline" onClick={() => handleQuickAction("Bulk Import")} className="gap-2 px-3">
-                <Download className="h-4 w-4" />
-                Bulk Import
-              </Button>
             </div>
           </div>
         </div>
