@@ -894,18 +894,20 @@ const Index = () => {
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Asset
-            </Button>
-            <Button variant="outline" onClick={() => handleQuickAction("Generate Report")} className="gap-2">
-              <FileText className="h-4 w-4" />
-              Generate Report
-            </Button>
-            <Button variant="outline" onClick={() => handleQuickAction("Bulk Import")} className="gap-2 px-3">
-              <Download className="h-4 w-4" />
-              Bulk Import
-            </Button>
+            <div className="hidden flex-wrap gap-2 sm:flex">
+              <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add Asset
+              </Button>
+              <Button variant="outline" onClick={() => handleQuickAction("Generate Report")} className="gap-2">
+                <FileText className="h-4 w-4" />
+                Generate Report
+              </Button>
+              <Button variant="outline" onClick={() => handleQuickAction("Bulk Import")} className="gap-2 px-3">
+                <Download className="h-4 w-4" />
+                Bulk Import
+              </Button>
+            </div>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
