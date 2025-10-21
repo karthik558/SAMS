@@ -22,14 +22,6 @@ import {
 
 export interface EmailConfig {
   enabled: boolean;
-  // Server will inject SMTP settings; client does not need secrets
-  host?: string;
-  port?: number;
-  secure?: boolean;
-  user?: string;
-  password?: string;
-  from?: string;
-  fromName?: string;
 }
 
 export interface SendEmailParams {
@@ -47,8 +39,8 @@ export function getEmailConfig(): EmailConfig | null {
   // Primary flag from build-time env; server can override at runtime
   const clientEnabled = import.meta.env.VITE_EMAIL_ENABLED !== "false";
   if (!clientEnabled) return null;
-  // No need to expose SMTP secrets on client; Edge Function will read from server env
-  return { enabled: true, fromName: import.meta.env.VITE_SMTP_FROM_NAME || "SAMS Notifications" };
+  // Edge Function handles all delivery via Resend; no client config needed
+  return { enabled: true };
 }
 
 // Get dashboard URL for email links
@@ -68,15 +60,13 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
     return false;
   }
 
-  if (!hasSupabaseEnv) {
-    console.warn("Supabase not configured, cannot send email");
-    return false;
-  }
-
   try {
-    // Call Supabase Edge Function to send email
-    const { data, error } = await supabase.functions.invoke("send-email", {
-      body: {
+    // Resolve API endpoint (supports local dev without vercel dev via fallback)
+    const primaryUrl = (import.meta.env as any).VITE_EMAIL_API_URL || "/api/send-email";
+    const doPost = async (url: string) => fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         to: Array.isArray(params.to) ? params.to : [params.to],
         cc: params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : undefined,
         bcc: params.bcc ? (Array.isArray(params.bcc) ? params.bcc : [params.bcc]) : undefined,
@@ -84,23 +74,28 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
         html: params.html,
         text: params.text,
         replyTo: params.replyTo,
-        // Do not send SMTP secrets from client. Server will read from env.
-        config: {
-          from: config?.from && config?.fromName ? `"${config.fromName}" <${config.from}>` : undefined,
-        },
-      },
+      }),
     });
 
-    if (error) {
-      console.error("Failed to send email:", error);
-      return false;
+    let resp = await doPost(primaryUrl);
+    // Fallback: if local vite dev (no /api), try deployed domain if available
+    if (resp.status === 404 || resp.status === 405) {
+      const dash = (import.meta.env as any).VITE_DASHBOARD_URL as string | undefined;
+      if (dash && primaryUrl.startsWith("/")) {
+        try { resp = await doPost(dash.replace(/\/$/, "") + "/api/send-email"); } catch {}
+      }
     }
 
-    if ((data as any)?.skipped) {
-      console.log("Email delivery skipped by server:", (data as any)?.reason, params.subject);
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("Failed to send email:", resp.status, text);
       return false;
     }
-
+    const data = await resp.json();
+    if (data?.skipped) {
+      console.log("Email delivery skipped by server:", data?.reason, params.subject);
+      return false;
+    }
     console.log("Email sent successfully:", data);
     return true;
   } catch (error) {

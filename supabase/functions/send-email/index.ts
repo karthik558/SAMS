@@ -1,4 +1,4 @@
-// Supabase Edge Function for sending emails via SMTP
+// Supabase Edge Function for sending emails via Resend
 // Deploy: supabase functions deploy send-email
 //
 // NOTE: TypeScript errors shown in VS Code are FALSE POSITIVES!
@@ -21,17 +21,6 @@ interface EmailRequest {
   html: string;
   text: string;
   replyTo?: string;
-  // Optional client-provided config (ignored for secrets). Retained for backward compatibility.
-  config?: {
-    host?: string;
-    port?: number;
-    secure?: boolean;
-    auth?: {
-      user?: string;
-      pass?: string;
-    };
-    from?: string;
-  };
 }
 
 serve(async (req: Request) => {
@@ -68,72 +57,41 @@ serve(async (req: Request) => {
       );
     }
 
-    // Resolve SMTP configuration from server environment first; never trust client secrets
-    const ENV_HOST = Deno.env.get("SMTP_HOST") ?? Deno.env.get("VITE_SMTP_HOST") ?? body.config?.host ?? "";
-    const ENV_PORT = parseInt(Deno.env.get("SMTP_PORT") ?? "" + (body.config?.port ?? "587"));
-    const ENV_SECURE = (Deno.env.get("SMTP_SECURE") ?? (body.config?.secure ? "true" : "false")) === "true";
-    const ENV_USER = Deno.env.get("SMTP_USER") ?? body.config?.auth?.user ?? "";
-    const ENV_PASS = Deno.env.get("SMTP_PASSWORD") ?? body.config?.auth?.pass ?? "";
-    const ENV_FROM = Deno.env.get("SMTP_FROM") ?? body.config?.from ?? (ENV_USER ? `"SAMS" <${ENV_USER}>` : "SAMS <noreply@example.com>");
-
-    if (!ENV_HOST || !ENV_USER || !ENV_PASS) {
-      throw new Error("SMTP server credentials are not configured on the server environment");
+    // Resend-only implementation
+  const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+  const FROM = Deno.env.get("RESEND_FROM") || "SAMS <noreply@example.com>";
+    if (!RESEND_API_KEY) {
+      throw new Error("RESEND_API_KEY is not configured in server environment");
     }
-
-    // Import nodemailer dynamically (Deno npm specifier)
-    // @ts-ignore - Deno npm imports are not recognized by TypeScript
-    const nodemailer = await import("npm:nodemailer@6.9.7");
 
     // Create transporter
-    const transporter = nodemailer.createTransport({
-      host: ENV_HOST,
-      port: ENV_PORT,
-      secure: ENV_SECURE, // true for 465, false for other ports
-      auth: { user: ENV_USER, pass: ENV_PASS },
-      tls: { rejectUnauthorized: false },
-    });
-
-    // Verify connection
-    await transporter.verify();
-    console.log("SMTP connection verified");
-
-    // Prepare email options
-    const mailOptions: any = {
-      from: ENV_FROM,
-      to: body.to.join(", "),
-      subject: body.subject,
-      text: body.text,
-      html: body.html,
-    };
-
-    if (body.cc && body.cc.length > 0) {
-      mailOptions.cc = body.cc.join(", ");
-    }
-
-    if (body.bcc && body.bcc.length > 0) {
-      mailOptions.bcc = body.bcc.join(", ");
-    }
-
-    if (body.replyTo) {
-      mailOptions.replyTo = body.replyTo;
-    }
-
-    // Send email
-    const info = await transporter.sendMail(mailOptions);
-
-    console.log("Email sent:", info.messageId);
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        messageId: info.messageId,
-        accepted: info.accepted,
-        rejected: info.rejected,
+    // Send with Resend REST API
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: FROM,
+        to: body.to,
+        cc: body.cc,
+        bcc: body.bcc,
+        subject: body.subject,
+        html: body.html,
+        text: body.text,
+        reply_to: body.replyTo,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 200,
-      }
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Resend API error ${resp.status}: ${errText}`);
+    }
+    const json = await resp.json();
+    console.log("Email sent via Resend:", json?.id || "ok");
+    return new Response(
+      JSON.stringify({ success: true, provider: "resend", messageId: json?.id }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : "Failed to send email";
