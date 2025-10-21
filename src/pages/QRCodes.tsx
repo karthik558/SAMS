@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import StatusChip from "@/components/ui/status-chip";
 import MetricCard from "@/components/ui/metric-card";
-import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon } from "lucide-react";
+import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -268,21 +268,22 @@ export default function QRCodes() {
   };
 
   const handleClearAll = async () => {
-    if (!(role==='admin')) return;
-    const ok = window.confirm("This will delete all stored QR history. Continue?");
+    if (role !== 'admin') return;
+    const supabaseReady = isDemoMode() || hasSupabaseEnv;
+    if (!supabaseReady) {
+      toast.warning('Supabase connection is not configured, nothing to clear.');
+      return;
+    }
+    const ok = window.confirm("This will permanently delete every stored QR code. Continue?");
     if (!ok) return;
     try {
       setPurging(true);
-      if (isDemoMode()) {
-        await deleteAllQRCodes();
-      } else if (hasSupabaseEnv) {
-        await deleteAllQRCodes();
-      }
+      await deleteAllQRCodes();
       setCodes([]);
       setComputedImages({});
-      toast.success("All QR codes cleared. You can generate fresh codes now.");
-      await logActivity("qr_cleared_all", "All QR history cleared");
-  await logActivity("qr_cleared_all", "All QR history cleared", actor);
+      setHighlightId(null);
+      toast.success("All QR codes have been cleared.");
+      await logActivity("qr_cleared_all", "All QR history cleared", actor);
     } catch (e) {
       console.error(e);
       toast.error("Failed to clear QR codes");
@@ -731,9 +732,21 @@ export default function QRCodes() {
               <Printer className="h-4 w-4" />
               Bulk Print
             </Button>
-            {role==='admin' && (
-              <Button onClick={handleClearAll} variant="outline" className="gap-2 w-full sm:w-auto" disabled={purging}>
-                {purging ? 'Clearing…' : 'Clear All'}
+            {role === 'admin' && (
+              <Button
+                onClick={handleClearAll}
+                variant="destructive"
+                className="gap-2 w-full sm:w-auto"
+                disabled={purging || (!isDemoMode() && !hasSupabaseEnv)}
+              >
+                {purging ? (
+                  'Clearing…'
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4" />
+                    Clear All Codes
+                  </>
+                )}
               </Button>
             )}
           </div>
