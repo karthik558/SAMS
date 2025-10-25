@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
 import { getAssetById, listAssets, type Asset } from "@/services/assets";
@@ -82,7 +81,7 @@ export default function Approvals() {
   const [initializedDefault, setInitializedDefault] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideNotes, setOverrideNotes] = useState("");
-  const [confirmDialog, setConfirmDialog] = useState<null | 'approve' | 'reject'>(null);
+  const [confirmDialog, setConfirmDialog] = useState<null | { stage: 'manager' | 'final'; action: 'approve' | 'reject' }>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
   // Inline diff comment state (field -> pending text)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
@@ -204,14 +203,10 @@ export default function Approvals() {
     if (res) setItems((s) => s.map(i => i.id === id ? res : i));
   };
 
-  const handleBulkDecision = async (decision: "approved" | "rejected") => {
-    if (role !== 'admin') {
-      setConfirmDialog(null);
-      return;
-    }
-    const targets = pendingAdminItems.map((item) => item.id);
+  const runBulkAction = async (stage: 'manager' | 'final', action: 'approve' | 'reject') => {
+    const targets = (stage === 'manager' ? pendingManagerItems : pendingAdminItems).map((item) => item.id);
     if (!targets.length) {
-      toast('No pending admin approvals to update');
+      toast('No pending approvals to update');
       setConfirmDialog(null);
       return;
     }
@@ -220,8 +215,55 @@ export default function Approvals() {
     let successCount = 0;
     let failureCount = 0;
     try {
-      const actor = (auth?.email || auth?.id || 'admin');
-      const note = decision === 'approved' ? 'Bulk approval applied by admin' : 'Bulk rejection applied by admin';
+      const actor = (auth?.email || auth?.id || role || 'user');
+      if (stage === 'manager') {
+        const note =
+          action === 'approve'
+            ? 'Bulk forwarded by manager'
+            : 'Bulk rejection applied by manager';
+        for (const id of targets) {
+          try {
+            if (action === 'approve') {
+              const res = await forwardApprovalToAdmin(id, actor, note);
+              if (res) {
+                successCount += 1;
+                updated.set(res.id, res);
+              } else {
+                failureCount += 1;
+              }
+            } else {
+              const res = await decideApprovalFinal(id, 'rejected', actor, note);
+              if (res) {
+                successCount += 1;
+                updated.set(res.id, res);
+              } else {
+                failureCount += 1;
+              }
+            }
+          } catch (error) {
+            console.error('Bulk manager action failed for approval', id, error);
+            failureCount += 1;
+          }
+        }
+        if (successCount) {
+          setItems((prev) => prev.map((item) => updated.get(item.id) ?? item));
+          setSelectedId((prev) => (prev && updated.has(prev) ? null : prev));
+          toast.success(
+            action === 'approve'
+              ? `Forwarded ${successCount} request${successCount === 1 ? '' : 's'}`
+              : `Rejected ${successCount} request${successCount === 1 ? '' : 's'}`
+          );
+        }
+        if (failureCount) {
+          toast.error(`${failureCount} request${failureCount === 1 ? '' : 's'} failed to update`);
+        }
+        return;
+      }
+      const decision = action === 'approve' ? 'approved' : 'rejected';
+      const note =
+        decision === 'approved'
+          ? 'Bulk approval applied by final approver'
+          : 'Bulk rejection applied by final approver';
       for (const id of targets) {
         try {
           const res = await decideApprovalFinal(id, decision, actor, note);
@@ -232,14 +274,16 @@ export default function Approvals() {
             failureCount += 1;
           }
         } catch (error) {
-          console.error('Bulk decision failed for approval', id, error);
+          console.error('Bulk final decision failed for approval', id, error);
           failureCount += 1;
         }
       }
       if (successCount) {
         setItems((prev) => prev.map((item) => updated.get(item.id) ?? item));
         setSelectedId((prev) => (prev && updated.has(prev) ? null : prev));
-        toast.success(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${successCount} request${successCount === 1 ? '' : 's'}`);
+        toast.success(
+          `${decision === 'approved' ? 'Approved' : 'Rejected'} ${successCount} request${successCount === 1 ? '' : 's'}`
+        );
       }
       if (failureCount) {
         toast.error(`${failureCount} request${failureCount === 1 ? '' : 's'} failed to update`);
@@ -275,6 +319,13 @@ export default function Approvals() {
   }, [items, dateFrom, dateTo, role, statusFilter]);
 
   const pendingAdminItems = useMemo(() => visibleItems.filter(item => item.status === 'pending_admin'), [visibleItems]);
+  const pendingManagerItems = useMemo(() => visibleItems.filter(item => item.status === 'pending_manager'), [visibleItems]);
+  const bulkStage: 'manager' | 'final' | null = role === 'manager' ? 'manager' : (role === 'admin' ? 'final' : null);
+  const bulkPendingCount = bulkStage === 'manager'
+    ? pendingManagerItems.length
+    : bulkStage === 'final'
+      ? pendingAdminItems.length
+      : 0;
 
   // Always default to pending; if switching away from pending, default date range to today when not set.
   useEffect(() => {
@@ -501,20 +552,20 @@ export default function Approvals() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <CardTitle>Requests</CardTitle>
-              {role === 'admin' && (
+              {bulkStage && (
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
-                    disabled={!pendingAdminItems.length || bulkLoading}
-                    onClick={() => setConfirmDialog('approve')}
+                    disabled={!bulkPendingCount || bulkLoading}
+                    onClick={() => setConfirmDialog({ stage: bulkStage, action: 'approve' })}
                   >
                     Approve All
                   </Button>
                   <Button
                     size="sm"
                     variant="destructive"
-                    disabled={!pendingAdminItems.length || bulkLoading}
-                    onClick={() => setConfirmDialog('reject')}
+                    disabled={!bulkPendingCount || bulkLoading}
+                    onClick={() => setConfirmDialog({ stage: bulkStage, action: 'reject' })}
                   >
                     Reject All
                   </Button>
@@ -719,22 +770,38 @@ export default function Approvals() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmDialog === 'reject' ? 'Reject all pending requests?' : 'Approve all pending requests?'}
+              {confirmDialog?.action === 'reject' ? 'Reject all pending requests?' : 'Approve all pending requests?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDialog === 'reject'
-                ? `This will reject ${pendingAdminItems.length} pending admin request${pendingAdminItems.length === 1 ? '' : 's'}.`
-                : `This will approve ${pendingAdminItems.length} pending admin request${pendingAdminItems.length === 1 ? '' : 's'} and apply any associated changes.`}
+              {(() => {
+                if (!confirmDialog) return '';
+                const count = confirmDialog.stage === 'manager' ? pendingManagerItems.length : pendingAdminItems.length;
+                if (confirmDialog.stage === 'manager') {
+                  return confirmDialog.action === 'approve'
+                    ? `This will forward ${count} pending manager request${count === 1 ? '' : 's'} to the final approver.`
+                    : `This will reject ${count} pending manager request${count === 1 ? '' : 's'} at the manager stage.`;
+                }
+                return confirmDialog.action === 'approve'
+                  ? `This will approve ${count} pending admin request${count === 1 ? '' : 's'} and apply any associated changes.`
+                  : `This will reject ${count} pending admin request${count === 1 ? '' : 's'}.`;
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={bulkLoading}>Cancel</AlertDialogCancel>
             <Button
-              variant={confirmDialog === 'reject' ? 'destructive' : 'default'}
+              variant={confirmDialog?.action === 'reject' ? 'destructive' : 'default'}
               disabled={bulkLoading}
-              onClick={() => handleBulkDecision(confirmDialog === 'reject' ? 'rejected' : 'approved')}
+              onClick={() => {
+                if (!confirmDialog) return;
+                void runBulkAction(confirmDialog.stage, confirmDialog.action);
+              }}
             >
-              {bulkLoading ? 'Processing...' : confirmDialog === 'reject' ? 'Confirm Reject All' : 'Confirm Approve All'}
+              {bulkLoading
+                ? 'Processing...'
+                : confirmDialog?.action === 'reject'
+                  ? 'Confirm Reject All'
+                  : 'Confirm Approve All'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
