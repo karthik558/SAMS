@@ -16,6 +16,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import StatusChip from "@/components/ui/status-chip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import MetricCard from "@/components/ui/metric-card";
@@ -81,6 +82,8 @@ export default function Approvals() {
   const [initializedDefault, setInitializedDefault] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideNotes, setOverrideNotes] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState<null | 'approve' | 'reject'>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
   // Inline diff comment state (field -> pending text)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
 
@@ -201,6 +204,52 @@ export default function Approvals() {
     if (res) setItems((s) => s.map(i => i.id === id ? res : i));
   };
 
+  const handleBulkDecision = async (decision: "approved" | "rejected") => {
+    if (role !== 'admin') {
+      setConfirmDialog(null);
+      return;
+    }
+    const targets = pendingAdminItems.map((item) => item.id);
+    if (!targets.length) {
+      toast('No pending admin approvals to update');
+      setConfirmDialog(null);
+      return;
+    }
+    setBulkLoading(true);
+    const updated = new Map<string, ApprovalRequest>();
+    let successCount = 0;
+    let failureCount = 0;
+    try {
+      const actor = (auth?.email || auth?.id || 'admin');
+      const note = decision === 'approved' ? 'Bulk approval applied by admin' : 'Bulk rejection applied by admin';
+      for (const id of targets) {
+        try {
+          const res = await decideApprovalFinal(id, decision, actor, note);
+          if (res) {
+            successCount += 1;
+            updated.set(res.id, res);
+          } else {
+            failureCount += 1;
+          }
+        } catch (error) {
+          console.error('Bulk decision failed for approval', id, error);
+          failureCount += 1;
+        }
+      }
+      if (successCount) {
+        setItems((prev) => prev.map((item) => updated.get(item.id) ?? item));
+        setSelectedId((prev) => (prev && updated.has(prev) ? null : prev));
+        toast.success(`${decision === 'approved' ? 'Approved' : 'Rejected'} ${successCount} request${successCount === 1 ? '' : 's'}`);
+      }
+      if (failureCount) {
+        toast.error(`${failureCount} request${failureCount === 1 ? '' : 's'} failed to update`);
+      }
+    } finally {
+      setBulkLoading(false);
+      setConfirmDialog(null);
+    }
+  };
+
   // Derived filtered list (date range + client-side status where necessary)
   const visibleItems = useMemo(() => {
     // For pending, ignore date filters entirely and show all relevant items
@@ -224,6 +273,8 @@ export default function Approvals() {
     });
     return norm(items);
   }, [items, dateFrom, dateTo, role, statusFilter]);
+
+  const pendingAdminItems = useMemo(() => visibleItems.filter(item => item.status === 'pending_admin'), [visibleItems]);
 
   // Always default to pending; if switching away from pending, default date range to today when not set.
   useEffect(() => {
@@ -445,14 +496,37 @@ export default function Approvals() {
         </div>
       </section>
 
-  <Card>
+      <Card>
         <CardHeader>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <CardTitle>Requests</CardTitle>
-        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <CardTitle>Requests</CardTitle>
+              {role === 'admin' && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={!pendingAdminItems.length || bulkLoading}
+                    onClick={() => setConfirmDialog('approve')}
+                  >
+                    Approve All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={!pendingAdminItems.length || bulkLoading}
+                    onClick={() => setConfirmDialog('reject')}
+                  >
+                    Reject All
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 md:gap-3">
               <div className="w-40">
                 <Select value={statusFilter} onValueChange={(v: any) => onChangeStatus(v)}>
-          <SelectTrigger className="h-8"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectTrigger className="h-8">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pending</SelectItem>
                     <SelectItem value="approved">Approved</SelectItem>
@@ -464,7 +538,9 @@ export default function Approvals() {
               {role === 'admin' && (
                 <div className="w-48">
                   <Select value={adminDeptFilter} onValueChange={setAdminDeptFilter}>
-          <SelectTrigger className="h-8"><SelectValue placeholder="All departments" /></SelectTrigger>
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="All departments" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">All departments</SelectItem>
                       {departments.map(d => (
@@ -474,11 +550,11 @@ export default function Approvals() {
                   </Select>
                 </div>
               )}
-        <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2 md:gap-3">
                 <DateRangePicker
                   value={{ from: dateFrom, to: dateTo }}
                   onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
-          className="min-w-[16rem] h-8"
+                  className="min-w-[16rem] h-8"
                 />
               </div>
             </div>
@@ -631,6 +707,38 @@ export default function Approvals() {
           )}
         </CardContent>
       </Card>
+      <AlertDialog
+        open={Boolean(confirmDialog)}
+        onOpenChange={(open) => {
+          if (!open) {
+            if (bulkLoading) return;
+            setConfirmDialog(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmDialog === 'reject' ? 'Reject all pending requests?' : 'Approve all pending requests?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDialog === 'reject'
+                ? `This will reject ${pendingAdminItems.length} pending admin request${pendingAdminItems.length === 1 ? '' : 's'}.`
+                : `This will approve ${pendingAdminItems.length} pending admin request${pendingAdminItems.length === 1 ? '' : 's'} and apply any associated changes.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkLoading}>Cancel</AlertDialogCancel>
+            <Button
+              variant={confirmDialog === 'reject' ? 'destructive' : 'default'}
+              disabled={bulkLoading}
+              onClick={() => handleBulkDecision(confirmDialog === 'reject' ? 'rejected' : 'approved')}
+            >
+              {bulkLoading ? 'Processing...' : confirmDialog === 'reject' ? 'Confirm Reject All' : 'Confirm Approve All'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* Admin Override Dialog */}
       <Dialog open={overrideOpen} onOpenChange={setOverrideOpen}>
         <DialogContent className="sm:max-w-md">
