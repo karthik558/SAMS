@@ -1,6 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+// Prefer a same-origin rewrite base in the browser to bypass CORS/firewall blocks
+const BROWSER_ORIGIN = typeof window !== 'undefined' ? window.location.origin : undefined;
+const REWRITE_BASE = BROWSER_ORIGIN ? `${BROWSER_ORIGIN}/supabase` : undefined;
+// Enable rewrite automatically on production deployments of sams.karthiklal.in unless explicitly disabled
+const AUTO_REWRITE = typeof window !== 'undefined' && typeof location !== 'undefined'
+  ? (/sams\.[^/]*karthiklal\.in$/i.test(location.host) && import.meta.env.PROD)
+  : false;
+const USE_SUPABASE_REWRITE = ((): boolean => {
+  const v = (import.meta.env.VITE_USE_SUPABASE_REWRITE as any);
+  if (typeof v === 'string') return v === 'true';
+  return AUTO_REWRITE; // default
+})();
+
+const SUPABASE_URL_DIRECT = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_URL = (USE_SUPABASE_REWRITE && REWRITE_BASE) ? REWRITE_BASE : SUPABASE_URL_DIRECT;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 const SUPABASE_PROXY_URL = (import.meta.env.VITE_SUPABASE_PROXY_URL as string | undefined) || 
   (typeof window !== 'undefined' ? `${window.location.origin}/api/proxy-supabase` : "/api/proxy-supabase");
