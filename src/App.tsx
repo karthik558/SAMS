@@ -27,6 +27,7 @@ import Help from "./pages/Help";
 // SingleDeviceGuard removed per user request
 import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
+import { ConnectionStatus } from "@/components/common/ConnectionStatus";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
@@ -92,6 +93,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <ConnectionStatus />
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
