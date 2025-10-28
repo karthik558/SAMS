@@ -225,6 +225,8 @@ export default function Assets() {
     { key: "purchaseDate", label: "Purchase Date" },
     { key: "status", label: "Status" },
     { key: "approval", label: "Approval" },
+    // Admin-only column for creator
+    ...(role === 'admin' ? ([{ key: 'createdBy', label: 'Created By' }] as ColumnDef[]) : []),
     { key: "description", label: "Description" },
     { key: "actions", label: "Actions", always: true },
   ];
@@ -236,7 +238,7 @@ export default function Assets() {
     // Only set defaults if nothing was loaded from storage
     if (!prefs.visibleCols.length) {
       const defaults = columnDefs
-        .filter(c => c.always || ["type","property","department","qty","status","approval","description","actions"].includes(c.key))
+        .filter(c => c.always || ["type","property","department","qty","status","approval","createdBy","description","actions"].includes(c.key))
         .map(c => c.key);
       // Merge with ALWAYS_COLS to be safe
       const merged = Array.from(new Set([...
@@ -1339,21 +1341,27 @@ export default function Assets() {
                 size="sm"
                 onClick={() => {
                   const ids = new Set(selectedIds);
-                  const rows = sortedAssets.filter(a => ids.has(a.id)).map(a => ({
-                    id: a.id,
-                    name: a.name,
-                    type: a.type,
-                    property: propsById[a.property]?.name || a.property,
-                    department: a.department || '',
-                    quantity: a.quantity,
-                    serialNumber: a.serialNumber || '',
-                    condition: a.condition || '',
-                    status: a.status,
-                    purchaseDate: a.purchaseDate || '',
-                    expiryDate: a.expiryDate || '',
-                    location: a.location || '',
-                    description: (a.description || '').toString().replace(/\n/g,' '),
-                  }));
+                  const rows = sortedAssets.filter(a => ids.has(a.id)).map(a => {
+                    const base = {
+                      id: a.id,
+                      name: a.name,
+                      type: a.type,
+                      property: propsById[a.property]?.name || a.property,
+                      department: a.department || '',
+                      quantity: a.quantity,
+                      serialNumber: a.serialNumber || '',
+                      condition: a.condition || '',
+                      status: a.status,
+                      purchaseDate: a.purchaseDate || '',
+                      expiryDate: a.expiryDate || '',
+                      location: a.location || '',
+                      description: (a.description || '').toString().replace(/\n/g,' '),
+                    } as Record<string, string | number>;
+                    if (role === 'admin') {
+                      base['createdBy'] = (a.createdByName || a.createdByEmail || a.createdById || '') as string;
+                    }
+                    return base;
+                  });
                   if (!rows.length) { toast.info('Nothing selected'); return; }
                   const cols = Object.keys(rows[0]);
                   const header = cols.join(',');
@@ -1441,6 +1449,7 @@ export default function Assets() {
                     {isVisible('purchaseDate') && <TableHead>Purchase Date</TableHead>}
                     {isVisible('status') && <TableHead>Status</TableHead>}
                     {isVisible('approval') && <TableHead>Approval</TableHead>}
+                    {isVisible('createdBy') && <TableHead>Created By</TableHead>}
                     {isVisible('serial') && <TableHead>Serial</TableHead>}
                     {isVisible('description') && <TableHead>Description</TableHead>}
                     {isVisible('actions') && <TableHead>Actions</TableHead>}
@@ -1582,6 +1591,11 @@ export default function Assets() {
                             }
                             return <span className="text-xs text-muted-foreground">-</span>;
                           })()}
+                        </TableCell>
+                      )}
+                      {isVisible('createdBy') && (
+                        <TableCell>
+                          {rep.createdByName || rep.createdByEmail || rep.createdById || '-'}
                         </TableCell>
                       )}
                       {isVisible('serial') && <TableCell>{rep.serialNumber || '-'}</TableCell>}
@@ -1743,6 +1757,9 @@ export default function Assets() {
                                     <span className="text-sm text-muted-foreground">-</span>
                                   )}
                                 </TableCell>
+                              )}
+                              {isVisible('createdBy') && (
+                                <TableCell className="text-sm">{asset.createdByName || asset.createdByEmail || asset.createdById || '-'}</TableCell>
                               )}
                               {isVisible('serial') && <TableCell className="text-sm">{asset.serialNumber || '-'}</TableCell>}
                               {isVisible('description') && <TableCell className="text-sm">{asset.description || '-'}</TableCell>}
