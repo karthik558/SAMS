@@ -82,6 +82,12 @@ const reportTypes = [
     icon: FileText
   },
   {
+    id: "month-wise",
+    name: "Month-wise Asset Report",
+    description: "Monthly summary of assets by purchase date",
+    icon: CalendarIcon
+  },
+  {
     id: "expiry-tracking",
     name: "Expiry Tracking Report",
     description: "Assets approaching expiry dates with timeline",
@@ -640,6 +646,34 @@ export default function Reports() {
           quantity: a.quantity,
           status: a.status,
         }));
+      case 'month-wise': {
+        // Group assets by month (YYYY-MM) using purchaseDate; fallback to created_at
+        const monthKey = (iso: string | null): string => {
+          if (!iso) return 'Unknown';
+          const d = new Date(iso);
+          if (Number.isNaN(d.getTime())) return 'Unknown';
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          return `${y}-${m}`;
+        };
+        const rows = new Map<string, { month: string; assets: number; quantity: number }>();
+        for (const a of assets) {
+          const dateStr = (a.purchaseDate as any) || (a as any).created_at || null;
+          if (!inRange(dateStr) || !byProp(a) || !byType(a) || !byDept(a)) continue;
+          const key = monthKey(dateStr);
+          const prev = rows.get(key) || { month: key, assets: 0, quantity: 0 };
+          prev.assets += 1;
+          prev.quantity += Number((a as any).quantity || 0) || 0;
+          rows.set(key, prev);
+        }
+        // Sort by month ascending, Unknown last
+        const sorted = Array.from(rows.values()).sort((a, b) => {
+          if (a.month === 'Unknown') return 1;
+          if (b.month === 'Unknown') return -1;
+          return a.month.localeCompare(b.month);
+        });
+        return sorted;
+      }
       case 'expiry-tracking':
         return assets.filter(a => a.expiryDate && inRange(a.expiryDate) && byProp(a) && byType(a)).map(a => ({
           id: a.id,
@@ -1265,7 +1299,7 @@ export default function Reports() {
                   </SelectContent>
                 </Select>
               </div>
-              {(selectedReportType === 'department-wise' || selectedReportType === 'audit-review') && (
+              {(selectedReportType === 'department-wise' || selectedReportType === 'audit-review' || selectedReportType === 'month-wise') && (
                 <div className="space-y-2">
                   <Label>Department</Label>
                   <Select value={deptForReport} onValueChange={setDeptForReport}>
