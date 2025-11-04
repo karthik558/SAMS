@@ -180,6 +180,7 @@ const Index = () => {
   const [showAnnouncements, setShowAnnouncements] = useState(true);
   const [scopedAssets, setScopedAssets] = useState<Asset[]>(() => initialSnapshot?.scopedAssets ?? []);
   const [scopedProperties, setScopedProperties] = useState<Property[]>(() => initialSnapshot?.scopedProperties ?? []);
+  const [showAllWatchlist, setShowAllWatchlist] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -503,6 +504,8 @@ const Index = () => {
   const overdueAmcItems = amcTracker.overdueItems ?? [];
   const overdueAmc = amcTracker.overdue;
   const amcWatchList = overdueAmcItems.concat(upcomingAmc);
+  const displayedAmcWatchList = showAllWatchlist ? amcWatchList : amcWatchList.slice(0, 3);
+  const remainingAmcCount = amcWatchList.length - displayedAmcWatchList.length;
 
   const averageResolutionLabel = ticketSummary.averageResolutionHours !== null
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
@@ -955,7 +958,7 @@ const Index = () => {
             amcWatchList.length ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {amcWatchList.slice(0, 6).map((item) => {
+                  {displayedAmcWatchList.map((item) => {
                     const dueLabel = (() => {
                       if (item.daysRemaining === 0) return "Due today";
                       if (item.daysRemaining === 1) return "Due tomorrow";
@@ -990,10 +993,17 @@ const Index = () => {
                     );
                   })}
                 </div>
-                {amcWatchList.length > 6 && (
-                  <p className="text-[11px] text-[#55301b] dark:text-white/80">
-                    {amcWatchList.length - 6} more renewal{amcWatchList.length - 6 === 1 ? "" : "s"} fall outside this window.
-                  </p>
+                {amcWatchList.length > 3 && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setShowAllWatchlist((prev) => !prev)}
+                    >
+                      {showAllWatchlist ? "Show less" : `Show ${remainingAmcCount} more`}
+                    </Button>
+                  </div>
                 )}
               </>
             ) : (
