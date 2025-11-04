@@ -488,16 +488,21 @@ const Index = () => {
         } as AmcAlertItem;
       })
       .filter((item): item is AmcAlertItem => Boolean(item));
-    const overdue = normalized.filter((item) => item.daysRemaining < 0).length;
+    const overdueItems = normalized
+      .filter((item) => item.daysRemaining < 0)
+      .sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
     const upcoming = normalized
       .filter((item) => item.daysRemaining >= 0 && item.endDate.getTime() <= cutoff.getTime())
       .sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
-    return { upcoming, tracked, overdue };
+    const overdue = overdueItems.length;
+    return { upcoming, overdueItems, tracked, overdue };
   }, [scopedAssets, scopedProperties]);
 
   const upcomingAmc = amcTracker.upcoming;
   const trackedAmc = amcTracker.tracked;
+  const overdueAmcItems = amcTracker.overdueItems ?? [];
   const overdueAmc = amcTracker.overdue;
+  const amcWatchList = overdueAmcItems.concat(upcomingAmc);
 
   const averageResolutionLabel = ticketSummary.averageResolutionHours !== null
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
@@ -947,16 +952,17 @@ const Index = () => {
             </div>
           </div>
           {hasSupabaseEnv ? (
-            upcomingAmc.length ? (
+            amcWatchList.length ? (
               <>
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {upcomingAmc.slice(0, 6).map((item) => {
-                    const dueLabel =
-                      item.daysRemaining === 0
-                        ? "Due today"
-                        : item.daysRemaining === 1
-                          ? "Due tomorrow"
-                          : `Due in ${item.daysRemaining} days`;
+                  {amcWatchList.slice(0, 6).map((item) => {
+                    const dueLabel = (() => {
+                      if (item.daysRemaining === 0) return "Due today";
+                      if (item.daysRemaining === 1) return "Due tomorrow";
+                      if (item.daysRemaining > 1) return `Due in ${item.daysRemaining} days`;
+                      const overdueBy = Math.abs(item.daysRemaining);
+                      return overdueBy === 1 ? "Overdue by 1 day" : `Overdue by ${overdueBy} days`;
+                    })();
                     return (
                       <div
                         key={item.id}
@@ -984,9 +990,9 @@ const Index = () => {
                     );
                   })}
                 </div>
-                {upcomingAmc.length > 6 && (
+                {amcWatchList.length > 6 && (
                   <p className="text-[11px] text-[#55301b] dark:text-white/80">
-                    {upcomingAmc.length - 6} more renewal{upcomingAmc.length - 6 === 1 ? "" : "s"} fall outside this window.
+                    {amcWatchList.length - 6} more renewal{amcWatchList.length - 6 === 1 ? "" : "s"} fall outside this window.
                   </p>
                 )}
               </>
