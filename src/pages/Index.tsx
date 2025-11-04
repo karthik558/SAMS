@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   UserCheck,
   Clock as ClockIcon,
+  Utensils,
   Plus,
   Download,
   FileText,
@@ -138,6 +139,7 @@ const describeMonthlyChange = (current: number, previous: number) => {
 };
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
+const WATCHLIST_DISPLAY_LIMIT = 3;
 
 type AmcAlertItem = {
   id: string;
@@ -147,6 +149,18 @@ type AmcAlertItem = {
   endDate: Date;
   daysRemaining: number;
   severity: "urgent" | "soon" | "info";
+};
+
+type FoodExpiryItem = {
+  id: string;
+  name: string;
+  propertyName: string;
+  departmentName: string | null;
+  endDate: Date;
+  daysRemaining: number;
+  severity: "urgent" | "soon" | "info";
+  quantity: number;
+  typeLabel: string;
 };
 
 const Index = () => {
@@ -181,6 +195,7 @@ const Index = () => {
   const [scopedAssets, setScopedAssets] = useState<Asset[]>(() => initialSnapshot?.scopedAssets ?? []);
   const [scopedProperties, setScopedProperties] = useState<Property[]>(() => initialSnapshot?.scopedProperties ?? []);
   const [showAllWatchlist, setShowAllWatchlist] = useState(false);
+  const [showAllFoodExpiry, setShowAllFoodExpiry] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -499,13 +514,95 @@ const Index = () => {
     return { upcoming, overdueItems, tracked, overdue };
   }, [scopedAssets, scopedProperties]);
 
+  const foodExpiryTracker = useMemo(() => {
+    if (!scopedAssets.length) {
+      return { items: [] as FoodExpiryItem[], tracked: 0, overdue: 0 };
+    }
+    const propertyNames = new Map<string, string>();
+    scopedProperties.forEach((property) => {
+      const idKey = String(property.id);
+      propertyNames.set(idKey, property.name || idKey);
+      if (property.name) {
+        propertyNames.set(property.name, property.name);
+      }
+    });
+    const foodAssets = scopedAssets.filter((asset) => {
+      const typeLabel = String(asset.type || "").toLowerCase();
+      const deptLabel = String(asset.department || "").toLowerCase();
+      return typeLabel.includes("food") || deptLabel.includes("food");
+    });
+    if (!foodAssets.length) {
+      return { items: [] as FoodExpiryItem[], tracked: 0, overdue: 0 };
+    }
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const windowStart = new Date(startOfToday);
+    windowStart.setDate(windowStart.getDate() - 60);
+    const windowEnd = new Date(startOfToday);
+    windowEnd.setDate(windowEnd.getDate() + 60);
+    const normalized = foodAssets
+      .map((asset) => {
+        if (!asset.expiryDate) return null;
+        const rawEnd = new Date(asset.expiryDate);
+        if (Number.isNaN(rawEnd.getTime())) return null;
+        const endDate = new Date(rawEnd.getFullYear(), rawEnd.getMonth(), rawEnd.getDate());
+        const diffMs = endDate.getTime() - startOfToday.getTime();
+        const daysRemaining = Math.ceil(diffMs / MS_IN_DAY);
+        const propertyKey = asset.property_id ?? asset.property;
+        const propertyName =
+          propertyNames.get(String(propertyKey)) ||
+          propertyNames.get(String(asset.property)) ||
+          String(asset.property || "Unassigned");
+        const severity: FoodExpiryItem["severity"] =
+          daysRemaining <= 7 ? "urgent" : daysRemaining <= 30 ? "soon" : "info";
+        return {
+          id: asset.id,
+          name: asset.name,
+          propertyName,
+          departmentName: asset.department ?? null,
+          endDate,
+          daysRemaining,
+          severity,
+          quantity: Number(asset.quantity) || 0,
+          typeLabel: asset.type || "Food",
+        } as FoodExpiryItem;
+      })
+      .filter((item): item is FoodExpiryItem => Boolean(item));
+    if (!normalized.length) {
+      return { items: [] as FoodExpiryItem[], tracked: 0, overdue: 0 };
+    }
+    const withinWindow = normalized.filter(
+      (item) =>
+        item.endDate.getTime() >= windowStart.getTime() && item.endDate.getTime() <= windowEnd.getTime()
+    );
+    if (!withinWindow.length) {
+      return { items: [] as FoodExpiryItem[], tracked: normalized.length, overdue: 0 };
+    }
+    const overdueItems = withinWindow
+      .filter((item) => item.daysRemaining < 0)
+      .sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
+    const upcoming = withinWindow
+      .filter((item) => item.daysRemaining >= 0)
+      .sort((a, b) => a.endDate.getTime() - b.endDate.getTime());
+    return {
+      items: overdueItems.concat(upcoming),
+      tracked: normalized.length,
+      overdue: overdueItems.length,
+    };
+  }, [scopedAssets, scopedProperties]);
+
   const upcomingAmc = amcTracker.upcoming;
   const trackedAmc = amcTracker.tracked;
   const overdueAmcItems = amcTracker.overdueItems ?? [];
   const overdueAmc = amcTracker.overdue;
   const amcWatchList = overdueAmcItems.concat(upcomingAmc);
-  const displayedAmcWatchList = showAllWatchlist ? amcWatchList : amcWatchList.slice(0, 3);
-  const remainingAmcCount = amcWatchList.length - displayedAmcWatchList.length;
+  const displayedAmcWatchList = showAllWatchlist ? amcWatchList : amcWatchList.slice(0, WATCHLIST_DISPLAY_LIMIT);
+  const remainingAmcCount = Math.max(0, amcWatchList.length - displayedAmcWatchList.length);
+  const foodExpiryList = foodExpiryTracker.items ?? [];
+  const foodExpiryTracked = foodExpiryTracker.tracked ?? 0;
+  const foodExpiryOverdue = foodExpiryTracker.overdue ?? 0;
+  const displayedFoodExpiryList = showAllFoodExpiry ? foodExpiryList : foodExpiryList.slice(0, WATCHLIST_DISPLAY_LIMIT);
+  const remainingFoodExpiryCount = Math.max(0, foodExpiryList.length - displayedFoodExpiryList.length);
 
   const averageResolutionLabel = ticketSummary.averageResolutionHours !== null
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
@@ -993,7 +1090,7 @@ const Index = () => {
                     );
                   })}
                 </div>
-                {amcWatchList.length > 3 && (
+                {amcWatchList.length > WATCHLIST_DISPLAY_LIMIT && (
                   <div className="flex justify-center">
                     <Button
                       variant="ghost"
@@ -1019,6 +1116,111 @@ const Index = () => {
           ) : (
             <div className="rounded-xl border border-dashed border-warning/40 bg-background/75 p-4 text-xs text-warning">
               Connect Supabase to enable AMC tracking and renewal reminders.
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-transparent bg-gradient-to-br from-[#6fbf73] to-[#c5e1a5] p-6 shadow-soft text-[#1f3d24] dark:from-[#2f6f3c] dark:to-[#3f8550] dark:text-white">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-white/80 p-2 text-[#2f6f3c] shadow-sm dark:bg-white/15 dark:text-white">
+                <Utensils className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-[#1f3d24] dark:text-white">Food Expiry Tracker</h2>
+                <p className="text-xs text-[#2b5230] dark:text-white/80">
+                  Food category items expiring within ±60 days
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="badge-pill border-[#2e7d32]/40 bg-[#e6f4ea] text-[#1e4620] shadow-sm dark:border-[#4caf50]/45 dark:bg-[#255d34] dark:text-white">
+                {foodExpiryTracked.toLocaleString()} {foodExpiryTracked === 1 ? "Item tracked" : "Items tracked"}
+              </span>
+              <span
+                className={cn(
+                  "badge-pill shadow-sm",
+                  foodExpiryOverdue > 0
+                    ? "border-[#8f2d1f]/55 bg-[#c65947] text-white dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white"
+                    : "border-[#2e7d32]/55 bg-[#3ca370] text-white dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white"
+                )}
+              >
+                {foodExpiryOverdue > 0 ? `${foodExpiryOverdue} overdue` : "All fresh"}
+              </span>
+            </div>
+          </div>
+          {hasSupabaseEnv ? (
+            foodExpiryList.length ? (
+              <>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {displayedFoodExpiryList.map((item) => {
+                    const dueLabel = (() => {
+                      if (item.daysRemaining === 0) return "Expires today";
+                      if (item.daysRemaining === 1) return "Expires tomorrow";
+                      if (item.daysRemaining > 1) return `Expires in ${item.daysRemaining} days`;
+                      const overdueBy = Math.abs(item.daysRemaining);
+                      return overdueBy === 1 ? "Expired 1 day ago" : `Expired ${overdueBy} days ago`;
+                    })();
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start justify-between gap-3 rounded-xl border border-white/45 bg-white/95 p-4 text-[#1f3d24] shadow-sm dark:border-white/15 dark:bg-zinc-900/80 dark:text-white"
+                      >
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-inherit">{item.name}</p>
+                          <p className="text-[11px] uppercase tracking-wide text-[#285530] dark:text-white/65">
+                            Asset ID: <span className="font-medium">{item.id}</span>
+                          </p>
+                          <p className="text-xs text-[#234c2b] dark:text-white/85">
+                            {item.propertyName} • Expires{" "}
+                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                          </p>
+                          {item.departmentName && (
+                            <p className="text-[11px] text-[#285530] dark:text-white/70">
+                              Department: {item.departmentName}
+                            </p>
+                          )}
+                          {item.quantity ? (
+                            <p className="text-[11px] text-[#285530] dark:text-white/70">
+                              Quantity: {item.quantity.toLocaleString()}
+                            </p>
+                          ) : null}
+                        </div>
+                        <span className={cn("whitespace-nowrap", severityBadgeClasses[item.severity])}>
+                          {dueLabel}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                {foodExpiryList.length > WATCHLIST_DISPLAY_LIMIT && (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => setShowAllFoodExpiry((prev) => !prev)}
+                    >
+                      {showAllFoodExpiry ? "Show less" : `Show ${remainingFoodExpiryCount} more`}
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col gap-1 rounded-xl border border-dashed border-white/70 bg-white/85 p-4 text-xs text-[#1f3d24] shadow-sm dark:border-white/35 dark:bg-white/10 dark:text-white/90">
+                <span>No food items are expiring within the 60 day window.</span>
+                {foodExpiryTracked > 0 && (
+                  <span className="text-[11px] text-[#234c2b] dark:text-white/80">
+                    We'll surface them here as they get closer to their expiry date.
+                  </span>
+                )}
+              </div>
+            )
+          ) : (
+            <div className="rounded-xl border border-dashed border-warning/40 bg-background/75 p-4 text-xs text-warning">
+              Connect Supabase to track food expiry reminders.
             </div>
           )}
         </div>
