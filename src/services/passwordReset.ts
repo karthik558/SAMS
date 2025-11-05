@@ -125,25 +125,35 @@ export async function requestPasswordReset(email: string): Promise<RequestResult
     const rows = Array.isArray(data) ? data : data ? [data] : [];
     const row = rows[0];
     const userFound = Boolean(row);
-    const delivered = Boolean(row?.sent);
-    if (delivered && userFound) {
-      await sendPasswordResetCodeEmail({
-        userName: row?.user_name || normalized,
-        userEmail: row?.user_email || normalized,
+
+    if (!userFound) {
+      return {
+        delivered: false,
+        maskedEmail: maskEmailAddress(normalized),
+        userFound: false,
+      };
+    }
+
+    const emailForUser = row?.user_email || normalized;
+    const maskedEmail = row?.masked_email || maskEmailAddress(emailForUser);
+
+    // Supabase used to send the email directly and return sent=true. If that flag
+    // is missing or false we fall back to Resend so users still receive their code.
+    let delivered = Boolean(row?.sent);
+    if (!delivered) {
+      delivered = await sendPasswordResetCodeEmail({
+        userName: row?.user_name || emailForUser,
+        userEmail: emailForUser,
         code,
         expiresInMinutes: ttl,
         attemptsAllowed: PASSWORD_RESET_MAX_ATTEMPTS,
       });
-      return {
-        delivered: true,
-        maskedEmail: maskEmailAddress(row?.user_email || normalized),
-        userFound: true,
-      };
     }
+
     return {
-      delivered: false,
-      maskedEmail: maskEmailAddress(row?.user_email || normalized),
-      userFound,
+      delivered,
+      maskedEmail,
+      userFound: true,
     };
   }
 
