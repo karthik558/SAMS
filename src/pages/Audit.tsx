@@ -25,6 +25,7 @@ import { verifyAssetViaScan, listMyScansForSession } from "@/services/auditScans
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { BrowserMultiFormatReader } from "@zxing/browser";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 
 type Row = { id: string; name: string; status: "verified" | "missing" | "damaged"; comment: string };
 
@@ -63,6 +64,9 @@ export default function Audit() {
   const [myId, setMyId] = useState<string>("");
   // Per-department totals to compute progress rings
   const [deptTotals, setDeptTotals] = useState<Record<string, number>>({});
+  const [refreshKey, setRefreshKey] = useState(0);
+  const lastRefreshKey = useRef(0);
+  const hasLoadedAuditRef = useRef(false);
   // Scan UI state
   const [scanOpen, setScanOpen] = useState(false);
   const [scanStatus, setScanStatus] = useState<"verified" | "damaged">("verified");
@@ -254,6 +258,11 @@ export default function Audit() {
   useEffect(() => {
     (async () => {
       try {
+        const forceReload = refreshKey !== 0 && refreshKey !== lastRefreshKey.current;
+        lastRefreshKey.current = refreshKey;
+        if (!hasLoadedAuditRef.current || forceReload) {
+          setLoading(true);
+        }
         const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
         const user = raw ? JSON.parse(raw) : null;
         const roleName = (user?.role || '').toLowerCase();
@@ -517,9 +526,62 @@ export default function Audit() {
       } catch (e: any) {
         console.error(e);
         toast.error(e?.message || "Failed to load audit items");
-      } finally { setLoading(false); }
+      } finally {
+        hasLoadedAuditRef.current = true;
+        setLoading(false);
+      }
     })();
-  }, []);
+  }, [refreshKey]);
+
+  useEffect(() => {
+    if (!hasSupabaseEnv) return;
+    const deptLower = (role === "admin" ? adminDept : department).toLowerCase();
+    const propertyLower = String(selectedPropertyId || "").toLowerCase();
+    const userLower = (myId || "").toLowerCase();
+    const matchesRecord = (record: any) => {
+      if (!record) return false;
+      if (deptLower) {
+        const recDept = String(record.department || record.dept || record.department_name || "").toLowerCase();
+        if (recDept && recDept !== deptLower) {
+          return false;
+        }
+      }
+      if (propertyLower) {
+        const recProp = String(record.property_id || record.propertyId || record.property || "").toLowerCase();
+        if (recProp && recProp !== propertyLower) {
+          return false;
+        }
+      }
+      if (userLower) {
+        const assignedTo = String(
+          record.assigned_to || record.user_id || record.reviewer_id || record.updated_by || record.created_by || ""
+        ).toLowerCase();
+        if (assignedTo && assignedTo === userLower) {
+          return true;
+        }
+      }
+      return true;
+    };
+    const shouldRefresh = (payload: any) => matchesRecord(payload?.new) || matchesRecord(payload?.old);
+    const channel = supabase
+      .channel(`audit_page_updates_${userLower || "viewer"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "audit_sessions" }, (payload) => {
+        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "audit_assignments" }, (payload) => {
+        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "audit_reviews" }, (payload) => {
+        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "audit_reports" }, (payload) => {
+        if (shouldRefresh(payload)) setRefreshKey((prev) => prev + 1);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, department, adminDept, selectedPropertyId, myId]);
 
   // Load my scan history when session becomes available
   useEffect(() => {

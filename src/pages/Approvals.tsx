@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, addApprovalComment, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
 import { getAssetById, listAssets, type Asset } from "@/services/assets";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { Separator } from "@/components/ui/separator";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
@@ -56,6 +56,8 @@ export default function Approvals() {
   const role = (auth?.role || '').toLowerCase();
   const myDept = auth?.department || '';
   const myIdentity = (auth?.email || auth?.id || '').toLowerCase();
+  const myEmail = typeof auth?.email === "string" ? String(auth.email).toLowerCase() : "";
+  const myUserId = typeof auth?.id === "string" ? String(auth.id).toLowerCase() : "";
 
   // Load allowed properties for current user (managers are restricted property-wise)
   useEffect(() => {
@@ -85,6 +87,8 @@ export default function Approvals() {
   const [bulkLoading, setBulkLoading] = useState(false);
   // Inline diff comment state (field -> pending text)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [refreshKey, setRefreshKey] = useState(0);
+  const lastRefreshKey = useRef(0);
 
   useEffect(() => {
     // Load departments for admin filter dynamically
@@ -99,12 +103,24 @@ export default function Approvals() {
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      const forceReload = refreshKey !== 0 && refreshKey !== lastRefreshKey.current;
+      lastRefreshKey.current = refreshKey;
+      if (!forceReload) {
+        setLoading(true);
+      }
+      const fetchOpts = forceReload ? { force: true } : undefined;
       try {
-        if (role === 'manager') {
+        if (role === "manager") {
           if (myDept && String(myDept).trim().length) {
-            const status = statusFilter === 'pending' ? 'pending_manager' : (statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined));
-            const data = await listApprovals(status as any, myDept);
+            const status =
+              statusFilter === "pending"
+                ? "pending_manager"
+                : statusFilter === "approved"
+                ? "approved"
+                : statusFilter === "rejected"
+                ? "rejected"
+                : undefined;
+            const data = await listApprovals(status as any, myDept, undefined, undefined, fetchOpts);
             let scoped = Array.isArray(data) ? data : [];
             // Property-scope: If manager has explicit property access, filter approvals to those assets' properties
             if (allowedPropertyIds && allowedPropertyIds.size > 0) {
@@ -115,10 +131,10 @@ export default function Approvals() {
                 scoped = scoped.filter((ap) => {
                   const a = byId.get(String(ap.assetId));
                   if (!a) return false; // if asset unknown, do not leak
-                  const pid = String(a.property_id || '').trim();
+                  const pid = String(a.property_id || "").trim();
                   if (pid) return allowedPropertyIds.has(pid);
                   // Fallback: if property_id missing, try property code/name match (best-effort)
-                  const pname = String(a.property || '').toLowerCase();
+                  const pname = String(a.property || "").toLowerCase();
                   return Array.from(allowedPropertyIds).some((p) => String(p).toLowerCase() === pname);
                 });
               } catch {
@@ -131,33 +147,38 @@ export default function Approvals() {
             // Manager has no department assigned; do not show cross-department approvals
             setItems([]);
           }
-        } else if (role === 'admin') {
-          const dept = (adminDeptFilter && adminDeptFilter !== 'ALL') ? adminDeptFilter : undefined;
-          if (statusFilter === 'pending') {
+        } else if (role === "admin") {
+          const dept = adminDeptFilter && adminDeptFilter !== "ALL" ? adminDeptFilter : undefined;
+          if (statusFilter === "pending") {
             // Admin sees both manager and admin pending for override or normal flow
             const [mgr, adm] = await Promise.all([
-              listApprovals('pending_manager' as any, dept),
-              listApprovals('pending_admin' as any, dept),
+              listApprovals("pending_manager" as any, dept, undefined, undefined, fetchOpts),
+              listApprovals("pending_admin" as any, dept, undefined, undefined, fetchOpts),
             ]);
             setItems([...(mgr || []), ...(adm || [])]);
           } else {
-            const status = statusFilter === 'approved' ? 'approved' : (statusFilter === 'rejected' ? 'rejected' : undefined);
-            const data = await listApprovals(status as any, dept);
+            const status =
+              statusFilter === "approved"
+                ? "approved"
+                : statusFilter === "rejected"
+                ? "rejected"
+                : undefined;
+            const data = await listApprovals(status as any, dept, undefined, undefined, fetchOpts);
             setItems(Array.isArray(data) ? data : []);
           }
         } else {
           // Users: fetch all own approvals; filter client-side below
-          const data = await listApprovals(undefined, undefined, myIdentity || undefined);
+          const data = await listApprovals(undefined, undefined, myIdentity || undefined, undefined, fetchOpts);
           setItems(Array.isArray(data) ? data : []);
         }
       } catch (e) {
-        console.error('Failed to load approvals', e);
+        console.error("Failed to load approvals", e);
         setItems([]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [role, myDept, adminDeptFilter, myIdentity, statusFilter, allowedPropertyIds]);
+  }, [role, myDept, adminDeptFilter, myIdentity, statusFilter, allowedPropertyIds, refreshKey]);
 
   useEffect(() => {
     (async () => {
@@ -176,6 +197,59 @@ export default function Approvals() {
       } catch { setSelectedAsset(null); }
     })();
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!hasSupabaseEnv) return;
+    const channel = supabase
+      .channel(`approvals_page_updates_${myIdentity || "anon"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "approvals" }, (payload) => {
+        const matchesStatus = (status?: string | null) => {
+          const normalized = (status || "").toLowerCase();
+          if (statusFilter === "all") return true;
+          if (statusFilter === "approved") return normalized === "approved";
+          if (statusFilter === "rejected") return normalized === "rejected";
+          if (statusFilter === "pending") {
+            if (role === "admin") {
+              return normalized === "pending_admin" || normalized === "pending_manager";
+            }
+            if (role === "manager") {
+              return normalized === "pending_manager";
+            }
+            return normalized === "pending_admin" || normalized === "pending_manager";
+          }
+          return false;
+        };
+        const matchesScope = (record: any) => {
+          if (!record) return false;
+          if (!matchesStatus(record.status)) return false;
+          const dept = String(record.department || "").toLowerCase();
+          if (role === "admin") {
+            if (adminDeptFilter && adminDeptFilter !== "ALL") {
+              return dept === adminDeptFilter.toLowerCase();
+            }
+            return true;
+          }
+          if (role === "manager") {
+            if (!myDept) return false;
+            return dept === myDept.toLowerCase();
+          }
+          const requester = String(record.requested_by || "").toLowerCase();
+          return (
+            (!!myEmail && requester === myEmail) ||
+            (!!myUserId && requester === myUserId) ||
+            (!!myIdentity && requester === myIdentity)
+          );
+        };
+        const relevant = matchesScope(payload?.new) || matchesScope(payload?.old);
+        if (relevant) {
+          setRefreshKey((prev) => prev + 1);
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [role, statusFilter, adminDeptFilter, myDept, myEmail, myUserId, myIdentity]);
 
   const onForward = async (id: string) => {
     try {

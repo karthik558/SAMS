@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -23,11 +23,13 @@ import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listTickets } from "@/services/tickets";
 import { listApprovals } from "@/services/approvals";
+import { listAssets, type Asset } from "@/services/assets";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
+import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 // Use a non-const assertion for dynamic injection (e.g., Newsletter)
 type NavItem = { name: string; href: string; icon: any };
@@ -118,6 +120,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const [userName, setUserName] = useState<string>("");
   const [showNewsletter, setShowNewsletter] = useState<boolean>(() => Boolean(cachedPrefs?.show_newsletter));
   const [showHelpCenter, setShowHelpCenter] = useState<boolean>(() => cachedPrefs?.show_help_center !== false);
+  const allowedPropertyIdsRef = useRef<Set<string> | null>(null);
+  const assetsByIdRef = useRef<Map<string, Asset> | null>(null);
   const homeHref = isDemoMode() ? "/demo" : "/";
   useEffect(() => {
     (async () => {
@@ -342,18 +346,79 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       const roleValue = roleRaw.toLowerCase();
       const deptRaw = opts?.deptOverride ?? userDept;
       const deptValue = (deptRaw || "").toString().trim();
+      if (opts?.force) {
+        assetsByIdRef.current = null;
+      }
       try {
         if (roleValue === "admin") {
-          const list = await listApprovals("pending_admin", undefined, undefined, undefined, { force: opts?.force });
-          setPendingApprovals(list.length);
+          const [pendingMgr, pendingAdmin] = await Promise.all([
+            listApprovals("pending_manager", undefined, undefined, undefined, { force: opts?.force }),
+            listApprovals("pending_admin", undefined, undefined, undefined, { force: opts?.force }),
+          ]);
+          const seen = new Set<string>();
+          pendingMgr.forEach((ap) => {
+            if (ap?.id) seen.add(String(ap.id));
+          });
+          pendingAdmin.forEach((ap) => {
+            if (ap?.id) seen.add(String(ap.id));
+          });
+          setPendingApprovals(seen.size);
         } else if (roleValue === "manager") {
           if (!deptValue) {
             setPendingApprovals(0);
             return;
           }
           const list = await listApprovals("pending_manager", deptValue, undefined, undefined, { force: opts?.force });
+          let scoped = Array.isArray(list) ? [...list] : [];
           const deptLower = deptValue.toLowerCase();
-          const count = list.filter(a => (a.department || '').toLowerCase() === deptLower).length;
+
+          let allowed = allowedPropertyIdsRef.current;
+          if (!allowed) {
+            try {
+              allowed = await getAccessiblePropertyIdsForCurrentUser();
+            } catch {
+              allowed = new Set<string>();
+            }
+            allowedPropertyIdsRef.current = allowed;
+          }
+          const normalizedAllowed = allowed ? new Set(Array.from(allowed).map((id) => String(id))) : new Set<string>();
+
+          if (normalizedAllowed.size > 0) {
+            let assetsById = assetsByIdRef.current;
+            if (!assetsById) {
+              try {
+                const assets = await listAssets();
+                const map = new Map<string, Asset>();
+                for (const asset of assets as Asset[]) {
+                  map.set(String(asset.id), asset);
+                }
+                assetsById = map;
+                assetsByIdRef.current = map;
+              } catch {
+                assetsById = null;
+              }
+            }
+            if (assetsById) {
+              scoped = scoped.filter((ap) => {
+                const asset = ap?.assetId ? assetsById?.get(String(ap.assetId)) : null;
+                if (!asset) return false;
+                const propId = String((asset as any).property_id || "").trim();
+                if (propId) {
+                  return normalizedAllowed.has(propId);
+                }
+                const propName = String((asset as any).property || "").toLowerCase();
+                if (!propName) return false;
+                for (const id of normalizedAllowed) {
+                  if (String(id).toLowerCase() === propName) {
+                    return true;
+                  }
+                }
+                return false;
+              });
+            }
+          }
+
+          const count = scoped.filter((a) => (a.department || "").toLowerCase() === deptLower).length;
           setPendingApprovals(count);
         } else {
           setPendingApprovals(0);
@@ -388,6 +453,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         }
         setRole(roleValue);
         setUserDept((dept || '').toLowerCase());
+        allowedPropertyIdsRef.current = null;
+        assetsByIdRef.current = null;
         await loadPendingApprovals({ roleOverride: roleValue, deptOverride: dept, force: true });
       } catch {
         setPendingApprovals(0);

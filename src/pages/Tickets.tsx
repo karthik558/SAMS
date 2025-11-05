@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type React from "react";
 import { isDemoMode } from "@/lib/demo";
@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Ticket as TicketIcon, Mail } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
-import { hasSupabaseEnv } from "@/lib/supabaseClient";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
 import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
@@ -78,6 +78,10 @@ export default function Tickets() {
   const [closing, setClosing] = useState(false);
   const [posting, setPosting] = useState<Record<string, boolean>>({});
   const [draftBanner, setDraftBanner] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const lastRefreshKey = useRef(0);
+  const hasLoadedTicketsRef = useRef(false);
+  const fallbackNotifiedRef = useRef(false);
 
   // Load license upgrade draft if present via query param
   useEffect(() => {
@@ -112,67 +116,90 @@ export default function Tickets() {
 
   useEffect(() => {
     (async () => {
-      const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
+      const forceReload = refreshKey !== 0 && refreshKey !== lastRefreshKey.current;
+      lastRefreshKey.current = refreshKey;
+      if (!hasLoadedTicketsRef.current) {
+        setInitialLoading(true);
+      }
+      const raw =
+        (isDemoMode() ? sessionStorage.getItem("demo_auth_user") || localStorage.getItem("demo_auth_user") : null) ||
+        localStorage.getItem("auth_user");
       let role: string | null = null;
       let me: string | null = null;
+      let meId: string | null = null;
       try {
         const u = raw ? JSON.parse(raw) : null;
-        role = (u?.role || '').toLowerCase() || null;
+        role = (u?.role || "").toLowerCase() || null;
         me = u?.email || u?.id || null;
-      } catch {}
-      // Build user directory for assignee display
-      try {
-        const users = await listUsers();
-        const map: Record<string, { label: string }> = {};
-        (users as AppUser[]).forEach(u => {
-          const label = (u.name || u.email || u.id);
-          map[u.id] = { label };
-        });
-        setUserMap(map);
+        meId = u?.id || null;
       } catch {}
 
-      const meId = (() => { try { const u = raw ? JSON.parse(raw) : null; return u?.id || null; } catch { return null; } })();
+      // Build user directory for assignee display (refresh when forced or first load)
+      if (!hasLoadedTicketsRef.current || forceReload) {
+        try {
+          const users = await listUsers();
+          const map: Record<string, { label: string }> = {};
+          (users as AppUser[]).forEach((u) => {
+            const label = u.name || u.email || u.id;
+            map[u.id] = { label };
+          });
+          setUserMap(map);
+        } catch {}
+      }
+
       const meEmail = me;
-      if (role === 'admin') {
-        const assignedById = meId ? await listTickets({ assignee: meId }) : [];
-        const assignedByEmail = meEmail ? await listTickets({ assignee: meEmail }) : [];
-        const createdById = meId ? await listTickets({ createdBy: meId }) : [];
-        const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }) : [];
-        const mapMerge = new Map<string, Ticket>();
-        [...assignedById, ...assignedByEmail, ...createdById, ...createdByEmail].forEach(t => mapMerge.set(t.id, t));
-        setItems(Array.from(mapMerge.values()));
-      } else if (role === 'manager') {
-        const assignedById = meId ? await listTickets({ assignee: meId }) : [];
-        const assignedByEmail = meEmail ? await listTickets({ assignee: meEmail }) : [];
-        const createdById = meId ? await listTickets({ createdBy: meId }) : [];
-        const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }) : [];
-        const mapMerge = new Map<string, Ticket>();
-        [...assignedById, ...assignedByEmail, ...createdById, ...createdByEmail].forEach(t => mapMerge.set(t.id, t));
-        setItems(Array.from(mapMerge.values()));
-      } else {
-        // Regular user: only tickets they created
-        const createdById = meId ? await listTickets({ createdBy: meId }) : [];
-        const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }) : [];
-        const mapMerge = new Map<string, Ticket>();
-        [...createdById, ...createdByEmail].forEach(t => mapMerge.set(t.id, t));
-        setItems(Array.from(mapMerge.values()));
-      }
-  const fallback = localStorage.getItem('tickets_fallback_reason');
-      if (!hasSupabaseEnv || fallback) {
-        toast.info('Supabase not configured or unreachable; tickets are saved locally.');
-      }
-  setInitialLoading(false);
-      // Load accessible properties for current user and populate options
+      const fetchOpts = forceReload ? { force: true } : undefined;
       try {
-        const accessible = await getAccessiblePropertyIdsForCurrentUser();
-        const allProps = await listProperties();
-        const filtered = allProps.filter(p => accessible.size === 0 || accessible.has(String(p.id)));
-        setPropertyOpts(filtered.map(p => ({ id: p.id, name: p.name })));
-        if (filtered[0]) setPropertyId(filtered[0].id);
-      } catch {}
+        if (role === "admin") {
+          const assignedById = meId ? await listTickets({ assignee: meId }, fetchOpts) : [];
+          const assignedByEmail = meEmail ? await listTickets({ assignee: meEmail }, fetchOpts) : [];
+          const createdById = meId ? await listTickets({ createdBy: meId }, fetchOpts) : [];
+          const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }, fetchOpts) : [];
+          const mapMerge = new Map<string, Ticket>();
+          [...assignedById, ...assignedByEmail, ...createdById, ...createdByEmail].forEach((t) => mapMerge.set(t.id, t));
+          setItems(Array.from(mapMerge.values()));
+        } else if (role === "manager") {
+          const assignedById = meId ? await listTickets({ assignee: meId }, fetchOpts) : [];
+          const assignedByEmail = meEmail ? await listTickets({ assignee: meEmail }, fetchOpts) : [];
+          const createdById = meId ? await listTickets({ createdBy: meId }, fetchOpts) : [];
+          const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }, fetchOpts) : [];
+          const mapMerge = new Map<string, Ticket>();
+          [...assignedById, ...assignedByEmail, ...createdById, ...createdByEmail].forEach((t) => mapMerge.set(t.id, t));
+          setItems(Array.from(mapMerge.values()));
+        } else {
+          // Regular user: only tickets they created
+          const createdById = meId ? await listTickets({ createdBy: meId }, fetchOpts) : [];
+          const createdByEmail = meEmail ? await listTickets({ createdBy: meEmail }, fetchOpts) : [];
+          const mapMerge = new Map<string, Ticket>();
+          [...createdById, ...createdByEmail].forEach((t) => mapMerge.set(t.id, t));
+          setItems(Array.from(mapMerge.values()));
+        }
+      } catch {
+        setItems([]);
+      }
 
+      if (!fallbackNotifiedRef.current) {
+        const fallback = localStorage.getItem("tickets_fallback_reason");
+        if (!hasSupabaseEnv || fallback) {
+          toast.info("Supabase not configured or unreachable; tickets are saved locally.");
+        }
+        fallbackNotifiedRef.current = true;
+      }
+
+      if (!hasLoadedTicketsRef.current) {
+        try {
+          const accessible = await getAccessiblePropertyIdsForCurrentUser();
+          const allProps = await listProperties();
+          const filtered = allProps.filter((p) => accessible.size === 0 || accessible.has(String(p.id)));
+          setPropertyOpts(filtered.map((p) => ({ id: p.id, name: p.name })));
+          if (filtered[0]) setPropertyId(filtered[0].id);
+        } catch {}
+      }
+
+      hasLoadedTicketsRef.current = true;
+      setInitialLoading(false);
     })();
-  }, []);
+  }, [refreshKey]);
 
   // Refresh assignee options when property changes
   useEffect(() => {
@@ -211,6 +238,48 @@ export default function Tickets() {
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 50);
   }, [location.search, items]);
+
+  useEffect(() => {
+    if (!hasSupabaseEnv) return;
+    const authSnapshot = (() => {
+      try {
+        const raw =
+          (isDemoMode() ? sessionStorage.getItem("demo_auth_user") || localStorage.getItem("demo_auth_user") : null) ||
+          localStorage.getItem("auth_user");
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    })();
+    const roleValue = (authSnapshot?.role || "").toLowerCase();
+    const meId = (authSnapshot?.id || "").toLowerCase();
+    const meEmail = (authSnapshot?.email || "").toLowerCase();
+    const channel = supabase
+      .channel(`tickets_page_updates_${meId || meEmail || "anon"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
+        const matchesScope = (record: any) => {
+          if (!record) return false;
+          const assignee = String(record.assignee || "").toLowerCase();
+          const createdBy = String(record.created_by || "").toLowerCase();
+          const targetRole = String(record.target_role || "").toLowerCase();
+          const assignedToMe =
+            (!!meId && assignee === meId) || (!!meEmail && assignee === meEmail);
+          const createdByMe =
+            (!!meId && createdBy === meId) || (!!meEmail && createdBy === meEmail);
+          if (roleValue === "admin" || roleValue === "manager") {
+            return assignedToMe || createdByMe || targetRole === roleValue;
+          }
+          return createdByMe;
+        };
+        if (matchesScope(payload?.new) || matchesScope(payload?.old)) {
+          setRefreshKey((prev) => prev + 1);
+        }
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const add = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
