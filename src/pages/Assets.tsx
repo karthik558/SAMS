@@ -1136,9 +1136,6 @@ export default function Assets() {
         <Card className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
           <CardHeader className="space-y-1 border-b border-border/60 bg-muted/30 px-6 py-5">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Filter className="h-4 w-4" />
-              </div>
               <div>
                 <CardTitle className="text-lg font-semibold">Asset Inventory</CardTitle>
                 <CardDescription>Search, segment, and sort your asset catalogue</CardDescription>
@@ -1406,9 +1403,6 @@ export default function Assets() {
           <CardHeader className="flex flex-col gap-1 border-b border-border/60 bg-muted/30 px-6 py-5">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Package className="h-4 w-4" />
-                </div>
                 <div>
                   <CardTitle className="text-lg font-semibold">Asset Catalogue</CardTitle>
                   <CardDescription>All assets that match the filters and scope above</CardDescription>
