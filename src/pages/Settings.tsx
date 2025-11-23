@@ -136,10 +136,35 @@ export default function Settings() {
 
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('theme');
-      if (stored === 'dark') setDarkMode(true);
-    } catch {}
+    const syncDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setDarkMode(isDark);
+    };
+
+    // Sync immediately
+    syncDarkMode();
+
+    // Also listen for storage events (in case changed in another tab)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'theme') {
+        syncDarkMode();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          syncDarkMode();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // Demo current user id (wire to auth user/app user as needed)
@@ -182,13 +207,15 @@ export default function Settings() {
             const us = await getUserSettings(currentUserId);
             setNotifications(us.notifications ?? true);
             setEmailNotifications(us.email_notifications ?? true);
-            setDarkMode(us.dark_mode ?? false);
+            // Do NOT overwrite darkMode from DB if we are already observing the DOM
+            // setDarkMode(us.dark_mode ?? false); 
           }
         } else {
           const local = JSON.parse(localStorage.getItem("user_settings") || "{}");
           setNotifications(local.notifications ?? true);
           setEmailNotifications(local.email_notifications ?? true);
-          setDarkMode(local.dark_mode ?? false);
+          // Do NOT overwrite darkMode from local settings if we are already observing the DOM
+          // setDarkMode(local.dark_mode ?? false);
         }
       } catch {}
 
