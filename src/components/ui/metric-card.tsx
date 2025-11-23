@@ -35,9 +35,7 @@ export function MetricCard({
             </div>
             {caption && <p className="text-xs text-muted-foreground/80">{caption}</p>}
           </div>
-          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10", iconClassName?.includes("bg-") ? "" : "bg-primary/10")}>
-            <Icon className={cn("h-6 w-6 text-primary", iconClassName)} />
-          </div>
+          <Icon className={cn("h-5 w-5 opacity-70", iconClassName)} />
         </div>
       </CardContent>
     </Card>
