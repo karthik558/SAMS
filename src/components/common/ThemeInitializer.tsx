@@ -50,7 +50,13 @@ export function ThemeInitializer() {
         root.style.removeProperty('--background');
         root.style.removeProperty('--card');
         root.style.removeProperty('--popover');
-        root.style.removeProperty('--sidebar-background');
+        
+        // Light mode sidebar background (tint of accent)
+        if (accent.sidebar) {
+          root.style.setProperty('--sidebar-background', accent.sidebar);
+        } else {
+          root.style.removeProperty('--sidebar-background');
+        }
         
         // Light mode defaults
         root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50

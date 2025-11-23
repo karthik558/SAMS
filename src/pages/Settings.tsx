@@ -88,6 +88,9 @@ export default function Settings() {
     
     if (!darkMode) {
        root.style.setProperty('--sidebar-accent', accent.light);
+       if (accent.sidebar) {
+         root.style.setProperty('--sidebar-background', accent.sidebar);
+       }
     } else {
        // In dark mode, we might want to keep it neutral or use the accent?
        // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
@@ -125,14 +128,21 @@ export default function Settings() {
       root.style.removeProperty('--background');
       root.style.removeProperty('--card');
       root.style.removeProperty('--popover');
-      root.style.removeProperty('--sidebar-background');
+      
+      // Light mode sidebar background
+      const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
+      if (accent.sidebar) {
+        root.style.setProperty('--sidebar-background', accent.sidebar);
+      } else {
+        root.style.removeProperty('--sidebar-background');
+      }
       
       // Light mode defaults
       root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
       root.style.setProperty('--header-food', 'hsl(150 100% 96%)'); // emerald-50
     }
     localStorage.setItem('theme_dark_level', darkLevel);
-  }, [darkLevel, darkMode]);
+  }, [darkLevel, darkMode, accentColor]);
 
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
