@@ -7,10 +7,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import { Megaphone, Filter, Pencil, Trash2, Search } from "lucide-react";
+import { Megaphone, Filter, Pencil, Trash2, Search, FileText, CheckCircle, Edit3, Clock } from "lucide-react";
 import { createNewsletterPost, deleteNewsletterPost, listAllNewsletterPosts, updateNewsletterPost, listNewsletterCategories, type NewsletterPost, type NewsletterCategory } from "@/services/newsletter";
 import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
+import MetricCard from "@/components/ui/metric-card";
 
 export default function Newsletter() {
   const [posts, setPosts] = useState<NewsletterPost[]>([]);
@@ -175,26 +176,28 @@ export default function Newsletter() {
             ) : null}
           </div>
           <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-3", isAdmin ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
-            <div className="rounded-xl border border-border/60 bg-background/85 p-5 shadow-sm backdrop-blur">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Posts</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {(isAdmin ? posts.length : visiblePosts.length).toLocaleString()}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/60 bg-background/85 p-5 shadow-sm backdrop-blur">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Published</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{publishedCount.toLocaleString()}</p>
-            </div>
-            {isAdmin ? (
-              <div className="rounded-xl border border-border/60 bg-background/85 p-5 shadow-sm backdrop-blur">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Drafts</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{draftCount.toLocaleString()}</p>
-              </div>
-            ) : null}
-            <div className="rounded-xl border border-border/60 bg-background/85 p-5 shadow-sm backdrop-blur">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground">Last Update</p>
-              <p className="mt-2 text-base font-medium text-foreground">{lastUpdated}</p>
-            </div>
+            <MetricCard
+              icon={FileText}
+              title="Total Posts"
+              value={(isAdmin ? posts.length : visiblePosts.length).toLocaleString()}
+            />
+            <MetricCard
+              icon={CheckCircle}
+              title="Published"
+              value={publishedCount.toLocaleString()}
+            />
+            {isAdmin && (
+              <MetricCard
+                icon={Edit3}
+                title="Drafts"
+                value={draftCount.toLocaleString()}
+              />
+            )}
+            <MetricCard
+              icon={Clock}
+              title="Last Update"
+              value={lastUpdated}
+            />
           </div>
         </div>
       </section>

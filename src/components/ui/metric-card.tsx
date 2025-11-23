@@ -25,16 +25,20 @@ export function MetricCard({
   contentClassName,
 }: MetricCardProps) {
   return (
-    <Card className={cn("surface-card-soft", className)}>
-      <CardContent className={cn("space-y-3 p-5", contentClassName)}>
-        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          <Icon className={cn("h-4 w-4 text-primary", iconClassName)} />
-          <span>{title}</span>
+    <Card className={cn("overflow-hidden rounded-xl border border-border/60 bg-card shadow-sm transition-all hover:shadow-md", className)}>
+      <CardContent className={cn("p-6", contentClassName)}>
+        <div className="flex items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <div className={cn("text-2xl font-bold tracking-tight text-foreground", valueClassName)}>
+              {value}
+            </div>
+            {caption && <p className="text-xs text-muted-foreground/80">{caption}</p>}
+          </div>
+          <div className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10", iconClassName?.includes("bg-") ? "" : "bg-primary/10")}>
+            <Icon className={cn("h-6 w-6 text-primary", iconClassName)} />
+          </div>
         </div>
-        <div className={cn("text-3xl font-semibold tracking-tight text-foreground", valueClassName)}>
-          {value}
-        </div>
-        {caption ? <p className="text-xs text-muted-foreground">{caption}</p> : null}
       </CardContent>
     </Card>
   );

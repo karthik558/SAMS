@@ -68,6 +68,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { cn } from "@/lib/utils";
+import MetricCard from "@/components/ui/metric-card";
 
 // Local fallback key
 const LS_KEY = "app_users_fallback";
@@ -1241,7 +1242,7 @@ export default function Users() {
                               const label = preview.length > 24 ? `${names.length} selected` : preview;
                               return `${label}${extra > 0 && label !== `${names.length} selected` ? ` +${extra}` : ""}`;
                             })()
-                          : "Select departments (e.g., Finance, HR)"}
+                          : "Select departments"}
                       </span>
                       <MoreHorizontal className="h-4 w-4 opacity-60" />
                     </Button>
@@ -1319,33 +1320,23 @@ export default function Users() {
                 Add User
               </Button>
             </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          }
+          </DialogContent>
+        </Dialog>
+      }
+    />
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {userHighlights.map(({ key, title, icon: Icon, value, caption }) => (
+        <MetricCard
+          key={key}
+          icon={Icon}
+          title={title}
+          value={value}
+          caption={caption}
         />
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {userHighlights.map(({ key, title, icon: Icon, value, caption }) => (
-              <Card
-                key={key}
-                className="rounded-2xl border border-border/60 bg-card/90 p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      {title}
-                    </p>
-                    <p className="text-3xl font-semibold text-foreground">{value}</p>
-                  </div>
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-4 w-4" />
-                  </span>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">{caption}</p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
+      ))}
+    </div>
+  </div>
+</section>
 
       <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
         <CardHeader className="space-y-4 border-b border-border/60 pb-6">
@@ -1578,6 +1569,7 @@ export default function Users() {
           )}
 
           {filteredUsers.length === 0 && !loading && (
+           
             <div className="py-8 text-center">
               <User className="mx-auto mb-4 h-12 w-12 text-muted-foreground/50" />
               <p className="text-muted-foreground">No users found</p>
