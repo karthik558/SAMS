@@ -113,17 +113,10 @@ export default function Settings() {
       root.style.setProperty('--sidebar-background', level.card);
 
       // Adjust dashboard card headers for dark mode depth
-      if (level.id === 'oled') {
-        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.15)');
-        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.15)');
-      } else if (level.id === 'deep') {
-        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.12)');
-        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.12)');
-      } else {
-        // Standard dark
-        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.1)');
-        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.1)');
-      }
+      // @ts-ignore - headerOpacity is new
+      const opacity = level.headerOpacity || 0.1;
+      root.style.setProperty('--header-amc', `hsl(30 100% 50% / ${opacity})`);
+      root.style.setProperty('--header-food', `hsl(150 100% 50% / ${opacity})`);
     } else {
       root.style.removeProperty('--background');
       root.style.removeProperty('--card');
