@@ -14,9 +14,11 @@ import { getUserSettings, upsertUserSettings } from "@/services/settings";
 import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
 import { refreshSoundPreference } from "@/lib/sound";
 import { changeOwnPassword } from "@/services/auth";
+import { Palette, Moon } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 // Audit controls have moved to the main Audit page
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import { ACCENT_COLORS, DARK_LEVELS } from "@/lib/theme-config";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -48,7 +50,90 @@ export default function Settings() {
   const [stickyHeader, setStickyHeader] = useState(() => Boolean(cachedPrefs?.sticky_header));
   const [topNavMode, setTopNavMode] = useState(() => Boolean(cachedPrefs?.top_nav_mode));
   const [showHelpCenter, setShowHelpCenter] = useState(() => cachedPrefs?.show_help_center !== false);
+  
+  // Theme customization
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem('theme_accent') || 'orange');
+  const [darkLevel, setDarkLevel] = useState(() => localStorage.getItem('theme_dark_level') || 'standard');
+
   const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+  // Apply theme changes
+  useEffect(() => {
+    const root = document.documentElement;
+    const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
+    
+    // Main accent colors
+    root.style.setProperty('--primary', accent.value);
+    root.style.setProperty('--primary-hover', accent.hover);
+    root.style.setProperty('--ring', accent.value);
+    
+    // Sidebar accent colors
+    root.style.setProperty('--sidebar-primary', accent.value);
+    root.style.setProperty('--sidebar-ring', accent.value);
+    // In light mode, sidebar accent is a light tint. In dark mode, it might be overridden by class .dark
+    // but setting it here ensures it updates dynamically.
+    // We need to check if we are in dark mode to decide what --sidebar-accent should be, 
+    // OR we rely on the fact that .dark redefines it.
+    // However, .dark defines --sidebar-accent as a specific color.
+    // If we set it on :root (inline style), it overrides the class definition.
+    // So we should set it conditionally or set a separate variable.
+    
+    // Actually, looking at index.css:
+    // Light mode: --sidebar-accent: 16 52% 92%;
+    // Dark mode: --sidebar-accent: 60 3% 20%; (neutral)
+    
+    // If we want the sidebar selection to follow the accent color in light mode, we set it to accent.light.
+    // In dark mode, usually sidebar selection is just a lighter grey or the accent color itself with opacity.
+    // But let's stick to the pattern.
+    
+    if (!darkMode) {
+       root.style.setProperty('--sidebar-accent', accent.light);
+    } else {
+       // In dark mode, we might want to keep it neutral or use the accent?
+       // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
+       // or just remove the property to let CSS take over if we switch to dark.
+       root.style.removeProperty('--sidebar-accent');
+    }
+    
+    localStorage.setItem('theme_accent', accentColor);
+  }, [accentColor, darkMode]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
+    // Only apply if in dark mode, but we set the variables on a special class or just override
+    // Since .dark class sets these variables, we need to override them with higher specificity or inline styles on body/root when dark
+    if (darkMode) {
+      root.style.setProperty('--background', level.bg);
+      root.style.setProperty('--card', level.card);
+      root.style.setProperty('--popover', level.card);
+      root.style.setProperty('--sidebar-background', level.card);
+
+      // Adjust dashboard card headers for dark mode depth
+      if (level.id === 'oled') {
+        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.15)');
+        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.15)');
+      } else if (level.id === 'deep') {
+        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.12)');
+        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.12)');
+      } else {
+        // Standard dark
+        root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.1)');
+        root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.1)');
+      }
+    } else {
+      root.style.removeProperty('--background');
+      root.style.removeProperty('--card');
+      root.style.removeProperty('--popover');
+      root.style.removeProperty('--sidebar-background');
+      
+      // Light mode defaults
+      root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
+      root.style.setProperty('--header-food', 'hsl(150 100% 96%)'); // emerald-50
+    }
+    localStorage.setItem('theme_dark_level', darkLevel);
+  }, [darkLevel, darkMode]);
+
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
     try {
@@ -417,6 +502,65 @@ export default function Settings() {
                       <p className="text-sm text-muted-foreground">Keep the Help Center entry visible in your navigation</p>
                     </div>
                     <Switch checked={showHelpCenter} onCheckedChange={setShowHelpCenter} />
+                  </div>
+                  <Separator />
+                  <div className="flex flex-col gap-3">
+                    <div className="space-y-1">
+                      <Label>Accent Color</Label>
+                      <p className="text-sm text-muted-foreground">Choose your preferred primary color</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {ACCENT_COLORS.map((color) => (
+                        <button
+                          key={color.id}
+                          onClick={() => setAccentColor(color.id)}
+                          className={`group relative flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
+                            accentColor === color.id ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
+                          }`}
+                          title={color.label}
+                        >
+                          <span 
+                            className="h-8 w-8 rounded-full shadow-sm" 
+                            style={{ backgroundColor: `hsl(${color.value})` }} 
+                          />
+                          {accentColor === color.id && (
+                            <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
+                              <Palette className="h-4 w-4" />
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Separator />
+                  <div className="flex flex-col gap-3">
+                    <div className="space-y-1">
+                      <Label>Dark Mode Depth</Label>
+                      <p className="text-sm text-muted-foreground">Adjust the contrast level for dark mode</p>
+                    </div>
+                    <Select value={darkLevel} onValueChange={setDarkLevel} disabled={!darkMode}>
+                      <SelectTrigger className="h-10 w-full md:w-72">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DARK_LEVELS.map((level) => (
+                          <SelectItem key={level.id} value={level.id}>
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="h-4 w-4 rounded-full border border-border" 
+                                style={{ backgroundColor: `hsl(${level.bg})` }} 
+                              />
+                              {level.label}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {!darkMode && (
+                      <p className="text-xs text-muted-foreground text-amber-600 flex items-center gap-1">
+                        <Moon className="h-3 w-3" /> Switch to dark mode to see changes
+                      </p>
+                    )}
                   </div>
                   <Separator />
                   <div className="flex flex-col gap-3">

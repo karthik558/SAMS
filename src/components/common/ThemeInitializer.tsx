@@ -1,0 +1,79 @@
+import { useEffect } from 'react';
+import { ACCENT_COLORS, DARK_LEVELS } from '@/lib/theme-config';
+
+export function ThemeInitializer() {
+  useEffect(() => {
+    const applyTheme = () => {
+      const root = document.documentElement;
+      const accentColor = localStorage.getItem('theme_accent') || 'orange';
+      const darkLevel = localStorage.getItem('theme_dark_level') || 'standard';
+      const isDark = root.classList.contains('dark');
+
+      const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
+      
+      // Main accent colors
+      root.style.setProperty('--primary', accent.value);
+      root.style.setProperty('--primary-hover', accent.hover);
+      root.style.setProperty('--ring', accent.value);
+      
+      // Sidebar accent colors
+      root.style.setProperty('--sidebar-primary', accent.value);
+      root.style.setProperty('--sidebar-ring', accent.value);
+      
+      if (!isDark) {
+         root.style.setProperty('--sidebar-accent', accent.light);
+      } else {
+         root.style.removeProperty('--sidebar-accent');
+      }
+
+      const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
+      
+      if (isDark) {
+        root.style.setProperty('--background', level.bg);
+        root.style.setProperty('--card', level.card);
+        root.style.setProperty('--popover', level.card);
+        root.style.setProperty('--sidebar-background', level.card);
+
+        // Adjust dashboard card headers for dark mode depth
+        if (level.id === 'oled') {
+          root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.15)');
+          root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.15)');
+        } else if (level.id === 'deep') {
+          root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.12)');
+          root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.12)');
+        } else {
+          // Standard dark
+          root.style.setProperty('--header-amc', 'hsl(30 100% 50% / 0.1)');
+          root.style.setProperty('--header-food', 'hsl(150 100% 50% / 0.1)');
+        }
+      } else {
+        root.style.removeProperty('--background');
+        root.style.removeProperty('--card');
+        root.style.removeProperty('--popover');
+        root.style.removeProperty('--sidebar-background');
+        
+        // Light mode defaults
+        root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
+        root.style.setProperty('--header-food', 'hsl(150 100% 96%)'); // emerald-50
+      }
+    };
+
+    // Apply immediately
+    applyTheme();
+
+    // Observe class changes on html element to detect dark mode toggle
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          applyTheme();
+        }
+      });
+    });
+
+    observer.observe(document.documentElement, { attributes: true });
+
+    return () => observer.disconnect();
+  }, []);
+
+  return null;
+}

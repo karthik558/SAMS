@@ -511,7 +511,19 @@ export function Header({ onMenuClick }: HeaderProps) {
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
             aria-label="Go to dashboard"
           >
-            <img src="/sams_logo.png" alt="SAMS" className="h-8 w-auto" />
+            <div 
+              className="h-8 w-32 bg-primary transition-colors" 
+              style={{
+                maskImage: 'url("/sams_logo.png")',
+                maskSize: 'contain',
+                maskRepeat: 'no-repeat',
+                maskPosition: 'center',
+                WebkitMaskImage: 'url("/sams_logo.png")',
+                WebkitMaskSize: 'contain',
+                WebkitMaskRepeat: 'no-repeat',
+                WebkitMaskPosition: 'center'
+              }}
+            />
           </Link>
           <div className="ml-auto flex items-center gap-1.5">
             <Button

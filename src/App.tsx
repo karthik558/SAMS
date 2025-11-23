@@ -28,6 +28,7 @@ import Help from "./pages/Help";
 import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
 import { ConnectionStatus } from "@/components/common/ConnectionStatus";
+import { ThemeInitializer } from "@/components/common/ThemeInitializer";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   let authed = false;
@@ -94,6 +95,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <ConnectionStatus />
+      <ThemeInitializer />
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
