@@ -1049,8 +1049,8 @@ const Index = () => {
 
       <section className="grid gap-6 lg:grid-cols-2">
         {/* AMC Watchlist */}
-        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all hover:shadow-md">
-          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+        <Card className="overflow-hidden rounded-2xl border border-orange-100 bg-card shadow-sm transition-all hover:shadow-md dark:border-orange-900/20">
+          <CardHeader className="border-b border-orange-100 bg-orange-50/50 pb-4 dark:border-orange-900/20 dark:bg-orange-900/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
@@ -1152,8 +1152,8 @@ const Index = () => {
         </Card>
 
         {/* Food Expiry Tracker */}
-        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all hover:shadow-md">
-          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+        <Card className="overflow-hidden rounded-2xl border border-emerald-100 bg-card shadow-sm transition-all hover:shadow-md dark:border-emerald-900/20">
+          <CardHeader className="border-b border-emerald-100 bg-emerald-50/50 pb-4 dark:border-emerald-900/20 dark:bg-emerald-900/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
