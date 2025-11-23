@@ -1458,19 +1458,19 @@ export default function Audit() {
                                 return (
                                   <ChartContainer
                                     config={{
-                                      Verified: { color: "hsl(var(--primary))" },
-                                      Missing: { color: "hsl(var(--destructive))" },
-                                      Damaged: { color: "hsl(46 93% 50%)" },
+                                      Verified: { color: "hsl(142, 71%, 45%)" },
+                                      Missing: { color: "hsl(339, 90%, 51%)" },
+                                      Damaged: { color: "hsl(31, 97%, 55%)" },
                                     }}
                                   >
                                     <BarChart data={data}>
-                                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                      <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                                      <YAxis allowDecimals={false} />
-                                      <ChartTooltip content={<ChartTooltipContent />} />
-                                      <Bar dataKey="Verified" radius={[4, 4, 0, 0]} fill="var(--color-Verified)" />
-                                      <Bar dataKey="Missing" radius={[4, 4, 0, 0]} fill="var(--color-Missing)" />
-                                      <Bar dataKey="Damaged" radius={[4, 4, 0, 0]} fill="var(--color-Damaged)" />
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                                      <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                                      <Bar dataKey="Verified" radius={[6, 6, 0, 0]} fill="var(--color-Verified)" />
+                                      <Bar dataKey="Missing" radius={[6, 6, 0, 0]} fill="var(--color-Missing)" />
+                                      <Bar dataKey="Damaged" radius={[6, 6, 0, 0]} fill="var(--color-Damaged)" />
                                       <ChartLegend content={<ChartLegendContent />} />
                                     </BarChart>
                                   </ChartContainer>
@@ -1500,19 +1500,19 @@ export default function Audit() {
                                 return (
                                   <ChartContainer
                                     config={{
-                                      Verified: { color: "hsl(var(--primary))" },
-                                      Missing: { color: "hsl(var(--destructive))" },
-                                      Damaged: { color: "hsl(46 93% 50%)" },
+                                      Verified: { color: "hsl(142, 71%, 45%)" },
+                                      Missing: { color: "hsl(339, 90%, 51%)" },
+                                      Damaged: { color: "hsl(31, 97%, 55%)" },
                                     }}
                                   >
                                     <BarChart data={data}>
-                                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                                      <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} />
-                                      <YAxis allowDecimals={false} />
-                                      <ChartTooltip content={<ChartTooltipContent />} />
-                                      <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" />
-                                      <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" />
-                                      <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" />
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                                      <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                                      <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                                      <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" radius={[0, 0, 4, 4]} />
+                                      <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" radius={[0, 0, 0, 0]} />
+                                      <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" radius={[4, 4, 0, 0]} />
                                       <ChartLegend content={<ChartLegendContent />} />
                                     </BarChart>
                                   </ChartContainer>

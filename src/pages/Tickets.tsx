@@ -506,10 +506,10 @@ export default function Tickets() {
 
   const statusChartData = useMemo(() => {
     const colors: Record<Ticket['status'], string> = {
-      open: 'hsl(var(--warning))',
-      in_progress: 'hsl(var(--primary))',
-      resolved: 'hsl(var(--success))',
-      closed: 'hsl(var(--muted-foreground))',
+      open: 'hsl(31, 97%, 55%)',
+      in_progress: 'hsl(221, 83%, 53%)',
+      resolved: 'hsl(142, 71%, 45%)',
+      closed: 'hsl(220, 15%, 60%)',
     };
     return (Object.entries(ticketMetrics.statusCounts) as Array<[Ticket['status'], number]>).map(([key, value]) => ({
       key,
@@ -521,10 +521,10 @@ export default function Tickets() {
 
   const priorityChartData = useMemo(() => {
     const colors: Record<'low' | 'medium' | 'high' | 'urgent', string> = {
-      low: '#64748b',
-      medium: '#0ea5e9',
-      high: '#f59e0b',
-      urgent: '#ef4444',
+      low: 'hsl(191, 91%, 46%)',
+      medium: 'hsl(221, 83%, 53%)',
+      high: 'hsl(31, 97%, 55%)',
+      urgent: 'hsl(339, 90%, 51%)',
     };
     return (Object.entries(ticketMetrics.priorityCounts) as Array<['low' | 'medium' | 'high' | 'urgent', number]>).map(([key, value]) => ({
       key,
@@ -576,23 +576,28 @@ export default function Tickets() {
   }, [filteredItems]);
 
   const ChartTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div className="rounded-md border border-border/70 bg-card/95 px-3 py-2 text-xs shadow-sm">
-        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
-        <div className="space-y-1">
-          {payload.map((entry: any, idx: number) => (
-            <div key={idx} className="flex items-center gap-2">
-              {entry?.color ? (
-                <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              ) : null}
-              <span className="text-muted-foreground">{entry.name}</span>
-              <span className="font-medium text-foreground">{entry.value}</span>
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+          {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2 w-2 rounded-full" 
+                style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+              />
+              <span className="font-medium text-foreground">
+                {entry.value}
+              </span>
+              <span className="text-muted-foreground">
+                {entry.name}
+              </span>
             </div>
           ))}
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   };
   const fmt = (iso?: string | null) => {
     if (!iso) return '—';
@@ -762,15 +767,26 @@ export default function Tickets() {
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={statusChartData} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} horizontal={true} />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      dy={10}
+                    />
+                    <YAxis 
+                      allowDecimals={false} 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                    />
                     <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
-                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
                       {statusChartData.map((entry) => (
                         <Cell key={entry.key} fill={entry.fill} />
                       ))}
-                      <LabelList dataKey="value" position="top" className="text-xs font-medium" fill="hsl(var(--foreground))" />
+                      <LabelList dataKey="value" position="top" className="text-[10px] font-medium" fill="hsl(var(--foreground))" offset={8} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -787,11 +803,24 @@ export default function Tickets() {
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={priorityChartData} dataKey="value" innerRadius={55} outerRadius={90} paddingAngle={3}>
-                      {priorityChartData.map((entry) => (
-                        <Cell key={entry.key} fill={entry.fill} />
+                    <Pie 
+                      data={priorityChartData} 
+                      dataKey="value" 
+                      innerRadius={60} 
+                      outerRadius={90} 
+                      paddingAngle={2}
+                      cornerRadius={4}
+                      stroke="none"
+                    >
+                      {priorityChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.fill} 
+                          className="stroke-background hover:opacity-80 transition-opacity"
+                          strokeWidth={2}
+                        />
                       ))}
-                      <LabelList dataKey="value" position="outside" className="text-[11px] font-medium" fill="hsl(var(--foreground))" />
+                      <LabelList dataKey="value" position="outside" className="text-[10px] font-medium" fill="hsl(var(--foreground))" />
                     </Pie>
                     <RechartsTooltip content={<ChartTooltip />} />
                   </PieChart>
@@ -820,12 +849,39 @@ export default function Tickets() {
               <div className="h-[240px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyTrend} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} />
-                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} horizontal={true} />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      dy={10}
+                    />
+                    <YAxis 
+                      allowDecimals={false} 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                    />
                     <RechartsTooltip content={<ChartTooltip />} />
-                    <Line type="monotone" dataKey="created" name="Created" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
-                    <Line type="monotone" dataKey="resolved" name="Resolved" stroke="hsl(var(--success))" strokeWidth={2} dot={{ r: 3 }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="created" 
+                      name="Created" 
+                      stroke="hsl(221, 83%, 53%)" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, strokeWidth: 0 }} 
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="resolved" 
+                      name="Resolved" 
+                      stroke="hsl(142, 71%, 45%)" 
+                      strokeWidth={3} 
+                      dot={{ r: 4, strokeWidth: 0 }} 
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

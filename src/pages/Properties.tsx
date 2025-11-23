@@ -426,14 +426,14 @@ export default function Properties() {
       const t = p.type || "Other";
       map.set(t, (map.get(t) || 0) + 1);
     }
-    // Use site color tokens only
     const paletteTypes = [
-      "hsl(var(--primary))",
-      "hsl(var(--secondary))",
-      "hsl(var(--accent))",
-      "hsl(var(--success))",
-      "hsl(var(--warning))",
-      "hsl(var(--destructive))",
+      "hsl(221, 83%, 53%)", // Blue
+      "hsl(142, 71%, 45%)", // Green
+      "hsl(262, 83%, 58%)", // Purple
+      "hsl(31, 97%, 55%)",  // Orange
+      "hsl(339, 90%, 51%)", // Pink
+      "hsl(191, 91%, 46%)", // Cyan
+      "hsl(47, 95%, 57%)",  // Yellow
     ];
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
@@ -447,14 +447,14 @@ export default function Properties() {
       const count = Number(p.assetCount) || 0;
       map.set(t, (map.get(t) || 0) + count);
     }
-    // Use site color tokens only; order offset so palettes differ across the two charts
     const paletteAssets = [
-      "hsl(var(--accent))",
-      "hsl(var(--success))",
-      "hsl(var(--warning))",
-      "hsl(var(--primary))",
-      "hsl(var(--secondary))",
-      "hsl(var(--destructive))",
+      "hsl(191, 91%, 46%)", // Cyan
+      "hsl(339, 90%, 51%)", // Pink
+      "hsl(31, 97%, 55%)",  // Orange
+      "hsl(262, 83%, 58%)", // Purple
+      "hsl(142, 71%, 45%)", // Green
+      "hsl(221, 83%, 53%)", // Blue
+      "hsl(47, 95%, 57%)",  // Yellow
     ];
     return Array.from(map.entries())
       .sort((a, b) => b[1] - a[1])
@@ -468,26 +468,28 @@ export default function Properties() {
 
   // Themed tooltip for charts to ensure readability in dark mode
   function ChartTooltip({ active, payload, label }: any) {
-    if (!active || !payload || !payload.length) return null;
-    return (
-      <div
-        className="rounded-md border bg-card/95 backdrop-blur px-2.5 py-2 shadow-md text-xs"
-        style={{ color: 'hsl(var(--foreground))', borderColor: 'hsl(var(--border))' }}
-      >
-        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
-        <div className="space-y-1">
-          {payload.map((entry: any, i: number) => (
-            <div key={i} className="flex items-center gap-2">
-              {entry?.color ? (
-                <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              ) : null}
-              <span className="text-muted-foreground">{entry?.name}</span>
-              <span className="font-medium text-foreground">{entry?.value}</span>
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+          {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2 w-2 rounded-full" 
+                style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+              />
+              <span className="font-medium text-foreground">
+                {entry.value}
+              </span>
+              <span className="text-muted-foreground">
+                {entry.name}
+              </span>
             </div>
           ))}
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   }
 
   return (
@@ -676,23 +678,17 @@ export default function Properties() {
                       <Pie
                         dataKey="value"
                         data={typeCounts}
-                        innerRadius={58}
-                        outerRadius={88}
-                        paddingAngle={3}
+                        innerRadius={60}
+                        outerRadius={80}
+                        paddingAngle={2}
                         startAngle={90}
                         endAngle={-270}
                         stroke="hsl(var(--background))"
-                        strokeWidth={1}
+                        strokeWidth={2}
                       >
                         {typeCounts.map((d) => (
                           <Cell key={d.name} fill={d.fill} />
                         ))}
-                        <LabelList
-                          dataKey="value"
-                          position="outside"
-                          className="text-[10px] font-medium tracking-tight"
-                          style={{ fill: 'hsl(var(--foreground))' }}
-                        />
                       </Pie>
                     </PieChart>
                   </ResponsiveContainer>
@@ -725,29 +721,23 @@ export default function Properties() {
                     <BarChart
                       data={assetsByTypeSorted}
                       layout="vertical"
-                      margin={{ top: 8, right: 16, left: 16, bottom: 8 }}
+                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
                     >
-                      <CartesianGrid stroke="hsl(var(--border))" strokeOpacity={0.35} strokeDasharray="4 4" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
                       <XAxis type="number" hide />
                       <YAxis
                         type="category"
                         dataKey="name"
-                        width={130}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                        width={100}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                         axisLine={false}
                         tickLine={false}
                       />
-                      <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.25 }} />
-                      <Bar dataKey="assets" radius={[8, 8, 8, 8]} barSize={14} background={{ fill: 'hsl(var(--muted))', opacity: 0.25 }}>
+                      <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                      <Bar dataKey="assets" radius={[0, 4, 4, 0]} barSize={20}>
                         {assetsByTypeSorted.map((d) => (
                           <Cell key={d.name} fill={d.fill} />
                         ))}
-                        <LabelList
-                          dataKey="assets"
-                          position="right"
-                          className="text-[11px] font-medium"
-                          style={{ fill: 'hsl(var(--foreground))' }}
-                        />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>

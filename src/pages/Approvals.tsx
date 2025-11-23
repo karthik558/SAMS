@@ -469,10 +469,10 @@ export default function Approvals() {
       rejected: 'Rejected',
     };
     const fills: Record<'pending_manager' | 'pending_admin' | 'approved' | 'rejected', string> = {
-      pending_manager: '#f59e0b',
-      pending_admin: '#6366f1',
-      approved: '#22c55e',
-      rejected: '#ef4444',
+      pending_manager: 'hsl(31, 97%, 55%)',
+      pending_admin: 'hsl(221, 83%, 53%)',
+      approved: 'hsl(142, 71%, 45%)',
+      rejected: 'hsl(339, 90%, 51%)',
     };
     return (Object.entries(approvalMetrics.statusCounts) as Array<['pending_manager' | 'pending_admin' | 'approved' | 'rejected', number]>).map(([key, value]) => ({
       key,
@@ -483,7 +483,15 @@ export default function Approvals() {
   }, [approvalMetrics.statusCounts]);
 
   const departmentChartData = useMemo(() => {
-    const palette = ['#6366f1', '#0ea5e9', '#22c55e', '#f97316', '#facc15', '#f43f5e'];
+    const palette = [
+      "hsl(221, 83%, 53%)", // Blue
+      "hsl(142, 71%, 45%)", // Green
+      "hsl(262, 83%, 58%)", // Purple
+      "hsl(31, 97%, 55%)",  // Orange
+      "hsl(339, 90%, 51%)", // Pink
+      "hsl(191, 91%, 46%)", // Cyan
+      "hsl(47, 95%, 57%)",  // Yellow
+    ];
     return approvalMetrics.departmentCounts
       .sort((a, b) => b[1] - a[1])
       .map(([name, value], index) => ({
@@ -494,23 +502,28 @@ export default function Approvals() {
   }, [approvalMetrics.departmentCounts]);
 
   const ChartTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div className="rounded-md border border-border/70 bg-card/95 px-3 py-2 text-xs shadow-sm">
-        {label ? <div className="mb-1 font-medium text-foreground">{label}</div> : null}
-        <div className="space-y-1">
-          {payload.map((entry: any, idx: number) => (
-            <div key={idx} className="flex items-center gap-2">
-              {entry?.color ? (
-                <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              ) : null}
-              <span className="text-muted-foreground">{entry.name}</span>
-              <span className="font-medium text-foreground">{entry.value}</span>
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+          {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2 w-2 rounded-full" 
+                style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+              />
+              <span className="font-medium text-foreground">
+                {entry.value}
+              </span>
+              <span className="text-muted-foreground">
+                {entry.name}
+              </span>
             </div>
           ))}
         </div>
-      </div>
-    );
+      );
+    }
+    return null;
   };
 
   const formatDuration = (hours: number | null | undefined) => {
@@ -572,15 +585,27 @@ export default function Approvals() {
               <div className="h-[260px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={statusChartData} margin={{ top: 12, right: 24, left: 24, bottom: 12 }}>
-                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} interval={0} angle={-10} dy={12} />
-                    <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} horizontal={true} />
+                    <XAxis 
+                      dataKey="label" 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                      interval={0} 
+                      dy={12} 
+                    />
+                    <YAxis 
+                      allowDecimals={false} 
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                      axisLine={false} 
+                      tickLine={false} 
+                    />
                     <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
-                    <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
                       {statusChartData.map((entry) => (
                         <Cell key={entry.key} fill={entry.fill} />
                       ))}
-                      <LabelList dataKey="value" position="top" className="text-xs font-medium" fill="hsl(var(--foreground))" />
+                      <LabelList dataKey="value" position="top" className="text-[10px] font-medium" fill="hsl(var(--foreground))" offset={8} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -597,11 +622,24 @@ export default function Approvals() {
               <div className="h-[220px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={departmentChartData} dataKey="value" innerRadius={55} outerRadius={90} paddingAngle={3}>
-                      {departmentChartData.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
+                    <Pie 
+                      data={departmentChartData} 
+                      dataKey="value" 
+                      innerRadius={60} 
+                      outerRadius={90} 
+                      paddingAngle={2}
+                      cornerRadius={4}
+                      stroke="none"
+                    >
+                      {departmentChartData.map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={entry.fill} 
+                          className="stroke-background hover:opacity-80 transition-opacity"
+                          strokeWidth={2}
+                        />
                       ))}
-                      <LabelList dataKey="value" position="outside" className="text-[11px] font-medium" fill="hsl(var(--foreground))" />
+                      <LabelList dataKey="value" position="outside" className="text-[10px] font-medium" fill="hsl(var(--foreground))" />
                     </Pie>
                     <RechartsTooltip content={<ChartTooltip />} />
                   </PieChart>
