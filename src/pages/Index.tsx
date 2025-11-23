@@ -476,9 +476,9 @@ const Index = () => {
   }, [assignmentShare, backlogActive, completionRate, isAdmin, resolvedTotal, ticketSummary.awaitingAssignment, ticketSummary.assignedToMe, ticketSummary.slaRisk, ticketSummary.total]);
 
   const severityBadgeClasses: Record<AmcAlertItem["severity"], string> = {
-    urgent: "badge-pill border-[#8f2d1f]/55 bg-[#c65947] text-white shadow-sm dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white",
-    soon: "badge-pill border-[#b98a3b]/50 bg-[#ffe3a3] text-[#3a1f12] shadow-sm dark:border-[#ffd470]/55 dark:bg-[#b8861b] dark:text-[#1b0f05]",
-    info: "badge-pill border-[#2e7d32]/55 bg-[#d4f5e3] text-[#1c4927] shadow-sm dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white",
+    urgent: "bg-red-100 text-red-700 hover:bg-red-100/80 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
+    soon: "bg-orange-100 text-orange-700 hover:bg-orange-100/80 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-800",
+    info: "bg-green-100 text-green-700 hover:bg-green-100/80 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800",
   };
 
   const amcTracker = useMemo(() => {
@@ -1047,211 +1047,222 @@ const Index = () => {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <div className="min-w-0 rounded-xl border border-transparent bg-gradient-to-br from-[#c17e62] to-[#dda88f] p-4 sm:p-5 shadow-soft text-[#3a1f12] dark:from-[#7f432c] dark:to-[#a46348] dark:text-white">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <section className="grid gap-6 lg:grid-cols-2">
+        {/* AMC Watchlist */}
+        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all hover:shadow-md">
+          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-white/75 p-2 text-[#8a472d] shadow-sm dark:bg-white/15 dark:text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
                   <AlertTriangle className="h-5 w-5" />
-                </span>
+                </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-[#2f160b] dark:text-white">AMC Watchlist</h2>
-                  <p className="text-xs text-[#4d2715] dark:text-white/80">
-                    Renewals scheduled within the next 60 days
-                  </p>
+                  <CardTitle className="text-base font-bold text-foreground">AMC Watchlist</CardTitle>
+                  <CardDescription className="text-xs font-medium text-muted-foreground">Renewals within 60 days</CardDescription>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="badge-pill border-[#8f462c]/40 bg-[#f4c9b0] text-[#3a1f12] shadow-sm dark:border-[#f5cbb1]/45 dark:bg-[#a46348] dark:text-white">
-                  {trackedAmc.toLocaleString()} {trackedAmc === 1 ? "AMC tracked" : "AMCs tracked"}
-                </span>
-                <span
-                  className={cn(
-                    "badge-pill shadow-sm",
-                    overdueAmc > 0
-                      ? "border-[#8f2d1f]/55 bg-[#c65947] text-white dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white"
-                      : "border-[#2e7d32]/55 bg-[#3ca370] text-white dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white"
-                  )}
-                >
-                  {overdueAmc > 0 ? `${overdueAmc} overdue` : "No overdue AMC"}
-                </span>
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="bg-background/80 font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+                  {trackedAmc.toLocaleString()} Tracked
+                </Badge>
+                {overdueAmc > 0 && (
+                  <Badge variant="destructive" className="shadow-sm">
+                    {overdueAmc} Overdue
+                  </Badge>
+                )}
               </div>
             </div>
+          </CardHeader>
+          <CardContent className="p-4">
             {hasSupabaseEnv ? (
               amcWatchList.length ? (
-                <>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {displayedAmcWatchList.map((item) => {
-                      const dueLabel = (() => {
-                        if (item.daysRemaining === 0) return "Due today";
-                        if (item.daysRemaining === 1) return "Due tomorrow";
-                        if (item.daysRemaining > 1) return `Due in ${item.daysRemaining} days`;
-                        const overdueBy = Math.abs(item.daysRemaining);
-                        return overdueBy === 1 ? "Overdue by 1 day" : `Overdue by ${overdueBy} days`;
-                      })();
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between gap-3 rounded-xl border border-white/40 bg-white p-4 text-[#2f160b] shadow-sm dark:border-white/15 dark:bg-zinc-900/80 dark:text-white"
-                        >
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold text-inherit">{item.name}</p>
-                            <p className="text-[11px] uppercase tracking-wide text-[#704029] dark:text-white/65">
-                              Asset ID: <span className="font-medium">{item.id}</span>
-                            </p>
-                            <p className="text-xs text-[#51301b] dark:text-white/85">
-                              {item.propertyName} • Ends{" "}
-                              {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                            </p>
-                            {item.startDate && (
-                              <p className="text-[11px] text-[#704029] dark:text-white/70">
-                                Started {item.startDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                              </p>
-                            )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {displayedAmcWatchList.map((item) => {
+                    const dueLabel = (() => {
+                      if (item.daysRemaining === 0) return "Due today";
+                      if (item.daysRemaining === 1) return "Due tomorrow";
+                      if (item.daysRemaining > 1) return `Due in ${item.daysRemaining} days`;
+                      const overdueBy = Math.abs(item.daysRemaining);
+                      return overdueBy === 1 ? "Overdue by 1 day" : `Overdue by ${overdueBy} days`;
+                    })();
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative flex flex-col justify-between gap-3 rounded-xl border border-border/50 bg-background p-3 shadow-sm transition-all hover:border-orange-200 hover:shadow-md dark:hover:border-orange-900/50"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="line-clamp-1 font-semibold text-foreground" title={item.name}>{item.name}</h4>
+                            <Badge variant="outline" className="shrink-0 border-border/50 bg-muted/30 text-[10px] text-muted-foreground">
+                              {item.id}
+                            </Badge>
                           </div>
-                          <span className={cn("whitespace-nowrap", severityBadgeClasses[item.severity])}>
+                          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <Building2 className="h-3 w-3 text-orange-500/70" /> 
+                              <span className="truncate">{item.propertyName}</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <ClockIcon className="h-3 w-3 text-orange-500/70" />
+                              <span>Ends {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                          <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", severityBadgeClasses[item.severity])}>
                             {dueLabel}
                           </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                   {amcWatchList.length > WATCHLIST_DISPLAY_LIMIT && (
-                    <div className="flex justify-center">
+                    <div className="col-span-full flex justify-center pt-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 px-3 text-xs"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => setShowAllWatchlist((prev) => !prev)}
                       >
                         {showAllWatchlist ? "Show less" : `Show ${remainingAmcCount} more`}
                       </Button>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
-                <div className="flex flex-col gap-1 rounded-xl border border-dashed border-white/70 bg-white/85 p-4 text-xs text-[#3a1f12] shadow-sm dark:border-white/35 dark:bg-white/10 dark:text-white/90">
-                  <span>No AMC renewals are due in the next 60 days.</span>
-                  {trackedAmc > 0 && (
-                    <span className="text-[11px] text-[#55301b] dark:text-white/80">
-                      We’ll surface them here as they approach their end date.
-                    </span>
-                  )}
+                <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
+                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
+                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">All caught up!</p>
+                    <p className="text-xs text-muted-foreground/80">No AMC renewals due in the next 60 days.</p>
+                  </div>
                 </div>
               )
             ) : (
-              <div className="rounded-xl border border-dashed border-warning/40 bg-background/75 p-4 text-xs text-warning">
-                Connect Supabase to enable AMC tracking and renewal reminders.
+              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
+                <div className="rounded-full bg-orange-100 p-3 dark:bg-orange-900/20">
+                  <AlertTriangle className="h-6 w-6 text-orange-500" />
+                </div>
+                <p className="text-sm">Connect Supabase to enable tracking</p>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="min-w-0 rounded-xl border border-transparent bg-gradient-to-br from-[#6fbf73] to-[#c5e1a5] p-4 sm:p-5 shadow-soft text-[#1f3d24] dark:from-[#2f6f3c] dark:to-[#3f8550] dark:text-white">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        {/* Food Expiry Tracker */}
+        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm transition-all hover:shadow-md">
+          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="rounded-full bg-white/80 p-2 text-[#2f6f3c] shadow-sm dark:bg-white/15 dark:text-white">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
                   <Utensils className="h-5 w-5" />
-                </span>
+                </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-[#1f3d24] dark:text-white">Food Expiry Tracker</h2>
-                  <p className="text-xs text-[#2b5230] dark:text-white/80">
-                    Food category items expiring within ±60 days
-                  </p>
+                  <CardTitle className="text-base font-bold text-foreground">Food Expiry Tracker</CardTitle>
+                  <CardDescription className="text-xs font-medium text-muted-foreground">Items expiring within 60 days</CardDescription>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="badge-pill border-[#2e7d32]/40 bg-[#e6f4ea] text-[#1e4620] shadow-sm dark:border-[#4caf50]/45 dark:bg-[#255d34] dark:text-white">
-                  {foodExpiryTracked.toLocaleString()} {foodExpiryTracked === 1 ? "Item tracked" : "Items tracked"}
-                </span>
-                <span
-                  className={cn(
-                    "badge-pill shadow-sm",
-                    foodExpiryOverdue > 0
-                      ? "border-[#8f2d1f]/55 bg-[#c65947] text-white dark:border-[#ff9a8f]/60 dark:bg-[#a63d2c] dark:text-white"
-                      : "border-[#2e7d32]/55 bg-[#3ca370] text-white dark:border-[#69d5a1]/55 dark:bg-[#2c7a4c] dark:text-white"
-                  )}
-                >
-                  {foodExpiryOverdue > 0 ? `${foodExpiryOverdue} overdue` : "All fresh"}
-                </span>
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="bg-background/80 font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+                  {foodExpiryTracked.toLocaleString()} Tracked
+                </Badge>
+                {foodExpiryOverdue > 0 ? (
+                  <Badge variant="destructive" className="shadow-sm">
+                    {foodExpiryOverdue} Overdue
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    All Fresh
+                  </Badge>
+                )}
               </div>
             </div>
+          </CardHeader>
+          <CardContent className="p-4">
             {hasSupabaseEnv ? (
               foodExpiryList.length ? (
-                <>
-                  <div className="grid gap-3 lg:grid-cols-2">
-                    {displayedFoodExpiryList.map((item) => {
-                      const dueLabel = (() => {
-                        if (item.daysRemaining === 0) return "Expires today";
-                        if (item.daysRemaining === 1) return "Expires tomorrow";
-                        if (item.daysRemaining > 1) return `Expires in ${item.daysRemaining} days`;
-                        const overdueBy = Math.abs(item.daysRemaining);
-                        return overdueBy === 1 ? "Expired 1 day ago" : `Expired ${overdueBy} days ago`;
-                      })();
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-start justify-between gap-3 rounded-xl border border-white/45 bg-white/95 p-4 text-[#1f3d24] shadow-sm dark:border-white/15 dark:bg-zinc-900/80 dark:text-white"
-                        >
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold text-inherit">{item.name}</p>
-                            <p className="text-[11px] uppercase tracking-wide text-[#285530] dark:text-white/65">
-                              Asset ID: <span className="font-medium">{item.id}</span>
-                            </p>
-                            <p className="text-xs text-[#234c2b] dark:text-white/85">
-                              {item.propertyName} • Expires{" "}
-                              {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
-                            </p>
-                            {item.departmentName && (
-                              <p className="text-[11px] text-[#285530] dark:text-white/70">
-                                Department: {item.departmentName}
-                              </p>
-                            )}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {displayedFoodExpiryList.map((item) => {
+                    const dueLabel = (() => {
+                      if (item.daysRemaining === 0) return "Expires today";
+                      if (item.daysRemaining === 1) return "Expires tomorrow";
+                      if (item.daysRemaining > 1) return `Expires in ${item.daysRemaining} days`;
+                      const overdueBy = Math.abs(item.daysRemaining);
+                      return overdueBy === 1 ? "Expired 1 day ago" : `Expired ${overdueBy} days ago`;
+                    })();
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative flex flex-col justify-between gap-3 rounded-xl border border-border/50 bg-background p-3 shadow-sm transition-all hover:border-emerald-200 hover:shadow-md dark:hover:border-emerald-900/50"
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="line-clamp-1 font-semibold text-foreground" title={item.name}>{item.name}</h4>
+                            <Badge variant="outline" className="shrink-0 border-border/50 bg-muted/30 text-[10px] text-muted-foreground">
+                              {item.id}
+                            </Badge>
+                          </div>
+                          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                              <Building2 className="h-3 w-3 text-emerald-500/70" /> 
+                              <span className="truncate">{item.propertyName}</span>
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                              <ClockIcon className="h-3 w-3 text-emerald-500/70" />
+                              <span>Expires {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+                            </span>
                             {item.quantity ? (
-                              <p className="text-[11px] text-[#285530] dark:text-white/70">
-                                Quantity: {item.quantity.toLocaleString()}
-                              </p>
+                               <span className="flex items-center gap-1.5">
+                                 <Package className="h-3 w-3 text-emerald-500/70" />
+                                 <span>Qty: {item.quantity.toLocaleString()}</span>
+                               </span>
                             ) : null}
                           </div>
-                          <span className={cn("whitespace-nowrap", severityBadgeClasses[item.severity])}>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                          <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", severityBadgeClasses[item.severity])}>
                             {dueLabel}
                           </span>
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })}
                   {foodExpiryList.length > WATCHLIST_DISPLAY_LIMIT && (
-                    <div className="flex justify-center">
+                    <div className="col-span-full flex justify-center pt-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 px-3 text-xs"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
                         onClick={() => setShowAllFoodExpiry((prev) => !prev)}
                       >
                         {showAllFoodExpiry ? "Show less" : `Show ${remainingFoodExpiryCount} more`}
                       </Button>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
-                <div className="flex flex-col gap-1 rounded-xl border border-dashed border-white/70 bg-white/85 p-4 text-xs text-[#1f3d24] shadow-sm dark:border-white/35 dark:bg-white/10 dark:text-white/90">
-                  <span>No food items are expiring within the 60 day window.</span>
-                  {foodExpiryTracked > 0 && (
-                    <span className="text-[11px] text-[#234c2b] dark:text-white/80">
-                      We'll surface them here as they get closer to their expiry date.
-                    </span>
-                  )}
+                <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
+                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
+                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">Everything looks good!</p>
+                    <p className="text-xs text-muted-foreground/80">No food items expiring soon.</p>
+                  </div>
                 </div>
               )
             ) : (
-              <div className="rounded-xl border border-dashed border-warning/40 bg-background/75 p-4 text-xs text-warning">
-                Connect Supabase to track food expiry reminders.
+              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
+                <div className="rounded-full bg-emerald-100 p-3 dark:bg-emerald-900/20">
+                  <Utensils className="h-6 w-6 text-emerald-500" />
+                </div>
+                <p className="text-sm">Connect Supabase to enable tracking</p>
               </div>
             )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3 min-w-0">
