@@ -27,18 +27,43 @@ import { listProperties, type Property } from "@/services/properties";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
 
 const palette = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 76%, 36%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(0, 72%, 51%)",
-  "hsl(220, 15%, 60%)",
-  "hsl(199, 89%, 48%)",
-  "hsl(271, 81%, 56%)",
+  "hsl(221, 83%, 53%)", // Blue
+  "hsl(142, 71%, 45%)", // Green
+  "hsl(262, 83%, 58%)", // Purple
+  "hsl(31, 97%, 55%)",  // Orange
+  "hsl(339, 90%, 51%)", // Pink
+  "hsl(191, 91%, 46%)", // Cyan
+  "hsl(47, 95%, 57%)",  // Yellow
 ];
 
 function monthLabel(d: Date) {
   return d.toLocaleString(undefined, { month: "short" });
 }
+
+const CustomTooltip = ({ active, payload, label, formatter }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+        {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 text-xs">
+            <div 
+              className="h-2 w-2 rounded-full" 
+              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+            />
+            <span className="font-medium text-foreground">
+              {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
+            </span>
+            <span className="text-muted-foreground">
+              {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export function DashboardCharts() {
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -274,40 +299,35 @@ export function DashboardCharts() {
                   data={hasData ? chartAssetsByType : []}
                   cx="50%"
                   cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
+                  innerRadius={65}
+                  outerRadius={95}
                   startAngle={90}
                   endAngle={-270}
-                  paddingAngle={2}
+                  paddingAngle={4}
+                  cornerRadius={6}
                   dataKey="value"
+                  stroke="none"
                 >
                   {(hasData ? chartAssetsByType : []).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="hsl(var(--background))" strokeWidth={1} />
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      className="stroke-background hover:opacity-80 transition-opacity"
+                      strokeWidth={2}
+                    />
                   ))}
                 </Pie>
-                <Tooltip
-                  wrapperStyle={{ zIndex: 1000 }}
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 8,
-                    color: 'hsl(var(--popover-foreground))',
-                    fontSize: 12,
-                  }}
-                  labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                  itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                  formatter={(value: any, name: any) => [value, name]}
-                />
+                <Tooltip content={<CustomTooltip formatter={(value: any, name: any) => [value, name]} />} />
               </PieChart>
             </ResponsiveContainer>
             {/* Center total */}
             {hasData && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">
+                  <div className="text-3xl font-bold tracking-tighter text-foreground">
                     {chartAssetsByType.reduce((sum, it) => sum + (it.value || 0), 0)}
                   </div>
-                  <div className="text-xs text-muted-foreground">Total assets</div>
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</div>
                 </div>
               </div>
             )}
@@ -361,69 +381,62 @@ export function DashboardCharts() {
             <AreaChart data={hasData ? chartPurchaseTrendExtended : []} margin={{ top: 16, right: 20, left: 12, bottom: 12 }}>
               <defs>
                 <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="hsl(199, 89%, 48%)" stopOpacity={0.05} />
+                  <stop offset="5%" stopColor="hsl(191, 91%, 46%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(191, 91%, 46%)" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.4)" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
               <XAxis
                 dataKey="month"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
+                dy={10}
               />
               <YAxis
                 yAxisId="left"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
                 allowDecimals={false}
+                dx={-10}
               />
               <YAxis
                 yAxisId="right"
                 orientation="right"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
                 allowDecimals={false}
+                dx={10}
               />
               <Tooltip
-                wrapperStyle={{ zIndex: 1000 }}
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 8,
-                  color: 'hsl(var(--popover-foreground))',
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                formatter={(value: number, name: string) => {
+                content={<CustomTooltip formatter={(value: number, name: string) => {
                   return name === 'runningTotal'
                     ? [value.toLocaleString(), 'Cumulative']
                     : [value.toLocaleString(), 'Purchases'];
-                }}
+                }} />}
               />
-              {/* Legend removed to avoid runtime errors and per request to hide 'Monthly purchases' label */}
               <Area
                 yAxisId="left"
                 type="monotone"
                 dataKey="purchases"
-                stroke="hsl(199, 89%, 48%)"
-                strokeWidth={2}
+                stroke="hsl(191, 91%, 46%)"
+                strokeWidth={3}
                 fill="url(#purchaseGrad)"
+                activeDot={{ r: 6, strokeWidth: 0 }}
               />
               <Line
                 yAxisId="right"
                 type="monotone"
                 dataKey="runningTotal"
-                stroke="hsl(142, 76%, 36%)"
-                strokeWidth={2}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
+                stroke="hsl(142, 71%, 45%)"
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6, strokeWidth: 0 }}
               />
             </AreaChart>
             </ResponsiveContainer>
@@ -464,12 +477,13 @@ export function DashboardCharts() {
             <BarChart
               data={hasData ? chartPropertyAssets.map(x => ({ property: x.name, assets: x.assets })) : []}
               layout="vertical"
-              margin={{ top: 10, right: 12, left: 12, bottom: 10 }}
+              margin={{ top: 10, right: 30, left: 12, bottom: 10 }}
+              barSize={24}
             >
               <defs>
                 <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.2} />
-                  <stop offset="100%" stopColor="hsl(142, 76%, 36%)" stopOpacity={0.9} />
+                  <stop offset="0%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0.6} />
+                  <stop offset="100%" stopColor="hsl(142, 71%, 45%)" stopOpacity={1} />
                 </linearGradient>
               </defs>
               <CartesianGrid horizontal={false} strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
@@ -477,8 +491,9 @@ export function DashboardCharts() {
                 type="number"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
+                dy={10}
               />
               <YAxis
                 type="category"
@@ -486,21 +501,21 @@ export function DashboardCharts() {
                 width={120}
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
               />
-              <Tooltip
-                formatter={(v: any) => [v, 'Assets']}
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 8,
-                  color: 'hsl(var(--popover-foreground))',
-                  fontSize: 12,
-                }}
-              />
-              <Bar dataKey="assets" fill="url(#barGradient)" radius={[4, 4, 4, 4]} maxBarSize={18}>
-                <LabelList dataKey="assets" position="right" className="text-[10px] fill-foreground" />
+              <Tooltip content={<CustomTooltip formatter={(v: any) => [v, 'Assets']} />} />
+              <Bar 
+                dataKey="assets" 
+                fill="url(#barGradient)" 
+                radius={[0, 4, 4, 0]}
+              >
+                <LabelList 
+                  dataKey="assets" 
+                  position="right" 
+                  className="text-[10px] font-medium fill-foreground" 
+                  offset={8}
+                />
               </Bar>
             </BarChart>
             </ResponsiveContainer>
@@ -539,41 +554,50 @@ export function DashboardCharts() {
               <AreaChart data={hasData ? chartExpiryData : []} margin={{ top: 10, right: 12, left: 12, bottom: 10 }}>
               <defs>
                 <linearGradient id="expiringGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="hsl(38, 92%, 50%)" stopOpacity={0.05} />
+                  <stop offset="5%" stopColor="hsl(47, 95%, 57%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(47, 95%, 57%)" stopOpacity={0.0} />
                 </linearGradient>
                 <linearGradient id="expiredGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.45} />
-                  <stop offset="100%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.05} />
+                  <stop offset="5%" stopColor="hsl(339, 90%, 51%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(339, 90%, 51%)" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
               <XAxis
                 dataKey="month"
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
+                dy={10}
               />
               <YAxis
                 stroke="hsl(var(--muted-foreground))"
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                axisLine={{ stroke: 'hsl(var(--border))' }}
-                tickLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={false}
+                axisLine={false}
                 allowDecimals={false}
+                dx={-10}
               />
               <Tooltip
-                formatter={(value: any, name: any) => [value, name === 'expiring' ? 'Expiring' : 'Expired']}
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: 8,
-                  color: 'hsl(var(--popover-foreground))',
-                  fontSize: 12,
-                }}
+                content={<CustomTooltip formatter={(value: any, name: any) => [value, name === 'expiring' ? 'Expiring' : 'Expired']} />}
               />
-              <Area type="monotone" dataKey="expiring" stackId="1" stroke="hsl(38, 92%, 50%)" fill="url(#expiringGrad)" />
-              <Area type="monotone" dataKey="expired" stackId="1" stroke="hsl(0, 72%, 51%)" fill="url(#expiredGrad)" />
+              <Area 
+                type="monotone" 
+                dataKey="expiring" 
+                stackId="1" 
+                stroke="hsl(47, 95%, 57%)" 
+                strokeWidth={2}
+                fill="url(#expiringGrad)" 
+              />
+              <Area 
+                type="monotone" 
+                dataKey="expired" 
+                stackId="1" 
+                stroke="hsl(339, 90%, 51%)" 
+                strokeWidth={2}
+                fill="url(#expiredGrad)" 
+              />
             </AreaChart>
             </ResponsiveContainer>
           </div>

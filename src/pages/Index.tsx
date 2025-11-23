@@ -92,6 +92,31 @@ type DashboardSnapshot = {
 
 const DASHBOARD_SNAPSHOT_KEY = "dashboard_snapshot_v1";
 
+const CustomTooltip = ({ active, payload, label, formatter }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+        {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 text-xs">
+            <div 
+              className="h-2 w-2 rounded-full" 
+              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+            />
+            <span className="font-medium text-foreground">
+              {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
+            </span>
+            <span className="text-muted-foreground">
+              {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 const announcementHueClasses: Record<string, string> = {
   red: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-200 dark:border-red-800',
   emerald: 'bg-emerald-100 text-emerald-900 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:border-emerald-800',
@@ -984,9 +1009,9 @@ const Index = () => {
   }
 
   const chartColors = {
-    created: "hsl(var(--chart-created))",
-    resolved: "hsl(var(--chart-resolved))",
-    backlog: "hsl(var(--chart-backlog))",
+    created: "hsl(221, 83%, 53%)",
+    resolved: "hsl(142, 71%, 45%)",
+    backlog: "hsl(339, 90%, 51%)",
   };
 
   return (
@@ -1327,44 +1352,64 @@ const Index = () => {
             </CardHeader>
             <CardContent className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={ticketChartData}>
+                <AreaChart data={ticketChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ticketCreated" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.created} stopOpacity={0.45} />
-                      <stop offset="95%" stopColor={chartColors.created} stopOpacity={0.05} />
+                      <stop offset="5%" stopColor={chartColors.created} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={chartColors.created} stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="ticketResolved" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.resolved} stopOpacity={0.45} />
-                      <stop offset="95%" stopColor={chartColors.resolved} stopOpacity={0.05} />
+                      <stop offset="5%" stopColor={chartColors.resolved} stopOpacity={0.3} />
+                      <stop offset="95%" stopColor={chartColors.resolved} stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.4)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" vertical={false} />
                   <XAxis
                     dataKey="month"
                     stroke="hsl(var(--muted-foreground))"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                    axisLine={{ stroke: 'hsl(var(--border))' }}
-                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    dy={10}
                   />
                   <YAxis
                     allowDecimals={false}
                     stroke="hsl(var(--muted-foreground))"
                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                    axisLine={{ stroke: 'hsl(var(--border))' }}
-                    tickLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={false}
+                    axisLine={false}
+                    dx={-10}
                   />
                   <Tooltip
-                    cursor={{ strokeDasharray: "3 3" }}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: '1px solid hsl(var(--border))',
-                      backgroundColor: 'hsl(var(--popover))',
-                      color: 'hsl(var(--popover-foreground))',
-                    }}
+                    content={<CustomTooltip formatter={(value: any, name: any) => [value, name]} />}
                   />
-                  <Area type="monotone" dataKey="created" name="Created" stroke={chartColors.created} fill="url(#ticketCreated)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="resolved" name="Resolved" stroke={chartColors.resolved} fill="url(#ticketResolved)" strokeWidth={2} />
-                  <Line type="monotone" dataKey="backlog" name="Backlog" stroke={chartColors.backlog} strokeWidth={2} dot={false} />
+                  <Area 
+                    type="monotone" 
+                    dataKey="created" 
+                    name="Created" 
+                    stroke={chartColors.created} 
+                    fill="url(#ticketCreated)" 
+                    strokeWidth={2} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="resolved" 
+                    name="Resolved" 
+                    stroke={chartColors.resolved} 
+                    fill="url(#ticketResolved)" 
+                    strokeWidth={2} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="backlog" 
+                    name="Backlog" 
+                    stroke={chartColors.backlog} 
+                    strokeWidth={2} 
+                    dot={false} 
+                    activeDot={{ r: 6, strokeWidth: 0 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
