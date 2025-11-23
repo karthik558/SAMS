@@ -1094,61 +1094,71 @@ export default function Assets() {
         />
         {/* Header with breadcrumbs */}
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
-        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-          <PageHeader
-            icon={Package}
-            title="Asset Management"
-            description="Track and manage all your organization's assets"
-            actions={
-              <div className="flex gap-2">
-              <ColumnChooser
-                columns={columnDefs}
-                visible={prefs.visibleCols}
-                onChange={prefs.setVisibleCols}
-              />
-                <Button onClick={() => setShowAddForm(true)} className="gap-2" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
-                  <Plus className="h-4 w-4" />
-                  Add Asset
-                </Button>
-              </div>
-            }
-          />
-        </div>
-
-        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
-          {assetHighlights.map((item) => (
-            <MetricCard
-              key={item.key}
-              icon={item.icon}
-              title={item.title}
-              value={item.value}
-              caption={item.caption}
-              iconClassName={item.iconClassName}
-              valueClassName={item.valueClassName}
+        
+        <section className="rounded-2xl border border-border/60 bg-card shadow-sm">
+          <div className="space-y-6 p-6 sm:p-8">
+            <PageHeader
+              icon={Package}
+              title="Asset Management"
+              description="Track and manage all your organization's assets"
+              actions={
+                <div className="flex gap-2">
+                  <ColumnChooser
+                    columns={columnDefs}
+                    visible={prefs.visibleCols}
+                    onChange={prefs.setVisibleCols}
+                  />
+                  <Button onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+                    <Plus className="h-4 w-4" />
+                    Add Asset
+                  </Button>
+                </div>
+              }
             />
-          ))}
-        </div>
+
+            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
+              {assetHighlights.map((item) => (
+                <MetricCard
+                  key={item.key}
+                  icon={item.icon}
+                  title={item.title}
+                  value={item.value}
+                  caption={item.caption}
+                  iconClassName={item.iconClassName}
+                  valueClassName={item.valueClassName}
+                />
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* Filters and Search */}
-        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-lg font-semibold">Asset Inventory</CardTitle>
-            <CardDescription>Search, segment, and sort your asset catalogue</CardDescription>
+        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
+          <CardHeader className="space-y-1 border-b border-border/60 bg-muted/30 px-6 py-5">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Filter className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold">Asset Inventory</CardTitle>
+                <CardDescription>Search, segment, and sort your asset catalogue</CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-4 pt-0">
+          <CardContent className="space-y-4 p-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:flex-wrap">
-              <div className="relative flex-1">
+              <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search assets by name or ID..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 bg-background"
                 />
               </div>
               
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger className="w-full md:w-48">
+                <SelectTrigger className="w-full md:w-48 bg-background">
                   <SelectValue placeholder="Filter by type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1160,7 +1170,7 @@ export default function Assets() {
               </Select>
               
               <Select value={filterProperty} onValueChange={setFilterProperty}>
-                <SelectTrigger className="w-full md:w-48">
+                <SelectTrigger className="w-full md:w-48 bg-background">
                   <SelectValue placeholder="Filter by property" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1174,7 +1184,7 @@ export default function Assets() {
               {/* Department multi-select filter */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full md:w-56 justify-between">
+                  <Button variant="outline" className="w-full md:w-56 justify-between bg-background">
                     <span>Departments{deptAll ? ' (All)' : (deptFilter.length ? ` (${deptFilter.length})` : '')}</span>
                     <ArrowUpDown className="ml-2 h-4 w-4 opacity-60" />
                   </Button>
@@ -1269,8 +1279,8 @@ export default function Assets() {
 
         {/* Bulk actions bar (visible when any selected) */}
   {selectedIds.size > 0 && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-card/90 px-4 py-3 shadow-sm">
-            <div className="text-sm">{selectedIds.size} selected</div>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 shadow-sm backdrop-blur-sm">
+            <div className="text-sm font-medium text-primary">{selectedIds.size} selected</div>
             <div className="flex gap-2 flex-wrap items-center">
               {/* Bulk assign property */}
               {(role === 'admin' || role === 'manager') && (
@@ -1392,25 +1402,30 @@ export default function Assets() {
         )}
 
         {/* Assets Table */}
-        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
-          <CardHeader className="flex flex-col gap-1 px-6 py-5">
+        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">
+          <CardHeader className="flex flex-col gap-1 border-b border-border/60 bg-muted/30 px-6 py-5">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-              <div>
-                <CardTitle className="text-lg font-semibold">Asset Catalogue</CardTitle>
-                <CardDescription>All assets that match the filters and scope above</CardDescription>
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Package className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-semibold">Asset Catalogue</CardTitle>
+                  <CardDescription>All assets that match the filters and scope above</CardDescription>
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground md:text-right">
+              <div className="text-xs text-muted-foreground md:text-right bg-background/50 px-3 py-1 rounded-full border border-border/50">
                 Showing {groupedRows.length.toLocaleString()} group{groupedRows.length === 1 ? '' : 's'} • {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
               </div>
             </div>
           </CardHeader>
           <CardContent className="px-0 pb-0">
-            <div className="overflow-x-auto border-t border-border/60">
+            <div className="overflow-x-auto">
               <Table dense={prefs.dense} stickyHeader stickyFirstCol className="text-sm">
-              <TableHeader>
-                <TableRow>
+              <TableHeader className="bg-muted/50">
+                <TableRow className="hover:bg-transparent border-b border-border/60">
                     {isVisible('select') && (
-                    <TableHead className="w-10">
+                    <TableHead className="w-10 pl-6">
                       <Checkbox
                         aria-label="Select all"
                         checked={selectedIds.size > 0 && selectedIds.size === sortedAssets.length}
@@ -1469,7 +1484,7 @@ export default function Assets() {
                   };
                   return (
                     <>
-                    <TableRow key={key} className="transition-colors hover:bg-muted/35">
+                    <TableRow key={key} className="transition-colors hover:bg-primary/5 border-b border-border/60">
                       {isVisible('select') && (
                         <TableCell className="w-10">
                           <Checkbox
