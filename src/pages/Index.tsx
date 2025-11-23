@@ -48,6 +48,7 @@ import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tool
 import MetricCard from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type TicketSummary = {
   total: number;
@@ -414,10 +415,10 @@ const Index = () => {
 
   const priorityBreakdown = useMemo(() => {
     const order: Array<{ key: keyof TicketSummary['byPriority']; label: string; barClass: string }> = [
-      { key: 'urgent', label: 'Urgent', barClass: 'bg-red-500 dark:bg-red-400' },
-      { key: 'high', label: 'High', barClass: 'bg-amber-500 dark:bg-amber-400' },
-      { key: 'medium', label: 'Medium', barClass: 'bg-sky-500 dark:bg-sky-400' },
-      { key: 'low', label: 'Low', barClass: 'bg-slate-500 dark:bg-slate-400' },
+      { key: 'urgent', label: 'Urgent', barClass: 'bg-[hsl(339,90%,51%)]' },
+      { key: 'high', label: 'High', barClass: 'bg-[hsl(31,97%,55%)]' },
+      { key: 'medium', label: 'Medium', barClass: 'bg-[hsl(221,83%,53%)]' },
+      { key: 'low', label: 'Low', barClass: 'bg-[hsl(191,91%,46%)]' },
     ];
     const total = order.reduce((sum, item) => sum + (ticketSummary.byPriority[item.key] || 0), 0);
     return order.map((item) => {
@@ -1420,21 +1421,23 @@ const Index = () => {
               <CardTitle>Team Signals</CardTitle>
               <CardDescription>Average resolution {averageResolutionLabel}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Priority mix
-                </p>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Priority mix
+                  </p>
+                </div>
                 <div className="space-y-3">
                   {priorityBreakdown.map((item) => (
-                    <div key={item.key} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div key={item.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
                         <span className="font-medium text-foreground">{item.label}</span>
-                        <span>{item.count.toLocaleString()} • {item.percent}%</span>
+                        <span className="text-muted-foreground">{item.count.toLocaleString()} <span className="mx-1 opacity-50">•</span> {item.percent}%</span>
                       </div>
-                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted/50">
                         <div
-                          className={`absolute inset-y-0 left-0 rounded-full ${item.barClass}`}
+                          className={`absolute inset-y-0 left-0 rounded-full ${item.barClass} transition-all duration-500`}
                           style={{ width: `${item.percent}%` }}
                         />
                       </div>
@@ -1444,18 +1447,30 @@ const Index = () => {
               </div>
 
               {isAdmin && ticketSummary.topAssignees.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Top responders
                   </p>
                   <div className="space-y-2">
-                    {ticketSummary.topAssignees.slice(0, 4).map((assignee) => (
+                    {ticketSummary.topAssignees.slice(0, 4).map((assignee, i) => (
                       <div
                         key={assignee.id}
-                        className="flex items-center justify-between rounded-xl border border-border/50 bg-background/80 px-3 py-2 text-sm"
+                        className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 p-2 pr-3 transition-colors hover:bg-accent/50"
                       >
-                        <span className="font-medium text-foreground">{assignee.label}</span>
-                        <span className="text-xs text-muted-foreground">{assignee.count.toLocaleString()} tickets</span>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8 border border-border/50">
+                            <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
+                              {assignee.label.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-foreground leading-none">{assignee.label}</span>
+                            <span className="text-[10px] text-muted-foreground mt-1">Rank #{i + 1}</span>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="bg-muted/50 font-normal">
+                          {assignee.count.toLocaleString()} tickets
+                        </Badge>
                       </div>
                     ))}
                   </div>
