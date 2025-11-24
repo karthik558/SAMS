@@ -591,19 +591,6 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     }}
                   />
                 </Link>
-                <div className="flex flex-col max-w-[128px] leading-tight">
-                  {firstName ? (
-                    <>
-                      <span className="text-sm font-semibold text-sidebar-foreground">{firstName},</span>
-                      <span className="text-xs font-medium text-sidebar-foreground/70">welcome back</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-sm font-semibold text-sidebar-foreground">Welcome back</span>
-                      <span className="text-xs font-medium text-sidebar-foreground/70">to SAMS</span>
-                    </>
-                  )}
-                </div>
               </div>
               <SheetClose asChild>
                 <button
@@ -836,27 +823,6 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   side="top"
                   className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
                 >
-                  <div className="flex items-center gap-3 border-b border-border/60 bg-muted/40 px-3 py-2.5">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src="/placeholder-avatar.jpg" />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                        {firstName.slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="space-y-0.5">
-                      <p className="text-xs font-semibold text-foreground">
-                        {userName || "Guest User"}
-                      </p>
-                      {role && !isDemoMode() && (
-                        <Badge
-                          variant="outline"
-                          className="border-primary/40 bg-primary/10 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider text-primary"
-                        >
-                          {role}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
                   <div className="p-1">
                     {(role === 'admin') && (
                       <>
