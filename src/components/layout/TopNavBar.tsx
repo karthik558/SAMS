@@ -327,14 +327,26 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         <button
           type="button"
           onClick={() => navigate('/')}
-          className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-accent/40 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="hidden md:inline-flex items-center justify-center rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Dashboard"
         >
-          <Box className="h-5 w-5" />
+          <div 
+            className="h-8 w-24 bg-primary transition-colors" 
+            style={{
+              maskImage: 'url("/sams_logo.png")',
+              maskSize: 'contain',
+              maskRepeat: 'no-repeat',
+              maskPosition: 'center',
+              WebkitMaskImage: 'url("/sams_logo.png")',
+              WebkitMaskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center'
+            }}
+          />
         </button>
         
         {/* Search */}
-        <div className="relative hidden md:block w-48 lg:w-64 ml-2">
+        <div className="relative hidden md:block w-32 lg:w-48 ml-2">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Search"
