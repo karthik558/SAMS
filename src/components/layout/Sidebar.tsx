@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Package,
@@ -16,9 +16,21 @@ import {
   ShieldCheck,
   LifeBuoy,
   Megaphone,
+  LogOut,
+  Settings as SettingsIcon,
+  Users as UsersIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { isDemoMode } from "@/lib/demo";
 import { listTickets } from "@/services/tickets";
@@ -97,6 +109,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
+  const navigate = useNavigate();
   const cachedPrefs = useMemo(() => {
     try {
       const uid = getCurrentUserId();
@@ -538,11 +551,25 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       }
     })();
   }, [location.pathname]);
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem('current_user_id');
+      localStorage.removeItem('auth_user');
+      if (isDemoMode()) {
+        sessionStorage.removeItem('demo_current_user_id');
+        sessionStorage.removeItem('demo_auth_user');
+        localStorage.removeItem('demo_current_user_id');
+        localStorage.removeItem('demo_auth_user');
+      }
+    } catch {}
+    navigate(isDemoMode() ? '/demo/login' : '/login', { replace: true });
+  };
+
   if (isMobile) {
     return (
       <div className={cn("flex h-full flex-col overflow-hidden bg-sidebar text-sidebar-foreground", className)}>
-        <div className="relative overflow-hidden border-b border-border/60 bg-gradient-to-br from-background via-background to-primary/10">
-          <div className="relative px-5 pt-6 pb-5 text-foreground">
+        <div className="relative overflow-hidden border-b border-sidebar-border bg-sidebar-accent/20">
+          <div className="relative px-5 pt-6 pb-5 text-sidebar-foreground">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
                 <Link
@@ -551,7 +578,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   aria-label="Go to dashboard"
                 >
                   <div 
-                    className="h-10 w-32 bg-primary transition-colors" 
+                    className="h-10 w-32 bg-sidebar-primary transition-colors" 
                     style={{
                       maskImage: 'url("/sams_logo.png")',
                       maskSize: 'contain',
@@ -567,13 +594,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 <div className="flex flex-col max-w-[128px] leading-tight">
                   {firstName ? (
                     <>
-                      <span className="text-sm font-semibold text-foreground">{firstName},</span>
-                      <span className="text-xs font-medium text-muted-foreground">welcome back</span>
+                      <span className="text-sm font-semibold text-sidebar-foreground">{firstName},</span>
+                      <span className="text-xs font-medium text-sidebar-foreground/70">welcome back</span>
                     </>
                   ) : (
                     <>
-                      <span className="text-sm font-semibold text-foreground">Welcome back</span>
-                      <span className="text-xs font-medium text-muted-foreground">to SAMS</span>
+                      <span className="text-sm font-semibold text-sidebar-foreground">Welcome back</span>
+                      <span className="text-xs font-medium text-sidebar-foreground/70">to SAMS</span>
                     </>
                   )}
                 </div>
@@ -581,7 +608,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               <SheetClose asChild>
                 <button
                   type="button"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-background/90 text-foreground shadow-sm transition hover:bg-background"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-sidebar-border bg-sidebar-accent text-sidebar-foreground shadow-sm transition hover:bg-sidebar-accent/80"
                   aria-label="Close navigation"
                 >
                   <ChevronLeft className="h-5 w-5" />
@@ -593,10 +620,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
           {groupedNav.map((group) => (
             <div key={group.key} className="space-y-2">
-              <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/80">
+              <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/60">
                 {group.title}
               </p>
-              <div className="overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-soft">
+              <div className="overflow-hidden rounded-3xl border border-sidebar-border bg-sidebar-accent/10 shadow-sm">
                 {group.items.map((entry, idx) => (
                   <NavLink
                     key={entry.name}
@@ -605,12 +632,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     className={cn(
                       "relative flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-200",
                       entry.isActive
-                        ? "bg-primary/10 text-primary"
-                        : "text-foreground hover:bg-primary/5 hover:text-primary",
-                      idx !== group.items.length - 1 ? "border-b border-border/60" : ""
+                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                      idx !== group.items.length - 1 ? "border-b border-sidebar-border/50" : ""
                     )}
                   >
-                    <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-muted/40 text-primary">
+                    <span className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-2xl transition-colors",
+                      entry.isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "bg-sidebar-accent/50 text-sidebar-foreground"
+                    )}>
                       <entry.icon className="h-5 w-5" strokeWidth={1.6} />
                     </span>
                     <span className="flex flex-1 items-center justify-between gap-3">
@@ -627,7 +657,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                             {badge.value}
                           </span>
                         ))}
-                        <ChevronRight className="h-4 w-4 text-muted-foreground/60" />
+                        <ChevronRight className="h-4 w-4 text-sidebar-foreground/40" />
                       </span>
                     </span>
                   </NavLink>
@@ -636,8 +666,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             </div>
           ))}
         </div>
-        <div className="border-t border-border/60 px-4 py-5">
-          <p className="text-xs text-muted-foreground">
+        <div className="border-t border-sidebar-border px-4 py-5">
+          <p className="text-xs text-sidebar-foreground/50">
             © 2025 SAMS. All rights reserved.
           </p>
         </div>
@@ -648,23 +678,23 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   return (
     <div
       className={cn(
-        "group/sidebar relative h-full overflow-hidden border-r border-border transition-[width] duration-300 ease-in-out",
-        "bg-sidebar",
-        isMobile ? "w-full" : collapsed ? "w-16" : "w-64",
+        "group/sidebar relative h-full overflow-hidden border-r border-sidebar-border transition-[width] duration-300 ease-in-out",
+        "bg-sidebar text-sidebar-foreground",
+        isMobile ? "w-full" : collapsed ? "w-[70px]" : "w-72",
         className
       )}
     >
       <div className="relative z-10 flex h-full flex-col">
         {/* Header */}
-        <div className="flex h-14 md:h-16 items-center justify-between border-b border-border/60 bg-sidebar px-4">
+        <div className="flex h-16 items-center justify-between px-4 pt-2">
           {!collapsed && (
             <Link
               to={homeHref}
-              className="inline-flex items-center"
+              className="inline-flex items-center pl-2"
               aria-label="Go to dashboard"
             >
               <div 
-                className="h-9 w-32 bg-primary transition-colors" 
+                className="h-10 w-40 bg-sidebar-primary transition-colors" 
                 style={{
                   maskImage: 'url("/sams_logo.png")',
                   maskSize: 'contain',
@@ -683,7 +713,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             variant="ghost"
             size="sm"
             onClick={() => setCollapsed(!collapsed)}
-            className="h-8 w-8 rounded-full border border-sidebar-border/60 bg-sidebar-accent p-0 text-muted-foreground shadow-sm transition hover:bg-sidebar-accent/80 hover:text-foreground dark:border-border/60 dark:bg-sidebar-accent/70"
+            className={cn(
+              "h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+              collapsed && "mx-auto"
+            )}
           >
             {collapsed ? (
               <ChevronRight className="h-4 w-4" />
@@ -695,56 +728,169 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4">
-          {navEntries.map((entry) => (
-            <NavLink
-              key={entry.name}
-              to={entry.href}
-              className={cn(
-                "group/nav flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
-                collapsed ? "justify-center" : "justify-start",
-                entry.isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm ring-1 ring-sidebar-ring/30 dark:bg-sidebar-primary/25 dark:text-foreground dark:ring-sidebar-ring/30"
-                  : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent/70 hover:shadow-sm hover:ring-1 hover:ring-sidebar-ring/20 dark:hover:bg-sidebar-accent/60"
-              )}
-              onClick={onNavigate}
-            >
-              <entry.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
-              {!collapsed && (
-                <span className="flex flex-1 items-center gap-2 truncate">
-                  <span className="truncate">{entry.name}</span>
-                  {entry.badges.map((badge) => (
-                    <span
-                      key={`${entry.name}-${badge.value}-${badge.tone}`}
-                      className={cn(
-                        "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold",
-                        badgeToneClasses[badge.tone]
-                      )}
-                    >
-                      {badge.value}
-                    </span>
-                  ))}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-        {/* Footer */}
-        <div className="border-t border-border/60 p-4">
-          {!collapsed && (
-            <div className="text-xs text-muted-foreground">
-              <p>© 2025{" "}
-                <a 
-                  href="https://karthiklal.in" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
+        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-6 scrollbar-none">
+          {collapsed ? (
+            // Collapsed View: Flat list of icons
+            <div className="space-y-2">
+              {navEntries.map((entry) => (
+                <NavLink
+                  key={entry.name}
+                  to={entry.href}
+                  className={cn(
+                    "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-lg transition-all duration-200",
+                    entry.isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  )}
+                  onClick={onNavigate}
+                  title={entry.name}
                 >
-                  SAMS
-                </a>
-                . All rights reserved.
-              </p>
+                  <entry.icon className="h-5 w-5" strokeWidth={2} />
+                  {entry.badges.length > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-destructive ring-2 ring-sidebar">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                    </span>
+                  )}
+                </NavLink>
+              ))}
             </div>
+          ) : (
+            // Expanded View: Grouped list
+            groupedNav.map((group) => (
+              <div key={group.key} className="space-y-1">
+                <h4 className="px-3 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50 mb-2">
+                  {group.title}
+                </h4>
+                <div className="space-y-1">
+                  {group.items.map((entry) => (
+                    <NavLink
+                      key={entry.name}
+                      to={entry.href}
+                      className={cn(
+                        "group/nav flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                        entry.isActive
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                      )}
+                      onClick={onNavigate}
+                    >
+                      <entry.icon className={cn("h-4 w-4 shrink-0 transition-colors", entry.isActive ? "text-sidebar-primary" : "text-sidebar-foreground/60 group-hover/nav:text-sidebar-foreground")} strokeWidth={2} />
+                      <span className="flex flex-1 items-center justify-between truncate">
+                        <span>{entry.name}</span>
+                        {entry.badges.map((badge) => (
+                          <span
+                            key={`${entry.name}-${badge.value}-${badge.tone}`}
+                            className={cn(
+                              "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-[10px] font-bold ring-1 ring-inset",
+                              badge.tone === 'destructive' ? "bg-red-500/10 text-red-600 ring-red-500/20 dark:bg-red-500/20 dark:text-red-400" :
+                              badge.tone === 'warning' ? "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400" :
+                              "bg-sidebar-accent text-sidebar-foreground ring-sidebar-border"
+                            )}
+                          >
+                            {badge.value}
+                          </span>
+                        ))}
+                      </span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </nav>
+
+        {/* Footer */}
+        <div className="p-4">
+          {!collapsed && (
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="group flex cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
+                    {(role || '').toLowerCase() === 'admin' ? (
+                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
+                          <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
+                            <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+                              <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                            </div>
+                          </span>
+                        </span>
+                        <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
+                          <ShieldCheck className="h-2 w-2" />
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                        <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                      </div>
+                    )}
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
+                      <span className="truncate text-[10px] text-sidebar-foreground/60 capitalize">{role || 'Guest'}</span>
+                    </div>
+                    <SettingsIcon className="ml-auto h-4 w-4 text-sidebar-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="top"
+                  className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
+                >
+                  <div className="flex items-center gap-3 border-b border-border/60 bg-muted/40 px-3 py-2.5">
+                    <Avatar className="h-9 w-9">
+                      <AvatarImage src="/placeholder-avatar.jpg" />
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                        {firstName.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-foreground">
+                        {userName || "Guest User"}
+                      </p>
+                      {role && !isDemoMode() && (
+                        <Badge
+                          variant="outline"
+                          className="border-primary/40 bg-primary/10 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wider text-primary"
+                        >
+                          {role}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-1">
+                    {(role === 'admin') && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
+                        >
+                          <UsersIcon className="h-3.5 w-3.5" />
+                          <span>Users</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
+                        >
+                          <SettingsIcon className="h-3.5 w-3.5" />
+                          <span>Settings</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="my-1" />
+                      </>
+                    )}
+                    <DropdownMenuItem
+                      onClick={handleSignOut}
+                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
+                    >
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span>Sign out</span>
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div className="mt-3 px-1 text-[10px] text-sidebar-foreground/40">
+                <p>© 2025 SAMS. All rights reserved.</p>
+              </div>
+            </>
           )}
         </div>
       </div>

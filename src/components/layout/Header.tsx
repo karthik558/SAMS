@@ -535,7 +535,9 @@ export function Header({ onMenuClick }: HeaderProps) {
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
             {notificationsDropdown}
-            {userMenu}
+            <div className="md:hidden">
+              {userMenu}
+            </div>
           </div>
         </div>
       ) : (
@@ -575,7 +577,9 @@ export function Header({ onMenuClick }: HeaderProps) {
               {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
             {notificationsDropdown}
-            {userMenu}
+            <div className="md:hidden">
+              {userMenu}
+            </div>
           </div>
         </div>
       )}
