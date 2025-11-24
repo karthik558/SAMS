@@ -227,8 +227,8 @@ export default function LicensePage() {
   if (!authorized) {
     return (
       <div className="flex min-h-[80vh] items-center justify-center p-4">
-        <Card className="w-full max-w-md border-none shadow-2xl bg-white/95 backdrop-blur-xl dark:bg-slate-900/95">
-          <CardHeader className="space-y-1 text-center pb-2">
+        <Card className="w-full max-w-md border bg-card shadow-lg">
+          <CardHeader className="space-y-1 text-center pb-6">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Lock className="h-6 w-6" />
             </div>
