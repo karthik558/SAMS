@@ -1049,11 +1049,11 @@ const Index = () => {
 
       <section className="grid gap-6 lg:grid-cols-2">
         {/* AMC Watchlist */}
-        <Card className="overflow-hidden rounded-2xl border border-orange-100 bg-card shadow-sm transition-all hover:shadow-md dark:border-orange-900/20">
-          <CardHeader className="border-b border-orange-100 pb-4 dark:border-orange-900/20" style={{ backgroundColor: 'var(--header-amc)' }}>
+        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-orange-500/5 shadow-sm">
+          <CardHeader className="border-b border-border/40 pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
                   <AlertTriangle className="h-5 w-5" />
                 </div>
                 <div>
@@ -1062,7 +1062,7 @@ const Index = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-background/80 font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+                <Badge variant="secondary" className="bg-muted/50 font-medium text-muted-foreground">
                   {trackedAmc.toLocaleString()} Tracked
                 </Badge>
                 {overdueAmc > 0 && (
@@ -1076,7 +1076,7 @@ const Index = () => {
           <CardContent className="p-4">
             {hasSupabaseEnv ? (
               amcWatchList.length ? (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-3">
                   {displayedAmcWatchList.map((item) => {
                     const dueLabel = (() => {
                       if (item.daysRemaining === 0) return "Due today";
@@ -1088,29 +1088,31 @@ const Index = () => {
                     return (
                       <div
                         key={item.id}
-                        className="group relative flex flex-col justify-between gap-3 rounded-xl border border-border/50 bg-background p-3 shadow-sm transition-all hover:border-orange-200 hover:shadow-md dark:hover:border-orange-900/50"
+                        className="group flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 p-3 transition-all hover:bg-muted/40"
                       >
-                        <div className="space-y-1.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="line-clamp-1 font-semibold text-foreground" title={item.name}>{item.name}</h4>
-                            <Badge variant="outline" className="shrink-0 border-border/50 bg-muted/30 text-[10px] text-muted-foreground">
-                              {item.id}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1.5">
-                              <Building2 className="h-3 w-3 text-orange-500/70" /> 
-                              <span className="truncate">{item.propertyName}</span>
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <ClockIcon className="h-3 w-3 text-orange-500/70" />
-                              <span>Ends {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-3 overflow-hidden">
+                           <div className={cn("h-2 w-2 rounded-full shrink-0", 
+                              item.severity === 'urgent' ? "bg-destructive" : 
+                              item.severity === 'soon' ? "bg-orange-500" : "bg-yellow-500"
+                           )} />
+                           <div className="space-y-0.5 overflow-hidden">
+                              <h4 className="truncate text-sm font-medium text-foreground" title={item.name}>{item.name}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="truncate">{item.propertyName}</span>
+                                <span>•</span>
+                                <span>{item.id}</span>
+                              </div>
+                           </div>
                         </div>
-                        <div className="flex items-center justify-between border-t border-border/40 pt-2">
-                          <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", severityBadgeClasses[item.severity])}>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className={cn("text-[10px] font-medium", 
+                              item.severity === 'urgent' ? "text-red-600 dark:text-red-400" : 
+                              item.severity === 'soon' ? "text-orange-600 dark:text-orange-400" : "text-yellow-600 dark:text-yellow-400"
+                          )}>
                             {dueLabel}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                           </span>
                         </div>
                       </div>
@@ -1131,8 +1133,8 @@ const Index = () => {
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
-                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <div className="rounded-full bg-muted/50 p-3">
+                    <CheckCircle2 className="h-6 w-6 text-muted-foreground" />
                   </div>
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-foreground">All caught up!</p>
@@ -1142,8 +1144,8 @@ const Index = () => {
               )
             ) : (
               <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                <div className="rounded-full bg-orange-100 p-3 dark:bg-orange-900/20">
-                  <AlertTriangle className="h-6 w-6 text-orange-500" />
+                <div className="rounded-full bg-muted/50 p-3">
+                  <AlertTriangle className="h-6 w-6 text-muted-foreground" />
                 </div>
                 <p className="text-sm">Connect Supabase to enable tracking</p>
               </div>
@@ -1152,11 +1154,11 @@ const Index = () => {
         </Card>
 
         {/* Food Expiry Tracker */}
-        <Card className="overflow-hidden rounded-2xl border border-emerald-100 bg-card shadow-sm transition-all hover:shadow-md dark:border-emerald-900/20">
-          <CardHeader className="border-b border-emerald-100 pb-4 dark:border-emerald-900/20" style={{ backgroundColor: 'var(--header-food)' }}>
+        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-emerald-500/5 shadow-sm">
+          <CardHeader className="border-b border-border/40 pb-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                   <Utensils className="h-5 w-5" />
                 </div>
                 <div>
@@ -1165,7 +1167,7 @@ const Index = () => {
                 </div>
               </div>
               <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-background/80 font-medium text-muted-foreground shadow-sm backdrop-blur-sm">
+                <Badge variant="secondary" className="bg-muted/50 font-medium text-muted-foreground">
                   {foodExpiryTracked.toLocaleString()} Tracked
                 </Badge>
                 {foodExpiryOverdue > 0 ? (
@@ -1173,7 +1175,7 @@ const Index = () => {
                     {foodExpiryOverdue} Overdue
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <Badge variant="outline" className="border-emerald-200/50 bg-emerald-500/5 text-emerald-700 dark:border-emerald-800/50 dark:text-emerald-400">
                     All Fresh
                   </Badge>
                 )}
@@ -1183,7 +1185,7 @@ const Index = () => {
           <CardContent className="p-4">
             {hasSupabaseEnv ? (
               foodExpiryList.length ? (
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-3">
                   {displayedFoodExpiryList.map((item) => {
                     const dueLabel = (() => {
                       if (item.daysRemaining === 0) return "Expires today";
@@ -1195,35 +1197,35 @@ const Index = () => {
                     return (
                       <div
                         key={item.id}
-                        className="group relative flex flex-col justify-between gap-3 rounded-xl border border-border/50 bg-background p-3 shadow-sm transition-all hover:border-emerald-200 hover:shadow-md dark:hover:border-emerald-900/50"
+                        className="group flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 p-3 transition-all hover:bg-muted/40"
                       >
-                        <div className="space-y-1.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <h4 className="line-clamp-1 font-semibold text-foreground" title={item.name}>{item.name}</h4>
-                            <Badge variant="outline" className="shrink-0 border-border/50 bg-muted/30 text-[10px] text-muted-foreground">
-                              {item.id}
-                            </Badge>
-                          </div>
-                          <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1.5">
-                              <Building2 className="h-3 w-3 text-emerald-500/70" /> 
-                              <span className="truncate">{item.propertyName}</span>
-                            </span>
-                            <span className="flex items-center gap-1.5">
-                              <ClockIcon className="h-3 w-3 text-emerald-500/70" />
-                              <span>Expires {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
-                            </span>
-                            {item.quantity ? (
-                               <span className="flex items-center gap-1.5">
-                                 <Package className="h-3 w-3 text-emerald-500/70" />
-                                 <span>Qty: {item.quantity.toLocaleString()}</span>
-                               </span>
-                            ) : null}
-                          </div>
+                        <div className="flex items-center gap-3 overflow-hidden">
+                           <div className={cn("h-2 w-2 rounded-full shrink-0", 
+                              item.severity === 'urgent' ? "bg-destructive" : 
+                              item.severity === 'soon' ? "bg-orange-500" : "bg-yellow-500"
+                           )} />
+                           <div className="space-y-0.5 overflow-hidden">
+                              <h4 className="truncate text-sm font-medium text-foreground" title={item.name}>{item.name}</h4>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span className="truncate">{item.propertyName}</span>
+                                {item.quantity && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Qty: {item.quantity}</span>
+                                  </>
+                                )}
+                              </div>
+                           </div>
                         </div>
-                        <div className="flex items-center justify-between border-t border-border/40 pt-2">
-                          <span className={cn("text-[10px] font-medium px-2 py-0.5 rounded-full", severityBadgeClasses[item.severity])}>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <span className={cn("text-[10px] font-medium", 
+                              item.severity === 'urgent' ? "text-red-600 dark:text-red-400" : 
+                              item.severity === 'soon' ? "text-orange-600 dark:text-orange-400" : "text-yellow-600 dark:text-yellow-400"
+                          )}>
                             {dueLabel}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                           </span>
                         </div>
                       </div>
