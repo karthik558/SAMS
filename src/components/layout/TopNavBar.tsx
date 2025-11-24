@@ -378,7 +378,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
             to={item.href}
             title={item.label}
             className={({ isActive }) => cn(
-              'group flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+              'group flex items-center justify-center rounded-full px-4 py-2.5 text-xs font-medium transition-all duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
               isActive
                 ? 'bg-primary text-primary-foreground shadow-sm'
