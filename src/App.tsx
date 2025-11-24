@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import Index from "./pages/Index";
 import Assets from "./pages/Assets";
@@ -31,13 +31,20 @@ import { ConnectionStatus } from "@/components/common/ConnectionStatus";
 import { ThemeInitializer } from "@/components/common/ThemeInitializer";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
   let authed = false;
   try {
     authed = isDemoMode()
       ? Boolean(sessionStorage.getItem("demo_current_user_id"))
       : Boolean(localStorage.getItem("current_user_id"));
   } catch {}
-  if (!authed) return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;
+  
+  if (!authed) {
+    if (location.pathname === "/") {
+      return <Navigate to="/site" replace />;
+    }
+    return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -64,19 +71,6 @@ function isAuthenticated() {
   }
 }
 
-function LandingPage() {
-  if (isAuthenticated()) {
-    return (
-      <RequireAuth>
-        <Layout>
-          <Index />
-        </Layout>
-      </RequireAuth>
-    );
-  }
-  return <Website />;
-}
-
 function AppShell() {
   return (
     <RequireAuth>
@@ -99,7 +93,6 @@ const App = () => (
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           {/* Public minimal marketing website */}
           <Route path="/site" element={<Website />} />
@@ -108,12 +101,12 @@ const App = () => (
           <Route path="/demo/*" element={<DemoAppRouter />} />
           {/* Public QR scan view: render asset details without auth or layout */}
           <Route path="/assets/:id" element={<AssetDetails />} />
-          {/* Public in-app QR scanner */}
-          <Route path="/scan" element={<Scan />} />
           <Route element={<AppShell />}>
+            <Route path="/" element={<Index />} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
             <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
             <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />
+            <Route path="/scan" element={<Scan />} />
             <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
             <Route path="/tickets" element={<Tickets />} />
             <Route path="/newsletter" element={<Newsletter />} />
