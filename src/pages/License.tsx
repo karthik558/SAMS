@@ -8,13 +8,17 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
-import { Card, CardHeader, CardContent, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardContent, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import PageHeader from '@/components/layout/PageHeader';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import Breadcrumbs from '@/components/layout/Breadcrumbs';
-import { Building2, ShieldCheck, Save, RefreshCw, Lock, Plus, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Building2, ShieldCheck, Save, RefreshCw, Lock, Plus, Eye, EyeOff, AlertCircle, Loader2, CheckCircle2, XCircle, MoreHorizontal, Edit, Crown } from 'lucide-react';
 import { loginWithPassword } from '@/services/auth';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface PropertyRow extends Property { assetCount: number; licenseLimit: number; plan?: LicensePlan | null; derived?: number | null; }
 
@@ -22,15 +26,20 @@ export default function LicensePage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState<PropertyRow[]>([]);
-  const [editing, setEditing] = useState<Record<string, string>>({});
-  const [editingPlans, setEditingPlans] = useState<Record<string, LicensePlan | 'none'>>({});
-  const [globalMessage] = useState('Global capacity is unlimited. Manage per-property plans below.');
+  
+  // Edit Dialog State
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<PropertyRow | null>(null);
+  const [editForm, setEditForm] = useState<{ plan: LicensePlan | 'none'; limit: string }>({ plan: 'none', limit: '0' });
+  const [saving, setSaving] = useState(false);
+
   // Add Property dialog state
   const [addOpen, setAddOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newForm, setNewForm] = useState<{ id: string; name: string; address: string; type: string; status: string; manager: string }>({ id: '', name: '', address: '', type: 'Office', status: 'Active', manager: '' });
   const [newPlan, setNewPlan] = useState<LicensePlan | 'none'>('none');
   const [newLimit, setNewLimit] = useState<string>('0');
+  
   // Password confirmation gate
   const [authOpen, setAuthOpen] = useState(true);
   const [authorized, setAuthorized] = useState(false);
@@ -49,23 +58,15 @@ export default function LicensePage() {
         listAssets().catch(() => []),
         listPropertyLicenses().catch(() => [])
       ]);
-  const mapLic: Record<string, { limit: number; plan?: LicensePlan | null; } > = {};
-  for (const l of propLicenses as any[]) mapLic[l.property_id] = { limit: l.asset_limit, plan: l.plan };
+      const mapLic: Record<string, { limit: number; plan?: LicensePlan | null; } > = {};
+      for (const l of propLicenses as any[]) mapLic[l.property_id] = { limit: l.asset_limit, plan: l.plan };
       const assetCounts: Record<string, number> = {};
       for (const a of assets) {
         const pid = a.property_id || a.property;
         if (!pid) continue;
         assetCounts[pid] = (assetCounts[pid] || 0) + 1;
       }
-      function derivedFromPlan(plan?: LicensePlan | null): number | null {
-        switch (plan) {
-          case 'free': return 100;
-          case 'standard': return 500;
-          case 'pro': return 2500;
-          case 'business': return null; // unlimited unless numeric set
-          default: return null;
-        }
-      }
+      
       const rows: PropertyRow[] = props.map(p => {
         const entry = mapLic[p.id];
         const plan = entry?.plan;
@@ -75,14 +76,6 @@ export default function LicensePage() {
         return { ...p, assetCount: assetCounts[p.id] || 0, licenseLimit: effective, plan, derived };
       });
       setProperties(rows);
-      // Initialize editingPlans for newly loaded properties if absent
-      setEditingPlans(prev => {
-        const next = { ...prev };
-        for (const r of rows) {
-          if (!next[r.id]) next[r.id] = (r.plan || 'none');
-        }
-        return next;
-      });
     } catch (e:any) {
       console.error(e);
       toast.error('Failed to load license data');
@@ -134,19 +127,38 @@ export default function LicensePage() {
   useEffect(() => { if (authorized) reload(); }, [authorized]);
 
   const totalUsage = useMemo(() => properties.reduce((s,p)=> s + p.assetCount, 0), [properties]);
+  const totalLimit = useMemo(() => properties.reduce((s,p)=> s + (p.licenseLimit || 0), 0), [properties]); // Note: 0 means unlimited, so this sum is just for finite limits
 
-  const handleSaveProperty = async (propId: string) => {
-    const raw = editing[propId];
-    if (raw == null) return;
-    let n = Number(raw);
-    if (raw === '' || raw == null) n = 0;
-    if (!Number.isFinite(n) || n < 0) { toast.error('Invalid number'); return; }
-    // find plan from mutated property object
-  const planSel = editingPlans[propId];
-  const plan = (!planSel || planSel === 'none') ? null : planSel;
-    // For non-business plans numeric should be 0 (derive on read)
-    const toStore = plan && plan !== 'business' ? 0 : n;
-    try { await upsertPropertyLicense(propId, toStore, plan); toast.success('Saved'); setEditing(prev => { const cp = { ...prev }; delete cp[propId]; return cp; }); await reload(); } catch (e:any) { toast.error(e.message || 'Failed'); }
+  const openEditDialog = (prop: PropertyRow) => {
+    setSelectedProperty(prop);
+    setEditForm({
+      plan: (prop.plan || 'none') as LicensePlan | 'none',
+      limit: prop.derived != null ? '0' : String(prop.licenseLimit)
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleSaveLicense = async () => {
+    if (!selectedProperty) return;
+    setSaving(true);
+    try {
+      const plan = editForm.plan === 'none' ? null : editForm.plan;
+      let n = Number(editForm.limit);
+      if (!Number.isFinite(n) || n < 0) n = 0;
+      
+      // For non-business plans numeric should be 0 (derive on read) unless explicitly overriding? 
+      // Logic from before: "For non-business plans numeric should be 0"
+      const toStore = plan && plan !== 'business' ? 0 : n;
+      
+      await upsertPropertyLicense(selectedProperty.id, toStore, plan);
+      toast.success('License updated successfully');
+      setEditDialogOpen(false);
+      await reload();
+    } catch (e:any) {
+      toast.error(e.message || 'Failed to update license');
+    } finally {
+      setSaving(false);
+    }
   };
 
   async function handleCreateProperty() {
@@ -189,7 +201,6 @@ export default function LicensePage() {
         if (hasSupabaseEnv) throw e; // only ignore when backend not configured
       }
 
-      // Update UI: if backend present, reload; else optimistic append
       if (hasSupabaseEnv) {
         await reload();
       } else if (created) {
@@ -198,7 +209,6 @@ export default function LicensePage() {
         const effective = rawLimit > 0 ? rawLimit : (derived ?? 0);
         const row: PropertyRow = { ...created, assetCount: 0, licenseLimit: effective, plan: plan as any, derived } as any;
         setProperties(prev => [...prev, row]);
-        setEditingPlans(prev => ({ ...prev, [id]: newPlan }));
       }
 
       setAddOpen(false);
@@ -214,321 +224,419 @@ export default function LicensePage() {
     }
   }
 
-  // Removed global plan saving; global is unlimited now.
-
-  return (
-    <div className='space-y-6'>
-      <Breadcrumbs items={[{ label: 'Dashboard', to: '/' }, { label: 'License' }]} />
-      <div className='rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8'>
-        <PageHeader
-          icon={ShieldCheck}
-          title='License Management'
-          description='Configure global and per-property asset allowances'
-          actions={
-            <div className='flex gap-2'>
-              <Button size='sm' className='gap-2' onClick={() => setAddOpen(true)}>
-                <Plus className='h-4 w-4' />
-                Add Property
-              </Button>
-              <Button size='sm' variant='outline' onClick={reload} className='gap-2'>
-                <RefreshCw className='h-4 w-4'/>Refresh
-              </Button>
+  if (!authorized) {
+    return (
+      <div className="flex min-h-[80vh] items-center justify-center p-4">
+        <Card className="w-full max-w-md border-none shadow-2xl bg-white/95 backdrop-blur-xl dark:bg-slate-900/95">
+          <CardHeader className="space-y-1 text-center pb-2">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Lock className="h-6 w-6" />
             </div>
-          }
-        />
-      </div>
-      {/* Password confirmation modal */}
-      <Dialog open={authOpen} onOpenChange={(o)=> { setAuthOpen(o); if (!o && !authorized) navigate('/'); }}>
-        <DialogContent className='w-[calc(100vw-2rem)] sm:max-w-md rounded-xl sm:rounded-2xl border border-border/60 bg-card p-0 overflow-hidden'>
-          <DialogHeader className='px-5 pt-5 pb-0'>
-            <DialogTitle className='text-base flex items-center gap-2'>
-              <span className='inline-flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary'>
-                <Lock className='h-4 w-4' />
-              </span>
-              Admin verification
-            </DialogTitle>
-            <DialogDescription>Enter your password to access license settings.</DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!adminEmail) { toast.error('Not signed in'); return; }
-              try {
-                setVerifying(true);
-                setAuthError(null);
-                const u = await loginWithPassword(adminEmail, password);
-                if (!u || (u.role || '').toLowerCase() !== 'admin') {
-                  const msg = 'Invalid password. Please try again.';
-                  setAuthError(msg);
+            <CardTitle className="text-2xl">Admin Verification</CardTitle>
+            <CardDescription>
+              Please verify your identity to access license management
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!adminEmail) { toast.error('Not signed in'); return; }
+                try {
+                  setVerifying(true);
+                  setAuthError(null);
+                  const u = await loginWithPassword(adminEmail, password);
+                  if (!u || (u.role || '').toLowerCase() !== 'admin') {
+                    const msg = 'Invalid password. Please try again.';
+                    setAuthError(msg);
+                    toast.error(msg);
+                    setVerifying(false);
+                    return;
+                  }
+                  setAuthorized(true);
+                  setAuthOpen(false);
+                  try { sessionStorage.setItem(SESSION_KEY, String(Date.now())); } catch {}
+                } catch (e:any) {
+                  const msg = e?.message || 'Verification failed';
+                  setAuthError(String(msg));
                   toast.error(msg);
+                } finally {
                   setVerifying(false);
-                  return;
+                  setPassword('');
                 }
-                setAuthorized(true);
-                setAuthOpen(false);
-                try { sessionStorage.setItem(SESSION_KEY, String(Date.now())); } catch {}
-              } catch (e:any) {
-                const msg = e?.message || 'Verification failed';
-                setAuthError(String(msg));
-                toast.error(msg);
-              } finally {
-                setVerifying(false);
-                setPassword('');
-              }
-            }}
-          >
-            <div className='grid gap-3 p-5'>
-              <div className='text-xs text-muted-foreground'>
-                Signed in as: <span className='font-medium text-foreground'>{adminEmail || '—'}</span>
-              </div>
-              <div className='space-y-2'>
-                <Label htmlFor='admin-password' className='text-xs'>Password</Label>
-                <div className='relative'>
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
                   <Input
-                    id='admin-password'
-                    type={showPassword ? 'text' : 'password'}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Enter your password"
                     value={password}
-                    onChange={(e)=> setPassword(e.target.value)}
-                    placeholder='Enter your password'
-                    autoComplete='current-password'
-                    autoFocus
+                    onChange={(e) => setPassword(e.target.value)}
                     disabled={verifying}
+                    className="pr-10"
                   />
-                  <button
-                    type='button'
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    onClick={()=> setShowPassword(v=>!v)}
-                    className='absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground'
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? <EyeOff className='h-4 w-4'/> : <Eye className='h-4 w-4'/>}
-                  </button>
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
                 </div>
                 {authError && (
-                  <div className='mt-1 inline-flex items-center gap-2 text-[13px] text-destructive'>
-                    <AlertCircle className='h-4 w-4' />
-                    <span className='leading-none'>{authError}</span>
-                  </div>
+                  <p className="text-sm text-destructive flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4" />
+                    {authError}
+                  </p>
                 )}
               </div>
-            </div>
-            <DialogFooter className='px-5 pb-5 gap-2 flex-col-reverse sm:flex-row sm:justify-end'>
-              <Button type='button' variant='outline' onClick={()=> navigate('/')} className='w-full sm:w-auto' disabled={verifying}>Cancel</Button>
-              <Button type='submit' className='w-full sm:w-auto gap-2' disabled={!password || verifying}>
-                {verifying && <Loader2 className='h-4 w-4 animate-spin'/>}
-                {verifying ? 'Verifying…' : 'Verify'}
+              <Button className="w-full" type="submit" disabled={!password || verifying}>
+                {verifying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {verifying ? "Verifying..." : "Verify Access"}
               </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-      {authorized && !!properties.length && (
-        <Card className='border border-primary/30 bg-primary/5'>
-          <CardContent className='p-4 text-sm flex flex-wrap gap-2'>
-            <span className='font-medium text-primary'>Global Unlimited</span>
-            <span className='text-muted-foreground'>Manage capacity per property with plans or custom limits.</span>
-            <span className='ml-auto text-xs text-muted-foreground'>Total assets: <span className='font-semibold text-foreground'>{totalUsage}</span></span>
+            </form>
+          </CardContent>
+          <CardFooter className="justify-center border-t bg-muted/50 py-4">
+            <p className="text-xs text-muted-foreground">
+              Signed in as <span className="font-medium text-foreground">{adminEmail}</span>
+            </p>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 pb-10">
+      <div className="space-y-4 print:hidden">
+        <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "License" }]} />
+        
+        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+          <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                License Management
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Configure global and per-property asset allowances and plans.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setAddOpen(true)} className="gap-2 shadow-md">
+                <Plus className="h-4 w-4" />
+                Add Property
+              </Button>
+              <Button variant="outline" onClick={reload} className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Properties</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{properties.length}</div>
+            <p className="text-xs text-muted-foreground">Active locations</p>
           </CardContent>
         </Card>
-      )}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Assets Managed</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalUsage}</div>
+            <p className="text-xs text-muted-foreground">Across all properties</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Global Status</CardTitle>
+            <Crown className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">Unlimited</div>
+            <p className="text-xs text-muted-foreground">Enterprise License Active</p>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Per-Property Plans & Limits</CardTitle>
-          <CardDescription>Assign a plan or custom numeric limit per property. Plan derives a default limit unless you set a specific number (0 = unlimited).</CardDescription>
+      <Card className="overflow-hidden border-border/60 shadow-sm">
+        <CardHeader className="bg-muted/30 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Property Licenses</CardTitle>
+              <CardDescription>Manage plans and asset limits for each property</CardDescription>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent className='space-y-4'>
-          {!authorized && (
-            <div className='text-sm text-muted-foreground'>Please verify your password to view and edit license settings.</div>
-          )}
-          {authorized && (
-          <div className='grid gap-3 md:grid-cols-2 lg:grid-cols-3'>
-            {properties.map(p => {
-              const pct = p.licenseLimit>0 ? Math.min(100, Math.round(p.assetCount / p.licenseLimit * 100)) : 0;
-              const editingVal = editing[p.id];
-              const currentPlanSel = editingPlans[p.id];
-              const currentPlan = currentPlanSel && currentPlanSel !== 'none' ? currentPlanSel as LicensePlan : undefined;
-              return (
-                <div key={p.id} className='rounded-xl border border-border/60 bg-card/80 p-4 flex flex-col gap-3 shadow-sm'>
-                  <div className='flex items-start justify-between gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <div className='h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary'><Building2 className='h-5 w-5'/></div>
-                      <div>
-                        <div className='font-semibold text-sm'>{p.name}</div>
-                        <div className='text-xs text-muted-foreground'>{p.id}</div>
-                      </div>
-                    </div>
-                    <div className='text-right text-xs text-muted-foreground'>Assets: <span className='font-semibold text-foreground'>{p.assetCount}</span>{p.licenseLimit>0 && <> / <span className='font-semibold'>{p.licenseLimit}</span></>}</div>
-                  </div>
-                  <div className='space-y-2'>
-                    <label className='text-[11px] uppercase tracking-wide text-muted-foreground'>Plan & Limit</label>
-                    <div className='grid grid-cols-1 sm:[grid-template-columns:12rem_minmax(0,1fr)] md:[grid-template-columns:14rem_minmax(0,1fr)] gap-3 items-start'>
-                      <Select
-                        value={currentPlan ? currentPlan : 'none'}
-                        onValueChange={(val)=> {
-                          const planValue = val as LicensePlan | 'none';
-                          setEditingPlans(prev => ({ ...prev, [p.id]: planValue }));
-                          if (planValue !== 'business' && planValue !== 'none') {
-                            setEditing(prev => ({ ...prev, [p.id]: '0' }));
-                          } else if (planValue === 'business') {
-                            setEditing(prev => ({ ...prev, [p.id]: prev[p.id] ?? (p.licenseLimit>0 ? String(p.licenseLimit) : '') }));
-                          } else { // none
-                            setEditing(prev => ({ ...prev, [p.id]: prev[p.id] ?? (p.licenseLimit>0 ? String(p.licenseLimit) : '0') }));
-                          }
-                        }}
-                      >
-                        <SelectTrigger className='h-10 w-full text-xs'>
-                          <SelectValue placeholder='None' />
-                        </SelectTrigger>
-                        <SelectContent className='text-xs'>
-                          <SelectItem value='none'>None</SelectItem>
-                          <SelectItem value='free'>Free</SelectItem>
-                          <SelectItem value='standard'>Standard</SelectItem>
-                          <SelectItem value='pro'>Pro</SelectItem>
-                          <SelectItem value='business'>Business</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className='flex flex-col min-w-0'>
-                        <Input
-                          value={editingVal ?? (p.licenseLimit>0 ? String(p.licenseLimit) : (p.derived ?? 0).toString())}
-                          disabled={currentPlan !== 'business'}
-                          onChange={(e)=> setEditing(prev => ({ ...prev, [p.id]: e.target.value }))}
-                          className='h-10 text-xs tabular-nums'
-                          placeholder={currentPlan === 'business' ? 'Enter custom or 0=unlimited' : (p.derived != null ? `Derived ${p.derived}` : '0 = unlimited')}
-                        />
-                        <div className='mt-1 h-4 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground'>
-                          {currentPlan && currentPlan !== 'business' && p.derived != null ? (
-                            <span>Derived from {currentPlan} plan: {p.derived} assets</span>
-                          ) : (
-                            <span className='invisible'>·</span>
+        <div className="relative overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                <TableHead className="w-[250px]">Property</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Current Plan</TableHead>
+                <TableHead className="w-[200px]">Utilization</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                  </TableCell>
+                </TableRow>
+              ) : properties.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                    No properties found.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                properties.map((prop) => {
+                  const limit = prop.licenseLimit;
+                  const usage = prop.assetCount;
+                  const pct = limit > 0 ? Math.min(100, Math.round((usage / limit) * 100)) : 0;
+                  const isUnlimited = limit === 0;
+                  
+                  return (
+                    <TableRow key={prop.id} className="hover:bg-muted/5">
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">{prop.name}</span>
+                          <span className="text-xs text-muted-foreground font-mono">{prop.id}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-normal">
+                          {prop.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {prop.plan ? (
+                          <Badge variant="secondary" className="capitalize">
+                            {prop.plan}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium">{usage} assets</span>
+                            <span className="text-muted-foreground">
+                              {isUnlimited ? "Unlimited" : `Limit: ${limit}`}
+                            </span>
+                          </div>
+                          {!isUnlimited && (
+                            <Progress value={pct} className="h-1.5" />
                           )}
                         </div>
-                      </div>
-                    </div>
-                    <Button size='sm' onClick={()=> handleSaveProperty(p.id)} className='gap-2 h-8'><Save className='h-4 w-4'/>Save</Button>
-                  </div>
-                  {p.licenseLimit>0 && (
-                    <div className='space-y-1'>
-                      <div className='flex items-center justify-between text-[11px] text-muted-foreground'>
-                        <span>Utilization</span>
-                        <span className='font-medium text-foreground'>{pct}%</span>
-                      </div>
-                      <div className='h-2 w-full rounded-full bg-muted/50'>
-                        <div className='h-full rounded-full bg-gradient-to-r from-primary via-primary/70 to-primary/40' style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          )}
-          {authorized && !properties.length && !loading && <div className='text-sm text-muted-foreground'>No properties found.</div>}
-          {authorized && loading && <div className='text-sm text-muted-foreground'>Loading…</div>}
-        </CardContent>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          {prop.status === 'Active' ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span className="text-sm">{prop.status}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(prop)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit License
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
-      {!hasSupabaseEnv && (
-        <Card className='border-warning/50 bg-warning/5'>
-          <CardContent className='p-6 text-sm text-muted-foreground'>Backend not configured: license settings stored locally only.</CardContent>
-        </Card>
-      )}
+      {/* Edit License Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit License</DialogTitle>
+            <DialogDescription>
+              Update plan and limits for <span className="font-medium text-foreground">{selectedProperty?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label>License Plan</Label>
+              <Select 
+                value={editForm.plan} 
+                onValueChange={(v) => {
+                  const p = v as LicensePlan | 'none';
+                  setEditForm(prev => ({
+                    ...prev,
+                    plan: p,
+                    limit: p !== 'business' && p !== 'none' ? '0' : prev.limit
+                  }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (Custom Limit)</SelectItem>
+                  <SelectItem value="free">Free (100 Assets)</SelectItem>
+                  <SelectItem value="standard">Standard (500 Assets)</SelectItem>
+                  <SelectItem value="pro">Pro (2,500 Assets)</SelectItem>
+                  <SelectItem value="business">Business (Custom)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Asset Limit</Label>
+              <Input
+                value={editForm.limit}
+                onChange={(e) => setEditForm(prev => ({ ...prev, limit: e.target.value.replace(/[^0-9]/g, '') }))}
+                disabled={editForm.plan !== 'business' && editForm.plan !== 'none'}
+                placeholder="0 for unlimited"
+              />
+              <p className="text-xs text-muted-foreground">
+                {editForm.plan !== 'business' && editForm.plan !== 'none' 
+                  ? `Limit is derived from ${editForm.plan} plan.` 
+                  : "Set to 0 for unlimited assets."}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveLicense} disabled={saving}>
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Property Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className='sm:max-w-xl rounded-2xl border border-border/60 bg-card/95 p-0 overflow-hidden'>
-          <DialogHeader className='border-b border-border/60 px-5 py-4'>
-            <DialogTitle className='text-base'>Add Property & Assign License</DialogTitle>
-            <DialogDescription>Create a new property and set its license plan or custom limit.</DialogDescription>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add New Property</DialogTitle>
+            <DialogDescription>Create a property and assign an initial license.</DialogDescription>
           </DialogHeader>
-          <div className='p-5'>
-            <div className='grid gap-4'>
-              <div className='grid gap-2 sm:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label htmlFor='prop-id'>Property ID (optional)</Label>
-                  <Input id='prop-id' value={newForm.id} onChange={(e)=> setNewForm(s=>({ ...s, id: e.target.value }))} placeholder='e.g., PROP-123' />
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='prop-type'>Type</Label>
-                  <Select value={newForm.type} onValueChange={(v)=> setNewForm(s=>({ ...s, type: v }))}>
-                    <SelectTrigger id='prop-type'><SelectValue placeholder='Type' /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='Office'>Office</SelectItem>
-                      <SelectItem value='Storage'>Storage</SelectItem>
-                      <SelectItem value='Manufacturing'>Manufacturing</SelectItem>
-                      <SelectItem value='Site Office'>Site Office</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Property ID</Label>
+                <Input 
+                  placeholder="Auto-generated" 
+                  value={newForm.id} 
+                  onChange={(e) => setNewForm(prev => ({ ...prev, id: e.target.value }))} 
+                />
               </div>
-              <div className='space-y-2'>
-                <Label htmlFor='prop-name'>Name</Label>
-                <Input id='prop-name' value={newForm.name} onChange={(e)=> setNewForm(s=>({ ...s, name: e.target.value }))} placeholder='Property name' />
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select value={newForm.type} onValueChange={(v) => setNewForm(prev => ({ ...prev, type: v }))}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Office">Office</SelectItem>
+                    <SelectItem value="Storage">Storage</SelectItem>
+                    <SelectItem value="Manufacturing">Manufacturing</SelectItem>
+                    <SelectItem value="Site Office">Site Office</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-              <div className='space-y-2'>
-                <Label htmlFor='prop-address'>Address</Label>
-                <Input id='prop-address' value={newForm.address} onChange={(e)=> setNewForm(s=>({ ...s, address: e.target.value }))} placeholder='Address (optional)' />
-              </div>
-              <div className='grid gap-2 sm:grid-cols-2'>
-                <div className='space-y-2'>
-                  <Label htmlFor='prop-status'>Status</Label>
-                  <Select value={newForm.status} onValueChange={(v)=> setNewForm(s=>({ ...s, status: v }))}>
-                    <SelectTrigger id='prop-status'><SelectValue placeholder='Status' /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value='Active'>Active</SelectItem>
-                      <SelectItem value='Inactive'>Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className='space-y-2'>
-                  <Label htmlFor='prop-manager'>Manager</Label>
-                  <Input id='prop-manager' value={newForm.manager} onChange={(e)=> setNewForm(s=>({ ...s, manager: e.target.value }))} placeholder='Manager (optional)' />
-                </div>
-              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Property Name</Label>
+              <Input 
+                placeholder="e.g. Head Office" 
+                value={newForm.name} 
+                onChange={(e) => setNewForm(prev => ({ ...prev, name: e.target.value }))} 
+              />
+            </div>
 
-              <div className='mt-1 rounded-lg border border-border/60 p-3'>
-                <div className='mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground'>License</div>
-                <div className='grid gap-3 sm:[grid-template-columns:12rem_minmax(0,1fr)] md:[grid-template-columns:14rem_minmax(0,1fr)] items-start'>
-                  <Select value={newPlan} onValueChange={(v)=> {
-                    const pv = v as LicensePlan | 'none';
-                    setNewPlan(pv);
-                    if (pv !== 'business' && pv !== 'none') setNewLimit('0');
-                  }}>
-                    <SelectTrigger className='h-10 text-sm'><SelectValue placeholder='None' /></SelectTrigger>
-                    <SelectContent className='text-sm'>
-                      <SelectItem value='none'>None</SelectItem>
-                      <SelectItem value='free'>Free</SelectItem>
-                      <SelectItem value='standard'>Standard</SelectItem>
-                      <SelectItem value='pro'>Pro</SelectItem>
-                      <SelectItem value='business'>Business</SelectItem>
+            <div className="space-y-2">
+              <Label>Address</Label>
+              <Input 
+                placeholder="Optional address" 
+                value={newForm.address} 
+                onChange={(e) => setNewForm(prev => ({ ...prev, address: e.target.value }))} 
+              />
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-4 bg-muted/30">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">Initial License</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Plan</Label>
+                  <Select 
+                    value={newPlan} 
+                    onValueChange={(v) => {
+                      const p = v as LicensePlan | 'none';
+                      setNewPlan(p);
+                      if (p !== 'business' && p !== 'none') setNewLimit('0');
+                    }}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="free">Free</SelectItem>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="pro">Pro</SelectItem>
+                      <SelectItem value="business">Business</SelectItem>
                     </SelectContent>
                   </Select>
-                  <div className='min-w-0'>
-                    <Input
-                      value={newLimit}
-                      onChange={(e)=> setNewLimit(e.target.value.replace(/[^0-9]/g, ''))}
-                      disabled={newPlan !== 'business' && newPlan !== 'none'}
-                      className='h-10 text-sm tabular-nums'
-                      placeholder={newPlan === 'business' || newPlan === 'none' ? 'Enter custom or 0=unlimited' : (()=>{
-                        const d = derivedFromPlan(newPlan as any);
-                        return d != null ? `Derived ${d}` : '0 = unlimited';
-                      })()}
-                    />
-                    <div className='mt-1 h-4 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground'>
-                      {newPlan && newPlan !== 'business' && newPlan !== 'none' ? (
-                        <span>Derived from {newPlan} plan: {derivedFromPlan(newPlan as any) ?? 0} assets</span>
-                      ) : (
-                        <span className='invisible'>·</span>
-                      )}
-                    </div>
-                  </div>
                 </div>
-                <p className='mt-2 text-[11px] text-muted-foreground'>Tip: Plans derive a default limit. Choose Business or None to set a custom number. Use 0 for unlimited.</p>
+                <div className="space-y-2">
+                  <Label className="text-xs">Limit</Label>
+                  <Input 
+                    className="h-9"
+                    value={newLimit}
+                    onChange={(e) => setNewLimit(e.target.value.replace(/[^0-9]/g, ''))}
+                    disabled={newPlan !== 'business' && newPlan !== 'none'}
+                    placeholder="0 = unlimited"
+                  />
+                </div>
               </div>
             </div>
           </div>
-          <DialogFooter className='px-5 pb-5'>
-            <Button variant='outline' onClick={()=> setAddOpen(false)} disabled={adding}>Cancel</Button>
-            <Button onClick={handleCreateProperty} disabled={adding}>{adding ? 'Creating…' : 'Create & Assign'}</Button>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateProperty} disabled={adding}>
+              {adding ? "Creating..." : "Create Property"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
