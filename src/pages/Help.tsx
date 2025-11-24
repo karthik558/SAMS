@@ -11,6 +11,8 @@ import {
   Command,
   ArrowUpRight,
   ShieldCheck,
+  BookOpen,
+  PlayCircle,
 } from "lucide-react";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -323,236 +325,150 @@ export default function Help() {
   );
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8 pb-10">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Help Center" }]} />
 
-      <section className="rounded-3xl border border-border/60 bg-card shadow-sm">
-        <div className="flex flex-col gap-8 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-xl space-y-4">
-            <h1 className="text-3xl font-bold text-foreground sm:text-4xl">
-              Welcome to the SAMS Help Center
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-              Explore best-practice workflows, follow live walkthroughs that move with you, and share resources with your team. Everything is built on your actual SAMS data so you can learn and apply at the same time.
-            </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button size="lg" onClick={() => startGuide("add-asset")} className="gap-2">
-                Start “Add asset” tour
-                <ArrowUpRight className="h-4 w-4" />
-              </Button>
-              <Button size="lg" variant="outline" onClick={() => startGuide("command-palette")}>
-                Learn the command palette
-              </Button>
-            </div>
-            {activeGuide ? (
-              <p className="text-xs text-muted-foreground">
-                Currently following: <span className="font-medium text-foreground">{activeGuide.title}</span>. Use the <span className="font-medium">←</span> and <span className="font-medium">→</span> keys to move through steps.
-              </p>
-            ) : null}
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-12 shadow-sm sm:px-12 sm:py-16">
+        <div className="relative z-10 max-w-3xl space-y-6">
+          <div className="inline-flex items-center rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+            <span className="mr-2 flex h-2 w-2 rounded-full bg-primary"></span>
+            Help Center
           </div>
-          <div className="grid w-full max-w-xl gap-3 sm:grid-cols-2">
-            {accessibleQuickActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={action.to}
-                  to={action.to}
-                  className="group rounded-2xl border border-border/50 bg-background/80 p-4 transition hover:border-primary/40 hover:bg-primary/5"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="mt-4 text-sm font-semibold text-foreground group-hover:text-primary">{action.label}</h3>
-                  <p className="mt-2 text-xs text-muted-foreground">{action.description}</p>
-                </Link>
-              );
-            })}
+          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+            How can we help you today?
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            Explore guides, documentation, and support resources to get the most out of SAMS.
+          </p>
+          
+          <div className="flex flex-wrap gap-3 pt-4">
+             <Button size="lg" onClick={() => startGuide("add-asset")} className="h-12 gap-2 rounded-full px-6 text-base shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30">
+                <PlayCircle className="h-5 w-5" />
+                Start “Add asset” tour
+              </Button>
+              <Button variant="outline" size="lg" className="h-12 gap-2 rounded-full px-6 text-base" onClick={() => startGuide("command-palette")}>
+                <Command className="h-4 w-4" />
+                Command palette
+              </Button>
           </div>
         </div>
-      </section>
+        
+        {/* Decorative background element */}
+        <div className="absolute right-0 top-0 -z-10 h-full w-1/2 bg-gradient-to-l from-primary/5 to-transparent" />
+        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
+      </div>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {personaHighlights.map((persona) => {
-          const Icon = persona.icon;
-          return (
-            <Card key={persona.label} className="border border-border/60 bg-card/90 shadow-sm">
-              <CardContent className="flex h-full flex-col gap-4 p-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground">
-                  {persona.label}
-                </h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {persona.description}
-                </p>
+      <div className="grid gap-6 md:grid-cols-4">
+         <div className="md:col-span-3 space-y-8">
+            
+            {/* Interactive Guides */}
+            <section>
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-semibold">Interactive Walkthroughs</h2>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {accessibleGuides.map(guide => (
+                  <Card key={guide.id} className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/50" onClick={() => startGuide(guide.id)}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base group-hover:text-primary">{guide.title}</CardTitle>
+                      <CardDescription className="line-clamp-2">{guide.summary}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                       <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          {guide.steps.length} Steps • {guide.audience}
+                       </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            {/* Knowledge Base */}
+            <section>
+               <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-semibold">Knowledge Base</h2>
+              </div>
+              <div className="grid gap-4">
+                {knowledgeCategories.map(category => (
+                   <Card key={category.id} className="overflow-hidden">
+                      <div className="border-b bg-muted/30 px-6 py-4">
+                         <h3 className="font-semibold">{category.title}</h3>
+                         <p className="text-sm text-muted-foreground">{category.summary}</p>
+                      </div>
+                      <div className="divide-y">
+                        {category.articles.filter(a => canAccess(a)).map((article, index) => (
+                           <div key={index} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                              <div className="space-y-1">
+                                 <div className="font-medium text-sm">{article.title}</div>
+                                 <div className="text-xs text-muted-foreground">{article.description}</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {article.guideId && (
+                                  <Button variant="ghost" size="sm" onClick={() => startGuide(article.guideId!)}>
+                                    Start
+                                  </Button>
+                                )}
+                                {article.to && (
+                                  <Button variant="ghost" size="sm" asChild>
+                                    <Link to={article.to}>View</Link>
+                                  </Button>
+                                )}
+                              </div>
+                           </div>
+                        ))}
+                      </div>
+                   </Card>
+                ))}
+              </div>
+            </section>
+
+         </div>
+
+         {/* Sidebar / Quick Links */}
+         <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {accessibleQuickActions.map(action => (
+                  <Link key={action.to} to={action.to} className="flex items-center justify-between rounded-lg border p-3 text-sm transition-colors hover:bg-muted hover:text-primary">
+                    <span>{action.label}</span>
+                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                  </Link>
+                ))}
               </CardContent>
             </Card>
-          );
-        })}
-      </section>
 
-      <section className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold text-foreground">Interactive walkthroughs</h2>
-          <p className="text-sm text-muted-foreground">
-            Follow along with guided steps that automatically navigate you between pages and highlight what matters for each role.
-          </p>
-        </div>
-        <div className="grid gap-4 xl:grid-cols-2">
-          {accessibleGuides.map((guide) => {
-            const Icon = guide.icon;
-            const isActive = activeGuide?.id === guide.id;
-            return (
-              <Card
-                key={guide.id}
-                className={cn(
-                  "border border-border/70 bg-card/95 shadow-sm transition hover:border-primary/40",
-                  isActive && "ring-2 ring-primary/40"
-                )}
-              >
-                <CardHeader className="flex flex-col gap-4 pb-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Icon className="h-5 w-5" />
+            <Card>
+               <CardHeader>
+                <CardTitle className="text-base">Support</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                 {accessibleSupportChannels.map(channel => (
+                    <div key={channel.title} className="rounded-lg border p-3 text-sm">
+                       <div className="font-medium">{channel.title}</div>
+                       <div className="mt-1 text-xs text-muted-foreground mb-2">{channel.description}</div>
+                       {channel.to ? (
+                         <Link to={channel.to} className="text-xs font-medium text-primary hover:underline">{channel.cta}</Link>
+                       ) : (
+                         <button onClick={() => channel.guideId && startGuide(channel.guideId)} className="text-xs font-medium text-primary hover:underline">{channel.cta}</button>
+                       )}
                     </div>
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg font-semibold text-foreground">{guide.title}</CardTitle>
-                      <CardDescription className="text-sm text-muted-foreground leading-relaxed">
-                        {guide.summary}
-                      </CardDescription>
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {guide.audience}
-                  </span>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-4 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-xs text-muted-foreground">
-                    {guide.steps.length} step{guide.steps.length === 1 ? "" : "s"} • {guide.steps[0]?.route ? `Starts on ${guide.steps[0].route}` : "Multi-page tour"}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => startGuide(guide.id)}>
-                      {isActive ? "Resume guide" : "Start guide"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold text-foreground">Knowledge base</h2>
-          <p className="text-sm text-muted-foreground">
-            Browse curated guidance for every stage of the asset lifecycle. Each article links directly to live pages or a guided tour so you can apply the recommendation instantly.
-          </p>
-        </div>
-        <div className="grid gap-5 lg:grid-cols-2">
-          {knowledgeCategories.map((category) => {
-            const visibleArticles = category.articles.filter((article) => canAccess(article));
-            if (!visibleArticles.length) return null;
-            const Icon = category.icon;
-            return (
-              <Card key={category.id} className="border border-border/70 bg-card/95 shadow-sm">
-                <CardHeader className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg font-semibold text-foreground">{category.title}</CardTitle>
-                      <CardDescription className="text-sm text-muted-foreground">
-                        {category.summary}
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 border-t border-border/60 pt-4">
-                  <Accordion type="single" collapsible className="space-y-3">
-                    {visibleArticles.map((article, index) => (
-                      <AccordionItem key={`${category.id}-${index}`} value={`${category.id}-${index}`} className="rounded-xl border border-border/60 px-3">
-                        <AccordionTrigger className="text-left text-sm font-semibold text-foreground hover:text-primary">
-                          {article.title}
-                        </AccordionTrigger>
-                        <AccordionContent className="space-y-3 text-sm text-muted-foreground">
-                          <p>{article.description}</p>
-                          <div className="flex flex-wrap gap-2">
-                            {article.guideId ? (
-                              <Button size="sm" onClick={() => startGuide(article.guideId!)} className="w-full sm:w-auto">
-                                Launch guided walkthrough
-                              </Button>
-                            ) : null}
-                            {article.to ? (
-                              <Link
-                                to={article.to}
-                                className="inline-flex items-center gap-2 rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-primary transition hover:border-primary/40 hover:bg-primary/5"
-                              >
-                                Jump to page
-                              </Link>
-                            ) : null}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
-                  </Accordion>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-xl font-semibold text-foreground">Need more help?</h2>
-          <p className="text-sm text-muted-foreground">
-            Support channels that keep your team informed and your operations compliant.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          {accessibleSupportChannels.map((channel) => {
-            const Icon = channel.icon;
-            return (
-              <Card key={channel.title} className="border border-border/70 bg-card/90 shadow-sm">
-                <CardContent className="flex h-full flex-col gap-4 p-5">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-sm font-semibold text-foreground">{channel.title}</h3>
-                    <p className="text-xs text-muted-foreground leading-relaxed">{channel.description}</p>
-                  </div>
-                  <div className="mt-auto">
-                    {channel.guideId ? (
-                      <Button size="sm" variant="outline" onClick={() => startGuide(channel.guideId!)}>
-                        {channel.cta}
-                      </Button>
-                    ) : channel.to ? (
-                      <Link
-                        to={channel.to}
-                        className="inline-flex items-center gap-2 text-sm font-medium text-primary transition hover:text-primary/80"
-                      >
-                        {channel.cta}
-                        <ArrowUpRight className="h-4 w-4" />
-                      </Link>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-        <Alert className="border-primary/40 bg-primary/5">
-          <LifeBuoy className="h-5 w-5 text-primary" />
-          <AlertTitle>Service status & announcements</AlertTitle>
-          <AlertDescription>
-            Keep teams informed with real-time updates in the Notification center. Use the Newsletter module for planned maintenance and release notes.
-          </AlertDescription>
-        </Alert>
-      </section>
+                 ))}
+              </CardContent>
+            </Card>
+            
+            <Alert className="border-primary/20 bg-primary/5">
+              <LifeBuoy className="h-4 w-4 text-primary" />
+              <AlertTitle className="text-sm font-semibold">System Status</AlertTitle>
+              <AlertDescription className="text-xs text-muted-foreground mt-1">
+                All systems operational. Check the newsletter for updates.
+              </AlertDescription>
+            </Alert>
+         </div>
+      </div>
     </div>
   );
 }
