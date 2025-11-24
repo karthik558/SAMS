@@ -46,7 +46,9 @@ import {
   Key,
   Maximize2,
   Minimize2,
-  Save
+  Save,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -166,6 +168,7 @@ export default function Users() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [propertyFilter, setPropertyFilter] = useState("all");
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [isDepartmentsOpen, setIsDepartmentsOpen] = useState(false);
   const [isAddDialogMaximized, setIsAddDialogMaximized] = useState(false);
   const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [isEditDialogMaximized, setIsEditDialogMaximized] = useState(false);
@@ -1576,10 +1579,17 @@ export default function Users() {
         <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
           <CardHeader className="space-y-4 border-b border-border/60 pb-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle className="text-xl font-semibold">Departments</CardTitle>
-                <CardDescription>Manage department visibility, routing, and ownership</CardDescription>
+              <div 
+                className="flex items-center gap-2 cursor-pointer select-none" 
+                onClick={() => setIsDepartmentsOpen(!isDepartmentsOpen)}
+              >
+                {isDepartmentsOpen ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                <div>
+                  <CardTitle className="text-xl font-semibold">Departments</CardTitle>
+                  <CardDescription>Manage department visibility, routing, and ownership</CardDescription>
+                </div>
               </div>
+              {isDepartmentsOpen && (
               <Dialog>
                 <DialogTrigger asChild>
                   <Button className="gap-2 px-4 py-2">
@@ -1597,14 +1607,16 @@ export default function Users() {
                      
                       setDeptOptions((prev) => [created, ...prev]);
                       toast({ title: 'Department added', description: `${created.name} created.` });
-                    } catch (e: any) {
+                                       } catch (e: any) {
                       toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
                     }
                   }}
                 />
               </Dialog>
+              )}
             </div>
           </CardHeader>
+          {isDepartmentsOpen && (
           <CardContent className="sm:p-8">
             <div className="overflow-x-auto">
               <Table>
@@ -1720,6 +1732,7 @@ export default function Users() {
               </Table>
             </div>
           </CardContent>
+          )}
         </Card>
       )}
 
