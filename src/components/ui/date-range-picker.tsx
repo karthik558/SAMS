@@ -32,19 +32,18 @@ export function DateRangePicker({ value, onChange, placeholder = "Pick a date ra
   const label = from && to ? `${format(from, "PP")} – ${format(to, "PP")}` : (from ? `${format(from, "PP")} – …` : placeholder);
 
   return (
-    <div className="inline-flex items-center gap-1">
+    <div className={cn("flex items-center gap-2 w-full", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             className={cn(
-              "justify-start items-center gap-2 font-normal",
-              (!from && !to) && "text-muted-foreground",
-              className
+              "flex-1 justify-start items-center gap-2 font-normal text-left",
+              (!from && !to) && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="h-4 w-4" />
-            <span className="leading-none truncate min-w-[10ch] text-left">{label}</span>
+            <CalendarIcon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{label}</span>
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-3" align={align}>
