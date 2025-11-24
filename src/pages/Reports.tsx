@@ -1100,17 +1100,19 @@ export default function Reports() {
         />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {heroTiles.map((tile) => (
-          <div key={tile.key} className="rounded-xl border border-border/40 bg-card p-4 shadow-sm">
+          <div key={tile.key} className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-muted/50 p-5 shadow-sm transition-all hover:shadow-md">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">{tile.label}</p>
-                <p className="mt-1 text-2xl font-semibold text-foreground">{tile.value}</p>
+              <div className="space-y-1">
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{tile.label}</p>
+                <p className="text-2xl font-bold text-foreground">{tile.value}</p>
               </div>
-              <tile.icon className={`h-5 w-5 ${tile.iconClass}`} />
+              <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/50")}>
+                 <tile.icon className={cn("h-5 w-5", tile.iconClass)} />
+              </div>
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">{tile.hint}</p>
+            <p className="mt-3 text-xs font-medium text-muted-foreground/80">{tile.hint}</p>
           </div>
         ))}
       </div>
@@ -1120,34 +1122,34 @@ export default function Reports() {
           {reportTypes.map((report) => (
             <Card
               key={report.id}
-              className="rounded-2xl border border-border/60 bg-card shadow-sm transition hover:shadow-md"
+              className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-muted/30 shadow-sm transition-all hover:border-primary/20 hover:shadow-md"
             >
-              <CardHeader className="flex flex-col gap-3 pb-2">
-                <div className="flex items-start gap-3">
-                  <span className="rounded-full bg-primary/10 p-2 text-primary">
+              <CardHeader className="pb-3">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                     <report.icon className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <CardTitle className="text-base text-foreground">{report.name}</CardTitle>
-                    <CardDescription className="mt-1 text-xs text-muted-foreground">
+                  </div>
+                  <div className="space-y-1">
+                    <CardTitle className="text-base font-bold text-foreground">{report.name}</CardTitle>
+                    <CardDescription className="line-clamp-2 text-xs font-medium text-muted-foreground">
                       {report.description}
                     </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2 pt-0 sm:flex-row sm:items-center">
+              <CardContent className="flex items-center gap-2 pt-0">
                 <Button
                   onClick={() => handleQuickReport(report.id)}
                   variant="secondary"
                   size="sm"
-                  className="w-full gap-2"
+                  className="h-8 w-full gap-2 text-xs font-medium"
                 >
-                  <Download className="h-4 w-4" /> Quick Generate
+                  <Download className="h-3.5 w-3.5" /> Quick Generate
                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="w-full sm:w-auto"
+                  className="h-8 w-full gap-2 text-xs font-medium sm:w-auto"
                   onClick={() => {
                     setSelectedReportType(report.id);
                     const el = document.getElementById('custom-report-generator');
@@ -1219,139 +1221,154 @@ export default function Reports() {
         </Dialog>
 
         {/* Custom Report Generator */}
-        <Card id="custom-report-generator" className="rounded-2xl border border-border/60 bg-card shadow-sm">
-          <CardHeader>
-            <CardTitle>Custom Report Generator</CardTitle>
-            <CardDescription>
-              Configure and generate custom reports with specific filters and date ranges
-            </CardDescription>
+        <Card id="custom-report-generator" className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <FileText className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold">Custom Report Generator</CardTitle>
+                <CardDescription className="text-xs font-medium">
+                  Configure and generate custom reports with specific filters and date ranges
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-6 p-6">
             {/* Report Type Selection */}
             <div className="space-y-2">
-              <Label>Report Type</Label>
-              <Select value={selectedReportType} onValueChange={setSelectedReportType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select report type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {reportTypes.map((report) => (
-                    <SelectItem key={report.id} value={report.id}>
-                      {report.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Date Range */}
-            <div className="space-y-3">
-              <Label className="block mb-2">Date Range</Label>
-              <DateRangePicker
-                value={{ from: dateFrom, to: dateTo }}
-                onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
-              />
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Report Configuration</Label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Report Type</Label>
+                  <Select value={selectedReportType} onValueChange={setSelectedReportType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select report type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {reportTypes.map((report) => (
+                        <SelectItem key={report.id} value={report.id}>
+                          {report.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Date Range</Label>
+                  <DateRangePicker
+                    value={{ from: dateFrom, to: dateTo }}
+                    onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {selectedReportType === 'audit-review' && (
-                <div className="space-y-2 md:col-span-1">
-                  <Label>Audit Session</Label>
-                  <Select value={selectedAuditSessionId} onValueChange={setSelectedAuditSessionId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select audit session" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {auditSessions.map(s => (
-                        <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>Property Filter</Label>
-                <Select value={selectedProperty} onValueChange={setSelectedProperty}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Properties</SelectItem>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Asset Type Filter</Label>
-                <Select value={selectedAssetType} onValueChange={setSelectedAssetType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select asset type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {itemTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {(selectedReportType === 'department-wise' || selectedReportType === 'audit-review' || selectedReportType === 'month-wise') && (
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filters & Scope</Label>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {selectedReportType === 'audit-review' && (
+                  <div className="space-y-2 md:col-span-1">
+                    <Label>Audit Session</Label>
+                    <Select value={selectedAuditSessionId} onValueChange={setSelectedAuditSessionId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select audit session" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {auditSessions.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{formatAuditSessionName(s)} {s.is_active ? '(Active)' : ''}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label>Department</Label>
-                  <Select value={deptForReport} onValueChange={setDeptForReport}>
+                  <Label>Property</Label>
+                  <Select value={selectedProperty} onValueChange={setSelectedProperty}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select department" />
+                      <SelectValue placeholder="Select property" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="ALL">All Departments</SelectItem>
-                      {departments.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                      <SelectItem value="all">All Properties</SelectItem>
+                      {properties.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <Label>Asset Type</Label>
+                  <Select value={selectedAssetType} onValueChange={setSelectedAssetType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select asset type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {itemTypes.map((t) => (
+                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(selectedReportType === 'department-wise' || selectedReportType === 'audit-review' || selectedReportType === 'month-wise') && (
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <Select value={deptForReport} onValueChange={setDeptForReport}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">All Departments</SelectItem>
+                        {departments.map((d) => (
+                          <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Output Options */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Report Format</Label>
-                <Select value={reportFormat} onValueChange={setReportFormat}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pdf">PDF Document</SelectItem>
-                    <SelectItem value="excel">Excel Spreadsheet</SelectItem>
-                    <SelectItem value="csv">CSV File</SelectItem>
-                    <SelectItem value="json">JSON Data</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Export Options</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                <div className="space-y-2">
+                  <Label>Format</Label>
+                  <Select value={reportFormat} onValueChange={setReportFormat}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pdf">PDF Document</SelectItem>
+                      <SelectItem value="excel">Excel Spreadsheet</SelectItem>
+                      <SelectItem value="csv">CSV File</SelectItem>
+                      <SelectItem value="json">JSON Data</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Delivery Options</Label>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="email-report"
-                    checked={emailReport}
-                    onCheckedChange={(v) => setEmailReport(Boolean(v))}
-                  />
-                  <Label htmlFor="email-report" className="text-sm font-normal">
-                    Email report to administrators
-                  </Label>
+                <div className="space-y-2 pb-2">
+                  <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 p-2.5">
+                    <Checkbox
+                      id="email-report"
+                      checked={emailReport}
+                      onCheckedChange={(v) => setEmailReport(Boolean(v))}
+                    />
+                    <Label htmlFor="email-report" className="text-sm font-medium cursor-pointer">
+                      Email report to administrators
+                    </Label>
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Generate Button */}
-            <div className="pt-4">
-              <Button onClick={handleGenerateReport} className="w-full gap-2">
+            <div className="pt-2">
+              <Button onClick={handleGenerateReport} className="w-full gap-2 sm:w-auto" size="lg">
                 <Download className="h-4 w-4" />
                 Generate Custom Report
               </Button>
@@ -1360,19 +1377,24 @@ export default function Reports() {
         </Card>
 
         {/* Recent Reports */}
-        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <CardTitle>Recent Reports</CardTitle>
-                <CardDescription>Previously generated reports and scheduled reports</CardDescription>
+        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+          <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <BarChart3 className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold">Recent Reports</CardTitle>
+                  <CardDescription className="text-xs font-medium">Previously generated reports and scheduled reports</CardDescription>
+                </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <div className="w-40">
+                <div className="w-32">
                   <Select value={rrRange} onValueChange={(v: any) => setRrRange(v)}>
-                    <SelectTrigger><SelectValue placeholder="Range" /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Range" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="all">All Time</SelectItem>
                       <SelectItem value="today">Today</SelectItem>
                       <SelectItem value="7d">Last 7 days</SelectItem>
                       <SelectItem value="custom">Custom</SelectItem>
@@ -1380,7 +1402,7 @@ export default function Reports() {
                   </Select>
                 </div>
                 {rrRange === 'custom' && (
-                  <div className="min-w-[260px]">
+                  <div className="min-w-[240px]">
                     <DateRangePicker
                       value={{ from: rrFrom, to: rrTo }}
                       onChange={(r) => { setRrFrom(r.from); setRrTo(r.to); }}
@@ -1389,8 +1411,9 @@ export default function Reports() {
                 )}
                 {isAdminRole && (
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
+                    className="h-8 text-xs text-muted-foreground hover:text-destructive"
                     onClick={async () => {
                       const ok = window.confirm('Clear all recent report logs? This cannot be undone.');
                       if (!ok) return;
@@ -1421,8 +1444,8 @@ export default function Reports() {
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/40">
               {(() => {
                 const list = (recentReports ?? []) as any[];
                 const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -1443,42 +1466,51 @@ export default function Reports() {
                 });
                 if (!filtered.length) {
                   return (
-                    <div className="text-sm text-muted-foreground text-center py-8">
-                      No recent reports
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <div className="rounded-full bg-muted/50 p-3">
+                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <p className="mt-2 text-sm font-medium text-foreground">No recent reports</p>
+                      <p className="text-xs text-muted-foreground">Generate a report to see it here</p>
                     </div>
                   );
                 }
                 const limited = rrRange === 'all' ? filtered.slice(0, 5) : filtered;
                 return limited.map((report: any, index: number) => (
-                  <div key={report.id ?? index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{report.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {report.type} • {report.created_at ? new Date(report.created_at).toLocaleString() : "-"} • {report.format} • by {report.created_by || 'Unknown'}
-                        </p>
+                  <div key={report.id ?? index} className="group flex items-center justify-between p-4 transition-colors hover:bg-muted/30">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/50 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-medium text-foreground">{report.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-medium uppercase tracking-wider">{report.type}</span>
+                          <span>•</span>
+                          <span>{report.created_at ? new Date(report.created_at).toLocaleString() : "-"}</span>
+                          <span>•</span>
+                          <span>{report.format}</span>
+                          <span>•</span>
+                          <span>by {report.created_by || 'Unknown'}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        "text-xs px-2 py-1 rounded",
-                        (report.status || "Completed") === "Completed" 
-                          ? "bg-success/10 text-success" 
-                          : "bg-warning/10 text-warning"
-                      )}>
-                        {report.status || "Completed"}
-                      </span>
+                    <div className="flex items-center gap-3">
+                      <StatusChip status={report.status || "Completed"} size="sm" titleCase />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="outline" className="gap-1">
-                            <Download className="h-4 w-4" />
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                            <span className="sr-only">Open menu</span>
                             <ChevronDown className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => downloadReportCsv(report)}>Download CSV</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => downloadReportPdf(report)}>Download PDF</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadReportCsv(report)}>
+                            <Download className="mr-2 h-4 w-4" /> Download CSV
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadReportPdf(report)}>
+                            <Download className="mr-2 h-4 w-4" /> Download PDF
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1490,9 +1522,9 @@ export default function Reports() {
                   const total = (recentReports ?? []).length;
                   if (total > 5) {
                     return (
-                      <div className="pt-2 text-center">
-                        <Button variant="ghost" size="sm" onClick={() => setRrRange('7d')}>
-                          Show more
+                      <div className="p-2 text-center bg-muted/10">
+                        <Button variant="ghost" size="sm" onClick={() => setRrRange('7d')} className="text-xs text-muted-foreground hover:text-foreground">
+                          Show more reports
                         </Button>
                       </div>
                     );
@@ -1506,36 +1538,49 @@ export default function Reports() {
 
         {/* Tickets Report (Managers/Admins) */}
         {(isAdminRole || role === 'manager') && (
-          <Card id="tickets-report" className="rounded-2xl border border-border/60 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle>Tickets Report</CardTitle>
-              <CardDescription>Export tickets with scope and date filters</CardDescription>
+          <Card id="tickets-report" className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+            <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <FileText className="h-4 w-4" />
+                </div>
+                <div>
+                  <CardTitle className="text-base font-bold">Tickets Report</CardTitle>
+                  <CardDescription className="text-xs font-medium">Export tickets with scope and date filters</CardDescription>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="w-48">
-                  <Select value={tkScope} onValueChange={setTkScope}>
-                    <SelectTrigger><SelectValue placeholder="Scope" /></SelectTrigger>
-                    <SelectContent>
-                      {/* Manager scopes */}
-                      <SelectItem value="mine-received">Received by me</SelectItem>
-                      <SelectItem value="mine-raised">Raised by me</SelectItem>
-                      {/* Admin extra scopes */}
-                      {isAdminRole && (
-                        <>
-                          <SelectItem value="all">All (everyone)</SelectItem>
-                          <SelectItem value="target-admin">Target: Admin</SelectItem>
-                          <SelectItem value="target-manager">Target: Manager</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
+            <CardContent className="space-y-4 p-6">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-2">
+                  <Label>Scope</Label>
+                  <div className="w-48">
+                    <Select value={tkScope} onValueChange={setTkScope}>
+                      <SelectTrigger><SelectValue placeholder="Scope" /></SelectTrigger>
+                      <SelectContent>
+                        {/* Manager scopes */}
+                        <SelectItem value="mine-received">Received by me</SelectItem>
+                        <SelectItem value="mine-raised">Raised by me</SelectItem>
+                        {/* Admin extra scopes */}
+                        {isAdminRole && (
+                          <>
+                            <SelectItem value="all">All (everyone)</SelectItem>
+                            <SelectItem value="target-admin">Target: Admin</SelectItem>
+                            <SelectItem value="target-manager">Target: Manager</SelectItem>
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <DateRangePicker value={{ from: tkFrom, to: tkTo }} onChange={(r) => { setTkFrom(r.from); setTkTo(r.to); }} />
+                <div className="space-y-2">
+                  <Label>Date Range</Label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <DateRangePicker value={{ from: tkFrom, to: tkTo }} onChange={(r) => { setTkFrom(r.from); setTkTo(r.to); }} />
+                  </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={exportTicketsCsv}>
-                  <Download className="h-4 w-4 mr-2" /> Export CSV
+                <Button variant="outline" className="gap-2" onClick={exportTicketsCsv}>
+                  <Download className="h-4 w-4" /> Export CSV
                 </Button>
               </div>
             </CardContent>
@@ -1544,82 +1589,98 @@ export default function Reports() {
 
         {/* Approvals Log (restricted to admin/manager) */}
         {(isAdminRole || role === 'manager') && showApprovalsLog && (
-          <Card id="approvals-log" className="rounded-2xl border border-border/60 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle>Approvals Log</CardTitle>
-              <CardDescription>Department-scoped approvals with status and date filters</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="w-40">
-                  <Select value={apStatus} onValueChange={(v: any) => setApStatus(v)}>
-                    <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="rejected">Rejected</SelectItem>
-                    </SelectContent>
-                  </Select>
+          <Card id="approvals-log" className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
+            <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <FileText className="h-4 w-4" />
                 </div>
-                {isAdminRole ? (
-                  <div className="w-48">
-                    <Select value={apDeptFilter} onValueChange={setApDeptFilter}>
-                      <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+                <div>
+                  <CardTitle className="text-base font-bold">Approvals Log</CardTitle>
+                  <CardDescription className="text-xs font-medium">Department-scoped approvals with status and date filters</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <div className="w-40">
+                    <Select value={apStatus} onValueChange={(v: any) => setApStatus(v)}>
+                      <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="ALL">All departments</SelectItem>
-                        {apDepartments.map(d => (
-                          <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-                        ))}
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                        <SelectItem value="rejected">Rejected</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                ) : (
-                  myDept ? <div className="text-sm text-muted-foreground">Department: <span className="font-medium text-foreground">{myDept}</span></div> : null
-                )}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <DateRangePicker
-                    value={{ from: apDateFrom, to: apDateTo }}
-                    onChange={(r) => { setApDateFrom(r.from); setApDateTo(r.to); }}
-                  />
                 </div>
-                <Button variant="outline" size="sm" onClick={exportApprovalsCsv} disabled={!approvalsFiltered.length}>
-                  <Download className="h-4 w-4 mr-2" /> Export CSV
+                {isAdminRole ? (
+                  <div className="space-y-2">
+                    <Label>Department</Label>
+                    <div className="w-48">
+                      <Select value={apDeptFilter} onValueChange={setApDeptFilter}>
+                        <SelectTrigger><SelectValue placeholder="All departments" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All departments</SelectItem>
+                          {apDepartments.map(d => (
+                            <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ) : (
+                  myDept ? <div className="text-sm text-muted-foreground pb-3">Department: <span className="font-medium text-foreground">{myDept}</span></div> : null
+                )}
+                <div className="space-y-2">
+                  <Label>Date Range</Label>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <DateRangePicker
+                      value={{ from: apDateFrom, to: apDateTo }}
+                      onChange={(r) => { setApDateFrom(r.from); setApDateTo(r.to); }}
+                    />
+                  </div>
+                </div>
+                <Button variant="outline" className="gap-2" onClick={exportApprovalsCsv} disabled={!approvalsFiltered.length}>
+                  <Download className="h-4 w-4" /> Export CSV
                 </Button>
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="rounded-md border border-border/40 overflow-hidden">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Asset</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Requested By</TableHead>
-                      <TableHead>Requested At</TableHead>
-                      <TableHead>Reviewed By</TableHead>
-                      <TableHead>Reviewed At</TableHead>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">ID</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Asset</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Action</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Status</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Department</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Requested By</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Requested At</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Reviewed By</TableHead>
+                      <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Reviewed At</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {approvalsFiltered.map(a => (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-mono text-xs">{a.id}</TableCell>
+                      <TableRow key={a.id} className="hover:bg-muted/30">
+                        <TableCell className="font-mono text-xs text-muted-foreground">{a.id}</TableCell>
                         <TableCell className="font-mono text-xs">{a.assetId}</TableCell>
-                        <TableCell className="capitalize">{a.action}</TableCell>
+                        <TableCell className="capitalize text-xs font-medium">{a.action}</TableCell>
                         <TableCell className="capitalize"><StatusChip status={a.status} /></TableCell>
-                        <TableCell>{a.department || '-'}</TableCell>
-                        <TableCell>{a.requestedBy}</TableCell>
-                        <TableCell>{a.requestedAt?.slice(0,19).replace('T',' ')}</TableCell>
-                        <TableCell>{a.reviewedBy || '-'}</TableCell>
-                        <TableCell>{a.reviewedAt ? a.reviewedAt.slice(0,19).replace('T',' ') : '-'}</TableCell>
+                        <TableCell className="text-xs">{a.department || '-'}</TableCell>
+                        <TableCell className="text-xs">{a.requestedBy}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{a.requestedAt?.slice(0,19).replace('T',' ')}</TableCell>
+                        <TableCell className="text-xs">{a.reviewedBy || '-'}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{a.reviewedAt ? a.reviewedAt.slice(0,19).replace('T',' ') : '-'}</TableCell>
                       </TableRow>
                     ))}
                     {!approvalsFiltered.length && (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">No approvals found for the selected filters</TableCell>
+                        <TableCell colSpan={9} className="h-24 text-center text-sm text-muted-foreground">No approvals found for the selected filters</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -1630,10 +1691,12 @@ export default function Reports() {
         )}
 
         {(!hasSupabaseEnv) && (
-          <Card className="rounded-2xl border border-warning/50 bg-warning/10 shadow-sm">
+          <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 shadow-sm dark:border-amber-800 dark:from-amber-950/30 dark:to-amber-900/10">
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <FileBarChart className="h-6 w-6 text-warning shrink-0" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
+                  <FileBarChart className="h-5 w-5" />
+                </div>
                 <div>
                   <h3 className="font-semibold text-foreground">Advanced Reporting Features</h3>
                   <p className="text-sm text-muted-foreground mt-1">
