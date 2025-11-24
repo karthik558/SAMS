@@ -225,10 +225,7 @@ export function Layout({ children }: LayoutProps) {
 
       <div className="flex flex-1 flex-col overflow-hidden">
         {effectiveTopNavMode ? (
-          <>
-            <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
-            <Header onMenuClick={() => setSidebarOpen(true)} />
-          </>
+          <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
         ) : (
           <Header onMenuClick={() => setSidebarOpen(true)} />
         )}
