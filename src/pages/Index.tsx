@@ -19,6 +19,7 @@ import {
   Upload,
   Megaphone,
   Copy,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +46,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { DashboardSkeleton } from "@/components/ui/page-skeletons";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Line } from "recharts";
-import MetricCard from "@/components/ui/metric-card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1017,32 +1017,46 @@ const Index = () => {
 
   return (
     <div className="space-y-6 md:space-y-8">
-      <section className="surface-card-soft space-y-6 p-6 md:p-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-background p-6 md:p-10 shadow-sm border border-primary/10">
+        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+               <Calendar className="h-4 w-4" />
+               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
               {greeting}
             </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl">
+              Here's what's happening with your assets today.
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="hidden flex-wrap gap-2 sm:flex">
-              <Button onClick={() => handleQuickAction("Add Asset")} className="gap-2">
-                <Plus className="h-4 w-4" />
+          <div className="flex flex-wrap gap-3">
+              <Button onClick={() => handleQuickAction("Add Asset")} size="lg" className="gap-2 shadow-md transition-all hover:shadow-lg hover:scale-105">
+                <Plus className="h-5 w-5" />
                 Add Asset
               </Button>
-            </div>
+              <Button variant="outline" size="lg" onClick={() => handleQuickAction("Generate QR Codes")} className="gap-2 bg-background/50 backdrop-blur-sm hover:bg-background/80">
+                <QrCode className="h-5 w-5" />
+                QR Codes
+              </Button>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {heroHighlights.map((item) => (
-            <MetricCard
-              key={item.key}
-              icon={item.icon}
-              title={item.title}
-              value={item.value.toLocaleString()}
-              caption={item.caption}
-              iconClassName={item.iconClass}
-            />
+            <div key={item.key} className="group relative overflow-hidden rounded-2xl bg-background/60 p-5 transition-all hover:bg-background/80 hover:shadow-md border border-border/50">
+               <div className="flex items-start justify-between">
+                  <div>
+                     <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
+                     <h3 className="mt-2 text-2xl font-bold tracking-tight">{item.value.toLocaleString()}</h3>
+                  </div>
+                  <div className={cn("rounded-xl p-2.5 bg-primary/10", item.iconClass)}>
+                     <item.icon className="h-5 w-5" />
+                  </div>
+               </div>
+               <p className="mt-4 text-xs text-muted-foreground">{item.caption}</p>
+            </div>
           ))}
         </div>
       </section>
