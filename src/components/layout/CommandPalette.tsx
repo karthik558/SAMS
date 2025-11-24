@@ -233,7 +233,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
         <CommandEmpty className="py-10 text-center text-sm text-muted-foreground/70">
           No results found.
         </CommandEmpty>
-        <CommandGroup heading="Pages" className="space-y-1 rounded-2xl border border-border/70 bg-card/90 px-3 py-3 [&_[cmdk-group-heading]]:text-muted-foreground/70">
+        <CommandGroup heading="Pages" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">
           {pages.map((item) => {
             const Icon = item.icon;
             return (
@@ -243,10 +243,10 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(item.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary group-data-[selected=true]:border-primary/40 group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="flex flex-1 flex-col items-start gap-1 text-left">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/5 ring-1 ring-inset ring-primary/10 transition-colors group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:ring-primary/20">
+                  <Icon className="h-4 w-4 text-primary/70 group-data-[selected=true]:text-primary" />
+                </div>
+                <div className="flex flex-1 flex-col items-start gap-0.5 text-left">
                   <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-primary">{item.label}</span>
                   <span className="text-xs text-muted-foreground/80">
                     {item.path}
@@ -257,7 +257,7 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
           })}
         </CommandGroup>
         <CommandSeparator className="my-2 bg-border/60" />
-        <CommandGroup heading="Actions" className="space-y-1 rounded-2xl border border-border/70 bg-card/90 px-3 py-3 [&_[cmdk-group-heading]]:text-muted-foreground/70">
+        <CommandGroup heading="Actions" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">
           {actions.map((action) => {
             const Icon = action.icon;
             return (
@@ -267,10 +267,10 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
                 onSelect={() => go(action.path)}
                 className="gap-3"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/80 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary group-data-[selected=true]:border-primary/40 group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:text-primary">
-                  <Icon className="h-4 w-4" />
-                </span>
-                <div className="flex flex-1 flex-col items-start gap-1 text-left">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/5 ring-1 ring-inset ring-primary/10 transition-colors group-data-[selected=true]:bg-primary/10 group-data-[selected=true]:ring-primary/20">
+                  <Icon className="h-4 w-4 text-primary/70 group-data-[selected=true]:text-primary" />
+                </div>
+                <div className="flex flex-1 flex-col items-start gap-0.5 text-left">
                   <span className="text-sm font-medium text-foreground group-data-[selected=true]:text-primary">{action.label}</span>
                   <span className="text-xs text-muted-foreground/80">{action.path}</span>
                 </div>
