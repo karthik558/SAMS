@@ -91,11 +91,15 @@ export default function Settings() {
        if (accent.sidebar) {
          root.style.setProperty('--sidebar-background', accent.sidebar);
        }
+       root.style.setProperty('--accent', accent.light);
+       root.style.setProperty('--accent-foreground', accent.value);
     } else {
        // In dark mode, we might want to keep it neutral or use the accent?
        // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
        // or just remove the property to let CSS take over if we switch to dark.
        root.style.removeProperty('--sidebar-accent');
+       root.style.removeProperty('--accent');
+       root.style.removeProperty('--accent-foreground');
     }
     
     localStorage.setItem('theme_accent', accentColor);

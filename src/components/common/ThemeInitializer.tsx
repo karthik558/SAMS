@@ -22,8 +22,12 @@ export function ThemeInitializer() {
       
       if (!isDark) {
          root.style.setProperty('--sidebar-accent', accent.light);
+         root.style.setProperty('--accent', accent.light);
+         root.style.setProperty('--accent-foreground', accent.value);
       } else {
          root.style.removeProperty('--sidebar-accent');
+         root.style.removeProperty('--accent');
+         root.style.removeProperty('--accent-foreground');
       }
 
       const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
