@@ -46,13 +46,18 @@ export function DateRangePicker({ value, onChange, placeholder = "Pick a date ra
             <span className="truncate">{label}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-3" align={align}>
-          <div className="flex gap-3">
-            <div className="flex flex-col gap-2">
+        <PopoverContent 
+          className="w-auto p-0" 
+          align={align}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          <div className="flex">
+            <div className="flex flex-col gap-2 p-3 border-r border-border/50">
               {presets.map(p => (
-                <Button key={p.label} variant="ghost" className="justify-start" onClick={() => onChange?.(p.range())}>{p.label}</Button>
+                <Button key={p.label} variant="ghost" size="sm" className="justify-start font-normal" onClick={() => onChange?.(p.range())}>{p.label}</Button>
               ))}
-              <Button variant="outline" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
+              <Button variant="outline" size="sm" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
             </div>
             <div>
               <Calendar
@@ -64,7 +69,6 @@ export function DateRangePicker({ value, onChange, placeholder = "Pick a date ra
                 }}
                 numberOfMonths={2}
                 defaultMonth={from || new Date()}
-                initialFocus
               />
             </div>
           </div>
