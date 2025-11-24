@@ -331,10 +331,6 @@ export default function Help() {
       {/* Hero Section */}
       <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-12 shadow-sm sm:px-12 sm:py-16">
         <div className="relative z-10 max-w-3xl space-y-6">
-          <div className="inline-flex items-center rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
-            <span className="mr-2 flex h-2 w-2 rounded-full bg-primary"></span>
-            Help Center
-          </div>
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             How can we help you today?
           </h1>
