@@ -1,7 +1,14 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
-import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy, Megaphone } from 'lucide-react';
+import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy, Megaphone, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getUserPreferences, peekCachedUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
 import { isDemoMode } from '@/lib/demo';
@@ -23,6 +30,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   const [showNewsletter, setShowNewsletter] = useState(() => Boolean(cachedPrefs?.show_newsletter));
   const [showHelpCenter, setShowHelpCenter] = useState(() => cachedPrefs?.show_help_center !== false);
   const [role, setRole] = useState('');
+  const [userName, setUserName] = useState('');
   const navigate = useNavigate();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [auditActive, setAuditActive] = useState(false);
@@ -39,7 +47,11 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
       } catch {}
       try {
         const raw = localStorage.getItem('auth_user');
-        if (raw) { const r = (JSON.parse(raw).role || '').toLowerCase(); setRole(r); }
+        if (raw) { 
+          const parsed = JSON.parse(raw);
+          setRole((parsed.role || '').toLowerCase());
+          setUserName(parsed.name || parsed.email || 'User');
+        }
       } catch {}
       try {
         const uid = getCurrentUserId();
@@ -91,6 +103,26 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
       window.removeEventListener('user-preferences-changed', customHandler as any);
     };
   }, []);
+
+  const firstName = useMemo(() => {
+    if (!userName) return "";
+    const parts = userName.trim().split(/\s+/);
+    return parts[0] || userName;
+  }, [userName]);
+
+  const handleSignOut = () => {
+    try {
+      localStorage.removeItem('current_user_id');
+      localStorage.removeItem('auth_user');
+      if (isDemoMode()) {
+        sessionStorage.removeItem('demo_current_user_id');
+        sessionStorage.removeItem('demo_auth_user');
+        localStorage.removeItem('demo_current_user_id');
+        localStorage.removeItem('demo_auth_user');
+      }
+    } catch {}
+    navigate(isDemoMode() ? '/demo/login' : '/login', { replace: true });
+  };
 
   const navItemsBase = [
     { label: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -196,6 +228,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
           <NavLink
             key={item.href}
             to={item.href}
+            title={item.label}
             className={({ isActive }) => cn(
               'group flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
@@ -205,14 +238,76 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
             )}
           >
             <item.icon className={cn('h-4 w-4')} />
-            <span className="hidden lg:inline-block">{item.label}</span>
-            <span className="inline-block lg:hidden">{item.label}</span>
+
           </NavLink>
         ))}
       </nav>
       {/* Right side placeholder */}
       <div className="flex items-center gap-2 pl-2">
-        {/* Future actions */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="outline-none">
+              {(role || '').toLowerCase() === 'admin' ? (
+                <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                  <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-sm">
+                    <span className="flex h-full w-full items-center justify-center rounded-full bg-background p-[1.5px]">
+                      <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                      </div>
+                    </span>
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm ring-2 ring-background">
+                    <ShieldCheck className="h-2 w-2" />
+                  </span>
+                </div>
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                  <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                </div>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            side="bottom"
+            className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
+          >
+            <div className="flex items-center gap-3 p-3 border-b border-border/40 mb-1 bg-muted/30">
+              <div className="flex flex-col overflow-hidden">
+                <span className="truncate text-xs font-semibold text-foreground">{userName || 'User'}</span>
+                <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Guest'}</span>
+              </div>
+            </div>
+            <div className="p-1">
+              {(role === 'admin') && (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
+                  >
+                    <Users className="h-3.5 w-3.5" />
+                    <span>Users</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
+                  >
+                    <Settings className="h-3.5 w-3.5" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-1" />
+                </>
+              )}
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sign out</span>
+              </DropdownMenuItem>
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );
