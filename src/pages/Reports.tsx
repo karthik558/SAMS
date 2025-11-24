@@ -1123,16 +1123,11 @@ export default function Reports() {
               className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-muted/30 shadow-sm transition-all hover:border-primary/20 hover:shadow-md"
             >
               <CardHeader className="pb-3">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-                    <report.icon className="h-5 w-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <CardTitle className="text-base font-bold text-foreground">{report.name}</CardTitle>
-                    <CardDescription className="line-clamp-2 text-xs font-medium text-muted-foreground">
-                      {report.description}
-                    </CardDescription>
-                  </div>
+                <div className="space-y-1">
+                  <CardTitle className="text-base font-bold text-foreground">{report.name}</CardTitle>
+                  <CardDescription className="line-clamp-2 text-xs font-medium text-muted-foreground">
+                    {report.description}
+                  </CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="flex items-center gap-2 pt-0">
