@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/table";
 import StatusChip from "@/components/ui/status-chip";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
+import MetricCard from "@/components/ui/metric-card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1103,18 +1104,14 @@ export default function Reports() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {heroTiles.map((tile) => (
-          <div key={tile.key} className="group relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-muted/50 p-5 shadow-sm transition-all hover:shadow-md">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{tile.label}</p>
-                <p className="text-2xl font-bold text-foreground">{tile.value}</p>
-              </div>
-              <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-background shadow-sm ring-1 ring-border/50")}>
-                 <tile.icon className={cn("h-5 w-5", tile.iconClass)} />
-              </div>
-            </div>
-            <p className="mt-3 text-xs font-medium text-muted-foreground/80">{tile.hint}</p>
-          </div>
+          <MetricCard
+            key={tile.key}
+            icon={tile.icon}
+            title={tile.label}
+            value={tile.value}
+            caption={tile.hint}
+            iconClassName={tile.iconClass}
+          />
         ))}
       </div>
 
