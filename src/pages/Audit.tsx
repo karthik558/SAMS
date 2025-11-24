@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
+import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert, Building2, User, CalendarClock, StopCircle, PlayCircle, Play } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, formatAuditSessionName, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { listAssets, getAssetById, type Asset } from "@/services/assets";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { isDemoMode } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import { listAuditInchargeForUser, getAuditIncharge as fetchAuditIncharge } from "@/services/audit";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -1038,38 +1039,46 @@ export default function Audit() {
     <div className="space-y-8 pb-16">
       <div className="space-y-4 print:hidden">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
-        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
-          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
-          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Inventory Audit</h1>
-              <p className="mt-2 max-w-2xl text-muted-foreground">
-                Verify assets in your department and submit results
+        
+        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+          <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Audit Management
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Verify assets, track discrepancies, and generate comprehensive reports for your department.
               </p>
             </div>
-            {headerActions}
+            <div className="flex gap-2">
+              {headerActions}
+            </div>
           </div>
+          {/* Decorative background element */}
+          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle>Session Overview</CardTitle>
-                  <CardDescription>Scope and ownership of the current audit.</CardDescription>
+      <div className="grid gap-8 xl:grid-cols-[380px_1fr]">
+        <div className="space-y-8">
+          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm transition-all hover:shadow-md">
+            <CardHeader className="bg-muted/30 pb-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg">Session Overview</CardTitle>
+                  <CardDescription>Current audit status & details</CardDescription>
                 </div>
-                <Badge variant={sessionBadgeVariant}>{sessionStatusLabel}</Badge>
+                <Badge variant={sessionBadgeVariant} className="px-3 py-1 text-xs font-medium uppercase tracking-wider">
+                  {sessionStatusLabel}
+                </Badge>
               </div>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="grid gap-6 p-6">
               <div className="space-y-2">
-                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Property</Label>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Property Scope</Label>
                 {canManageSession ? (
                   <Select value={selectedPropertyId} onValueChange={setSelectedPropertyId} disabled={auditOn}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-10 bg-background">
                       <SelectValue placeholder="Select a property" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1081,115 +1090,129 @@ export default function Audit() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-foreground">
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2.5 text-sm font-medium">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
                     {selectedProperty?.name || "—"}
                   </div>
                 )}
                 {auditOn && canManageSession && (
-                  <p className="text-xs text-muted-foreground">Property cannot be changed while the session is active.</p>
+                  <p className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
+                    <TriangleAlert className="h-3 w-3" />
+                    Property locked during active session
+                  </p>
                 )}
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Auditor in charge</Label>
-                  <div className="mt-1 text-sm font-medium text-foreground">{inchargeUserName || inchargeUserId || "—"}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">In Charge</Label>
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2.5 text-sm font-medium">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="truncate">{inchargeUserName || inchargeUserId || "—"}</span>
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Audit frequency</Label>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Frequency</Label>
                   {canManageSession ? (
                     <Select value={String(auditFreq)} onValueChange={(v) => setAuditFreq(Number(v) as 1 | 3 | 6)} disabled={auditOn}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-10 bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Every 1 month</SelectItem>
-                        <SelectItem value="3">Every 3 months</SelectItem>
-                        <SelectItem value="6">Every 6 months</SelectItem>
+                        <SelectItem value="1">Monthly</SelectItem>
+                        <SelectItem value="3">Quarterly</SelectItem>
+                        <SelectItem value="6">Bi-Annual</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
-                    <div className="mt-1 text-sm font-medium text-foreground">
-                      {auditFreq === 1 ? "Every 1 month" : auditFreq === 3 ? "Every 3 months" : "Every 6 months"}
+                    <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2.5 text-sm font-medium">
+                      <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                      {auditFreq === 1 ? "Monthly" : auditFreq === 3 ? "Quarterly" : "Bi-Annual"}
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3 rounded-xl bg-muted/30 p-4">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Department submissions</span>
-                  <span className="font-medium">{progress ? `${progress.submitted}/${progress.total}` : "—"}</span>
+                  <span className="font-medium text-muted-foreground">Submission Progress</span>
+                  <span className="font-bold text-foreground">{progress ? `${progress.submitted}/${progress.total}` : "—"}</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(progressPercent, 100)}%` }} />
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div 
+                    className="h-full rounded-full bg-primary transition-all duration-500 ease-out" 
+                    style={{ width: `${Math.min(progressPercent, 100)}%` }} 
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">{progressText}</p>
               </div>
 
               {canManageSession && (
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-col gap-2 pt-2">
                   {auditOn ? (
-                    <Button variant="destructive" className="gap-2" onClick={handleStopAudit}>
-                      Stop Audit
+                    <Button variant="destructive" size="lg" className="w-full gap-2 shadow-sm" onClick={handleStopAudit}>
+                      <StopCircle className="h-4 w-4" />
+                      Stop Audit Session
                     </Button>
                   ) : (
-                    <>
-                      <Button variant="outline" className="gap-2" onClick={handleResumeAudit}>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" size="lg" className="gap-2" onClick={handleResumeAudit}>
+                        <PlayCircle className="h-4 w-4" />
                         Resume
                       </Button>
-                      <Button className="gap-2" onClick={handleStartAudit}>
-                        Start Audit
+                      <Button size="lg" className="gap-2 shadow-sm" onClick={handleStartAudit}>
+                        <Play className="h-4 w-4" />
+                        Start New
                       </Button>
-                    </>
+                    </div>
                   )}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Department Snapshot</CardTitle>
+          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+            <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+              <CardTitle className="text-lg">Department Snapshot</CardTitle>
               <CardDescription>
-                {selectedDept ? `Asset status for ${selectedDept}` : "Asset status for your department"}
+                {selectedDept ? `Status for ${selectedDept}` : "Your department status"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg border bg-card/50 p-3">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Assets</div>
-                  <div className="mt-1 text-2xl font-semibold">{rows.length}</div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1 rounded-xl border bg-card p-4 shadow-sm transition-colors hover:bg-muted/20">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Assets</span>
+                  <span className="text-3xl font-bold tracking-tight">{rows.length}</span>
                 </div>
-                <div className="rounded-lg border bg-card/50 p-3">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Verified</div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-600">{statusCounts.verified}</div>
+                <div className="flex flex-col gap-1 rounded-xl border bg-emerald-50/50 p-4 shadow-sm transition-colors hover:bg-emerald-50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30">
+                  <span className="text-xs font-medium uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Verified</span>
+                  <span className="text-3xl font-bold tracking-tight text-emerald-700 dark:text-emerald-300">{statusCounts.verified}</span>
                 </div>
-                <div className="rounded-lg border bg-card/50 p-3">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Missing</div>
-                  <div className="mt-1 text-2xl font-semibold text-destructive">{statusCounts.missing}</div>
+                <div className="flex flex-col gap-1 rounded-xl border bg-red-50/50 p-4 shadow-sm transition-colors hover:bg-red-50 dark:bg-red-950/20 dark:hover:bg-red-950/30">
+                  <span className="text-xs font-medium uppercase tracking-wider text-red-600 dark:text-red-400">Missing</span>
+                  <span className="text-3xl font-bold tracking-tight text-red-700 dark:text-red-300">{statusCounts.missing}</span>
                 </div>
-                <div className="rounded-lg border bg-card/50 p-3">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide">Damaged</div>
-                  <div className="mt-1 text-2xl font-semibold text-amber-500">{statusCounts.damaged}</div>
+                <div className="flex flex-col gap-1 rounded-xl border bg-amber-50/50 p-4 shadow-sm transition-colors hover:bg-amber-50 dark:bg-amber-950/20 dark:hover:bg-amber-950/30">
+                  <span className="text-xs font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">Damaged</span>
+                  <span className="text-3xl font-bold tracking-tight text-amber-700 dark:text-amber-300">{statusCounts.damaged}</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">Assignment</span>
-                <Badge variant={assignmentStatus === "submitted" ? "secondary" : "outline"}>
-                  {assignmentStatus ? assignmentStatus.charAt(0).toUpperCase() + assignmentStatus.slice(1) : "Pending"}
+              <div className="mt-6 flex items-center justify-between rounded-lg border bg-muted/30 p-3">
+                <span className="text-sm font-medium text-muted-foreground">Assignment Status</span>
+                <Badge variant={assignmentStatus === "submitted" ? "secondary" : "outline"} className="capitalize">
+                  {assignmentStatus || "Pending"}
                 </Badge>
               </div>
             </CardContent>
           </Card>
 
           {summaryEntries.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Department Progress</CardTitle>
-                <CardDescription>Overview of submissions across departments.</CardDescription>
+            <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+                <CardTitle className="text-lg">Department Progress</CardTitle>
+                <CardDescription>Submission status across departments</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="p-6 space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   {summaryEntries.map(([dept, s]) => {
                     const reviewed = (s.verified || 0) + (s.missing || 0) + (s.damaged || 0);
@@ -1199,48 +1222,46 @@ export default function Audit() {
                     const circumference = 2 * Math.PI * radius;
                     const dash = (pct / 100) * circumference;
                     return (
-                      <Card key={dept} className="border-dashed">
-                        <CardContent className="flex items-center gap-4 p-4">
-                          <svg width="80" height="80" className="shrink-0">
-                            <circle cx="40" cy="40" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="8" />
+                      <div key={dept} className="flex items-center gap-4 rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md">
+                        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center">
+                          <svg width="64" height="64" className="rotate-[-90deg]">
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-muted/20" />
                             <circle
-                              cx="40"
-                              cy="40"
-                              r={radius}
+                              cx="32"
+                              cy="32"
+                              r="28"
                               fill="none"
-                              stroke="#0ea5e9"
-                              strokeWidth="8"
-                              strokeDasharray={`${dash} ${circumference - dash}`}
+                              stroke="currentColor"
+                              strokeWidth="6"
+                              strokeDasharray={`${(pct / 100) * (2 * Math.PI * 28)} ${(2 * Math.PI * 28)}`}
                               strokeLinecap="round"
-                              transform="rotate(-90 40 40)"
+                              className="text-primary transition-all duration-1000 ease-out"
                             />
-                            <text x="40" y="44" textAnchor="middle" fontSize="14" className="fill-foreground">
-                              {pct}%
-                            </text>
                           </svg>
-                          <div className="space-y-1">
-                            <div className="font-medium text-foreground">{dept}</div>
-                            <div className="text-xs text-muted-foreground">{reviewed} of {total || "—"} reviewed</div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                          <span className="absolute text-xs font-bold">{pct}%</span>
+                        </div>
+                        <div className="space-y-1 overflow-hidden">
+                          <div className="truncate font-semibold text-foreground" title={dept}>{dept}</div>
+                          <div className="text-xs text-muted-foreground">{reviewed} of {total} reviewed</div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
-                <div className="overflow-auto">
+                <div className="rounded-xl border bg-card">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Department</TableHead>
-                        <TableHead>Verified</TableHead>
-                        <TableHead>Missing</TableHead>
-                        <TableHead>Damaged</TableHead>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Department</TableHead>
+                        <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Verified</TableHead>
+                        <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">Missing</TableHead>
+                        <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Damaged</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {summaryEntries.map(([dept, s]) => (
-                        <TableRow key={dept}>
-                          <TableCell>{dept}</TableCell>
+                        <TableRow key={dept} className="hover:bg-muted/30">
+                          <TableCell className="font-medium">{dept}</TableCell>
                           <TableCell>{s.verified}</TableCell>
                           <TableCell>{s.missing}</TableCell>
                           <TableCell>{s.damaged}</TableCell>
@@ -1254,28 +1275,36 @@ export default function Audit() {
           )}
 
           {myScans.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>My Recent Scans</CardTitle>
-                <CardDescription>Log of assets verified via QR scanning.</CardDescription>
+            <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+                <CardTitle className="text-lg">My Recent Scans</CardTitle>
+                <CardDescription>Assets verified via QR scan</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
+              <CardContent className="p-0">
+                <div className="max-h-[300px] overflow-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>When</TableHead>
-                        <TableHead>Asset</TableHead>
-                        <TableHead>Status</TableHead>
+                      <TableRow className="hover:bg-transparent bg-muted/20">
+                        <TableHead className="h-9 text-xs">Time</TableHead>
+                        <TableHead className="h-9 text-xs">Asset ID</TableHead>
+                        <TableHead className="h-9 text-xs">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {myScans.map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="text-xs text-muted-foreground">{new Date(s.scanned_at).toLocaleString()}</TableCell>
-                          <TableCell className="font-mono text-xs">{s.asset_id}</TableCell>
-                          <TableCell className={s.status === "damaged" ? "text-amber-600 font-medium" : "text-emerald-600 font-medium"}>
-                            {s.status}
+                        <TableRow key={s.id} className="hover:bg-muted/30">
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(s.scanned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-medium">{s.asset_id}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-5", 
+                              s.status === "damaged" 
+                                ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400" 
+                                : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+                            )}>
+                              {s.status}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1287,20 +1316,20 @@ export default function Audit() {
           )}
         </div>
 
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle>Department Review</CardTitle>
+        <div className="space-y-8">
+          <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+            <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg">Department Review</CardTitle>
                   <CardDescription>
-                    {isAdmin ? "Select a department to review and update asset statuses." : "Mark each asset and add optional notes."}
+                    {isAdmin ? "Review and update asset statuses across departments" : "Verify assets and add comments"}
                   </CardDescription>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
                   {isAdmin ? (
                     <Select value={adminDept} onValueChange={setAdminDept}>
-                      <SelectTrigger className="min-w-[200px]">
+                      <SelectTrigger className="h-9 min-w-[200px] bg-background">
                         <SelectValue placeholder="Select department" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1312,10 +1341,12 @@ export default function Audit() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Badge variant="outline">{department || "—"}</Badge>
+                    <Badge variant="secondary" className="px-3 py-1 text-sm font-medium">
+                      {department || "—"}
+                    </Badge>
                   )}
                   {canScanAssets && (
-                    <Button size="sm" variant="secondary" className="gap-2" onClick={handleOpenScanner}>
+                    <Button size="sm" variant="secondary" className="h-9 gap-2 shadow-sm" onClick={handleOpenScanner}>
                       <QrCode className="h-4 w-4" />
                       Scan
                     </Button>
@@ -1326,30 +1357,45 @@ export default function Audit() {
                 const pid = viewPropertyId || selectedPropertyId;
                 if (!pid) return null;
                 const p = properties.find((pp) => String(pp.id) === String(pid));
-                return <p className="text-xs text-muted-foreground mt-2">Property: {p ? `${p.name} (${p.id})` : pid}</p>;
+                return (
+                  <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Building2 className="h-3.5 w-3.5" />
+                    <span>Property: {p ? `${p.name} (${p.id})` : pid}</span>
+                  </div>
+                );
               })()}
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0">
               {loading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
+                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    <p>Loading assets...</p>
+                  </div>
+                </div>
               ) : rows.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No assets found for this department.</p>
+                <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground">
+                  <ClipboardCheck className="h-8 w-8 opacity-20" />
+                  <p className="text-sm">No assets found for this department.</p>
+                </div>
               ) : (
                 <div className="overflow-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-32">Asset ID</TableHead>
-                        <TableHead>Name</TableHead>
-                        <TableHead className="w-40">Status</TableHead>
-                        <TableHead className="min-w-[240px]">Comments</TableHead>
+                      <TableRow className="bg-muted/20 hover:bg-muted/20">
+                        <TableHead className="w-32 text-xs font-semibold uppercase tracking-wider">Asset ID</TableHead>
+                        <TableHead className="text-xs font-semibold uppercase tracking-wider">Name</TableHead>
+                        <TableHead className="w-40 text-xs font-semibold uppercase tracking-wider">Status</TableHead>
+                        <TableHead className="min-w-[240px] text-xs font-semibold uppercase tracking-wider">Comments</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rows.map((r, idx) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                          <TableCell>{r.name}</TableCell>
+                        <TableRow key={r.id} className="group hover:bg-muted/30">
+                          <TableCell className="font-mono text-xs font-medium text-muted-foreground group-hover:text-foreground">
+                            {r.id}
+                          </TableCell>
+                          <TableCell className="font-medium">{r.name}</TableCell>
                           <TableCell>
                             <Select
                               value={r.status}
@@ -1358,19 +1404,24 @@ export default function Audit() {
                               }
                               disabled={!canEditRows}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className={cn("h-8 w-full border-0 bg-transparent p-0 focus:ring-0", 
+                                r.status === "verified" ? "text-emerald-600 font-medium" : 
+                                r.status === "missing" ? "text-destructive font-medium" : 
+                                "text-amber-600 font-medium"
+                              )}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="verified">Verified</SelectItem>
-                                <SelectItem value="missing">Missing</SelectItem>
-                                <SelectItem value="damaged">Damaged</SelectItem>
+                                <SelectItem value="verified" className="text-emerald-600 focus:text-emerald-700">Verified</SelectItem>
+                                <SelectItem value="missing" className="text-destructive focus:text-destructive">Missing</SelectItem>
+                                <SelectItem value="damaged" className="text-amber-600 focus:text-amber-700">Damaged</SelectItem>
                               </SelectContent>
                             </Select>
                           </TableCell>
                           <TableCell>
                             <Input
-                              placeholder="Optional notes"
+                              className="h-8 border-transparent bg-transparent px-0 shadow-none hover:bg-muted/50 focus-visible:border-input focus-visible:bg-background focus-visible:px-2 focus-visible:ring-1"
+                              placeholder="Add note..."
                               value={r.comment}
                               onChange={(e) =>
                                 setRows((prev) => prev.map((x, i) => (i === idx ? { ...x, comment: e.target.value } : x)))
@@ -1385,74 +1436,78 @@ export default function Audit() {
                 </div>
               )}
             </CardContent>
-            <CardFooter className="flex flex-wrap items-center justify-between gap-3">
+            <CardFooter className="flex flex-wrap items-center justify-between gap-4 border-t border-border/40 bg-muted/10 p-4">
               <p className="text-xs text-muted-foreground">
                 {canEditRows
-                  ? "Save drafts as you go. Submit when the department review is complete."
-                  : "This review has been submitted. Only administrators can make further changes."}
+                  ? "Changes are saved locally until you submit."
+                  : "Review submitted. Contact admin for changes."}
               </p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" onClick={saveProgress} disabled={!rows.length || (!canEditRows && !isAdmin)}>
+              <div className="flex items-center gap-3">
+                <Button variant="outline" size="sm" onClick={saveProgress} disabled={!rows.length || (!canEditRows && !isAdmin)}>
                   Save Draft
                 </Button>
-                <Button onClick={submit} disabled={submitting || !canEditRows || !rows.length}>
-                  {submitting ? "Submitting…" : "Submit"}
+                <Button size="sm" onClick={submit} disabled={submitting || !canEditRows || !rows.length} className="shadow-sm">
+                  {submitting ? "Submitting…" : "Submit Review"}
                 </Button>
               </div>
             </CardFooter>
           </Card>
 
           {(latestReport || recentReports.length > 0) && (
-            <Card>
-              <CardHeader className="space-y-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <CardTitle>Reports &amp; Insights</CardTitle>
-                    <CardDescription>Visualise outcomes and revisit historical audits.</CardDescription>
+            <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+              <CardHeader className="border-b border-border/40 bg-muted/10 pb-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">Reports & Insights</CardTitle>
+                    <CardDescription>Historical data and performance metrics</CardDescription>
                   </div>
                   {latestReport && (
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={() => exportAuditSessionPdf(latestReport.session_id)}>
+                      <Button variant="outline" size="sm" className="h-8 gap-2" onClick={() => exportAuditSessionPdf(latestReport.session_id)}>
+                        <ClipboardCheck className="h-3.5 w-3.5" />
                         Export PDF
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => window.print()}>
+                      <Button variant="ghost" size="sm" className="h-8" onClick={() => window.print()}>
                         Print
                       </Button>
                     </div>
                   )}
                 </div>
                 {latestReport ? (
-                  <div className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Latest report</span>{" "}
-                    {new Date(latestReport.generated_at).toLocaleString()}
-                    {propertyLabel ? <span className="ml-1">• Property: {propertyLabel}</span> : null}
+                  <div className="mt-4 flex items-center gap-2 rounded-lg border bg-background/50 px-3 py-2 text-xs text-muted-foreground">
+                    <span className="font-semibold text-foreground">Latest Report:</span>
+                    <span>{new Date(latestReport.generated_at).toLocaleString()}</span>
+                    {propertyLabel && (
+                      <>
+                        <span className="text-border">|</span>
+                        <span>Property: {propertyLabel}</span>
+                      </>
+                    )}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground">Generate a report to unlock insights.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Generate a report to unlock insights.</p>
                 )}
               </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="overview">
-                  <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="departments">Departments</TabsTrigger>
-                    <TabsTrigger value="history">History</TabsTrigger>
+              <CardContent className="p-6">
+                <Tabs defaultValue="overview" className="space-y-6">
+                  <TabsList className="grid w-full max-w-md grid-cols-3 bg-muted/50 p-1">
+                    <TabsTrigger value="overview" className="rounded-md text-xs font-medium">Overview</TabsTrigger>
+                    <TabsTrigger value="departments" className="rounded-md text-xs font-medium">Departments</TabsTrigger>
+                    <TabsTrigger value="history" className="rounded-md text-xs font-medium">History</TabsTrigger>
                   </TabsList>
-                  <TabsContent value="overview" className="space-y-4">
+                  <TabsContent value="overview" className="space-y-6 animate-in fade-in-50 duration-500">
                     {latestReport ? (
-                      <div className="space-y-4">
-                        <div className="grid gap-4 lg:grid-cols-2">
-                          <Card className="border-dashed">
-                            <CardHeader>
-                              <CardTitle className="text-base">Overall Summary</CardTitle>
-                            </CardHeader>
-                            <CardContent>
+                      <div className="space-y-6">
+                        <div className="grid gap-6 lg:grid-cols-2">
+                          <div className="rounded-xl border bg-card p-4 shadow-sm">
+                            <h3 className="mb-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Overall Summary</h3>
+                            <div className="h-[300px] w-full">
                               {(() => {
                                 const payload = latestReport?.payload || {};
                                 const totals = payload.totals || { verified: 0, missing: 0, damaged: 0 };
                                 const data = [
                                   {
-                                    name: "All",
+                                    name: "All Assets",
                                     Verified: Number(totals.verified || 0),
                                     Missing: Number(totals.missing || 0),
                                     Damaged: Number(totals.damaged || 0),
@@ -1461,31 +1516,32 @@ export default function Audit() {
                                 return (
                                   <ChartContainer
                                     config={{
-                                      Verified: { color: "hsl(142, 71%, 45%)" },
-                                      Missing: { color: "hsl(339, 90%, 51%)" },
-                                      Damaged: { color: "hsl(31, 97%, 55%)" },
+                                      Verified: { color: "hsl(142, 71%, 45%)", label: "Verified" },
+                                      Missing: { color: "hsl(339, 90%, 51%)", label: "Missing" },
+                                      Damaged: { color: "hsl(31, 97%, 55%)", label: "Damaged" },
                                     }}
                                   >
-                                    <BarChart data={data}>
+                                    <BarChart data={data} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                                       <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                                      <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
-                                      <Bar dataKey="Verified" radius={[6, 6, 0, 0]} fill="var(--color-Verified)" />
-                                      <Bar dataKey="Missing" radius={[6, 6, 0, 0]} fill="var(--color-Missing)" />
-                                      <Bar dataKey="Damaged" radius={[6, 6, 0, 0]} fill="var(--color-Damaged)" />
+                                      <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
+                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                                      <ChartTooltip 
+                                        content={<ChartTooltipContent indicator="line" />} 
+                                        cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }} 
+                                      />
+                                      <Bar dataKey="Verified" radius={[4, 4, 0, 0]} fill="var(--color-Verified)" maxBarSize={80} />
+                                      <Bar dataKey="Missing" radius={[4, 4, 0, 0]} fill="var(--color-Missing)" maxBarSize={80} />
+                                      <Bar dataKey="Damaged" radius={[4, 4, 0, 0]} fill="var(--color-Damaged)" maxBarSize={80} />
                                       <ChartLegend content={<ChartLegendContent />} />
                                     </BarChart>
                                   </ChartContainer>
                                 );
                               })()}
-                            </CardContent>
-                          </Card>
-                          <Card className="border-dashed">
-                            <CardHeader>
-                              <CardTitle className="text-base">By Department</CardTitle>
-                            </CardHeader>
-                            <CardContent>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border bg-card p-4 shadow-sm">
+                            <h3 className="mb-4 text-sm font-semibold text-muted-foreground uppercase tracking-wider">By Department</h3>
+                            <div className="h-[300px] w-full">
                               {(() => {
                                 const payload = latestReport?.payload || {};
                                 const byDept = (payload.byDepartment || []) as Array<{
@@ -1503,16 +1559,25 @@ export default function Audit() {
                                 return (
                                   <ChartContainer
                                     config={{
-                                      Verified: { color: "hsl(142, 71%, 45%)" },
-                                      Missing: { color: "hsl(339, 90%, 51%)" },
-                                      Damaged: { color: "hsl(31, 97%, 55%)" },
+                                      Verified: { color: "hsl(142, 71%, 45%)", label: "Verified" },
+                                      Missing: { color: "hsl(339, 90%, 51%)", label: "Missing" },
+                                      Damaged: { color: "hsl(31, 97%, 55%)", label: "Damaged" },
                                     }}
                                   >
-                                    <BarChart data={data}>
+                                    <BarChart data={data} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                                       <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                                      <XAxis dataKey="name" tickLine={false} axisLine={false} interval={0} angle={-20} height={60} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                                      <ChartTooltip content={<ChartTooltipContent />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                                      <XAxis 
+                                        dataKey="name" 
+                                        tickLine={false} 
+                                        axisLine={false} 
+                                        interval={0} 
+                                        angle={-20} 
+                                        height={60} 
+                                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
+                                        dy={10}
+                                      />
+                                      <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                                      <ChartTooltip content={<ChartTooltipContent indicator="line" />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }} />
                                       <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" radius={[0, 0, 4, 4]} />
                                       <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" radius={[0, 0, 0, 0]} />
                                       <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" radius={[4, 4, 0, 0]} />
@@ -1521,18 +1586,21 @@ export default function Audit() {
                                   </ChartContainer>
                                 );
                               })()}
-                            </CardContent>
-                          </Card>
+                            </div>
+                          </div>
                         </div>
                         {latestReport?.payload?.contributors && (
-                          <div>
-                            <Label>Contributors</Label>
-                            <div className="mt-2 flex flex-wrap gap-2">
+                          <div className="rounded-xl border bg-muted/20 p-4">
+                            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contributors</Label>
+                            <div className="mt-3 flex flex-wrap gap-2">
                               {latestReport.payload.contributors.map((c: any, idx: number) => (
-                                <Badge key={idx} variant="outline" className="gap-1">
-                                  {c.department} • {c.status === "submitted" ? "Submitted" : "Pending"}
-                                  {c.submitted_at ? ` • ${c.submitted_at}` : ""}
-                                  {c.submitted_by ? ` • ${c.submitted_by}` : ""}
+                                <Badge key={idx} variant="outline" className="bg-background px-2 py-1 text-xs font-normal text-muted-foreground">
+                                  <span className="font-medium text-foreground">{c.department}</span>
+                                  <span className="mx-1.5 text-border">|</span>
+                                  <span className={c.status === "submitted" ? "text-emerald-600" : "text-amber-600"}>
+                                    {c.status === "submitted" ? "Submitted" : "Pending"}
+                                  </span>
+                                  {c.submitted_at && <span className="ml-1 opacity-70">({new Date(c.submitted_at).toLocaleDateString()})</span>}
                                 </Badge>
                               ))}
                             </div>
@@ -1540,34 +1608,37 @@ export default function Audit() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Generate a report to unlock insights.</p>
+                      <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground">
+                        <BarChart className="h-8 w-8 opacity-20" />
+                        <p className="text-sm">Generate a report to unlock insights.</p>
+                      </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="departments" className="space-y-4">
+                  <TabsContent value="departments" className="space-y-6 animate-in fade-in-50 duration-500">
                     {latestReport ? (
-                      <div className="space-y-4">
-                        <div className="overflow-auto">
+                      <div className="space-y-6">
+                        <div className="rounded-xl border bg-card overflow-hidden">
                           <Table>
                             <TableHeader>
-                              <TableRow>
-                                <TableHead>Department</TableHead>
-                                <TableHead>Verified</TableHead>
-                                <TableHead>Missing</TableHead>
-                                <TableHead>Damaged</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead className="w-32">Details</TableHead>
+                              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Department</TableHead>
+                                <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Verified</TableHead>
+                                <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">Missing</TableHead>
+                                <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Damaged</TableHead>
+                                <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Total</TableHead>
+                                <TableHead className="h-10 w-24 text-xs font-semibold uppercase tracking-wider">Details</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
                               {(latestReport?.payload?.byDepartment || []).map((d: any) => (
-                                <TableRow key={d.department}>
-                                  <TableCell>{d.department}</TableCell>
+                                <TableRow key={d.department} className="hover:bg-muted/20">
+                                  <TableCell className="font-medium">{d.department}</TableCell>
                                   <TableCell>{d.verified}</TableCell>
                                   <TableCell>{d.missing}</TableCell>
                                   <TableCell>{d.damaged}</TableCell>
                                   <TableCell>{d.total}</TableCell>
                                   <TableCell>
-                                    <Button size="sm" variant="outline" onClick={() => setDetailDept(d.department)}>
+                                    <Button size="sm" variant="ghost" className="h-8 w-full text-xs" onClick={() => setDetailDept(d.department)}>
                                       View
                                     </Button>
                                   </TableCell>
@@ -1577,32 +1648,43 @@ export default function Audit() {
                           </Table>
                         </div>
                         {detailDept && (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <Label>Details • {detailDept}</Label>
-                              <Button size="sm" variant="ghost" onClick={() => setDetailDept("")}>
-                                Clear
+                          <div className="rounded-xl border bg-card p-4 shadow-sm animate-in slide-in-from-top-2 duration-300">
+                            <div className="mb-4 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-sm font-semibold">Details: {detailDept}</Label>
+                                <Badge variant="outline" className="text-[10px] font-normal">
+                                  {reportReviews.filter((r) => r.department === detailDept).length} items
+                                </Badge>
+                              </div>
+                              <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setDetailDept("")}>
+                                Close Details
                               </Button>
                             </div>
-                            <div className="overflow-auto">
+                            <div className="max-h-[400px] overflow-auto rounded-lg border bg-muted/10">
                               <Table>
                                 <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Asset ID</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Comment</TableHead>
+                                  <TableRow className="hover:bg-transparent">
+                                    <TableHead className="h-9 text-xs">Asset ID</TableHead>
+                                    <TableHead className="h-9 text-xs">Status</TableHead>
+                                    <TableHead className="h-9 text-xs">Comment</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {reportReviews
                                     .filter((r) => r.department === detailDept)
                                     .map((r, i) => (
-                                      <TableRow key={`${r.asset_id}-${i}`}>
-                                        <TableCell className="font-mono text-xs">{r.asset_id}</TableCell>
-                                        <TableCell className={r.status === "missing" ? "text-destructive" : r.status === "damaged" ? "text-amber-500" : ""}>
-                                          {r.status}
+                                      <TableRow key={`${r.asset_id}-${i}`} className="hover:bg-muted/20">
+                                        <TableCell className="font-mono text-xs font-medium">{r.asset_id}</TableCell>
+                                        <TableCell>
+                                          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-5", 
+                                            r.status === "missing" ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400" : 
+                                            r.status === "damaged" ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400" : 
+                                            "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400"
+                                          )}>
+                                            {r.status}
+                                          </Badge>
                                         </TableCell>
-                                        <TableCell>{r.comment || ""}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">{r.comment || "—"}</TableCell>
                                       </TableRow>
                                     ))}
                                 </TableBody>
@@ -1612,16 +1694,19 @@ export default function Audit() {
                         )}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">Generate a report to view department breakdown.</p>
+                      <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground">
+                        <Building2 className="h-8 w-8 opacity-20" />
+                        <p className="text-sm">Generate a report to view department breakdown.</p>
+                      </div>
                     )}
                   </TabsContent>
-                  <TabsContent value="history" className="space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <Label className="text-sm">Session</Label>
+                  <TabsContent value="history" className="space-y-6 animate-in fade-in-50 duration-500">
+                    <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-muted/20 p-4">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-sm font-medium">Filter by Session</Label>
                         <Select value={selectedSessionId} onValueChange={handleSelectSession}>
-                          <SelectTrigger className="min-w-[220px]">
-                            <SelectValue placeholder="Select session" />
+                          <SelectTrigger className="h-9 min-w-[240px] bg-background">
+                            <SelectValue placeholder="Select session..." />
                           </SelectTrigger>
                           <SelectContent>
                             {sessions.map((s) => (
@@ -1636,77 +1721,95 @@ export default function Audit() {
                       {canManageSession && (
                         <div className="flex flex-wrap items-center gap-2">
                           {sessionId && (
-                            <Button size="sm" onClick={() => handleGenerateReportForSession(sessionId)}>
+                            <Button size="sm" className="h-9 shadow-sm" onClick={() => handleGenerateReportForSession(sessionId)}>
                               Generate Report (Active)
                             </Button>
                           )}
                           {selectedSessionId && (
-                            <Button size="sm" variant="outline" onClick={() => handleGenerateReportForSession(selectedSessionId)}>
+                            <Button size="sm" variant="outline" className="h-9" onClick={() => handleGenerateReportForSession(selectedSessionId)}>
                               Generate Report (Selected)
                             </Button>
                           )}
                         </div>
                       )}
                     </div>
-                    {selectedSessionId ? (
-                      <p className="text-xs text-muted-foreground">
-                        {loadingSessionReports
-                          ? "Loading reports for selected session…"
-                          : sessionReports.length === 0
-                            ? "No reports found for this session yet."
-                            : `${sessionReports.length} report${sessionReports.length === 1 ? "" : "s"} available.`}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Select a session to filter history, or browse recent reports below.</p>
-                    )}
-                    <div className="overflow-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Date</TableHead>
-                            <TableHead>Generated By</TableHead>
-                            <TableHead>Submissions</TableHead>
-                            <TableHead>Damaged</TableHead>
-                            <TableHead className="w-40">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(selectedSessionId ? sessionReports : recentReports).map((r) => {
-                            const totals = (r.payload?.totals || {}) as any;
-                            const subs = (r.payload?.submissions || {}) as any;
-                            const damaged = Number(totals.damaged || 0);
-                            return (
-                              <TableRow key={r.id}>
-                                <TableCell>{new Date(r.generated_at).toLocaleString()}</TableCell>
-                                <TableCell>{r.generated_by || "-"}</TableCell>
-                                <TableCell>
-                                  {Number(subs.submitted || 0)} / {Number(subs.total || 0)}
-                                </TableCell>
-                                <TableCell>
-                                  <span className={damaged > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>{damaged}</span>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex flex-wrap gap-2">
-                                    <Button size="sm" variant="outline" onClick={() => handleViewReport(r.id)}>
-                                      View
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={() => exportAuditSessionPdf(r.session_id)}>
-                                      Export PDF
-                                    </Button>
-                                  </div>
+                    
+                    <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+                      <div className="border-b border-border/40 bg-muted/10 px-4 py-3">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {selectedSessionId ? (
+                            loadingSessionReports
+                              ? "Loading reports..."
+                              : sessionReports.length === 0
+                                ? "No reports found for this session."
+                                : `${sessionReports.length} report${sessionReports.length === 1 ? "" : "s"} found`
+                          ) : (
+                            "Showing recent reports across all sessions"
+                          )}
+                        </p>
+                      </div>
+                      <div className="overflow-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-muted/30 hover:bg-muted/30">
+                              <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Date Generated</TableHead>
+                              <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Generated By</TableHead>
+                              <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Submissions</TableHead>
+                              <TableHead className="h-10 text-xs font-semibold uppercase tracking-wider">Damaged</TableHead>
+                              <TableHead className="h-10 w-40 text-xs font-semibold uppercase tracking-wider text-right">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(selectedSessionId ? sessionReports : recentReports).map((r) => {
+                              const totals = (r.payload?.totals || {}) as any;
+                              const subs = (r.payload?.submissions || {}) as any;
+                              const damaged = Number(totals.damaged || 0);
+                              return (
+                                <TableRow key={r.id} className="hover:bg-muted/20">
+                                  <TableCell className="font-medium text-foreground">
+                                    {new Date(r.generated_at).toLocaleDateString()}
+                                    <span className="ml-2 text-xs text-muted-foreground font-normal">
+                                      {new Date(r.generated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{r.generated_by || "—"}</TableCell>
+                                  <TableCell>
+                                    <Badge variant="secondary" className="font-normal">
+                                      {Number(subs.submitted || 0)} / {Number(subs.total || 0)}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {damaged > 0 ? (
+                                      <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-400">
+                                        {damaged} Items
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => handleViewReport(r.id)}>
+                                        View
+                                      </Button>
+                                      <Button size="sm" variant="ghost" className="h-8 px-2 text-xs" onClick={() => exportAuditSessionPdf(r.session_id)}>
+                                        PDF
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                            {(selectedSessionId ? sessionReports : recentReports).length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={5} className="h-32 text-center text-sm text-muted-foreground">
+                                  No reports available.
                                 </TableCell>
                               </TableRow>
-                            );
-                          })}
-                          {(selectedSessionId ? sessionReports : recentReports).length === 0 && (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-sm text-muted-foreground">
-                                No reports available yet.
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
                     </div>
                   </TabsContent>
                 </Tabs>
@@ -1734,71 +1837,103 @@ export default function Audit() {
           }
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg border-none shadow-2xl bg-white/95 backdrop-blur-xl dark:bg-slate-900/95">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
-              Scan asset QR
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <QrCode className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              Scan Asset QR
             </DialogTitle>
-            <DialogDescription>Point your camera at the asset QR. Pick a status and save.</DialogDescription>
+            <DialogDescription>
+              Point your camera at the asset QR code. Select a status and save to verify.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="relative aspect-square overflow-hidden rounded-md bg-black/80">
+          
+          <div className="space-y-4 py-2">
+            <div className="relative aspect-square overflow-hidden rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-black shadow-inner">
               <video ref={videoRef} className="h-full w-full object-cover" playsInline muted />
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute left-1/2 top-1/2 h-[70%] -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 border-primary/60" />
+              
+              {/* Scanner Overlay Guide */}
+              <div className="absolute inset-0 pointer-events-none border-[30px] border-black/30">
+                <div className="w-full h-full border-2 border-blue-500/50 relative">
+                  <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-blue-500 rounded-tl-sm"></div>
+                  <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-blue-500 rounded-tr-sm"></div>
+                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-blue-500 rounded-bl-sm"></div>
+                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-blue-500 rounded-br-sm"></div>
+                </div>
               </div>
+              
+              {!scanActive && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                  <div className="text-white text-sm font-medium flex flex-col items-center gap-2">
+                    <Camera className="h-8 w-8 opacity-50" />
+                    <span>Camera is off</span>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+
+            <div className="grid grid-cols-2 gap-3">
               <Button
                 variant={scanStatus === "verified" ? "default" : "outline"}
-                className="gap-2"
+                className={`gap-2 h-12 text-base ${scanStatus === "verified" ? "bg-emerald-600 hover:bg-emerald-700 text-white border-transparent" : "hover:border-emerald-500 hover:text-emerald-600"}`}
                 onClick={() => setScanStatus("verified")}
               >
-                <CheckCircle2 className="h-4 w-4" />
+                <CheckCircle2 className="h-5 w-5" />
                 Verified
               </Button>
               <Button
                 variant={scanStatus === "damaged" ? "destructive" : "outline"}
-                className="gap-2"
+                className={`gap-2 h-12 text-base ${scanStatus === "damaged" ? "" : "hover:border-red-500 hover:text-red-600"}`}
                 onClick={() => setScanStatus("damaged")}
               >
-                <TriangleAlert className="h-4 w-4" />
+                <TriangleAlert className="h-5 w-5" />
                 Damaged
               </Button>
             </div>
-            <div className="text-sm text-muted-foreground">
-              Scanned asset:{" "}
-              <span className="font-mono text-foreground">{scanAssetId || "—"}</span>
-              {scanAssetId && (
-                <span>
-                  {" "}— <span className="text-foreground">{scanAssetName || "Unknown"}</span>
-                </span>
-              )}
+
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-100 dark:border-slate-800">
+              <div className="text-sm text-muted-foreground mb-1">Scanned Asset:</div>
+              <div className="font-mono text-base font-medium text-foreground flex items-center gap-2">
+                {scanAssetId ? (
+                  <>
+                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-sm">{scanAssetId}</span>
+                    <span className="text-muted-foreground text-sm truncate">{scanAssetName || "Unknown Asset"}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground italic text-sm">Waiting for scan...</span>
+                )}
+              </div>
             </div>
+
             <div className="space-y-2">
-              <Label>Optional note</Label>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Optional Note</Label>
               <Textarea
-                placeholder="Add a note (e.g., issue observed, location)"
+                placeholder="Add a note (e.g., issue observed, location discrepancy)..."
                 value={scanComment}
                 onChange={(e) => setScanComment(e.target.value)}
                 disabled={!scanAssetId || scanBusy}
+                className="resize-none bg-white dark:bg-slate-950"
+                rows={2}
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            {!scanActive && (
-              <Button onClick={startScan} className="gap-2">
-                <Camera className="h-4 w-4" />
-                Start
-              </Button>
-            )}
-            {scanActive && (
-              <Button variant="outline" onClick={stopScan}>
-                Stop
-              </Button>
-            )}
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <div className="flex gap-2 w-full sm:w-auto">
+              {!scanActive ? (
+                <Button onClick={startScan} variant="outline" className="gap-2 flex-1 sm:flex-none">
+                  <Camera className="h-4 w-4" />
+                  Start Camera
+                </Button>
+              ) : (
+                <Button variant="outline" onClick={stopScan} className="flex-1 sm:flex-none text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30">
+                  Stop Camera
+                </Button>
+              )}
+            </div>
+            
             <Button
+              className="flex-1 sm:flex-none min-w-[100px]"
               disabled={!scanAssetId || scanBusy}
               onClick={async () => {
                 if (!sessionId || !scanAssetId) return;
@@ -1840,7 +1975,7 @@ export default function Audit() {
                 }
               }}
             >
-              Save
+              {scanBusy ? "Saving..." : "Save Verification"}
             </Button>
           </DialogFooter>
         </DialogContent>
