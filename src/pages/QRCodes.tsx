@@ -30,7 +30,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getCurrentUserId, canUserEdit } from "@/services/permissions";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
-import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import {
   ResponsiveContainer,
@@ -722,41 +721,43 @@ export default function QRCodes() {
         </Dialog>
 
     <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "QR Codes" }]} />
-    <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-      <PageHeader
-        icon={QrCode}
-        title="QR Code Management"
-        description="Generate, manage, and print QR codes for asset tracking"
-        actions={
-          <div className="flex gap-2 flex-wrap">
-            <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-              <QrCode className="h-4 w-4" />
-              Generate New QR Code
+    <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+      <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+      <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">QR Code Management</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Generate, manage, and print QR codes for asset tracking
+          </p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+            <QrCode className="h-4 w-4" />
+            Generate New QR Code
+          </Button>
+          <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+            <Printer className="h-4 w-4" />
+            Bulk Print
+          </Button>
+          {role === 'admin' && (
+            <Button
+              onClick={handleClearAll}
+              variant="outline"
+              className="gap-2 w-full sm:w-auto"
+              disabled={purging || (!isDemoMode() && !hasSupabaseEnv)}
+            >
+              {purging ? (
+                'Clearing…'
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Clear All
+                </>
+              )}
             </Button>
-            <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
-              <Printer className="h-4 w-4" />
-              Bulk Print
-            </Button>
-            {role === 'admin' && (
-              <Button
-                onClick={handleClearAll}
-                variant="outline"
-                className="gap-2 w-full sm:w-auto"
-                disabled={purging || (!isDemoMode() && !hasSupabaseEnv)}
-              >
-                {purging ? (
-                  'Clearing…'
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4" />
-                    
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-        }
-      />
+          )}
+        </div>
+      </div>
     </div>
         <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
           {qrHighlights.map((item) => (

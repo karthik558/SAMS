@@ -17,7 +17,6 @@ import { Ticket as TicketIcon, Mail } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
-import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -709,20 +708,22 @@ export default function Tickets() {
   return (
     <div className="space-y-6">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Tickets" }]} />
-      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-        <PageHeader
-          icon={TicketIcon}
-          title="Maintenance Tickets"
-          description="Monitor, triage, and resolve maintenance issues across your properties"
-          actions={
-            <Button asChild variant="outline" className="gap-2">
-              <a href="mailto:karthik@samsproject.in">
-                <Mail className="h-4 w-4" />
-                Email Support
-              </a>
-            </Button>
-          }
-        />
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Maintenance Tickets</h1>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Monitor, triage, and resolve maintenance issues across your properties
+            </p>
+          </div>
+          <Button asChild variant="outline" className="gap-2">
+            <a href="mailto:karthik@samsproject.in">
+              <Mail className="h-4 w-4" />
+              Email Support
+            </a>
+          </Button>
+        </div>
       </div>
       <section className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

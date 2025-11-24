@@ -534,14 +534,21 @@ export default function Approvals() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-10">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Approvals" }]} />
-      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-        <PageHeader
-          icon={ClipboardCheck}
-          title="Approvals"
-          description="Review asset requests and keep decision workflows moving"
-        />
+      
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+        <div className="relative z-10 max-w-3xl space-y-4">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Approvals
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Review asset requests and keep decision workflows moving
+          </p>
+        </div>
+        {/* Decorative background element */}
+        <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
       </div>
       <section className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -1065,7 +1065,7 @@ export default function Assets() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-10">
         <LicenseExceedModal
           open={licenseModal.open}
           info={licenseModal.info}
@@ -1095,42 +1095,46 @@ export default function Assets() {
         {/* Header with breadcrumbs */}
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
         
-        <section className="rounded-2xl border border-border/60 bg-card shadow-sm">
-          <div className="space-y-6 p-6 sm:p-8">
-            <PageHeader
-              icon={Package}
-              title="Asset Management"
-              description="Track and manage all your organization's assets"
-              actions={
-                <div className="flex gap-2">
-                  <ColumnChooser
-                    columns={columnDefs}
-                    visible={prefs.visibleCols}
-                    onChange={prefs.setVisibleCols}
-                  />
-                  <Button onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" size="sm" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
-                    <Plus className="h-4 w-4" />
-                    Add Asset
-                  </Button>
-                </div>
-              }
-            />
-
-            <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
-              {assetHighlights.map((item) => (
-                <MetricCard
-                  key={item.key}
-                  icon={item.icon}
-                  title={item.title}
-                  value={item.value}
-                  caption={item.caption}
-                  iconClassName={item.iconClassName}
-                  valueClassName={item.valueClassName}
-                />
-              ))}
+        {/* Hero Section */}
+        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+          <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+            <div className="max-w-3xl space-y-4">
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                Asset Management
+              </h1>
+              <p className="text-lg text-muted-foreground">
+                Track and manage all your organization's assets
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <ColumnChooser
+                columns={columnDefs}
+                visible={prefs.visibleCols}
+                onChange={prefs.setVisibleCols}
+              />
+              <Button onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+                <Plus className="h-4 w-4" />
+                Add Asset
+              </Button>
             </div>
           </div>
-        </section>
+          {/* Decorative background element */}
+          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+        </div>
+
+        <div className="grid gap-3 sm:gap-4 sm:grid-cols-2 md:grid-cols-4">
+          {assetHighlights.map((item) => (
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value}
+              caption={item.caption}
+              iconClassName={item.iconClassName}
+              valueClassName={item.valueClassName}
+            />
+          ))}
+        </div>
 
         {/* Filters and Search */}
         <Card className="rounded-2xl border border-border/60 bg-card shadow-sm overflow-hidden">

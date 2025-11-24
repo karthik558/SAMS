@@ -45,7 +45,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import StatusChip from "@/components/ui/status-chip";
-import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import {
   DropdownMenu,
@@ -1075,29 +1074,31 @@ export default function Reports() {
     <div className="space-y-6" id="reports-top">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Reports" }]} />
 
-      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-        <PageHeader
-          icon={FileBarChart}
-          title="Reports & Insights"
-          description="Generate compliance-ready exports, enrich audit reviews, and keep your teams informed."
-          actions={
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              {(isAdminRole || role === 'manager') && (
-                <Button
-                  className="gap-2"
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleApprovalsLog}
-                >
-                  <FileText className="h-4 w-4" /> Approvals Log
-                </Button>
-              )}
-              <Button onClick={handleGenerateReport} className="gap-2" size="sm">
-                <Download className="h-4 w-4" /> Generate Report
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Reports & Insights</h1>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Generate compliance-ready exports, enrich audit reviews, and keep your teams informed.
+            </p>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {(isAdminRole || role === 'manager') && (
+              <Button
+                className="gap-2"
+                variant="outline"
+                size="sm"
+                onClick={toggleApprovalsLog}
+              >
+                <FileText className="h-4 w-4" /> Approvals Log
               </Button>
-            </div>
-          }
-        />
+            )}
+            <Button onClick={handleGenerateReport} className="gap-2" size="sm">
+              <Download className="h-4 w-4" /> Generate Report
+            </Button>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

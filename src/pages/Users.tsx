@@ -64,7 +64,6 @@ import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinal
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/userDeptAccess";
 import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
-import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { cn } from "@/lib/utils";
@@ -851,14 +850,15 @@ export default function Users() {
   return (
     <div className="space-y-6 sm:space-y-8">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
-      <section className="rounded-2xl border border-border/60 bg-card shadow-sm">
-        <div className="space-y-6 p-6 sm:p-8 lg:p-10">
-          <PageHeader
-            icon={User}
-            title="People & Access"
-            description="Curate roles, onboarding, and audit trails for everyone using SAMS"
-            className="text-foreground"
-            actions={
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">People & Access</h1>
+            <p className="mt-2 max-w-2xl text-muted-foreground">
+              Curate roles, onboarding, and audit trails for everyone using SAMS
+            </p>
+          </div>
             <Dialog
               open={isAddUserOpen}
               onOpenChange={(open) => {
@@ -1322,8 +1322,8 @@ export default function Users() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      }
-    />
+        </div>
+      </div>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {userHighlights.map(({ key, title, icon: Icon, value, caption }) => (
         <MetricCard
@@ -1335,8 +1335,6 @@ export default function Users() {
         />
       ))}
     </div>
-  </div>
-</section>
 
       <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
         <CardHeader className="space-y-4 border-b border-border/60 pb-6">

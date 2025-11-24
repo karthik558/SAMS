@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PageHeader from "@/components/layout/PageHeader";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, formatAuditSessionName, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
@@ -1039,13 +1038,17 @@ export default function Audit() {
     <div className="space-y-8 pb-16">
       <div className="space-y-4 print:hidden">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Audit" }]} />
-        <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-          <PageHeader
-            icon={ClipboardCheck}
-            title="Inventory Audit"
-            description="Verify assets in your department and submit results"
-            actions={headerActions}
-          />
+        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+          <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Inventory Audit</h1>
+              <p className="mt-2 max-w-2xl text-muted-foreground">
+                Verify assets in your department and submit results
+              </p>
+            </div>
+            {headerActions}
+          </div>
         </div>
       </div>
 

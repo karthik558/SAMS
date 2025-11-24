@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Shield, Save, Settings as SettingsIcon } from "lucide-react";
+import { Bell, Shield, Save, Settings as SettingsIcon, Layout, Monitor, Volume2, Menu, Lock, User, Mail } from "lucide-react";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserSettings, upsertUserSettings } from "@/services/settings";
@@ -389,100 +389,111 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-10">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
-      <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm sm:p-8">
-        <PageHeader
-          icon={SettingsIcon}
-          title="Settings"
-          description="Manage your SAMS preferences and system configuration"
-        />
+
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+        <div className="relative z-10 max-w-3xl space-y-4">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Settings & Configuration
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Manage your account security, customize your interface, and control how you receive notifications.
+          </p>
+        </div>
+        {/* Decorative background element */}
+        <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
       </div>
-      <Tabs defaultValue="security" className="space-y-6">
-        <TabsList className="flex w-full flex-wrap items-stretch gap-2 rounded-md bg-muted/50 p-1 backdrop-blur supports-[backdrop-filter]:bg-muted/60 sm:flex-nowrap">
+
+      <Tabs defaultValue="personalization" className="space-y-8">
+        <TabsList className="inline-flex h-auto w-full flex-wrap justify-start gap-2 rounded-none border-b bg-transparent p-0 sm:w-auto">
           {tabItems.map(({ value, label, icon: Icon }) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="flex flex-1 min-w-[3.25rem] items-center justify-center gap-2 rounded-md px-3 py-2 text-sm sm:min-w-[3.5rem] sm:px-3 lg:flex-none lg:min-w-0 lg:justify-start lg:px-4"
-              title={label}
-              aria-label={label}
+              className="group inline-flex items-center gap-2 rounded-t-lg border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-muted/10 data-[state=active]:text-foreground"
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              <span className="sr-only lg:not-sr-only">{label}</span>
+              <Icon className="h-4 w-4 group-data-[state=active]:text-primary" />
+              {label}
             </TabsTrigger>
           ))}
         </TabsList>
 
         <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>
-                Choose how you want to be notified about system activities
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Push Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Receive notifications in your browser
-                  </p>
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Channels</CardTitle>
+                <CardDescription>
+                  Choose how you want to be notified.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-base">Push Notifications</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Receive notifications in your browser
+                    </p>
+                  </div>
+                  <Switch checked={notifications} onCheckedChange={setNotifications} />
                 </div>
-                <Switch checked={notifications} onCheckedChange={setNotifications} />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label>Email Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Get notified via email for important updates
-                  </p>
+                <Separator />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-base">Email Notifications</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Get notified via email for important updates
+                    </p>
+                  </div>
+                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
                 </div>
-                <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
-              </div>
+              </CardContent>
+            </Card>
 
-              <Separator />
-
-              <div className="space-y-4">
-                <Label>Notification Types</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch id="asset-expiry" defaultChecked />
-                    <Label htmlFor="asset-expiry" className="text-sm">Asset Expiry Alerts</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="low-stock" defaultChecked />
-                    <Label htmlFor="low-stock" className="text-sm">Low Stock Warnings</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="new-assets" />
-                    <Label htmlFor="new-assets" className="text-sm">New Asset Additions</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch id="system-updates" defaultChecked />
-                    <Label htmlFor="system-updates" className="text-sm">System Updates</Label>
-                  </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Subscriptions</CardTitle>
+                <CardDescription>
+                  Select the types of alerts you want to receive.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="asset-expiry" className="font-normal">Asset Expiry Alerts</Label>
+                  <Switch id="asset-expiry" defaultChecked />
                 </div>
-              </div>
-
-              <Button onClick={handleSave} className="w-full md:w-auto">
-                <Save className="h-4 w-4 mr-2" />
-                Save Preferences
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="low-stock" className="font-normal">Low Stock Warnings</Label>
+                  <Switch id="low-stock" defaultChecked />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="new-assets" className="font-normal">New Asset Additions</Label>
+                  <Switch id="new-assets" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="system-updates" className="font-normal">System Updates</Label>
+                  <Switch id="system-updates" defaultChecked />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          
+          <div className="flex justify-end">
+            <Button onClick={handleSave} size="lg" className="gap-2">
+              <Save className="h-4 w-4" />
+              Save Preferences
+            </Button>
+          </div>
         </TabsContent>
 
         <TabsContent value="security" className="space-y-6">
-          <Card>
+          <Card className="max-w-2xl">
             <CardHeader>
-              <CardTitle>Security Settings</CardTitle>
+              <CardTitle className="text-lg">Password & Authentication</CardTitle>
               <CardDescription>
-                Manage your account security and access permissions
+                Update your password to keep your account secure.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -491,245 +502,252 @@ export default function Settings() {
                   <Label htmlFor="current-password">Current Password</Label>
                   <Input id="current-password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirm New Password</Label>
+                    <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Button onClick={handleChangePassword} className="flex-1 sm:flex-none">
-                  <Save className="h-4 w-4 mr-2" />
+              <div className="flex justify-end">
+                <Button onClick={handleChangePassword}>
                   Update Password
                 </Button>
               </div>
-
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="personalization" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personalization</CardTitle>
-              <CardDescription>Customize UI features and defaults just for you</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
-              {prefsLoaded && (
-                <>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Show Newsletter Menu</Label>
-                      <p className="text-sm text-muted-foreground">Adds the status & updates feed to your sidebar</p>
-                    </div>
-                    <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Show Help Center</Label>
-                      <p className="text-sm text-muted-foreground">Keep the Help Center entry visible in your navigation</p>
-                    </div>
-                    <Switch checked={showHelpCenter} onCheckedChange={setShowHelpCenter} />
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <div className="space-y-1">
-                      <Label>Accent Color</Label>
-                      <p className="text-sm text-muted-foreground">Choose your preferred primary color</p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {ACCENT_COLORS.map((color) => (
-                        <button
-                          key={color.id}
-                          onClick={() => setAccentColor(color.id)}
-                          className={`group relative flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all ${
-                            accentColor === color.id ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
-                          }`}
-                          title={color.label}
-                        >
-                          <span 
-                            className="h-8 w-8 rounded-full shadow-sm" 
-                            style={{ backgroundColor: `hsl(${color.value})` }} 
-                          />
-                          {accentColor === color.id && (
-                            <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
-                              <Palette className="h-4 w-4" />
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <div className="space-y-1">
-                      <Label>Dark Mode Depth</Label>
-                      <p className="text-sm text-muted-foreground">Adjust the contrast level for dark mode</p>
-                    </div>
-                    <Select value={darkLevel} onValueChange={setDarkLevel} disabled={!darkMode}>
-                      <SelectTrigger className="h-10 w-full md:w-72">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DARK_LEVELS.map((level) => (
-                          <SelectItem key={level.id} value={level.id}>
-                            <div className="flex items-center gap-2">
-                              <div 
-                                className="h-4 w-4 rounded-full border border-border" 
-                                style={{ backgroundColor: `hsl(${level.bg})` }} 
-                              />
-                              {level.label}
-                            </div>
-                          </SelectItem>
+        <TabsContent value="personalization" className="space-y-8">
+          {!prefsLoaded && <div className="text-sm text-muted-foreground">Loading preferences...</div>}
+          {prefsLoaded && (
+            <>
+              {/* Appearance Section */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <h3 className="text-lg font-medium">Appearance</h3>
+                </div>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Theme Mode</CardTitle>
+                      <CardDescription>Light or dark interface</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Dark Mode</Label>
+                        <Switch checked={darkMode} disabled={autoTheme} onCheckedChange={setDarkMode} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Auto (System)</Label>
+                        <Switch checked={autoTheme} onCheckedChange={setAutoTheme} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Accent Color</CardTitle>
+                      <CardDescription>Primary brand color</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {ACCENT_COLORS.map((color) => (
+                          <button
+                            key={color.id}
+                            onClick={() => setAccentColor(color.id)}
+                            className={`group relative flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all ${
+                              accentColor === color.id ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
+                            }`}
+                            title={color.label}
+                          >
+                            <span 
+                              className="h-6 w-6 rounded-full shadow-sm" 
+                              style={{ backgroundColor: `hsl(${color.value})` }} 
+                            />
+                            {accentColor === color.id && (
+                              <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
+                                <Palette className="h-3 w-3" />
+                              </span>
+                            )}
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
-                    {!darkMode && (
-                      <p className="text-xs text-muted-foreground text-amber-600 flex items-center gap-1">
-                        <Moon className="h-3 w-3" /> Switch to dark mode to see changes
-                      </p>
-                    )}
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <div className="space-y-1">
-                      <Label>Interface Density</Label>
-                      <p className="text-sm text-muted-foreground">Adjust spacing scale across UI components</p>
-                    </div>
-                    <Select value={density} onValueChange={(v) => setDensity(v as any)}>
-                      <SelectTrigger className="h-10 w-full md:w-72"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="comfortable">Comfortable</SelectItem>
-                        <SelectItem value="compact">Compact</SelectItem>
-                        <SelectItem value="ultra">Ultra Dense</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Beta Features</Label>
-                      <p className="text-sm text-muted-foreground">Enable early experimental UI components</p>
-                    </div>
-                    <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Notification Sounds</Label>
-                      <p className="text-sm text-muted-foreground">Play a sound for new notifications</p>
-                    </div>
-                    <Switch checked={enableSounds} onCheckedChange={setEnableSounds} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Sidebar Collapsed</Label>
-                      <p className="text-sm text-muted-foreground">Start with sidebar collapsed on desktop</p>
-                    </div>
-                    <Switch checked={sidebarCollapsedPref} onCheckedChange={setSidebarCollapsedPref} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Show Announcements</Label>
-                      <p className="text-sm text-muted-foreground">Display the announcements panel on dashboard</p>
-                    </div>
-                    <Switch checked={showAnnouncements} onCheckedChange={setShowAnnouncements} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Sticky Header</Label>
-                      <p className="text-sm text-muted-foreground">Keep top navigation visible while scrolling</p>
-                    </div>
-                    <Switch checked={stickyHeader} onCheckedChange={setStickyHeader} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Top Navigation Layout</Label>
-                      <p className="text-sm text-muted-foreground">Use a horizontal top bar instead of sidebar navigation</p>
-                    </div>
-                    <Switch checked={topNavMode} onCheckedChange={setTopNavMode} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Dark Mode</Label>
-                      <p className="text-sm text-muted-foreground">Toggle dark theme appearance</p>
-                    </div>
-                    <Switch checked={darkMode} disabled={autoTheme} onCheckedChange={setDarkMode} />
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <Label>Auto Theme</Label>
-                      <p className="text-sm text-muted-foreground">Follow system light/dark preference automatically</p>
-                    </div>
-                    <Switch checked={autoTheme} onCheckedChange={setAutoTheme} />
-                  </div>
-                  <Separator />
-                  <div className="flex flex-col gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="default-landing">Default Landing Page</Label>
-                      <p className="text-sm text-muted-foreground">Choose where the app sends you after login</p>
-                    </div>
-                    {(() => {
-                      try {
-                        const authRaw = (() => { try { return localStorage.getItem('auth_user'); } catch { return null; } })();
-                        const r = authRaw ? ((): string => { try { return (JSON.parse(authRaw).role || '').toLowerCase(); } catch { return ''; } })() : '';
-                        const canSeeApprovals = ['admin','manager'].includes(r);
-                        return (
-                          <Select value={defaultLanding || undefined} onValueChange={(v) => setDefaultLanding(v)}>
-                            <SelectTrigger id="default-landing" className="h-11 w-full rounded-lg font-medium">
-                              <SelectValue placeholder="System Default (Dashboard)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="/">Dashboard</SelectItem>
-                              <SelectItem value="/assets">Assets</SelectItem>
-                              <SelectItem value="/properties">Properties</SelectItem>
-                              {canSeeApprovals && <SelectItem value="/approvals">Approvals</SelectItem>}
-                              <SelectItem value="/tickets">Tickets</SelectItem>
-                              <SelectItem value="/reports">Reports</SelectItem>
-                              <SelectItem value="/newsletter">Newsletter</SelectItem>
-                              <SelectItem value="/settings">Settings</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        );
-                      } catch (e) {
-                        return (
-                          <div className="rounded-md border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
-                            Unable to render selector.
-                          </div>
-                        );
-                      }
-                    })()}
-                    <p className="text-xs text-muted-foreground">This will take effect on your next login.</p>
-                  </div>
-                  <Button
-                    onClick={handleSave}
-                    className="relative w-full overflow-hidden rounded-lg bg-gradient-to-r from-primary via-primary/90 to-primary/80 px-6 py-5 text-sm font-semibold shadow-md transition hover:from-primary/90 hover:via-primary hover:to-primary/90 focus-visible:ring-2 focus-visible:ring-primary/50 md:w-auto"
-                  >
-                    <span className="relative z-10 flex items-center">
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Personalization
-                    </span>
-                    <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-0 animate-[shine_1.8s_ease_infinite] [animation-delay:400ms] group-hover:opacity-60" />
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-        {/* Departments management has moved to Users page. */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Density & Depth</CardTitle>
+                      <CardDescription>Spacing and contrast</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Interface Density</Label>
+                        <Select value={density} onValueChange={(v) => setDensity(v as any)}>
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="comfortable">Comfortable</SelectItem>
+                            <SelectItem value="compact">Compact</SelectItem>
+                            <SelectItem value="ultra">Ultra Dense</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Dark Mode Depth</Label>
+                        <Select value={darkLevel} onValueChange={setDarkLevel} disabled={!darkMode}>
+                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {DARK_LEVELS.map((level) => (
+                              <SelectItem key={level.id} value={level.id}>{level.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </section>
+
+              {/* Navigation Section */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <h3 className="text-lg font-medium">Navigation & Layout</h3>
+                </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Menu Visibility</CardTitle>
+                      <CardDescription>Control what appears in your sidebar</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Show Newsletter</Label>
+                        <Switch checked={showNewsletter} onCheckedChange={setShowNewsletter} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Show Help Center</Label>
+                        <Switch checked={showHelpCenter} onCheckedChange={setShowHelpCenter} />
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Layout Behavior</CardTitle>
+                      <CardDescription>Customize how the app behaves</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Start Collapsed</Label>
+                        <Switch checked={sidebarCollapsedPref} onCheckedChange={setSidebarCollapsedPref} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Sticky Header</Label>
+                        <Switch checked={stickyHeader} onCheckedChange={setStickyHeader} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="font-normal">Top Nav Mode</Label>
+                        <Switch checked={topNavMode} onCheckedChange={setTopNavMode} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </section>
+
+              {/* System Section */}
+              <section className="space-y-4">
+                <div className="flex items-center gap-2 border-b pb-2">
+                  <h3 className="text-lg font-medium">System & Defaults</h3>
+                </div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Default Landing Page</CardTitle>
+                      <CardDescription>Where you land after logging in</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        try {
+                          const authRaw = (() => { try { return localStorage.getItem('auth_user'); } catch { return null; } })();
+                          const r = authRaw ? ((): string => { try { return (JSON.parse(authRaw).role || '').toLowerCase(); } catch { return ''; } })() : '';
+                          const canSeeApprovals = ['admin','manager'].includes(r);
+                          return (
+                            <Select value={defaultLanding || undefined} onValueChange={(v) => setDefaultLanding(v)}>
+                              <SelectTrigger id="default-landing" className="w-full">
+                                <SelectValue placeholder="System Default (Dashboard)" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="/">Dashboard</SelectItem>
+                                <SelectItem value="/assets">Assets</SelectItem>
+                                <SelectItem value="/properties">Properties</SelectItem>
+                                {canSeeApprovals && <SelectItem value="/approvals">Approvals</SelectItem>}
+                                <SelectItem value="/tickets">Tickets</SelectItem>
+                                <SelectItem value="/reports">Reports</SelectItem>
+                                <SelectItem value="/newsletter">Newsletter</SelectItem>
+                                <SelectItem value="/settings">Settings</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          );
+                        } catch (e) {
+                          return <div className="text-xs text-destructive">Error loading options</div>;
+                        }
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Misc. Preferences</CardTitle>
+                      <CardDescription>Other system toggles</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="font-normal">Beta Features</Label>
+                          <p className="text-xs text-muted-foreground">Enable experimental UI</p>
+                        </div>
+                        <Switch checked={betaFeatures} onCheckedChange={setBetaFeatures} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="font-normal">Sound Effects</Label>
+                          <p className="text-xs text-muted-foreground">UI interaction sounds</p>
+                        </div>
+                        <Switch checked={enableSounds} onCheckedChange={setEnableSounds} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="font-normal">Announcements</Label>
+                          <p className="text-xs text-muted-foreground">Show dashboard banner</p>
+                        </div>
+                        <Switch checked={showAnnouncements} onCheckedChange={setShowAnnouncements} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </section>
+
+              <div className="flex justify-end pt-4">
+                <Button
+                  onClick={handleSave}
+                  size="lg"
+                  className="relative overflow-hidden rounded-full px-8 shadow-lg transition-all hover:shadow-primary/25"
+                >
+                  <span className="relative z-10 flex items-center gap-2">
+                    <Save className="h-4 w-4" />
+                    Save All Changes
+                  </span>
+                </Button>
+              </div>
+            </>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
