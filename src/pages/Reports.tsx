@@ -717,7 +717,7 @@ export default function Reports() {
     const thead = `<tr>${cols.map(c => `<th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">${c}</th>`).join('')}</tr>`;
     const tbody = rows.map(r => `<tr>${cols.map(c => `<td style="padding:8px;border-bottom:1px solid #f0f0f0;">${(r[c] ?? '')}</td>`).join('')}</tr>`).join('');
     // Use app base to resolve public path for favicon
-    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
     const normalizedBase = (base || '').replace(/\/$/, '');
     const logoSrc = `${normalizedBase}/favicon.png`;
     const html = `<!doctype html><html><head><meta charset="utf-8"/><title>${name}</title>
@@ -801,7 +801,7 @@ export default function Reports() {
     }).join('');
     const totals = rows.reduce((acc, r) => { const s = String(r.status || '').toLowerCase(); acc[s] = (acc[s]||0)+1; return acc; }, {} as Record<string, number>);
     const summary = `<div class="summary"><span class="chip ok">Verified: ${totals['verified'] || 0}</span><span class="chip warn">Damaged: ${totals['damaged'] || 0}</span><span class="chip err">Missing: ${totals['missing'] || 0}</span></div>`;
-    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+    const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
     const normalizedBase = (base || '').replace(/\/$/, '');
     const logoSrc = `${normalizedBase}/favicon.png`;
   const titleName = `SAMS-AuditReport-${name}`;

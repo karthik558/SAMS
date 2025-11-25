@@ -30,7 +30,7 @@ export function QRCodeGenerator({
     setIsGenerating(true);
     try {
   // Build a direct link URL for the QR payload (so scanners open the page directly)
-  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
   const normalizedBase = (base || '').replace(/\/$/, '');
   const qrLink = `${normalizedBase}/assets/${assetId}`;
 

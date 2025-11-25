@@ -211,7 +211,7 @@ export default function Audit() {
         byDept.get(d)!.push(r);
       }
       // Build HTML
-      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
       const normalizedBase = (base || '').replace(/\/$/, '');
       const logoSrc = `${normalizedBase}/favicon.png`;
       const parts: string[] = [];

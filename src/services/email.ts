@@ -45,7 +45,7 @@ export function getEmailConfig(): EmailConfig | null {
 
 // Get dashboard URL for email links
 function getDashboardUrl(): string {
-  return import.meta.env.VITE_DASHBOARD_URL || window.location.origin;
+  return import.meta.env.VITE_DASHBOARD_URL || 'https://samsproject.in';
 }
 
 /**

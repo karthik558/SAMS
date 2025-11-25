@@ -1922,7 +1922,7 @@ export default function Assets() {
                     <Button
                       onClick={async () => {
                         try {
-                          const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+                          const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
                           const normalizedBase = (base || '').replace(/\/$/, '');
                           // Only export explicitly selected asset IDs (no implicit group expansion)
                           const targets = assets.filter(a => selectedIds.has(a.id));

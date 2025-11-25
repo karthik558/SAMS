@@ -79,7 +79,7 @@ export async function generateQrPng(opts: {
   topText?: string;
   urlBase?: string; // optional override for base URL
 }): Promise<string> {
-  const base = opts.urlBase ?? (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
+  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
   const normalizedBase = (base || '').replace(/\/$/, '');
   const qrLink = `${normalizedBase}/assets/${opts.assetId}`;
 
