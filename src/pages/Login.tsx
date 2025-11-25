@@ -326,125 +326,125 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground md:flex-row">
-      <aside className="relative hidden w-full flex-1 overflow-hidden md:block">
+    <div className="flex min-h-screen w-full bg-background">
+      {/* Left Panel - Visual */}
+      <div className="relative hidden w-0 flex-1 lg:block">
         <img
           src="/login_image.png"
-          alt="SAMS workspace"
+          alt="SAMS Workspace"
           className="absolute inset-0 h-full w-full object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/55 to-primary/25" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[40%] bg-gradient-to-t from-background via-background/85 to-transparent" />
-        <div className="relative z-10 flex h-full flex-col justify-between p-10">
-          <div className="max-w-[200px]">
-          </div>
-          <p className="text-xs text-foreground/70">
-            © {currentYear} SAMS. All rights reserved.
-          </p>
-        </div>
-      </aside>
-      <main className="flex min-h-dvh w-full flex-1 items-center justify-center px-5 py-12 sm:px-8">
-        <div className="w-full max-w-md space-y-8">
-          <div className="overflow-hidden rounded-3xl border border-border/60 bg-card/80 shadow-soft md:hidden">
-            <div className="relative h-40 w-full">
-              <img src="/sams_logo.png" alt="SAMS workspace" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-br from-background/40 via-background/35 to-primary/20" />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[45%] bg-gradient-to-t from-background via-background/85 to-transparent" />
+      </div>
+
+      {/* Right Panel - Form */}
+      <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
+        <div className="mx-auto w-full max-w-sm lg:w-96">
+          <div className="mb-10">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/5 p-3 shadow-sm ring-1 ring-inset ring-primary/10">
+               <img src="/sams_logo.png" alt="Logo" className="h-full w-full object-contain" />
             </div>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Please sign in to your account to continue.
+            </p>
           </div>
-          <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-soft">
-            <CardHeader className="space-y-2 text-center">
-              <CardTitle className="text-2xl font-semibold">Welcome back</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Enter your credentials to access SAMS.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <label htmlFor="email" className="text-sm font-medium text-muted-foreground/90">
-                    Email or Username
-                  </label>
-                  <Input
-                    id="email"
-                    type="text"
-                    placeholder="you@company.com or your username"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoFocus
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="password" className="text-sm font-medium text-muted-foreground/90">
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((s) => !s)}
-                      className="text-xs font-semibold text-primary transition hover:text-primary/80"
-                    >
-                      {showPassword ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                      value={password}
-                      aria-required="true"
-                      aria-invalid={attempts > 0 ? true : undefined}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowPassword((s) => !s)}
-                      className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground transition hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <label className="inline-flex select-none items-center gap-2">
-                    <Checkbox id="remember" />
-                    <span className="text-muted-foreground">Remember me</span>
-                  </label>
+
+          <div className="space-y-6">
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-sm font-medium">
+                  Email or Username
+                </Label>
+                <Input
+                  id="email"
+                  type="text"
+                  placeholder="name@company.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoFocus
+                  className="h-11 rounded-xl bg-muted/30 px-4 transition-all focus:bg-background focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </Label>
                   <button
                     type="button"
                     onClick={handleForgotPassword}
-                    className="text-sm font-semibold text-primary transition hover:text-primary/80"
+                    className="text-xs font-medium text-primary hover:underline"
                   >
                     Forgot password?
                   </button>
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full h-11 rounded-2xl bg-primary text-primary-foreground shadow-soft transition hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2"
-                  disabled={loading}
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="h-11 rounded-xl bg-muted/30 px-4 pr-10 transition-all focus:bg-background focus:ring-2 focus:ring-primary/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-0 top-0 flex h-full w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox id="remember" />
+                <label
+                  htmlFor="remember"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-muted-foreground"
                 >
-                  {loading ? "Signing in..." : "Sign in"}
-                </Button>
-              </form>
+                  Remember me for 30 days
+                </label>
+              </div>
+
               <Button
-                type="button"
-                variant="outline"
-                className="w-full gap-2 rounded-2xl border-border/70 bg-background/80 shadow-sm hover:bg-background"
-                onClick={() => navigate("/scan")}
+                type="submit"
+                disabled={loading}
+                className="h-11 w-full rounded-xl bg-primary text-base font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
               >
-                <QrCode className="h-4 w-4" />
-                Scan QR Code
+                {loading ? "Signing in..." : "Sign in"}
               </Button>
-            </CardContent>
-          </Card>
-          <div className="text-center text-xs text-muted-foreground md:hidden">
-            © {currentYear} <span className="font-medium text-foreground">SAMS</span>. All rights reserved.
+            </form>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-muted" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => navigate("/scan")}
+              className="h-11 w-full rounded-xl border-muted bg-background hover:bg-muted/50"
+            >
+              <QrCode className="mr-2 h-4 w-4" />
+              Scan QR Code
+            </Button>
           </div>
+          
+          <p className="mt-10 text-center text-xs text-muted-foreground">
+            © {currentYear} SAMS. All rights reserved.
+          </p>
         </div>
-      </main>
+      </div>
+
       <Dialog
         open={forgotOpen}
         onOpenChange={(open) => {
