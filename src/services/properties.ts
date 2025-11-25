@@ -61,6 +61,17 @@ export async function listProperties(options?: { force?: boolean }): Promise<Pro
 export async function deleteProperty(id: string): Promise<void> {
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+
+  // Delete related records first to avoid FK constraints
+  // 1. Audit Incharge
+  await supabase.from("audit_incharge").delete().eq("property_id", id);
+  
+  // 2. Audit Sessions (and their cascaded children like scans/reviews)
+  await supabase.from("audit_sessions").delete().eq("property_id", id);
+
+  // 3. Assets in this property
+  await supabase.from("assets").delete().eq("property_id", id);
+
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw error;
   invalidateCache(PROPERTY_CACHE_KEY);
