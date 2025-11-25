@@ -834,6 +834,31 @@ export default function Assets() {
     }
   };
 
+  const handleDeleteGroup = async (assetsToDelete: any[]) => {
+    if (role !== 'admin') return;
+    const count = assetsToDelete.length;
+    const ok = window.confirm(`Are you sure you want to delete ${count} assets? This action cannot be undone.`);
+    if (!ok) return;
+
+    try {
+      if (hasSupabaseEnv) {
+        await Promise.all(assetsToDelete.map(a => sbDeleteAsset(a.id)));
+        const ids = new Set(assetsToDelete.map(a => a.id));
+        setAssets((prev) => prev.filter(a => !ids.has(a.id)));
+        toast.success(`${count} assets deleted`);
+        await logActivity("asset_deleted", `${count} assets deleted`);
+      } else {
+        const ids = new Set(assetsToDelete.map(a => a.id));
+        setAssets((prev) => prev.filter(a => !ids.has(a.id)));
+        toast.info("Supabase not configured; deleted locally only");
+        await logActivity("asset_deleted", `${count} assets deleted (local)`, "Local");
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e.message || "Failed to delete assets");
+    }
+  };
+
   const handleGenerateQR = (asset: any) => {
     // Always generate a QR for the selected asset without splitting its quantity into multiple asset records
     const qty = Number(asset.quantity) || 1;
@@ -1396,6 +1421,19 @@ export default function Assets() {
               >
     Generate & Download QR Sheet
               </Button>
+              {role === 'admin' && selectedIds.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    const targets = sortedAssets.filter(a => selectedIds.has(a.id));
+                    await handleDeleteGroup(targets);
+                    setSelectedIds(new Set());
+                  }}
+                >
+                  Delete Selected
+                </Button>
+              )}
               {/* Removed top-level Request Edit button; action moved inline per item */}
               <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
             </div>
@@ -1656,7 +1694,13 @@ export default function Assets() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleDeleteAsset(rep.id)}
+                                onClick={() => {
+                                  if (members.length > 1) {
+                                    handleDeleteGroup(members);
+                                  } else {
+                                    handleDeleteAsset(rep.id);
+                                  }
+                                }}
                                 className="h-8 w-8 p-0 text-destructive hover:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4" />
