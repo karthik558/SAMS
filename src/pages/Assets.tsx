@@ -1011,48 +1011,7 @@ export default function Assets() {
 
 
 
-  if (showQRGenerator && selectedAsset) {
-    return (
-      <div className="space-y-6">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => setShowQRGenerator(false)}>
-              ← Back to Assets
-            </Button>
-            <h1 className="text-3xl font-bold">Generate QR Code</h1>
-          </div>
-          <QRCodeGenerator
-            assetId={selectedAsset.id}
-            assetName={selectedAsset.name}
-            propertyName={selectedAsset.property}
-            onGenerated={(qrCodeUrl) => {
-              console.log("QR Code generated:", qrCodeUrl);
-              toast.success("QR Code generated");
-              // Persist QR code record and log activity
-              (async () => {
-                try {
-                  const id = `QR-${Math.floor(Math.random()*900+100)}`;
-                  const payload: SbQRCode = {
-                    id,
-                    assetId: selectedAsset.id,
-                    property: selectedAsset.property,
-                    generatedDate: new Date().toISOString().slice(0,10),
-                    status: "Generated",
-                    printed: false,
-                    imageUrl: qrCodeUrl,
-                  } as any;
-                  if (hasSupabaseEnv) {
-                    await createQRCode(payload);
-                  }
-                  await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
-                } catch (e) {
-                  console.error(e);
-                }
-              })();
-            }}
-          />
-        </div>
-    );
-  }
+
 
   return (
     <div className="space-y-8 pb-10">
@@ -1082,6 +1041,49 @@ export default function Assets() {
             }
           }}
         />
+
+        <Dialog open={showQRGenerator} onOpenChange={setShowQRGenerator}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Generate QR Code</DialogTitle>
+              <DialogDescription>
+                Generate a QR code for {selectedAsset?.name} ({selectedAsset?.id})
+              </DialogDescription>
+            </DialogHeader>
+            {selectedAsset && (
+              <QRCodeGenerator
+                assetId={selectedAsset.id}
+                assetName={selectedAsset.name}
+                propertyName={selectedAsset.property}
+                onGenerated={(qrCodeUrl) => {
+                  console.log("QR Code generated:", qrCodeUrl);
+                  toast.success("QR Code generated");
+                  // Persist QR code record and log activity
+                  (async () => {
+                    try {
+                      const id = `QR-${Math.floor(Math.random()*900+100)}`;
+                      const payload: SbQRCode = {
+                        id,
+                        assetId: selectedAsset.id,
+                        property: selectedAsset.property,
+                        generatedDate: new Date().toISOString().slice(0,10),
+                        status: "Generated",
+                        printed: false,
+                        imageUrl: qrCodeUrl,
+                      } as any;
+                      if (hasSupabaseEnv) {
+                        await createQRCode(payload);
+                      }
+                      await logActivity("qr_generated", `QR generated for ${selectedAsset.name} (${selectedAsset.id})`);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  })();
+                }}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
         {/* Header with breadcrumbs */}
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
         

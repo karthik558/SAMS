@@ -38,7 +38,7 @@ import { listApprovals } from "@/services/approvals";
 import { listAssets, type Asset } from "@/services/assets";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
-import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -699,7 +699,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => {
+              const newState = !collapsed;
+              setCollapsed(newState);
+              const uid = getCurrentUserId();
+              if (uid) {
+                upsertUserPreferences(uid, { sidebar_collapsed: newState });
+              }
+            }}
             className={cn(
               "h-8 w-8 rounded-lg p-0 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               collapsed && "mx-auto"

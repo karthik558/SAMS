@@ -1035,13 +1035,14 @@ const Index = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-              <Button onClick={() => handleQuickAction("Add Asset")} size="lg" className="gap-2 shadow-md transition-all hover:shadow-lg hover:scale-105">
-                <Plus className="h-5 w-5" />
-                Add Asset
-              </Button>
-              <Button variant="outline" size="lg" onClick={() => handleQuickAction("Generate QR Codes")} className="gap-2 bg-background/50 backdrop-blur-sm hover:bg-background/80">
-                <QrCode className="h-5 w-5" />
-                QR Codes
+              <Button 
+                onClick={() => handleQuickAction("Add Asset")} 
+                className="group flex h-12 w-12 items-center justify-center gap-0 rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-300 hover:w-36 hover:shadow-xl overflow-hidden p-0"
+              >
+                <Plus className="h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
+                <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2 font-medium">
+                  Add Asset
+                </span>
               </Button>
           </div>
         </div>
@@ -1588,7 +1589,7 @@ const Index = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={downloadAssetTemplate}
+                    onClick={() => downloadAssetTemplate()}
                     className="h-9 gap-2 border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
                   >
                     <Download className="h-3.5 w-3.5" />
@@ -1659,7 +1660,7 @@ const Index = () => {
                        <span className="font-medium text-foreground">{importing ? "Processing..." : "Completed"}</span>
                        <span className="text-muted-foreground">{Math.min(importProgress, 100)}%</span>
                     </div>
-                    <Progress value={Math.min(importProgress, 100)} className="h-2 w-full bg-muted" indicatorClassName="bg-primary" />
+                    <Progress value={Math.min(importProgress, 100)} className="h-2 w-full bg-muted" />
                  </div>
               ) : (
                 <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
