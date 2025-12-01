@@ -3,7 +3,7 @@ import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprova
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, CheckCheck, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
@@ -676,17 +676,21 @@ export default function Approvals() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
+                    className="gap-2 shadow-sm"
                     disabled={!bulkPendingCount || bulkLoading}
                     onClick={() => setConfirmDialog({ stage: bulkStage, action: 'approve' })}
                   >
+                    <CheckCheck className="h-4 w-4" />
                     Approve All
                   </Button>
                   <Button
                     size="sm"
-                    variant="destructive"
+                    variant="outline"
+                    className="gap-2 border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 shadow-sm"
                     disabled={!bulkPendingCount || bulkLoading}
                     onClick={() => setConfirmDialog({ stage: bulkStage, action: 'reject' })}
                   >
+                    <X className="h-4 w-4" />
                     Reject All
                   </Button>
                 </div>
