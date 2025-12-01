@@ -835,7 +835,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
               <div className="mt-3 px-1 text-[10px] text-sidebar-foreground/40">
-                <p>© 2025 SAMS. All rights reserved.</p>
+                <p>© 2025 <a href="https://karthiklal.in" target="_blank" rel="noopener noreferrer" className="hover:text-sidebar-foreground/80 hover:underline transition-colors">SAMS</a>. All rights reserved.</p>
               </div>
             </>
           )}
