@@ -1483,7 +1483,6 @@ const Index = () => {
                           </Avatar>
                           <div className="flex flex-col">
                             <span className="text-sm font-medium text-foreground leading-none">{assignee.label}</span>
-                            <span className="text-[10px] text-muted-foreground mt-1">Rank #{i + 1}</span>
                           </div>
                         </div>
                         <Badge variant="secondary" className="bg-muted/50 font-normal">
