@@ -541,7 +541,18 @@ export default function Settings() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="font-normal">Dark Mode</Label>
-                        <Switch checked={darkMode} disabled={autoTheme} onCheckedChange={setDarkMode} />
+                        <Switch 
+                          checked={darkMode} 
+                          disabled={autoTheme} 
+                          onCheckedChange={(checked) => {
+                            setDarkMode(checked);
+                            if (checked) {
+                              document.documentElement.classList.add('dark');
+                            } else {
+                              document.documentElement.classList.remove('dark');
+                            }
+                          }} 
+                        />
                       </div>
                       <div className="flex items-center justify-between">
                         <Label className="font-normal">Auto (System)</Label>
