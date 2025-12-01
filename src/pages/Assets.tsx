@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from 'react-router-dom';
 import { isDemoMode } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
@@ -24,6 +25,8 @@ import {
   Users,
   ChevronRight,
   ChevronDown,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -47,6 +50,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listAssets, createAsset, updateAsset, deleteAsset as sbDeleteAsset, type Asset as SbAsset } from "@/services/assets";
@@ -133,6 +137,7 @@ export default function Assets() {
   const isSupabase = hasSupabaseEnv;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -635,9 +640,7 @@ export default function Assets() {
     ];
   }, [statsAssets]);
 
-  if (loadingUI && isSupabase && !isDemoMode()) {
-    return <PageSkeleton />;
-  }
+
 
   // Helpers for ID generation and display
   const typePrefix = (t: string) => {
@@ -804,6 +807,30 @@ export default function Assets() {
       return false;
     }
   };
+
+  const initialFormData = useMemo(() => selectedAsset
+    ? {
+        itemName: selectedAsset.name ?? "",
+        itemType: selectedAsset.type ?? "",
+        property: selectedAsset.property ?? "",
+        department: selectedAsset.department ?? "",
+        quantity: selectedAsset.quantity ?? 1,
+        purchaseDate: selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate) : undefined,
+        expiryDate: selectedAsset.expiryDate ? new Date(selectedAsset.expiryDate) : undefined,
+        poNumber: selectedAsset.poNumber ?? "",
+        condition: selectedAsset.condition ?? "",
+        location: selectedAsset.location ?? "",
+        description: selectedAsset.description ?? "",
+        serialNumber: selectedAsset.serialNumber ?? "",
+        amcEnabled: Boolean(selectedAsset.amcEnabled),
+        amcStartDate: selectedAsset.amcStartDate ? new Date(selectedAsset.amcStartDate) : undefined,
+        amcEndDate: selectedAsset.amcEndDate ? new Date(selectedAsset.amcEndDate) : undefined,
+      }
+    : undefined, [selectedAsset]);
+
+  if (loadingUI && isSupabase && !isDemoMode()) {
+    return <PageSkeleton />;
+  }
 
   const handleEditAsset = (asset: any) => {
     const pid = getAssetPropertyId(asset);
@@ -982,69 +1009,7 @@ export default function Assets() {
 
   
 
-  if (showAddForm) {
-    // Map selected asset shape (services Asset) to AssetForm expected initialData keys
-    const initialFormData = selectedAsset
-      ? {
-          itemName: selectedAsset.name ?? "",
-          itemType: selectedAsset.type ?? "",
-          property: selectedAsset.property ?? "",
-          department: selectedAsset.department ?? "",
-          quantity: selectedAsset.quantity ?? 1,
-          // Convert stored date strings (YYYY-MM-DD) to Date objects for the Calendar inputs
-          purchaseDate: selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate) : undefined,
-          expiryDate: selectedAsset.expiryDate ? new Date(selectedAsset.expiryDate) : undefined,
-          poNumber: selectedAsset.poNumber ?? "",
-          condition: selectedAsset.condition ?? "",
-          location: selectedAsset.location ?? "",
-          // Fields that may not exist on the asset record
-          description: selectedAsset.description ?? "",
-          serialNumber: selectedAsset.serialNumber ?? "",
-          amcEnabled: Boolean(selectedAsset.amcEnabled),
-          amcStartDate: selectedAsset.amcStartDate ? new Date(selectedAsset.amcStartDate) : undefined,
-          amcEndDate: selectedAsset.amcEndDate ? new Date(selectedAsset.amcEndDate) : undefined,
-        }
-      : undefined;
-    return (
-      <div className="space-y-6">
-        <LicenseExceedModal
-          open={licenseModal.open}
-          info={licenseModal.info}
-          onClose={() => setLicenseModal({ open: false, info: null })}
-          onCreateTicket={(info) => {
-            try {
-              const draft = {
-                type: 'license-upgrade',
-                createdAt: new Date().toISOString(),
-                reason: info.reason,
-                propertyId: info.propertyId || null,
-                globalUsage: info.globalUsage ?? null,
-                globalLimit: info.globalLimit ?? null,
-                propertyUsage: info.propertyUsage ?? null,
-                propertyLimit: info.propertyLimit ?? null,
-                message: info.message,
-              };
-              localStorage.setItem('ticket_draft_license_upgrade', JSON.stringify(draft));
-              toast.info('Draft upgrade ticket created');
-              setLicenseModal({ open: false, info: null });
-              navigate('/tickets?draft=license-upgrade');
-            } catch(e:any) {
-              toast.error(e?.message || 'Failed to create draft ticket');
-            }
-          }}
-        />
-          <div className="flex items-center gap-4">
-            <Button variant="outline" onClick={() => setShowAddForm(false)}>
-              ← Back to Assets
-            </Button>
-          </div>
-          <AssetForm 
-            onSubmit={handleAddAsset} 
-            initialData={initialFormData}
-          />
-        </div>
-    );
-  }
+
 
   if (showQRGenerator && selectedAsset) {
     return (
@@ -2096,6 +2061,36 @@ export default function Assets() {
               </div>
             </div>
           )}
+    <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+      <DialogContent className={cn(
+        "overflow-y-auto transition-all duration-200",
+        isExpanded ? "w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh]" : "max-w-4xl max-h-[90vh]"
+      )}>
+        <DialogHeader className="flex flex-row items-start justify-between space-y-0 pr-8">
+          <div className="space-y-1.5">
+            <DialogTitle>{selectedAsset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
+            <DialogDescription>
+              {selectedAsset ? "Update the details of this asset." : "Fill in the details to create a new asset."}
+            </DialogDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setIsExpanded(!isExpanded)}
+            title={isExpanded ? "Collapse" : "Expand"}
+          >
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        </DialogHeader>
+        <AssetForm
+          mode="modal"
+          onSubmit={handleAddAsset}
+          initialData={initialFormData}
+          onCancel={() => setShowAddForm(false)}
+        />
+      </DialogContent>
+    </Dialog>
     <RequestEditModal
       open={requestEditOpen}
       asset={requestEditAsset}

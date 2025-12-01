@@ -11,11 +11,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DatePicker } from "@/components/ui/date-picker";
 import { CalendarIcon, Package, Save, ClipboardList, MapPin, Info, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listProperties, type Property } from "@/services/properties";
@@ -30,9 +27,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 interface AssetFormProps {
   onSubmit?: (data: any) => boolean | void | Promise<boolean | void>;
   initialData?: any;
+  mode?: 'page' | 'modal';
+  onCancel?: () => void;
 }
 
-export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
+export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: AssetFormProps) {
   const [formData, setFormData] = useState({
     itemName: initialData?.itemName || "",
     description: initialData?.description || "",
@@ -248,6 +247,358 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
     }));
   };
 
+  const formContent = (
+    <form onSubmit={handleSubmit} className="space-y-8">
+      <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <ClipboardList className="h-4 w-4 text-primary" />
+          Asset Essentials
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="itemName">Item Name *</Label>
+            <Input
+              id="itemName"
+              value={formData.itemName}
+              onChange={(e) => handleInputChange("itemName", e.target.value)}
+              placeholder="e.g., Dell Laptop, Office Chair"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Quantity *</Label>
+            <Input
+              id="quantity"
+              type="number"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={formData.quantity}
+              onChange={(e) => handleInputChange("quantity", e.target.value)}
+              onWheel={(e) => {
+                // Prevent accidental value changes (and large rerenders) when scrolling over the input
+                // Blurring is a simple, reliable way across browsers
+                try { (e.currentTarget as HTMLInputElement).blur(); } catch {}
+              }}
+              placeholder="Enter quantity"
+              min="1"
+              required
+            />
+            {licenseSnap && (
+              <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5">
+                    Property Remaining: {licenseSnap.propertyRemaining != null ? licenseSnap.propertyRemaining : '—'}
+                  </span>
+                )}
+                {licenseLoading && <span>Updating…</span>}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="itemType">Item Type{((currentUser?.role || '').toLowerCase() === 'admin') ? ' *' : ''}</Label>
+            <Select value={formData.itemType} onValueChange={(value) => handleInputChange("itemType", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select item type" />
+              </SelectTrigger>
+              <SelectContent>
+                {itemTypes.map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {((currentUser?.role || '').toLowerCase() === 'admin') && (
+              <div className="space-y-2 rounded-lg border border-dashed border-border/60 bg-background/70 p-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <Input
+                    placeholder="Add new type"
+                    value={newType}
+                    onChange={(e) => setNewType(e.target.value)}
+                    className="sm:flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      const name = newType.trim();
+                      if (!name) return;
+                      try {
+                        const created = await createItemType(name);
+                        setItemTypes((prev) => Array.from(new Set([...prev, created.name])));
+                        setNewType("");
+                        toast.success("Item type added");
+                      } catch (e: any) {
+                        console.error(e);
+                        toast.error(e.message || "Failed to add item type");
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {itemTypes.length > 0 && (
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {itemTypes.map((t) => (
+                      <div key={t} className="flex items-center justify-between rounded-md border border-border/60 bg-background/90 px-2 py-1 text-sm">
+                        <span className="truncate pr-2">{t}</span>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          title={`Delete ${t}`}
+                          onClick={async () => {
+                            if (!confirm(`Delete item type "${t}"?`)) return;
+                            try {
+                              await deleteItemType(t);
+                              setItemTypes((prev) => prev.filter((x) => x !== t));
+                              setFormData((prev) => (prev.itemType === t ? { ...prev, itemType: "" } : prev));
+                              toast.success("Item type deleted");
+                            } catch (e: any) {
+                              console.error(e);
+                              toast.error(e.message || "Failed to delete item type");
+                            }
+                          }}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="condition">Condition *</Label>
+            <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select condition" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">New</SelectItem>
+                <SelectItem value="excellent">Excellent</SelectItem>
+                <SelectItem value="good">Good</SelectItem>
+                <SelectItem value="fair">Fair</SelectItem>
+                <SelectItem value="poor">Poor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <MapPin className="h-4 w-4 text-primary" />
+          Assignment & Tracking
+        </div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="property">Property *</Label>
+            <Select value={formData.property} onValueChange={(value) => handleInputChange("property", value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select property" />
+              </SelectTrigger>
+              <SelectContent>
+                {properties.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {licenseSnap && (
+              <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && licenseSnap.propertyUsage != null && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5">
+                    Property Usage: {licenseSnap.propertyUsage}/{licenseSnap.propertyLimit}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="department">Department *</Label>
+            <Select
+              value={(formData as any).department || ""}
+              onValueChange={(value) => handleInputChange("department", value)}
+              disabled={(currentUser?.role || '').toLowerCase() !== 'admin' && ((allowedDeptNames && allowedDeptNames.length ? allowedDeptNames.length : (currentUser?.department ? 1 : 0)) === 1)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select department" />
+              </SelectTrigger>
+              <SelectContent>
+                {(() => {
+                  const role = (currentUser?.role || '').toLowerCase();
+                  let list: Department[] = [];
+                  if (role === 'admin') {
+                    list = departments || [];
+                  } else {
+                    const effective = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
+                    const set = new Set(effective.map((n: string) => n.toLowerCase()));
+                    list = (departments || []).filter((d) => set.has((d.name || '').toLowerCase()));
+                    const cur = ((formData as any).department || '').toString();
+                    if (cur && !list.find(d => (d.name || '').toLowerCase() === cur.toLowerCase())) {
+                      list = [{ id: 'cur', name: cur } as any, ...list];
+                    }
+                  }
+                  return list.map((d) => (
+                    <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
+                  ));
+                })()}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="location">Location *</Label>
+            <Input
+              id="location"
+              value={formData.location}
+              onChange={(e) => handleInputChange("location", e.target.value)}
+              placeholder="e.g., Floor 2, Room 203"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="serialNumber">Serial Number</Label>
+            <Input
+              id="serialNumber"
+              value={formData.serialNumber}
+              onChange={(e) => handleInputChange("serialNumber", e.target.value)}
+              placeholder="Asset serial number"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <CalendarIcon className="h-4 w-4 text-primary" />
+          Lifecycle & Procurement
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label>Purchase Date</Label>
+            <DatePicker
+              date={formData.purchaseDate}
+              setDate={(date) => handleInputChange("purchaseDate", date)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Expiry Date</Label>
+            <DatePicker
+              date={formData.expiryDate}
+              setDate={(date) => handleInputChange("expiryDate", date)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="poNumber">PO Number</Label>
+            <Input
+              id="poNumber"
+              value={formData.poNumber}
+              onChange={(e) => handleInputChange("poNumber", e.target.value)}
+              placeholder="Purchase Order Number"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <AlertTriangle className="h-4 w-4 text-primary" />
+          AMC Tracker
+        </div>
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-foreground">Enable AMC tracking</p>
+              <p className="text-xs text-muted-foreground">We’ll surface expiring contracts on the dashboard ahead of time.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="amcEnabled"
+                checked={formData.amcEnabled}
+                onCheckedChange={(checked) => handleToggleAmc(checked === true)}
+              />
+              <Label htmlFor="amcEnabled" className="text-sm font-medium">
+                Track AMC
+              </Label>
+            </div>
+          </div>
+          {formData.amcEnabled && (
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>AMC Start Date</Label>
+                <DatePicker
+                  date={formData.amcStartDate}
+                  setDate={(date) => handleInputChange("amcStartDate", date)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>AMC End Date</Label>
+                <DatePicker
+                  date={formData.amcEndDate}
+                  setDate={(date) => handleInputChange("amcEndDate", date)}
+                  disabledDates={(date) => {
+                    if (!formData.amcStartDate) return false;
+                    const start = new Date(
+                      formData.amcStartDate.getFullYear(),
+                      formData.amcStartDate.getMonth(),
+                      formData.amcStartDate.getDate(),
+                    );
+                    return date < start;
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-6">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <Info className="h-4 w-4 text-primary" />
+          Additional Notes
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="description">Description</Label>
+          <Textarea
+            id="description"
+            value={formData.description}
+            onChange={(e) => handleInputChange("description", e.target.value)}
+            placeholder="Add any context the team should know..."
+            rows={4}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground">
+          Double-check quantity and location details before saving to keep reports accurate.
+        </p>
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="outline" onClick={() => onCancel ? onCancel() : window.history.back()}>
+            Cancel
+          </Button>
+          <Button type="submit" className="gap-2">
+            <Save className="h-4 w-4" />
+            {initialData ? "Update Asset" : "Save Asset"}
+          </Button>
+        </div>
+      </div>
+    </form>
+  );
+
+  if (mode === 'modal') {
+    return formContent;
+  }
+
   return (
     <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-md">
       <CardHeader className="space-y-2 border-b border-border/70">
@@ -260,475 +611,7 @@ export function AssetForm({ onSubmit, initialData }: AssetFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <ClipboardList className="h-4 w-4 text-primary" />
-              Asset Essentials
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="itemName">Item Name *</Label>
-                <Input
-                  id="itemName"
-                  value={formData.itemName}
-                  onChange={(e) => handleInputChange("itemName", e.target.value)}
-                  placeholder="e.g., Dell Laptop, Office Chair"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  value={formData.quantity}
-                  onChange={(e) => handleInputChange("quantity", e.target.value)}
-                  onWheel={(e) => {
-                    // Prevent accidental value changes (and large rerenders) when scrolling over the input
-                    // Blurring is a simple, reliable way across browsers
-                    try { (e.currentTarget as HTMLInputElement).blur(); } catch {}
-                  }}
-                  placeholder="Enter quantity"
-                  min="1"
-                  required
-                />
-                {licenseSnap && (
-                  <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                    {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5">
-                        Property Remaining: {licenseSnap.propertyRemaining != null ? licenseSnap.propertyRemaining : '—'}
-                      </span>
-                    )}
-                    {licenseLoading && <span>Updating…</span>}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="itemType">Item Type{((currentUser?.role || '').toLowerCase() === 'admin') ? ' *' : ''}</Label>
-                <Select value={formData.itemType} onValueChange={(value) => handleInputChange("itemType", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select item type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {itemTypes.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {((currentUser?.role || '').toLowerCase() === 'admin') && (
-                  <div className="space-y-2 rounded-lg border border-dashed border-border/60 bg-background/70 p-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <Input
-                        placeholder="Add new type"
-                        value={newType}
-                        onChange={(e) => setNewType(e.target.value)}
-                        className="sm:flex-1"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={async () => {
-                          const name = newType.trim();
-                          if (!name) return;
-                          try {
-                            const created = await createItemType(name);
-                            setItemTypes((prev) => Array.from(new Set([...prev, created.name])));
-                            setNewType("");
-                            toast.success("Item type added");
-                          } catch (e: any) {
-                            console.error(e);
-                            toast.error(e.message || "Failed to add item type");
-                          }
-                        }}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                    {itemTypes.length > 0 && (
-                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {itemTypes.map((t) => (
-                          <div key={t} className="flex items-center justify-between rounded-md border border-border/60 bg-background/90 px-2 py-1 text-sm">
-                            <span className="truncate pr-2">{t}</span>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="ghost"
-                              title={`Delete ${t}`}
-                              onClick={async () => {
-                                if (!confirm(`Delete item type "${t}"?`)) return;
-                                try {
-                                  await deleteItemType(t);
-                                  setItemTypes((prev) => prev.filter((x) => x !== t));
-                                  setFormData((prev) => (prev.itemType === t ? { ...prev, itemType: "" } : prev));
-                                  toast.success("Item type deleted");
-                                } catch (e: any) {
-                                  console.error(e);
-                                  toast.error(e.message || "Failed to delete item type");
-                                }
-                              }}
-                            >
-                              ×
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="condition">Condition *</Label>
-                <Select value={formData.condition} onValueChange={(value) => handleInputChange("condition", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select condition" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="excellent">Excellent</SelectItem>
-                    <SelectItem value="good">Good</SelectItem>
-                    <SelectItem value="fair">Fair</SelectItem>
-                    <SelectItem value="poor">Poor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <MapPin className="h-4 w-4 text-primary" />
-              Assignment & Tracking
-            </div>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="property">Property *</Label>
-                <Select value={formData.property} onValueChange={(value) => handleInputChange("property", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select property" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {licenseSnap && (
-                  <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                    {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && licenseSnap.propertyUsage != null && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/80 px-2 py-0.5">
-                        Property Usage: {licenseSnap.propertyUsage}/{licenseSnap.propertyLimit}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="department">Department *</Label>
-                <Select
-                  value={(formData as any).department || ""}
-                  onValueChange={(value) => handleInputChange("department", value)}
-                  disabled={(currentUser?.role || '').toLowerCase() !== 'admin' && ((allowedDeptNames && allowedDeptNames.length ? allowedDeptNames.length : (currentUser?.department ? 1 : 0)) === 1)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(() => {
-                      const role = (currentUser?.role || '').toLowerCase();
-                      let list: Department[] = [];
-                      if (role === 'admin') {
-                        list = departments || [];
-                      } else {
-                        const effective = (allowedDeptNames && allowedDeptNames.length) ? allowedDeptNames : (currentUser?.department ? [currentUser.department] : []);
-                        const set = new Set(effective.map((n: string) => n.toLowerCase()));
-                        list = (departments || []).filter((d) => set.has((d.name || '').toLowerCase()));
-                        const cur = ((formData as any).department || '').toString();
-                        if (cur && !list.find(d => (d.name || '').toLowerCase() === cur.toLowerCase())) {
-                          list = [{ id: 'cur', name: cur } as any, ...list];
-                        }
-                      }
-                      return list.map((d) => (
-                        <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="location">Location *</Label>
-                <Input
-                  id="location"
-                  value={formData.location}
-                  onChange={(e) => handleInputChange("location", e.target.value)}
-                  placeholder="e.g., Floor 2, Room 203"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="serialNumber">Serial Number</Label>
-                <Input
-                  id="serialNumber"
-                  value={formData.serialNumber}
-                  onChange={(e) => handleInputChange("serialNumber", e.target.value)}
-                  placeholder="Asset serial number"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <CalendarIcon className="h-4 w-4 text-primary" />
-              Lifecycle & Procurement
-            </div>
-            <div className="grid gap-6 md:grid-cols-3">
-              <div className="space-y-2">
-                <Label>Purchase Date</Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !formData.purchaseDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.purchaseDate ? format(formData.purchaseDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
-                      <Calendar
-                        mode="single"
-                        selected={formData.purchaseDate}
-                        onSelect={(date) => handleInputChange("purchaseDate", date)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  {formData.purchaseDate && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => handleInputChange("purchaseDate", undefined)}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Expiry Date</Label>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !formData.expiryDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.expiryDate ? format(formData.expiryDate, "PPP") : "Pick a date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
-                      <Calendar
-                        mode="single"
-                        selected={formData.expiryDate}
-                        onSelect={(date) => handleInputChange("expiryDate", date)}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  {formData.expiryDate && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full sm:w-auto"
-                      onClick={() => handleInputChange("expiryDate", undefined)}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="poNumber">PO Number</Label>
-                <Input
-                  id="poNumber"
-                  value={formData.poNumber}
-                  onChange={(e) => handleInputChange("poNumber", e.target.value)}
-                  placeholder="Purchase Order Number"
-                />
-          </div>
-        </div>
-      </div>
-
-          <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <AlertTriangle className="h-4 w-4 text-primary" />
-              AMC Tracker
-            </div>
-            <div className="space-y-4">
-              <div className="flex flex-col gap-3 rounded-xl border border-border/70 bg-background/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Enable AMC tracking</p>
-                  <p className="text-xs text-muted-foreground">We’ll surface expiring contracts on the dashboard ahead of time.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="amcEnabled"
-                    checked={formData.amcEnabled}
-                    onCheckedChange={(checked) => handleToggleAmc(checked === true)}
-                  />
-                  <Label htmlFor="amcEnabled" className="text-sm font-medium">
-                    Track AMC
-                  </Label>
-                </div>
-              </div>
-              {formData.amcEnabled && (
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>AMC Start Date</Label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !formData.amcStartDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formData.amcStartDate ? format(formData.amcStartDate, "PPP") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
-                          <Calendar
-                            mode="single"
-                            selected={formData.amcStartDate}
-                            onSelect={(date) => handleInputChange("amcStartDate", date)}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      {formData.amcStartDate && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => handleInputChange("amcStartDate", undefined)}
-                        >
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>AMC End Date</Label>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !formData.amcEndDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formData.amcEndDate ? format(formData.amcEndDate, "PPP") : "Pick a date"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 max-h-[80vh] overflow-auto overscroll-contain">
-                          <Calendar
-                            mode="single"
-                            selected={formData.amcEndDate}
-                            onSelect={(date) => handleInputChange("amcEndDate", date)}
-                            initialFocus
-                            disabled={(date) => {
-                              if (!formData.amcStartDate) return false;
-                              const start = new Date(
-                                formData.amcStartDate.getFullYear(),
-                                formData.amcStartDate.getMonth(),
-                                formData.amcStartDate.getDate(),
-                              );
-                              return date < start;
-                            }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      {formData.amcEndDate && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="w-full sm:w-auto"
-                          onClick={() => handleInputChange("amcEndDate", undefined)}
-                        >
-                          Clear
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-4 rounded-2xl border border-border/60 bg-background/80 p-6">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <Info className="h-4 w-4 text-primary" />
-              Additional Notes
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => handleInputChange("description", e.target.value)}
-                placeholder="Add any context the team should know..."
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              Double-check quantity and location details before saving to keep reports accurate.
-            </p>
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => window.history.back()}>
-                Cancel
-              </Button>
-              <Button type="submit" className="gap-2">
-                <Save className="h-4 w-4" />
-                {initialData ? "Update Asset" : "Save Asset"}
-              </Button>
-            </div>
-          </div>
-        </form>
+        {formContent}
       </CardContent>
     </Card>
   );
