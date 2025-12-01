@@ -1102,7 +1102,7 @@ export default function Assets() {
                 visible={prefs.visibleCols}
                 onChange={prefs.setVisibleCols}
               />
-              <Button onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+              <Button size="sm" onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
                 <Plus className="h-4 w-4" />
                 Add Asset
               </Button>
@@ -2064,9 +2064,11 @@ export default function Assets() {
     <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
       <DialogContent className={cn(
         "overflow-y-auto transition-all duration-200",
-        isExpanded ? "w-[95vw] max-w-[95vw] h-[95vh] max-h-[95vh]" : "max-w-4xl max-h-[90vh]"
+        isExpanded 
+          ? "w-full h-full max-w-none max-h-none rounded-none p-4 sm:w-[95vw] sm:max-w-[95vw] sm:h-[95vh] sm:max-h-[95vh] sm:rounded-lg sm:p-6" 
+          : "max-w-4xl max-h-[90vh]"
       )}>
-        <DialogHeader className="flex flex-row items-start justify-between space-y-0 pr-8">
+        <DialogHeader className="flex flex-row items-start justify-between space-y-0 pr-8 text-left">
           <div className="space-y-1.5">
             <DialogTitle>{selectedAsset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
             <DialogDescription>
@@ -2076,7 +2078,7 @@ export default function Assets() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="h-8 w-8 shrink-0 hidden sm:flex"
             onClick={() => setIsExpanded(!isExpanded)}
             title={isExpanded ? "Collapse" : "Expand"}
           >
