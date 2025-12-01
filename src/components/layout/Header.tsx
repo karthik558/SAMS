@@ -294,9 +294,10 @@ export function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="sm"
           className={cn(
-            "relative flex items-center justify-center rounded-full p-0 transition-colors",
-            isMobile ? "bg-muted/70 shadow-sm" : "bg-transparent",
-            iconBase
+            "relative flex items-center justify-center p-0 transition-colors",
+            isMobile 
+              ? "h-9 w-9 rounded-full bg-muted/70 shadow-sm" 
+              : "h-8 w-8"
           )}
         >
           <Bell className="h-4 w-4 text-muted-foreground" />
