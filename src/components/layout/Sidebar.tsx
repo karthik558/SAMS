@@ -824,25 +824,6 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
                 >
                   <div className="p-1">
-                    {(role === 'admin') && (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
-                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
-                        >
-                          <UsersIcon className="h-3.5 w-3.5" />
-                          <span>Users</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
-                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium"
-                        >
-                          <SettingsIcon className="h-3.5 w-3.5" />
-                          <span>Settings</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="my-1" />
-                      </>
-                    )}
                     <DropdownMenuItem
                       onClick={handleSignOut}
                       className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
