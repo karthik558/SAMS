@@ -21,6 +21,8 @@ import {
   Megaphone,
   Copy,
   Calendar,
+  UploadCloud,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1552,32 +1554,55 @@ const Index = () => {
       </Card>
 
       <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
-        <DialogContent className="sm:max-w-xl overflow-hidden border border-border/70 bg-card/95 p-0 shadow-xl">
-          <div className="flex flex-col">
-            <DialogHeader className="px-6 pb-0 pt-6 text-left">
-              <div className="flex items-start gap-3">
-                <span className="rounded-lg bg-primary/10 p-2 text-primary">
-                  <Upload className="h-5 w-5" />
-                </span>
+        <DialogContent className="sm:max-w-lg overflow-hidden border-0 bg-background p-0 shadow-2xl md:rounded-2xl">
+          <div className="relative flex flex-col">
+            {/* Header Section with Gradient */}
+            <div className="relative overflow-hidden bg-muted/30 px-6 pb-6 pt-8 text-center border-b border-border/50">
+              <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent opacity-50" />
+              <div className="relative z-10 flex flex-col items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-inset ring-primary/20">
+                  <UploadCloud className="h-6 w-6" />
+                </div>
                 <div className="space-y-1">
-                  <DialogTitle className="text-lg sm:text-xl">Bulk Import Assets</DialogTitle>
-                  <DialogDescription>
-                    Download the Excel template, fill it with your asset data, then upload to import. Asset IDs are generated automatically based on Item Type and Property.
+                  <DialogTitle className="text-xl font-bold tracking-tight">Bulk Import Assets</DialogTitle>
+                  <DialogDescription className="mx-auto max-w-xs text-muted-foreground">
+                    Upload your asset inventory in bulk using our standardized Excel template.
                   </DialogDescription>
                 </div>
               </div>
-            </DialogHeader>
-            <div className="space-y-6 px-6 pb-6 pt-5">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Button
-                  onClick={async () => {
-                    await downloadAssetTemplate();
-                  }}
-                  className="flex h-24 w-full flex-col items-center justify-center gap-2 rounded-xl text-base font-semibold"
-                >
-                  <Download className="h-6 w-6" />
-                  <span>Download Template</span>
-                </Button>
+            </div>
+
+            <div className="flex flex-col gap-6 px-6 py-6">
+              {/* Step 1: Template */}
+              <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm transition-all hover:border-primary/20 hover:shadow-md">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+                      <FileSpreadsheet className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <p className="text-sm font-medium text-foreground">Need the template?</p>
+                      <p className="text-xs text-muted-foreground">Start with a fresh Excel file</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={downloadAssetTemplate}
+                    className="h-9 gap-2 border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 hover:text-primary"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Download
+                  </Button>
+                </div>
+              </div>
+
+              {/* Step 2: Upload Dropzone */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-foreground">Upload File</label>
+                  <span className="text-xs text-muted-foreground">.xlsx or .xls up to 10MB</span>
+                </div>
                 <div
                   role="button"
                   tabIndex={0}
@@ -1590,22 +1615,28 @@ const Index = () => {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                   className={cn(
-                    "flex h-24 w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border/70 bg-background/80 p-4 text-center text-base transition focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                    "group relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 text-center transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
                     importing
-                      ? "cursor-not-allowed opacity-70"
-                      : "cursor-pointer hover:border-primary/60 hover:bg-primary/5",
-                    isDragActive && !importing ? "border-primary bg-primary/10 shadow-inner" : ""
+                      ? "cursor-not-allowed border-muted bg-muted/30 opacity-70"
+                      : isDragActive
+                        ? "border-primary bg-primary/5 scale-[0.99]"
+                        : "border-border/60 bg-muted/10 hover:border-primary/50 hover:bg-muted/20 cursor-pointer"
                   )}
                 >
-                  <Upload className={cn("h-6 w-6", isDragActive ? "text-primary" : "text-foreground")}
-                    strokeWidth={1.8}
-                  />
-                  <span className="font-semibold text-foreground">
-                    {isDragActive ? "Drop the file to start import" : "Drag & drop your Excel file"}
-                  </span>
-                  <span className="text-[11px] font-normal text-muted-foreground">
-                    Or click to browse (.xlsx, .xls)
-                  </span>
+                  <div className={cn(
+                    "flex h-14 w-14 items-center justify-center rounded-full shadow-sm transition-transform duration-200 group-hover:scale-110",
+                    isDragActive ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground ring-1 ring-border"
+                  )}>
+                    <Upload className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {isDragActive ? "Drop file to upload" : "Click to upload or drag and drop"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Excel files only
+                    </p>
+                  </div>
                 </div>
                 <input
                   ref={fileRef}
@@ -1620,62 +1651,45 @@ const Index = () => {
                 />
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-background/80 px-4 py-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                    <Building2 className="h-3.5 w-3.5" />
-                    <span className="uppercase tracking-wide">Import access</span>
-                    <span className="rounded-full bg-primary/20 px-2 py-0.5 text-primary">
-                      {propertyTotal.toLocaleString()} {propertyLabel}
-                    </span>
-                  </div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
-                    <Upload className="h-3.5 w-3.5" />
-                    <span>Up to 1,000 rows per file</span>
-                  </div>
-                </div>
-              </div>
-
-              {(importing || importProgress > 0) && (
-                <div className="space-y-2 rounded-xl border border-border/60 bg-background/80 px-4 py-4">
-                  <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
-                    <span>{importing ? "Importing file..." : "Import complete"}</span>
-                    <span>{Math.min(importProgress, 100)}%</span>
-                  </div>
-                  <Progress value={Math.min(importProgress, 100)} className="h-2" />
+              {/* Info / Status */}
+              {(importing || importProgress > 0) ? (
+                 /* Progress UI */
+                 <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs">
+                       <span className="font-medium text-foreground">{importing ? "Processing..." : "Completed"}</span>
+                       <span className="text-muted-foreground">{Math.min(importProgress, 100)}%</span>
+                    </div>
+                    <Progress value={Math.min(importProgress, 100)} className="h-2 w-full bg-muted" indicatorClassName="bg-primary" />
+                 </div>
+              ) : (
+                <div className="flex items-center gap-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+                   <Building2 className="h-4 w-4 text-muted-foreground" />
+                   <div className="flex-1 text-xs text-muted-foreground">
+                      Importing to <span className="font-medium text-foreground">{propertyTotal.toLocaleString()} {propertyLabel}</span>
+                   </div>
                 </div>
               )}
 
+              {/* Errors */}
               {importErrors.length > 0 && (
-                <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-destructive">Some rows need a quick review</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => void copyErrorsToClipboard()}
-                      className="h-8 gap-1 px-2 text-destructive hover:text-destructive"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy all
-                    </Button>
-                  </div>
-                  <ul className="space-y-2">
-                    {importErrors.slice(0, 5).map((err, idx) => (
-                      <li
-                        key={`${err.row}-${idx}`}
-                        className="rounded-lg border border-destructive/20 bg-background/90 px-3 py-2 text-sm text-destructive"
+                <div className="max-h-32 overflow-y-auto rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                   <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold">Import Errors:</p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => void copyErrorsToClipboard()}
+                        className="h-6 gap-1 px-2 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
                       >
-                        <span className="font-semibold">Row {err.row}</span>
-                        <span className="ml-2 text-destructive/90">{err.message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  {importErrors.length > 5 && (
-                    <p className="text-xs text-destructive/80">
-                      + {importErrors.length - 5} more row{importErrors.length - 5 === 1 ? '' : 's'} detailed in the copied report.
-                    </p>
-                  )}
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </Button>
+                   </div>
+                   <ul className="list-inside list-disc space-y-1">
+                      {importErrors.map((err, i) => (
+                        <li key={i}>Row {err.row}: {err.message}</li>
+                      ))}
+                   </ul>
                 </div>
               )}
 
@@ -1684,28 +1698,11 @@ const Index = () => {
                   Last import: {lastImportSummary}
                 </div>
               )}
-
-              {!hasSupabaseEnv && (
-                <div className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
-                  Backend not connected. Connect Supabase before uploading to store imported assets.
-                </div>
-              )}
             </div>
-            <DialogFooter className="!flex !flex-col gap-3 border-t border-border/70 bg-background/60 px-6 py-4 text-sm text-muted-foreground sm:!flex-row sm:items-center sm:!justify-between sm:!space-x-0">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Download className="h-4 w-4" />
-                </span>
-                <span>Keep your asset register up to date in minutes.</span>
-              </div>
-              <div className="flex items-center gap-2 sm:ml-auto">
-                <Button variant="outline" onClick={() => setBulkOpen(false)}>
+            <DialogFooter className="border-t border-border/50 bg-muted/20 px-6 py-4">
+               <Button variant="ghost" onClick={() => setBulkOpen(false)}>
                   Close
-                </Button>
-                <Button disabled className="gap-2" variant="secondary">
-                  {importing ? "Importing..." : "Ready"}
-                </Button>
-              </div>
+               </Button>
             </DialogFooter>
           </div>
         </DialogContent>
