@@ -1346,7 +1346,7 @@ export default function Reports() {
                   </Select>
                 </div>
 
-                <div className="space-y-2 pb-2">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2 rounded-lg border border-border/40 bg-muted/20 p-2.5">
                     <Checkbox
                       id="email-report"
