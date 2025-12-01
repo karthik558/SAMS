@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import QRCode from "qrcode";
-import { composeQrWithLabel, downloadDataUrl, printImagesAsLabels } from "@/lib/qr";
+import { composeQrWithLabel, downloadDataUrl, printImagesOnA4Grid } from "@/lib/qr";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,7 +69,7 @@ export function QRCodeGenerator({
   const printQRCode = async () => {
     if (!qrCodeUrl) return;
     try {
-      await printImagesAsLabels([qrCodeUrl], { widthIn: 4, heightIn: 6 });
+      await printImagesOnA4Grid([qrCodeUrl]);
       toast.success("Sent to printer");
     } catch (e) {
       console.error(e);

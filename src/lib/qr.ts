@@ -303,3 +303,30 @@ export async function printImagesAsLabels(images: string[], opts: {
   const firstImg = doc?.querySelector('img') as HTMLImageElement | null;
   if (firstImg && !firstImg.complete) firstImg.onload = () => setTimeout(trigger, 50); else setTimeout(trigger, 300);
 }
+
+export async function printImagesOnA4Grid(images: string[]) {
+  if (!images.length) return;
+  
+  const sheets: string[] = [];
+  let remaining = [...images];
+  
+  while (remaining.length > 0) {
+    // 4 columns fits nicely on A4 portrait
+    const { dataUrl, capacity } = await composeQrA4Sheet(remaining, { 
+      columns: 4, 
+      gapMm: 4, 
+      marginMm: 10,
+      dpi: 150 
+    });
+    if (capacity === 0) break; // safety break
+    sheets.push(dataUrl);
+    remaining = remaining.slice(capacity);
+  }
+
+  await printImagesAsLabels(sheets, { 
+    widthIn: 8.27, 
+    heightIn: 11.69, 
+    orientation: 'portrait', 
+    fit: 'contain' 
+  });
+}

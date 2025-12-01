@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
-import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels } from "@/lib/qr";
+import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels, printImagesOnA4Grid } from "@/lib/qr";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
@@ -299,7 +299,7 @@ export default function QRCodes() {
         }
       }));
       
-      await printImagesAsLabels(images, { widthIn: 4, heightIn: 6 });
+      await printImagesOnA4Grid(images);
       
        let actor: string | null = null;
        try {
@@ -361,7 +361,7 @@ export default function QRCodes() {
   await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`, actor);
       } else {
         // PDF via print dialog on A4 page
-        await printImagesAsLabels([dataUrl], { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
+        await printImagesOnA4Grid([dataUrl]);
         toast.success(`Opened PDF print for ${dlSingleTarget.assetName}`);
         await logActivity('qr_download_pdf', `Prepared PDF for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
   await logActivity('qr_download_pdf', `Prepared PDF for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`, actor);
@@ -1121,7 +1121,7 @@ export default function QRCodes() {
                         if (!dataUrl) dataUrl = await generateQrPng(qrCode);
                         if (!dataUrl) throw new Error('No image');
                         // Print one per A4 page
-                        await printImagesAsLabels([dataUrl], { widthIn: 8.27, heightIn: 11.69, orientation: 'portrait', fit: 'contain' });
+                        await printImagesOnA4Grid([dataUrl]);
                         if (hasSupabaseEnv) { await updateQRCode(qrCode.id, { printed: true } as any); }
                         setCodes(prev => prev.map(c => c.id === qrCode.id ? { ...c, printed: true } : c));
                         toast.success(`Opened print for ${qrCode.assetName}`);
@@ -1273,7 +1273,7 @@ export default function QRCodes() {
                         let dataUrl = previewImg;
                         if (!dataUrl) dataUrl = await generateQrPng(previewTarget);
                         if (!dataUrl) throw new Error('No image');
-                        await printImagesAsLabels([dataUrl], { widthIn: 4, heightIn: 6 });
+                        await printImagesOnA4Grid([dataUrl]);
                         toast.success("Sent to printer");
                      } catch (e) {
                         toast.error("Failed to print");
