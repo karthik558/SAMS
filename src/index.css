@@ -136,7 +136,7 @@ All colors MUST be HSL.
   --accent: 60 3% 20%;
   --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 60%;
     --destructive-foreground: 210 40% 98%;
 
   /* Stronger borders/inputs for clear separation */

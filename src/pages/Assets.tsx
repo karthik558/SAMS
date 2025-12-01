@@ -1666,7 +1666,7 @@ export default function Assets() {
                                     handleDeleteAsset(rep.id);
                                   }
                                 }}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive dark:text-red-400 dark:hover:text-red-300"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
