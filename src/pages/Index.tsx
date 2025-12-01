@@ -1,6 +1,7 @@
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { MyAudits } from "@/components/dashboard/MyAudits";
+import MetricCard from "@/components/ui/metric-card";
 import {
   Package,
   Building2,
@@ -376,7 +377,7 @@ const Index = () => {
         value: counts.assets,
         caption: `${metrics.totalQuantity.toLocaleString()} items tracked`,
         icon: Package,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'properties',
@@ -384,7 +385,7 @@ const Index = () => {
         value: counts.properties,
         caption: `${counts.expiring.toLocaleString()} expiring assets soon`,
         icon: Building2,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'purchases',
@@ -392,7 +393,7 @@ const Index = () => {
         value: metrics.monthlyPurchases,
         caption: monthlyChange.label,
         icon: TrendingUp,
-        iconClass: monthlyChange.isPositive ? 'text-primary' : 'text-destructive',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'qr',
@@ -400,7 +401,7 @@ const Index = () => {
         value: metrics.codesReady,
         caption: `${metrics.codesTotal.toLocaleString()} generated • ${readyDelta.toLocaleString()} in circulation`,
         icon: QrCode,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
     ];
   }, [counts.assets, counts.properties, counts.expiring, metrics.totalQuantity, metrics.monthlyPurchases, metrics.codesReady, metrics.codesTotal, monthlyChange.label, monthlyChange.isPositive]);
@@ -438,7 +439,7 @@ const Index = () => {
           ? `${assignmentShare}% of current workload`
           : 'Nothing assigned right now',
         icon: UserCheck,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'resolved',
@@ -446,7 +447,7 @@ const Index = () => {
         value: resolvedTotal,
         hint: ticketSummary.total ? `${completionRate}% of ${ticketSummary.total.toLocaleString()} tickets` : 'No tickets resolved yet',
         icon: CheckCircle2,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
     ];
 
@@ -458,7 +459,7 @@ const Index = () => {
           value: ticketSummary.total,
           hint: `${backlogActive.toLocaleString()} in flight • ${ticketSummary.awaitingAssignment.toLocaleString()} awaiting owner`,
           icon: TicketIcon,
-          iconClass: 'text-primary',
+          iconClass: 'text-primary h-4 w-4',
         },
         ...shared,
         {
@@ -467,7 +468,7 @@ const Index = () => {
           value: ticketSummary.slaRisk,
           hint: ticketSummary.slaRisk ? 'Needs attention' : 'All clear',
           icon: ClockIcon,
-          iconClass: ticketSummary.slaRisk ? 'text-destructive' : 'text-primary',
+          iconClass: 'text-primary h-4 w-4',
         },
       ];
     }
@@ -1045,18 +1046,14 @@ const Index = () => {
         
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {heroHighlights.map((item) => (
-            <div key={item.key} className="group relative overflow-hidden rounded-2xl bg-background/60 p-5 transition-all hover:bg-background/80 hover:shadow-md border border-border/50">
-               <div className="flex items-start justify-between">
-                  <div>
-                     <p className="text-sm font-medium text-muted-foreground">{item.title}</p>
-                     <h3 className="mt-2 text-2xl font-bold tracking-tight">{item.value.toLocaleString()}</h3>
-                  </div>
-                  <div className={cn("rounded-xl p-2.5 bg-primary/10", item.iconClass)}>
-                     <item.icon className="h-5 w-5" />
-                  </div>
-               </div>
-               <p className="mt-4 text-xs text-muted-foreground">{item.caption}</p>
-            </div>
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value.toLocaleString()}
+              caption={item.caption}
+              iconClassName={item.iconClass}
+            />
           ))}
         </div>
       </section>
@@ -1355,20 +1352,14 @@ const Index = () => {
         </div>
         <div className={`grid gap-3 ${isAdmin ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2"}`}>
           {ticketCardData.map((item) => (
-            <Card key={item.key} className="rounded-xl border border-border/60 bg-card shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {item.title}
-                </CardTitle>
-                <item.icon className={`h-5 w-5 ${item.iconClass}`} />
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="text-3xl font-semibold tracking-tight">
-                  {item.value.toLocaleString()}
-                </div>
-                <p className="text-xs text-muted-foreground">{item.hint}</p>
-              </CardContent>
-            </Card>
+            <MetricCard
+              key={item.key}
+              icon={item.icon}
+              title={item.title}
+              value={item.value.toLocaleString()}
+              caption={item.hint}
+              iconClassName={item.iconClass}
+            />
           ))}
         </div>
 

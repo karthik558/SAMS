@@ -390,7 +390,7 @@ export default function Properties() {
         icon: Building2,
         value: totalProperties.toLocaleString(),
         caption: 'Properties in current view',
-        iconClassName: 'text-primary',
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'active',
@@ -398,8 +398,8 @@ export default function Properties() {
         icon: MapPin,
         value: activeProperties.toLocaleString(),
         caption: 'Open and operating',
-        iconClassName: 'text-emerald-500 dark:text-emerald-400',
-        valueClassName: activeProperties ? 'text-success' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: activeProperties ? 'text-foreground' : undefined,
       },
       {
         key: 'assets',
@@ -407,7 +407,7 @@ export default function Properties() {
         icon: Package,
         value: totalAssetsCount.toLocaleString(),
         caption: 'Assets across properties',
-        iconClassName: 'text-sky-500 dark:text-sky-400',
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'inactive',
@@ -415,8 +415,8 @@ export default function Properties() {
         icon: AlertTriangle,
         value: inactiveProperties.toLocaleString(),
         caption: 'Temporarily offline',
-        iconClassName: 'text-amber-500 dark:text-amber-400',
-        valueClassName: inactiveProperties ? 'text-destructive' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: inactiveProperties ? 'text-foreground' : undefined,
       },
     ];
   }, [filtered]);

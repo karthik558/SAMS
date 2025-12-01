@@ -732,29 +732,30 @@ export default function Tickets() {
             title="Tickets in View"
             value={ticketMetrics.total.toLocaleString()}
             caption="Filtered by mode, date, and closed toggle"
+            iconClassName="text-primary h-4 w-4"
           />
           <MetricCard
             icon={TicketIcon}
             title="Active Backlog"
             value={ticketMetrics.backlog.toLocaleString()}
             caption="Open plus in-progress tickets"
-            iconClassName="text-warning"
-            valueClassName="text-warning"
+            iconClassName="text-primary h-4 w-4"
+            valueClassName="text-foreground"
           />
           <MetricCard
             icon={TicketIcon}
             title="Completion Rate"
             value={`${ticketMetrics.completionRate}%`}
             caption="Resolved or closed in the current view"
-            iconClassName="text-success"
-            valueClassName="text-success"
+            iconClassName="text-primary h-4 w-4"
+            valueClassName="text-foreground"
           />
           <MetricCard
             icon={TicketIcon}
             title="Avg Resolution"
             value={formatDuration(ticketMetrics.avgResolutionHours)}
             caption="Mean time from open to finished"
-            iconClassName="text-sky-500 dark:text-sky-300"
+            iconClassName="text-primary h-4 w-4"
           />
         </div>
 

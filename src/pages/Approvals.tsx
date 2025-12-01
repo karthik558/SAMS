@@ -557,28 +557,29 @@ export default function Approvals() {
             title="Requests in View"
             value={approvalMetrics.total.toLocaleString()}
             caption="Filtered by role, status, and dates"
+            iconClassName="text-primary h-4 w-4"
           />
           <MetricCard
             icon={ClipboardCheck}
             title="Pending Queue"
             value={approvalMetrics.pending.toLocaleString()}
             caption="Awaiting manager or admin decisions"
-            iconClassName="text-amber-500 dark:text-amber-300"
-            valueClassName="text-amber-600 dark:text-amber-300"
+            iconClassName="text-primary h-4 w-4"
+            valueClassName="text-foreground"
           />
           <MetricCard
             icon={ClipboardCheck}
             title="Avg Turnaround"
             value={formatDuration(approvalMetrics.avgTurnaroundHours)}
             caption="Completed requests with a decision timestamp"
-            iconClassName="text-sky-500 dark:text-sky-300"
+            iconClassName="text-primary h-4 w-4"
           />
           <MetricCard
             icon={ClipboardCheck}
             title="Departments"
             value={approvalMetrics.departmentCounts.length.toLocaleString()}
             caption="Unique departments represented"
-            iconClassName="text-emerald-500 dark:text-emerald-300"
+            iconClassName="text-primary h-4 w-4"
           />
         </div>
 

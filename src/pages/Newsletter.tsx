@@ -180,23 +180,27 @@ export default function Newsletter() {
               icon={FileText}
               title="Total Posts"
               value={(isAdmin ? posts.length : visiblePosts.length).toLocaleString()}
+              iconClassName="text-primary h-4 w-4"
             />
             <MetricCard
               icon={CheckCircle}
               title="Published"
               value={publishedCount.toLocaleString()}
+              iconClassName="text-primary h-4 w-4"
             />
             {isAdmin && (
               <MetricCard
                 icon={Edit3}
                 title="Drafts"
                 value={draftCount.toLocaleString()}
+                iconClassName="text-primary h-4 w-4"
               />
             )}
             <MetricCard
               icon={Clock}
               title="Last Update"
               value={lastUpdated}
+              iconClassName="text-primary h-4 w-4"
             />
           </div>
         </div>

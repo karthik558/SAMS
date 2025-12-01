@@ -988,7 +988,7 @@ export default function Reports() {
           ? `Last generated ${reportSummary.lastGeneratedLabel}`
           : 'Create your first report to populate this feed',
         icon: FileBarChart,
-        iconClass: 'text-primary',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'completed',
@@ -998,7 +998,7 @@ export default function Reports() {
           ? `${reportSummary.pending.toLocaleString()} pending`
           : 'No pending reports',
         icon: Download,
-        iconClass: 'text-emerald-500 dark:text-emerald-400',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'approvals',
@@ -1006,7 +1006,7 @@ export default function Reports() {
         value: pendingApprovalsCount.toLocaleString(),
         hint: pendingApprovalsCount ? 'Awaiting review' : 'All approvals up to date',
         icon: FileText,
-        iconClass: 'text-amber-500 dark:text-amber-400',
+        iconClass: 'text-primary h-4 w-4',
       },
       {
         key: 'audits',
@@ -1014,7 +1014,7 @@ export default function Reports() {
         value: activeAuditSessions.toLocaleString(),
         hint: `${auditSessions.length.toLocaleString()} total sessions`,
         icon: BarChart3,
-        iconClass: 'text-sky-500 dark:text-sky-400',
+        iconClass: 'text-primary h-4 w-4',
       },
     ];
   }, [reportSummary, pendingApprovalsCount, activeAuditSessions, auditSessions]);

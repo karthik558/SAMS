@@ -369,7 +369,7 @@ export default function Users() {
         icon: User,
         value: totalUsers.toLocaleString(),
         caption: 'Accounts in the system',
-        iconClassName: 'text-primary',
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'active',
@@ -377,8 +377,7 @@ export default function Users() {
         icon: UserPlus,
         value: activeUsers.toLocaleString(),
         caption: 'Currently enabled',
-        iconClassName: 'text-emerald-500 dark:text-emerald-400',
-        valueClassName: activeUsers ? 'text-primary' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'admins',
@@ -386,8 +385,7 @@ export default function Users() {
         icon: Shield,
         value: adminCount.toLocaleString(),
         caption: 'Users with full access',
-        iconClassName: 'text-amber-500 dark:text-amber-400',
-        valueClassName: adminCount ? 'text-destructive' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'departments',
@@ -395,7 +393,7 @@ export default function Users() {
         icon: UsersIcon,
         value: departmentCount.toLocaleString(),
         caption: 'Active department records',
-        iconClassName: 'text-sky-500 dark:text-sky-400',
+        iconClassName: 'text-primary h-4 w-4',
       },
     ];
   }, [users]);

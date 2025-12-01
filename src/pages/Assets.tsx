@@ -604,7 +604,7 @@ export default function Assets() {
         icon: Package,
         value: total.toLocaleString(),
         caption: 'Assets currently in view',
-        iconClassName: 'text-primary',
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'active',
@@ -612,8 +612,8 @@ export default function Assets() {
         icon: ShieldCheck,
         value: active.toLocaleString(),
         caption: 'In service today',
-        iconClassName: 'text-emerald-500 dark:text-emerald-400',
-        valueClassName: active ? 'text-success' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: active ? 'text-foreground' : undefined,
       },
       {
         key: 'expiring',
@@ -621,8 +621,8 @@ export default function Assets() {
         icon: AlertTriangle,
         value: expiringSoon.toLocaleString(),
         caption: 'Due within 30 days',
-        iconClassName: 'text-amber-500 dark:text-amber-400',
-        valueClassName: expiringSoon ? 'text-warning' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: expiringSoon ? 'text-foreground' : undefined,
       },
       {
         key: 'quantity',
@@ -630,7 +630,7 @@ export default function Assets() {
         icon: Calendar,
         value: quantity.toLocaleString(),
         caption: 'Units across tracked assets',
-        iconClassName: 'text-sky-500 dark:text-sky-400',
+        iconClassName: 'text-primary h-4 w-4',
       },
     ];
   }, [statsAssets]);

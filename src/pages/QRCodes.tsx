@@ -535,7 +535,7 @@ export default function QRCodes() {
         icon: QrCode,
         value: total.toLocaleString(),
         caption: 'Codes in current view',
-        iconClassName: 'text-primary',
+        iconClassName: 'text-primary h-4 w-4',
       },
       {
         key: 'printed',
@@ -543,8 +543,8 @@ export default function QRCodes() {
         icon: Printer,
         value: printedCount.toLocaleString(),
         caption: 'Already deployed',
-        iconClassName: 'text-emerald-500 dark:text-emerald-400',
-        valueClassName: printedCount ? 'text-success' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: printedCount ? 'text-foreground' : undefined,
       },
       {
         key: 'ready',
@@ -552,8 +552,8 @@ export default function QRCodes() {
         icon: Package,
         value: readyCount.toLocaleString(),
         caption: 'Waiting for labels',
-        iconClassName: 'text-amber-500 dark:text-amber-400',
-        valueClassName: readyCount ? 'text-warning' : undefined,
+        iconClassName: 'text-primary h-4 w-4',
+        valueClassName: readyCount ? 'text-foreground' : undefined,
       },
       {
         key: 'properties',
@@ -561,7 +561,7 @@ export default function QRCodes() {
         icon: Building2,
         value: propertyCount.toLocaleString(),
         caption: 'Locations with QR codes',
-        iconClassName: 'text-sky-500 dark:text-sky-400',
+        iconClassName: 'text-primary h-4 w-4',
       },
     ];
   }, [filteredQRCodes, propsById, propsByName]);
