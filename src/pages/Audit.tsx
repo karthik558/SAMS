@@ -211,9 +211,7 @@ export default function Audit() {
         byDept.get(d)!.push(r);
       }
       // Build HTML
-      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
-      const normalizedBase = (base || '').replace(/\/$/, '');
-      const logoSrc = `${normalizedBase}/favicon.png`;
+      const logoSrc = `${window.location.origin}/favicon.png`;
       const parts: string[] = [];
       // Summary across departments
       const totals = reviews.reduce((acc: Record<string, number>, r) => { const k = String(r.status||'').toLowerCase(); acc[k] = (acc[k]||0)+1; return acc; }, {});
