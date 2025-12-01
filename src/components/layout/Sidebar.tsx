@@ -726,7 +726,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   className={cn(
                     "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-lg transition-all duration-200",
                     entry.isActive
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
+                      ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
                       : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                   )}
                   onClick={onNavigate}
