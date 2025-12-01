@@ -8,6 +8,7 @@ export async function composeQrWithLabel(qrDataUrl: string, opts: {
   borderColor?: string;
   textColor?: string;
   backgroundColor?: string;
+  hideBottomText?: boolean;
 }): Promise<string> {
   const {
     assetId,
@@ -18,9 +19,16 @@ export async function composeQrWithLabel(qrDataUrl: string, opts: {
     borderColor = '#E5E7EB', // tailwind zinc-200
     textColor = '#111827',   // tailwind gray-900
     backgroundColor = '#FFFFFF',
+    hideBottomText = false,
   } = opts;
 
-  const totalHeight = padding + 18 /*top*/ + 8 /*gap*/ + qrSize + 8 /*gap*/ + 16 /*bottom text*/ + padding;
+  const hasTopText = !!topText;
+  const topHeight = hasTopText ? 18 : 0;
+  const topGap = hasTopText ? 8 : 0;
+  const bottomHeight = hideBottomText ? 0 : 16;
+  const bottomGap = hideBottomText ? 0 : 8;
+
+  const totalHeight = padding + topHeight + topGap + qrSize + bottomGap + bottomHeight + padding;
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = totalHeight;
@@ -51,13 +59,15 @@ export async function composeQrWithLabel(qrDataUrl: string, opts: {
   // Draw QR in center
   const img = await loadImage(qrDataUrl);
   const qrX = (width - qrSize) / 2;
-  const qrY = topY + 18 + 8; // below caption
+  const qrY = padding + topHeight + topGap; 
   ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
 
   // Bottom asset id (small)
-  ctx.font = '600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText(assetId, width / 2, qrY + qrSize + 18);
+  if (!hideBottomText) {
+    ctx.font = '600 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(assetId, width / 2, qrY + qrSize + bottomGap + 10); // 10 is approx text height baseline adjustment
+  }
 
   return canvas.toDataURL('image/png');
 }
@@ -90,13 +100,12 @@ export async function generateQrPng(opts: {
     errorCorrectionLevel: 'M',
   });
 
-  const topText = (opts.topText
-    ?? (opts.assetName && opts.property ? `${opts.assetName} - ${opts.property}` : opts.assetName)
-    ?? 'Scan to view asset');
+  const topText = opts.topText || '';
 
   return composeQrWithLabel(rawQrDataUrl, {
     assetId: opts.assetId,
     topText,
+    hideBottomText: true,
   });
 }
 

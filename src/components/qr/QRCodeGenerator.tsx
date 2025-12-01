@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import QRCode from "qrcode";
-import { composeQrWithLabel } from "@/lib/qr";
+import { composeQrWithLabel, downloadDataUrl, printImagesAsLabels } from "@/lib/qr";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,31 +22,33 @@ export function QRCodeGenerator({
   onGenerated 
 }: QRCodeGeneratorProps) {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
-  const [customText, setCustomText] = useState(`${assetName} - ${propertyName}`);
   const [isGenerating, setIsGenerating] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const generateQRCode = async () => {
     setIsGenerating(true);
     try {
-  // Build a direct link URL for the QR payload (so scanners open the page directly)
-  const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
-  const normalizedBase = (base || '').replace(/\/$/, '');
-  const qrLink = `${normalizedBase}/assets/${assetId}`;
+      // Build a direct link URL for the QR payload (so scanners open the page directly)
+      const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
+      const normalizedBase = (base || '').replace(/\/$/, '');
+      const qrLink = `${normalizedBase}/assets/${assetId}`;
 
-  const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
+      const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
         width: 512,
-        margin: 2,
+        margin: 1,
         color: {
           dark: '#000000',
           light: '#FFFFFF'
         },
-        errorCorrectionLevel: 'M'
+        errorCorrectionLevel: 'H'
       });
+      
       const composed = await composeQrWithLabel(rawQrDataUrl, {
         assetId,
-        topText: customText || 'Scan to view asset',
+        topText: '',
+        hideBottomText: true
       });
+
       setQrCodeUrl(composed);
       onGenerated?.(composed);
       toast.success("QR code generated successfully!");
@@ -60,68 +62,18 @@ export function QRCodeGenerator({
 
   const downloadQRCode = () => {
     if (!qrCodeUrl) return;
-    
-    const link = document.createElement('a');
-    link.download = `qr-code-${assetId}.png`;
-    link.href = qrCodeUrl;
-    link.click();
+    downloadDataUrl(qrCodeUrl, `qr-code-${assetId}.png`);
     toast.success("QR code downloaded!");
   };
 
-  const printQRCode = () => {
+  const printQRCode = async () => {
     if (!qrCodeUrl) return;
-
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Print QR Code - ${assetName}</title>
-            <style>
-              body { 
-                font-family: Arial, sans-serif; 
-                text-align: center; 
-                padding: 20px;
-                margin: 0;
-              }
-              .qr-container {
-                max-width: 400px;
-                margin: 0 auto;
-                border: 2px solid #000;
-                padding: 20px;
-                border-radius: 8px;
-              }
-              h2 { margin-top: 0; }
-              .qr-code { margin: 20px 0; }
-              .details { 
-                font-size: 14px; 
-                margin-top: 10px;
-                text-align: left;
-              }
-              @media print {
-                body { margin: 0; padding: 10px; }
-                .qr-container { border: 1px solid #000; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="qr-container">
-              <h2>Asset QR Code</h2>
-                <div class="qr-code">
-                  <img src="${qrCodeUrl}" alt="QR Code" style="max-width: 100%;" />
-                </div>
-              <div class="details">
-                <strong>Asset:</strong> ${assetName}<br/>
-                <strong>Property:</strong> ${propertyName}<br/>
-                <strong>Asset ID:</strong> ${assetId}<br/>
-                <strong>Generated:</strong> ${new Date().toLocaleDateString()}
-              </div>
-            </div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
+    try {
+      await printImagesAsLabels([qrCodeUrl], { widthIn: 4, heightIn: 6 });
+      toast.success("Sent to printer");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to print");
     }
   };
 
@@ -145,84 +97,77 @@ export function QRCodeGenerator({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <QrCode className="h-5 w-5" />
+    <Card className="overflow-hidden border-border/60 shadow-lg">
+      <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
+        <CardTitle className="flex items-center gap-2 text-xl">
+          <QrCode className="h-5 w-5 text-primary" />
           QR Code Generator
         </CardTitle>
         <CardDescription>
-          Generate printable QR codes for asset identification and tracking
+          Generate a unique QR code for this asset
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Custom Text Input */}
-        <div className="space-y-2">
-          <Label htmlFor="customText">Display Text</Label>
-          <Input
-            id="customText"
-            value={customText}
-            onChange={(e) => setCustomText(e.target.value)}
-            placeholder="Text to display with QR code"
-          />
-        </div>
-
+      <CardContent className="p-6 space-y-6">
         {/* Asset Information */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
-          <div>
-            <Label className="text-sm font-medium">Asset ID</Label>
-            <p className="text-sm text-muted-foreground">{assetId}</p>
-          </div>
-          <div>
-            <Label className="text-sm font-medium">Asset Name</Label>
-            <p className="text-sm text-muted-foreground">{assetName}</p>
-          </div>
-          <div>
-            <Label className="text-sm font-medium">Property</Label>
-            <p className="text-sm text-muted-foreground">{propertyName}</p>
+        <div className="rounded-xl border border-border/50 bg-card p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Asset ID</Label>
+              <p className="font-mono text-sm font-medium text-foreground">{assetId}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Asset Name</Label>
+              <p className="text-sm font-medium text-foreground">{assetName}</p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Property</Label>
+              <p className="text-sm font-medium text-foreground">{propertyName}</p>
+            </div>
           </div>
         </div>
 
         {/* Generate Button */}
-        <Button 
-          onClick={generateQRCode} 
-          disabled={isGenerating} 
-          className="w-full gap-2"
-        >
-          <QrCode className="h-4 w-4" />
-          {isGenerating ? "Generating..." : "Generate QR Code"}
-        </Button>
+        {!qrCodeUrl && (
+          <Button 
+            onClick={generateQRCode} 
+            disabled={isGenerating} 
+            className="w-full h-12 text-base gap-2 shadow-md transition-all hover:shadow-lg"
+          >
+            <QrCode className="h-5 w-5" />
+            {isGenerating ? "Generating..." : "Generate QR Code"}
+          </Button>
+        )}
 
         {/* QR Code Display */}
         {qrCodeUrl && (
-          <div className="space-y-4">
-            <div className="flex justify-center">
-              <div className="border-2 border-border rounded-lg p-4 bg-background">
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex flex-col items-center justify-center gap-6 rounded-2xl border border-border/50 bg-muted/10 p-8">
+              <div className="relative rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5">
                 <img 
                   src={qrCodeUrl} 
                   alt="Generated QR Code" 
-                  className="max-w-full h-auto"
+                  className="h-48 w-48 object-contain"
                 />
-                <p className="text-center text-sm text-muted-foreground mt-2">
-                  {customText}
-                </p>
               </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-2 justify-center">
-              <Button onClick={downloadQRCode} variant="outline" size="sm" className="gap-2">
-                <Download className="h-4 w-4" />
-                Download
-              </Button>
-              <Button onClick={printQRCode} variant="outline" size="sm" className="gap-2">
-                <Printer className="h-4 w-4" />
-                Print
-              </Button>
-              <Button onClick={copyQRCode} variant="outline" size="sm" className="gap-2">
-                <Copy className="h-4 w-4" />
-                Copy
-              </Button>
+              
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 justify-center w-full">
+                <Button onClick={downloadQRCode} variant="outline" className="gap-2 min-w-[100px]">
+                  <Download className="h-4 w-4" />
+                  Download
+                </Button>
+                <Button onClick={printQRCode} variant="outline" className="gap-2 min-w-[100px]">
+                  <Printer className="h-4 w-4" />
+                  Print
+                </Button>
+                <Button onClick={copyQRCode} variant="outline" className="gap-2 min-w-[100px]">
+                  <Copy className="h-4 w-4" />
+                  Copy
+                </Button>
+                <Button onClick={generateQRCode} variant="ghost" className="gap-2 text-muted-foreground hover:text-foreground">
+                  Regenerate
+                </Button>
+              </div>
             </div>
           </div>
         )}

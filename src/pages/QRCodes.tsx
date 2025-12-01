@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import StatusChip from "@/components/ui/status-chip";
 import MetricCard from "@/components/ui/metric-card";
 import { QrCode, Search, Download, Printer, Package, Building2, LayoutGrid, List as ListIcon, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -90,6 +92,9 @@ export default function QRCodes() {
   const [role, setRole] = useState<string>("");
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showGenerator, setShowGenerator] = useState(false);
+  const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
+  const [bulkPrintOptions, setBulkPrintOptions] = useState({ showName: false, showCode: false });
+  const [isPrinting, setIsPrinting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProperty, setFilterProperty] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -109,6 +114,7 @@ export default function QRCodes() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<any>(null);
   const [previewMeta, setPreviewMeta] = useState<{
     assetId: string;
     assetName: string;
@@ -251,8 +257,50 @@ export default function QRCodes() {
   };
 
   const handleBulkPrint = () => {
-    const unprintedCodes = codes.filter(qr => !qr.printed);
-    toast.success(`Printing ${unprintedCodes.length} QR codes`);
+    setBulkPrintOpen(true);
+  };
+
+  const executeBulkPrint = async () => {
+    setIsPrinting(true);
+    try {
+      const unprintedCodes = codes.filter(qr => !qr.printed);
+      const targets = unprintedCodes.length > 0 ? unprintedCodes : codes;
+      
+      if (targets.length === 0) {
+        toast.warning("No QR codes to print");
+        setIsPrinting(false);
+        return;
+      }
+
+      const images = await Promise.all(targets.map(async (code) => {
+        const base = (import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || 'https://samsproject.in';
+        const normalizedBase = (base || '').replace(/\/$/, '');
+        const qrLink = `${normalizedBase}/assets/${code.asset_id}`;
+        
+        const rawQrDataUrl = await QRCode.toDataURL(qrLink, {
+            width: 512,
+            margin: 1,
+            color: { dark: '#000000', light: '#FFFFFF' },
+            errorCorrectionLevel: 'H'
+        });
+
+        if (bulkPrintOptions.showName || bulkPrintOptions.showCode) {
+             let text = "";
+             if (bulkPrintOptions.showName) text += code.asset_name;
+             if (bulkPrintOptions.showCode) text += (text ? " - " : "") + code.asset_id;
+             
+             return await composeQrWithLabel(rawQrDataUrl, {
+                 assetId: code.asset_id,
+                 topText: text,
+                 hideBottomText: !bulkPrintOptions.showCode
+             });
+        } else {
+            return rawQrDataUrl;
+        }
+      }));
+      
+      await printImagesAsLabels(images, { widthIn: 4, heightIn: 6 });
+      
        let actor: string | null = null;
        try {
          const raw = (isDemoMode() ? (sessionStorage.getItem('demo_auth_user') || localStorage.getItem('demo_auth_user')) : null) || localStorage.getItem('auth_user');
@@ -261,9 +309,16 @@ export default function QRCodes() {
            actor = u?.name || u?.email || u?.id || null;
          }
        } catch {}
-    (async () => {
-          await logActivity("qr_bulk_print", `Bulk printed ${unprintedCodes.length} QR codes`, actor);
-    })();
+       await logActivity("qr_bulk_print", `Bulk printed ${targets.length} QR codes`, actor);
+       
+       setBulkPrintOpen(false);
+       toast.success(`Printed ${targets.length} QR codes`);
+    } catch (error) {
+      console.error("Bulk print error:", error);
+      toast.error("Failed to print QR codes");
+    } finally {
+      setIsPrinting(false);
+    }
   };
 
   const handleClearAll = async () => {
@@ -371,6 +426,7 @@ export default function QRCodes() {
       let dataUrl = qr.imageUrl || computedImages[qr.id];
       if (!dataUrl) dataUrl = await generateQrPng(qr);
       setPreviewImg(dataUrl || null);
+      setPreviewTarget(qr);
       setPreviewMeta({
         assetId: qr.assetId,
         assetName: qr.assetName,
@@ -686,6 +742,41 @@ export default function QRCodes() {
   return (
     <div className="space-y-6">
         {/* Asset Picker Dialog */}
+        <Dialog open={bulkPrintOpen} onOpenChange={setBulkPrintOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Bulk Print Options</DialogTitle>
+              <DialogDescription>
+                Choose what information to include on the printed labels.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="showName" 
+                  checked={bulkPrintOptions.showName}
+                  onCheckedChange={(checked) => setBulkPrintOptions(prev => ({ ...prev, showName: !!checked }))}
+                />
+                <Label htmlFor="showName">Show Asset Name</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="showCode" 
+                  checked={bulkPrintOptions.showCode}
+                  onCheckedChange={(checked) => setBulkPrintOptions(prev => ({ ...prev, showCode: !!checked }))}
+                />
+                <Label htmlFor="showCode">Show Asset Code</Label>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setBulkPrintOpen(false)}>Cancel</Button>
+              <Button onClick={executeBulkPrint} disabled={isPrinting}>
+                {isPrinting ? "Printing..." : "Print"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         <Dialog open={assetPickerOpen} onOpenChange={setAssetPickerOpen}>
           <DialogContent className="sm:max-w-xl">
             <DialogHeader>
@@ -1120,73 +1211,79 @@ export default function QRCodes() {
 
         {/* QR Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="sm:max-w-xl overflow-hidden rounded-2xl border border-border/60 bg-background/95 p-0 shadow-2xl">
-            <DialogHeader className="px-6 pt-6 pb-4 text-left">
-              <DialogTitle className="text-lg font-semibold text-foreground">
-                QR Preview
-              </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
-                {previewMeta
-                  ? `Preview the code for ${previewMeta.assetName} (${previewMeta.assetId})`
-                  : 'Preview this QR code before sharing or printing.'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-6 px-6 pb-6 md:grid-cols-[minmax(0,240px),1fr]">
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative w-full max-w-[220px] rounded-2xl border border-dashed border-border/70 bg-card/80 p-4 shadow-inner">
-                  <div className="relative flex h-[200px] items-center justify-center rounded-xl bg-background">
-                    {previewImg ? (
-                      <img
-                        src={previewImg}
-                        alt={previewMeta ? `QR for ${previewMeta.assetId}` : 'QR'}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20">
-                        <QrCode className="h-12 w-12 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                </div>
-                {previewMeta && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className={`h-2 w-2 rounded-full ${previewMeta.printed ? 'bg-emerald-500' : 'bg-primary'}`} aria-hidden="true" />
-                    {previewMeta.printed ? 'Printed' : 'Ready to print'}
+          <DialogContent className="sm:max-w-md overflow-hidden rounded-3xl border-0 bg-background/80 backdrop-blur-xl p-0 shadow-2xl ring-1 ring-white/10">
+            <div className="relative flex flex-col items-center justify-center p-8 pb-6">
+              <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />
+              
+              {/* QR Container */}
+              <div className="relative z-10 mb-6 rounded-2xl bg-white p-4 shadow-lg ring-1 ring-black/5 transition-transform hover:scale-105 duration-300">
+                {previewImg ? (
+                  <img
+                    src={previewImg}
+                    alt={previewMeta ? `QR for ${previewMeta.assetId}` : 'QR'}
+                    className="h-48 w-48 object-contain"
+                  />
+                ) : (
+                  <div className="flex h-48 w-48 items-center justify-center rounded-xl bg-muted/20">
+                    <QrCode className="h-12 w-12 text-muted-foreground/50" />
                   </div>
                 )}
               </div>
-              <div className="flex flex-col gap-5">
-                {previewMeta && (
-                  <div className="space-y-2">
-                    <div className="space-y-1">
-                      <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Asset</p>
-                      <p className="text-base font-semibold text-foreground">{previewMeta.assetName}</p>
-                      <p className="text-sm text-muted-foreground">{previewMeta.assetId}</p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {previewMeta.property && (
-                        <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Location</p>
-                          <p className="text-sm font-medium text-foreground">{previewMeta.property}</p>
-                        </div>
-                      )}
-                      <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                        <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Status</p>
-                        <div className="mt-1">
-                          {getStatusBadge(previewMeta.status || 'Generated', !!previewMeta.printed)}
-                        </div>
-                      </div>
-                      {previewMeta.generatedDate && (
-                        <div className="rounded-lg border border-border/60 bg-background/70 p-3">
-                          <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Generated</p>
-                          <p className="text-sm font-medium text-foreground">{previewMeta.generatedDate}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
 
-              </div>
+              {/* Asset Info */}
+              {previewMeta && (
+                <div className="relative z-10 text-center space-y-1.5">
+                  <h3 className="text-xl font-bold tracking-tight text-foreground">
+                    {previewMeta.assetName}
+                  </h3>
+                  <p className="text-sm font-medium text-muted-foreground font-mono bg-muted/50 px-2 py-0.5 rounded-md inline-block">
+                    {previewMeta.assetId}
+                  </p>
+                  {previewMeta.property && (
+                    <p className="text-sm text-muted-foreground flex items-center justify-center gap-1.5 pt-1">
+                      <Building2 className="h-3.5 w-3.5" />
+                      {previewMeta.property}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer Actions */}
+            <div className="bg-muted/30 p-4 grid grid-cols-2 gap-3 border-t border-border/50">
+               <Button 
+                 variant="outline" 
+                 className="w-full bg-background hover:bg-accent/50 border-border/60"
+                 onClick={() => {
+                   if (previewTarget) {
+                     setDlSingleTarget(previewTarget);
+                     setDlSingleFmt('png');
+                     setDlSingleOpen(true);
+                   }
+                 }}
+               >
+                 <Download className="mr-2 h-4 w-4" />
+                 Download
+               </Button>
+               <Button 
+                 className="w-full shadow-md hover:shadow-lg transition-all"
+                 onClick={async () => {
+                   if (previewTarget) {
+                     try {
+                        let dataUrl = previewImg;
+                        if (!dataUrl) dataUrl = await generateQrPng(previewTarget);
+                        if (!dataUrl) throw new Error('No image');
+                        await printImagesAsLabels([dataUrl], { widthIn: 4, heightIn: 6 });
+                        toast.success("Sent to printer");
+                     } catch (e) {
+                        toast.error("Failed to print");
+                     }
+                   }
+                 }}
+               >
+                 <Printer className="mr-2 h-4 w-4" />
+                 Print Label
+               </Button>
             </div>
           </DialogContent>
         </Dialog>
