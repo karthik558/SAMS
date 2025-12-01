@@ -423,38 +423,42 @@ export default function Help() {
 
          {/* Sidebar / Quick Links */}
          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                {accessibleQuickActions.map(action => (
-                  <Link key={action.to} to={action.to} className="flex items-center justify-between rounded-lg border p-3 text-sm transition-colors hover:bg-muted hover:text-primary">
-                    <span>{action.label}</span>
-                    <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
+            <section>
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-semibold">Quick Actions</h2>
+              </div>
+              <Card>
+                <CardContent className="grid gap-2 pt-6">
+                  {accessibleQuickActions.map(action => (
+                    <Link key={action.to} to={action.to} className="flex items-center justify-between rounded-lg border p-3 text-sm transition-colors hover:bg-muted hover:text-primary">
+                      <span>{action.label}</span>
+                      <ArrowUpRight className="h-3 w-3 text-muted-foreground" />
+                    </Link>
+                  ))}
+                </CardContent>
+              </Card>
+            </section>
 
-            <Card>
-               <CardHeader>
-                <CardTitle className="text-base">Support</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                 {accessibleSupportChannels.map(channel => (
-                    <div key={channel.title} className="rounded-lg border p-3 text-sm">
-                       <div className="font-medium">{channel.title}</div>
-                       <div className="mt-1 text-xs text-muted-foreground mb-2">{channel.description}</div>
-                       {channel.to ? (
-                         <Link to={channel.to} className="text-xs font-medium text-primary hover:underline">{channel.cta}</Link>
-                       ) : (
-                         <button onClick={() => channel.guideId && startGuide(channel.guideId)} className="text-xs font-medium text-primary hover:underline">{channel.cta}</button>
-                       )}
-                    </div>
-                 ))}
-              </CardContent>
-            </Card>
+            <section>
+              <div className="mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-semibold">Support</h2>
+              </div>
+              <Card>
+                <CardContent className="grid gap-2 pt-6">
+                   {accessibleSupportChannels.map(channel => (
+                      <div key={channel.title} className="rounded-lg border p-3 text-sm">
+                         <div className="font-medium">{channel.title}</div>
+                         <div className="mt-1 text-xs text-muted-foreground mb-2">{channel.description}</div>
+                         {channel.to ? (
+                           <Link to={channel.to} className="text-xs font-medium text-primary hover:underline">{channel.cta}</Link>
+                         ) : (
+                           <button onClick={() => channel.guideId && startGuide(channel.guideId)} className="text-xs font-medium text-primary hover:underline">{channel.cta}</button>
+                         )}
+                      </div>
+                   ))}
+                </CardContent>
+              </Card>
+            </section>
             
             <Alert className="border-primary/20 bg-primary/5">
               <LifeBuoy className="h-4 w-4 text-primary" />
