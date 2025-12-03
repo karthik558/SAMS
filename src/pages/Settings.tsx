@@ -39,7 +39,7 @@ export default function Settings() {
   const [betaFeatures, setBetaFeatures] = useState(() => Boolean(cachedPrefs?.enable_beta_features));
   const [defaultLanding, setDefaultLanding] = useState<string>(() => cachedPrefs?.default_landing_page || "");
   // New personalization fields
-  const [density, setDensity] = useState<'comfortable'|'compact'|'ultra'>(() => {
+  const [density, setDensity] = useState<'comfortable' | 'compact' | 'ultra'>(() => {
     if (cachedPrefs?.density) return cachedPrefs.density;
     return cachedPrefs?.compact_mode ? 'compact' : 'comfortable';
   });
@@ -50,7 +50,7 @@ export default function Settings() {
   const [stickyHeader, setStickyHeader] = useState(() => Boolean(cachedPrefs?.sticky_header));
   const [topNavMode, setTopNavMode] = useState(() => Boolean(cachedPrefs?.top_nav_mode));
   const [showHelpCenter, setShowHelpCenter] = useState(() => cachedPrefs?.show_help_center !== false);
-  
+
   // Theme customization
   const [accentColor, setAccentColor] = useState(() => localStorage.getItem('theme_accent') || 'orange');
   const [darkLevel, setDarkLevel] = useState(() => localStorage.getItem('theme_dark_level') || 'standard');
@@ -61,12 +61,12 @@ export default function Settings() {
   useEffect(() => {
     const root = document.documentElement;
     const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
-    
+
     // Main accent colors
     root.style.setProperty('--primary', accent.value);
     root.style.setProperty('--primary-hover', accent.hover);
     root.style.setProperty('--ring', accent.value);
-    
+
     // Sidebar accent colors
     root.style.setProperty('--sidebar-primary', accent.value);
     root.style.setProperty('--sidebar-ring', accent.value);
@@ -77,31 +77,31 @@ export default function Settings() {
     // However, .dark defines --sidebar-accent as a specific color.
     // If we set it on :root (inline style), it overrides the class definition.
     // So we should set it conditionally or set a separate variable.
-    
+
     // Actually, looking at index.css:
     // Light mode: --sidebar-accent: 16 52% 92%;
     // Dark mode: --sidebar-accent: 60 3% 20%; (neutral)
-    
+
     // If we want the sidebar selection to follow the accent color in light mode, we set it to accent.light.
     // In dark mode, usually sidebar selection is just a lighter grey or the accent color itself with opacity.
     // But let's stick to the pattern.
-    
+
     if (!darkMode) {
-       root.style.setProperty('--sidebar-accent', accent.light);
-       if (accent.sidebar) {
-         root.style.setProperty('--sidebar-background', accent.sidebar);
-       }
-       root.style.setProperty('--accent', accent.light);
-       root.style.setProperty('--accent-foreground', accent.value);
+      root.style.setProperty('--sidebar-accent', accent.light);
+      if (accent.sidebar) {
+        root.style.setProperty('--sidebar-background', accent.sidebar);
+      }
+      root.style.setProperty('--accent', accent.light);
+      root.style.setProperty('--accent-foreground', accent.value);
     } else {
-       // In dark mode, we might want to keep it neutral or use the accent?
-       // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
-       // or just remove the property to let CSS take over if we switch to dark.
-       root.style.removeProperty('--sidebar-accent');
-       root.style.removeProperty('--accent');
-       root.style.removeProperty('--accent-foreground');
+      // In dark mode, we might want to keep it neutral or use the accent?
+      // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
+      // or just remove the property to let CSS take over if we switch to dark.
+      root.style.removeProperty('--sidebar-accent');
+      root.style.removeProperty('--accent');
+      root.style.removeProperty('--accent-foreground');
     }
-    
+
     localStorage.setItem('theme_accent', accentColor);
   }, [accentColor, darkMode]);
 
@@ -125,7 +125,7 @@ export default function Settings() {
       root.style.removeProperty('--background');
       root.style.removeProperty('--card');
       root.style.removeProperty('--popover');
-      
+
       // Light mode sidebar background
       const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
       if (accent.sidebar) {
@@ -133,7 +133,7 @@ export default function Settings() {
       } else {
         root.style.removeProperty('--sidebar-background');
       }
-      
+
       // Light mode defaults
       root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
       root.style.setProperty('--header-food', 'hsl(150 100% 96%)'); // emerald-50
@@ -205,7 +205,7 @@ export default function Settings() {
           const au = JSON.parse(authRaw) as { email?: string };
           setCurrentUserEmail(au?.email || null);
         }
-      } catch {}
+      } catch { }
 
       // user settings
       try {
@@ -224,7 +224,7 @@ export default function Settings() {
           // Do NOT overwrite darkMode from local settings if we are already observing the DOM
           // setDarkMode(local.dark_mode ?? false);
         }
-      } catch {}
+      } catch { }
 
       // load user personalization preferences
       try {
@@ -243,7 +243,7 @@ export default function Settings() {
           if (typeof p.top_nav_mode === 'boolean') setTopNavMode(p.top_nav_mode);
           if (typeof p.show_help_center === 'boolean') setShowHelpCenter(p.show_help_center);
         }
-      } catch {}
+      } catch { }
       finally { setPrefsLoaded(true); }
 
       // role
@@ -253,7 +253,7 @@ export default function Settings() {
           const au = JSON.parse(authRaw) as { role?: string };
           setRole((au.role || "").toLowerCase());
         }
-      } catch {}
+      } catch { }
 
       // departments management moved to Users page
 
@@ -264,7 +264,7 @@ export default function Settings() {
   const handleSave = async () => {
     try {
       // Validate default landing page against whitelist
-  const allowedLanding = new Set(["/","/assets","/properties","/tickets","/reports","/newsletter","/settings","/approvals"]);
+      const allowedLanding = new Set(["/", "/assets", "/properties", "/tickets", "/reports", "/newsletter", "/settings", "/approvals"]);
       let landingToSave: string | null = (defaultLanding || "") || null;
       if (landingToSave && !allowedLanding.has(landingToSave)) {
         landingToSave = null; // coerce invalid to null (system default)
@@ -274,8 +274,8 @@ export default function Settings() {
         try {
           const raw = localStorage.getItem('auth_user');
           const r = raw ? (JSON.parse(raw).role || '').toLowerCase() : '';
-          if (!['admin','manager'].includes(r)) landingToSave = null;
-        } catch {}
+          if (!['admin', 'manager'].includes(r)) landingToSave = null;
+        } catch { }
       }
       // Only user settings persisted (system config removed from UI)
       if (hasSupabaseEnv) {
@@ -301,9 +301,9 @@ export default function Settings() {
         if (currentUserId) {
           try {
             const raw = JSON.parse(localStorage.getItem("user_pref_" + currentUserId) || "null");
-            const merged = { ...(raw||{}), user_id: currentUserId, show_newsletter: showNewsletter, show_help_center: showHelpCenter, compact_mode: (density === 'compact' || density==='ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader, top_nav_mode: topNavMode };
+            const merged = { ...(raw || {}), user_id: currentUserId, show_newsletter: showNewsletter, show_help_center: showHelpCenter, compact_mode: (density === 'compact' || density === 'ultra') ? true : compactMode, enable_beta_features: betaFeatures, default_landing_page: landingToSave, density, auto_theme: autoTheme, enable_sounds: enableSounds, sidebar_collapsed: sidebarCollapsedPref, show_announcements: showAnnouncements, sticky_header: stickyHeader, top_nav_mode: topNavMode };
             localStorage.setItem("user_pref_" + currentUserId, JSON.stringify(merged));
-          } catch {}
+          } catch { }
         }
       }
       // apply theme preference globally ONLY if it changed to avoid accidental resets
@@ -325,28 +325,28 @@ export default function Settings() {
           root.classList.remove('ultra-ui');
           if (density === 'compact') root.classList.add('compact-ui');
           else if (density === 'ultra') { root.classList.add('compact-ui'); root.classList.add('ultra-ui'); }
-        } catch {}
-      } catch {}
-  try { refreshSoundPreference(); } catch {}
-  // Broadcast preference delta for live layout adjustments (same-tab + cross-tab)
-  try {
-    const patch = {
-      top_nav_mode: topNavMode,
-      sticky_header: stickyHeader,
-      auto_theme: autoTheme,
-      density,
-      show_newsletter: showNewsletter,
-      show_help_center: showHelpCenter,
-      show_announcements: showAnnouncements,
-      sidebar_collapsed: sidebarCollapsedPref,
-      enable_sounds: enableSounds,
-    };
-    // Cross-tab broadcast
-    localStorage.setItem('user_preferences_patch', JSON.stringify(patch));
-    // Same-tab broadcast
-    try { window.dispatchEvent(new CustomEvent('user-preferences-changed', { detail: patch })); } catch {}
-  } catch {}
-  // Success toast removed per request
+        } catch { }
+      } catch { }
+      try { refreshSoundPreference(); } catch { }
+      // Broadcast preference delta for live layout adjustments (same-tab + cross-tab)
+      try {
+        const patch = {
+          top_nav_mode: topNavMode,
+          sticky_header: stickyHeader,
+          auto_theme: autoTheme,
+          density,
+          show_newsletter: showNewsletter,
+          show_help_center: showHelpCenter,
+          show_announcements: showAnnouncements,
+          sidebar_collapsed: sidebarCollapsedPref,
+          enable_sounds: enableSounds,
+        };
+        // Cross-tab broadcast
+        localStorage.setItem('user_preferences_patch', JSON.stringify(patch));
+        // Same-tab broadcast
+        try { window.dispatchEvent(new CustomEvent('user-preferences-changed', { detail: patch })); } catch { }
+      } catch { }
+      // Success toast removed per request
     } catch (e: any) {
       toast({ title: "Failed to save", description: e.message || String(e), variant: "destructive" });
     }
@@ -371,7 +371,7 @@ export default function Settings() {
             const parsed = JSON.parse(raw) as { email?: string };
             emailForValidation = parsed?.email || null;
           }
-        } catch {}
+        } catch { }
       }
       if (!uid || !emailForValidation) {
         toast({ title: "Not signed in", description: "No current user found.", variant: "destructive" });
@@ -479,7 +479,7 @@ export default function Settings() {
               </CardContent>
             </Card>
           </div>
-          
+
           <div className="flex justify-end">
             <Button onClick={handleSave} size="lg" className="gap-2">
               <Save className="h-4 w-4" />
@@ -541,9 +541,9 @@ export default function Settings() {
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">
                         <Label className="font-normal">Dark Mode</Label>
-                        <Switch 
-                          checked={darkMode} 
-                          disabled={autoTheme} 
+                        <Switch
+                          checked={darkMode}
+                          disabled={autoTheme}
                           onCheckedChange={(checked) => {
                             setDarkMode(checked);
                             if (checked) {
@@ -551,7 +551,7 @@ export default function Settings() {
                             } else {
                               document.documentElement.classList.remove('dark');
                             }
-                          }} 
+                          }}
                         />
                       </div>
                       <div className="flex items-center justify-between">
@@ -572,14 +572,13 @@ export default function Settings() {
                           <button
                             key={color.id}
                             onClick={() => setAccentColor(color.id)}
-                            className={`group relative flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all ${
-                              accentColor === color.id ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
-                            }`}
+                            className={`group relative flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all ${accentColor === color.id ? 'border-primary scale-110' : 'border-transparent hover:scale-105'
+                              }`}
                             title={color.label}
                           >
-                            <span 
-                              className="h-6 w-6 rounded-full shadow-sm" 
-                              style={{ backgroundColor: `hsl(${color.value})` }} 
+                            <span
+                              className="h-6 w-6 rounded-full shadow-sm"
+                              style={{ backgroundColor: `hsl(${color.value})` }}
                             />
                             {accentColor === color.id && (
                               <span className="absolute inset-0 flex items-center justify-center text-white drop-shadow-md">
@@ -687,7 +686,7 @@ export default function Settings() {
                         try {
                           const authRaw = (() => { try { return localStorage.getItem('auth_user'); } catch { return null; } })();
                           const r = authRaw ? ((): string => { try { return (JSON.parse(authRaw).role || '').toLowerCase(); } catch { return ''; } })() : '';
-                          const canSeeApprovals = ['admin','manager'].includes(r);
+                          const canSeeApprovals = ['admin', 'manager'].includes(r);
                           return (
                             <Select value={defaultLanding || undefined} onValueChange={(v) => setDefaultLanding(v)}>
                               <SelectTrigger id="default-landing" className="w-full">
@@ -748,7 +747,6 @@ export default function Settings() {
                 <Button
                   onClick={handleSave}
                   size="lg"
-                  className="relative overflow-hidden rounded-full px-8 shadow-lg transition-all hover:shadow-primary/25"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     <Save className="h-4 w-4" />

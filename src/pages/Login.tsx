@@ -94,10 +94,10 @@ export default function Login() {
             department: user.department ?? null,
           })
         );
-      } catch {}
+      } catch { }
       try {
         await updateLastLogin(user.email);
-      } catch {}
+      } catch { }
       setAttempts(0);
       setPassword("");
       setEmail(user.email);
@@ -343,7 +343,7 @@ export default function Login() {
         <div className="mx-auto w-full max-w-sm lg:w-96">
           <div className="mb-10">
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/5 p-3 shadow-sm ring-1 ring-inset ring-primary/10">
-               <img src="/sams_logo.png" alt="Logo" className="h-full w-full object-contain" />
+              <img src="/sams_logo.png" alt="Logo" className="h-full w-full object-contain" />
             </div>
             <h2 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -413,7 +413,7 @@ export default function Login() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="h-11 w-full rounded-xl bg-primary text-base font-medium text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/30 active:scale-[0.98]"
+                className="h-11 w-full text-base font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 {loading ? "Signing in..." : "Sign in"}
               </Button>
@@ -432,13 +432,13 @@ export default function Login() {
               variant="outline"
               type="button"
               onClick={() => navigate("/scan")}
-              className="h-11 w-full rounded-xl border-muted bg-background hover:bg-muted/50"
+              className="h-11 w-full border-muted bg-background hover:bg-muted/50"
             >
               <QrCode className="mr-2 h-4 w-4" />
               Scan QR Code
             </Button>
           </div>
-          
+
           <p className="mt-10 text-center text-xs text-muted-foreground">
             © {currentYear} SAMS. All rights reserved.
           </p>
