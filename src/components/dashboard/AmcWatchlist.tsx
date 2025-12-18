@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CalendarClock, ArrowRight, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export type AmcAlertItem = {
   id: string;
@@ -24,31 +24,16 @@ interface AmcWatchlistProps {
 }
 
 const WATCHLIST_DISPLAY_LIMIT = 4;
-const COLORS = {
-  urgent: "#ef4444", // red-500
-  soon: "#f97316",   // orange-500
-  info: "#3b82f6",   // blue-500
-  safe: "#22c55e",   // green-500
-};
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <div 
-              className="h-2 w-2 rounded-full" 
-              style={{ backgroundColor: entry.payload.color }} 
-            />
-            <span className="font-medium text-foreground">
-              {entry.value}
-            </span>
-            <span className="text-muted-foreground">
-              {entry.name}
-            </span>
-          </div>
-        ))}
+      <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm text-xs">
+        <div className="font-medium text-foreground mb-1">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Cumulative Expiries:</span>
+          <span className="font-bold text-foreground">{payload[0].value}</span>
+        </div>
       </div>
     );
   }
@@ -61,15 +46,17 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
   const displayedItems = showAll ? items : items.slice(0, WATCHLIST_DISPLAY_LIMIT);
   const remainingCount = Math.max(0, items.length - displayedItems.length);
 
-  // Prepare chart data
-  const chartData = [
-    { name: "Overdue", value: overdueCount, color: COLORS.urgent },
-    { name: "Urgent (<7d)", value: items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length, color: COLORS.soon },
-    { name: "Upcoming (<30d)", value: items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length, color: COLORS.info },
-    { name: "Active", value: Math.max(0, trackedCount - items.length), color: COLORS.safe },
-  ].filter(d => d.value > 0);
+  // Calculate stats
+  const urgentCount = items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length;
+  const upcomingCount = items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length;
 
-  const totalAlerts = items.length;
+  // Prepare trend data (Cumulative expiries over next 30 days)
+  const trendData = [
+    { name: 'Now', value: overdueCount },
+    { name: '+7d', value: overdueCount + urgentCount },
+    { name: '+14d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 14).length },
+    { name: '+30d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 30).length },
+  ];
 
   return (
     <Card className="rounded-xl border border-border/60 bg-card shadow-sm h-full flex flex-col">
@@ -93,59 +80,66 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
            )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4">
+      <CardContent className="flex-1 flex flex-col gap-4 p-4 pt-0">
         {hasSupabase ? (
           <>
-            {/* Chart Section */}
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{urgentCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Urgent</div>
+              </div>
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{upcomingCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Upcoming</div>
+              </div>
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{trackedCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total</div>
+              </div>
+            </div>
+
+            {/* Trend Chart */}
             {trackedCount > 0 && (
-              <div className="flex items-center justify-center gap-6 py-2">
-                <div className="relative h-32 w-32 shrink-0">
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-2xl font-bold text-foreground">{totalAlerts}</span>
-                    <span className="text-[10px] font-medium uppercase text-muted-foreground">Active</span>
-                  </div>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={42}
-                        outerRadius={58}
-                        paddingAngle={4}
-                        dataKey="value"
-                        stroke="none"
-                        cornerRadius={4}
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.color} 
-                            className="stroke-background hover:opacity-80 transition-opacity"
-                            strokeWidth={2}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                {/* Legend */}
-                <div className="flex flex-col gap-2 text-xs">
-                  {chartData.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="font-medium text-muted-foreground">{item.name}</span>
-                      <span className="font-bold text-foreground ml-auto">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="h-24 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="amcTrend" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                      tickLine={false}
+                      axisLine={false}
+                      dy={5}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#f97316" 
+                      fillOpacity={1} 
+                      fill="url(#amcTrend)" 
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             )}
 
             {/* List Items */}
-            <div className="space-y-3 flex-1">
+            <div className="space-y-2 flex-1">
               {items.length > 0 ? (
                 <div className="space-y-2">
                   {displayedItems.map((item) => {
@@ -155,22 +149,22 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/30 p-3 transition hover:border-border/70"
+                        className="flex items-center gap-2.5 rounded-md border border-border/40 bg-muted/30 p-2 transition hover:border-border/70"
                       >
-                        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background border", 
+                        <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background border", 
                            isUrgent ? "border-red-200 text-red-600 dark:border-red-900/30 dark:text-red-400" : 
                            isSoon ? "border-orange-200 text-orange-600 dark:border-orange-900/30 dark:text-orange-400" : 
                            "border-blue-200 text-blue-600 dark:border-blue-900/30 dark:text-blue-400"
                         )}>
-                           <CalendarClock className="h-4 w-4" />
+                           <CalendarClock className="h-3.5 w-3.5" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <h5 className="truncate text-sm font-medium text-foreground" title={item.name}>
+                            <h5 className="truncate text-xs font-medium text-foreground" title={item.name}>
                               {item.name}
                             </h5>
-                            <span className={cn("text-[10px] font-bold uppercase tracking-wider",
+                            <span className={cn("text-[9px] font-bold uppercase tracking-wider",
                               isUrgent ? "text-red-600 dark:text-red-400" : 
                               isSoon ? "text-orange-600 dark:text-orange-400" : 
                               "text-blue-600 dark:text-blue-400"
@@ -178,7 +172,7 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
                               {item.daysRemaining <= 0 ? `${Math.abs(item.daysRemaining)}d Overdue` : `${item.daysRemaining}d Left`}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                             <span className="truncate">{item.propertyName}</span>
                             <span>{item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
                           </div>
@@ -191,7 +185,7 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full h-8 text-xs text-muted-foreground hover:text-foreground"
+                      className="w-full h-7 text-[10px] text-muted-foreground hover:text-foreground"
                       onClick={() => setShowAll(!showAll)}
                     >
                       {showAll ? "Show Less" : `View ${remainingCount} More`}

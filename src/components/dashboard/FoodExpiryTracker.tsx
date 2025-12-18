@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Utensils, CheckCircle2, ArrowRight, AlertCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 export type FoodExpiryItem = {
   id: string;
@@ -26,31 +26,16 @@ interface FoodExpiryTrackerProps {
 }
 
 const WATCHLIST_DISPLAY_LIMIT = 4;
-const COLORS = {
-  expired: "#ef4444", // red-500
-  urgent: "#f97316",  // orange-500
-  soon: "#eab308",    // yellow-500
-  fresh: "#10b981",   // emerald-500
-};
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <div 
-              className="h-2 w-2 rounded-full" 
-              style={{ backgroundColor: entry.payload.color }} 
-            />
-            <span className="font-medium text-foreground">
-              {entry.value}
-            </span>
-            <span className="text-muted-foreground">
-              {entry.name}
-            </span>
-          </div>
-        ))}
+      <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm text-xs">
+        <div className="font-medium text-foreground mb-1">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground">Cumulative Expiries:</span>
+          <span className="font-bold text-foreground">{payload[0].value}</span>
+        </div>
       </div>
     );
   }
@@ -63,15 +48,17 @@ export function FoodExpiryTracker({ items, trackedCount, overdueCount, hasSupaba
   const displayedItems = showAll ? items : items.slice(0, WATCHLIST_DISPLAY_LIMIT);
   const remainingCount = Math.max(0, items.length - displayedItems.length);
 
-  // Prepare chart data
-  const chartData = [
-    { name: "Expired", value: overdueCount, color: COLORS.expired },
-    { name: "Expiring (<7d)", value: items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length, color: COLORS.urgent },
-    { name: "Expiring (<30d)", value: items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length, color: COLORS.soon },
-    { name: "Fresh", value: Math.max(0, trackedCount - items.length), color: COLORS.fresh },
-  ].filter(d => d.value > 0);
+  // Calculate stats
+  const expiringSoonCount = items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length;
+  const expiringLaterCount = items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length;
 
-  const totalAlerts = items.length;
+  // Prepare trend data (Cumulative expiries over next 30 days)
+  const trendData = [
+    { name: 'Now', value: overdueCount },
+    { name: '+7d', value: overdueCount + expiringSoonCount },
+    { name: '+14d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 14).length },
+    { name: '+30d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 30).length },
+  ];
 
   return (
     <Card className="rounded-xl border border-border/60 bg-card shadow-sm h-full flex flex-col">
@@ -99,59 +86,66 @@ export function FoodExpiryTracker({ items, trackedCount, overdueCount, hasSupaba
            )}
         </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4">
+      <CardContent className="flex-1 flex flex-col gap-4 p-4 pt-0">
         {hasSupabase ? (
           <>
-            {/* Chart Section */}
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{expiringSoonCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Urgent</div>
+              </div>
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{expiringLaterCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Upcoming</div>
+              </div>
+              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
+                <div className="text-lg font-bold text-foreground">{trackedCount}</div>
+                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total</div>
+              </div>
+            </div>
+
+            {/* Trend Chart */}
             {trackedCount > 0 && (
-              <div className="flex items-center justify-center gap-6 py-2">
-                <div className="relative h-32 w-32 shrink-0">
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-2xl font-bold text-foreground">{totalAlerts}</span>
-                    <span className="text-[10px] font-medium uppercase text-muted-foreground">Alerts</span>
-                  </div>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={42}
-                        outerRadius={58}
-                        paddingAngle={4}
-                        dataKey="value"
-                        stroke="none"
-                        cornerRadius={4}
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.color} 
-                            className="stroke-background hover:opacity-80 transition-opacity"
-                            strokeWidth={2}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                
-                {/* Legend */}
-                <div className="flex flex-col gap-2 text-xs">
-                  {chartData.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      <span className="font-medium text-muted-foreground">{item.name}</span>
-                      <span className="font-bold text-foreground ml-auto">{item.value}</span>
-                    </div>
-                  ))}
-                </div>
+              <div className="h-24 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="foodTrend" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#eab308" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#eab308" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
+                    <XAxis 
+                      dataKey="name" 
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                      tickLine={false}
+                      axisLine={false}
+                      dy={5}
+                    />
+                    <YAxis 
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#eab308" 
+                      fillOpacity={1} 
+                      fill="url(#foodTrend)" 
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             )}
 
             {/* List Items */}
-            <div className="space-y-3 flex-1">
+            <div className="space-y-2 flex-1">
               {items.length > 0 ? (
                 <div className="space-y-2">
                   {displayedItems.map((item) => {
@@ -161,22 +155,22 @@ export function FoodExpiryTracker({ items, trackedCount, overdueCount, hasSupaba
                     return (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 rounded-lg border border-border/40 bg-muted/30 p-3 transition hover:border-border/70"
+                        className="flex items-center gap-2.5 rounded-md border border-border/40 bg-muted/30 p-2 transition hover:border-border/70"
                       >
-                        <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background border", 
+                        <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background border", 
                            isExpired ? "border-red-200 text-red-600 dark:border-red-900/30 dark:text-red-400" : 
                            isUrgent ? "border-orange-200 text-orange-600 dark:border-orange-900/30 dark:text-orange-400" : 
                            "border-yellow-200 text-yellow-600 dark:border-yellow-900/30 dark:text-yellow-400"
                         )}>
-                           {isExpired ? <AlertCircle className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                           {isExpired ? <AlertCircle className="h-3.5 w-3.5" /> : <Package className="h-3.5 w-3.5" />}
                         </div>
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <h5 className="truncate text-sm font-medium text-foreground" title={item.name}>
+                            <h5 className="truncate text-xs font-medium text-foreground" title={item.name}>
                               {item.name}
                             </h5>
-                            <span className={cn("text-[10px] font-bold uppercase tracking-wider",
+                            <span className={cn("text-[9px] font-bold uppercase tracking-wider",
                               isExpired ? "text-red-600 dark:text-red-400" : 
                               isUrgent ? "text-orange-600 dark:text-orange-400" : 
                               "text-yellow-600 dark:text-yellow-400"
@@ -184,7 +178,7 @@ export function FoodExpiryTracker({ items, trackedCount, overdueCount, hasSupaba
                               {item.daysRemaining <= 0 ? `${Math.abs(item.daysRemaining)}d Ago` : `${item.daysRemaining}d Left`}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                             <div className="flex items-center gap-2 truncate">
                               <span className="truncate">{item.propertyName}</span>
                               {item.quantity > 0 && (
@@ -205,7 +199,7 @@ export function FoodExpiryTracker({ items, trackedCount, overdueCount, hasSupaba
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="w-full h-8 text-xs text-muted-foreground hover:text-foreground"
+                      className="w-full h-7 text-[10px] text-muted-foreground hover:text-foreground"
                       onClick={() => setShowAll(!showAll)}
                     >
                       {showAll ? "Show Less" : `View ${remainingCount} More`}
