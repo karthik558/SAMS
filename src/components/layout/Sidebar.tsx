@@ -45,6 +45,7 @@ import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } 
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
+import { useSystemStatus } from "@/hooks/useSystemStatus";
 
 // Use a non-const assertion for dynamic injection (e.g., Newsletter)
 type NavItem = { name: string; href: string; icon: any };
@@ -63,7 +64,6 @@ const baseNav: NavItem[] = [
   { name: "Help Center", href: "/help", icon: LifeBuoy },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
-  { name: "System Status", href: "/status", icon: Activity },
   { name: "License", href: "/license", icon: ShieldCheck },
 ];
 
@@ -86,7 +86,7 @@ const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> 
   { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
   { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "Help Center", "QR Codes", "Newsletter"] },
   { key: "insights", title: "Insights", items: ["Reports", "Audit"] },
-  { key: "administration", title: "Administration", items: ["Users", "Settings", "System Status", "License"] },
+  { key: "administration", title: "Administration", items: ["Users", "Settings", "License"] },
 ];
 
 const pageNameToKey: Record<string, PageKey | null> = {
@@ -170,6 +170,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const allowedPropertyIdsRef = useRef<Set<string> | null>(null);
   const assetsByIdRef = useRef<Map<string, Asset> | null>(null);
   const homeHref = isDemoMode() ? "/demo" : "/";
+  const { overallStatus } = useSystemStatus();
   useEffect(() => {
     (async () => {
       try {
@@ -276,7 +277,6 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       if (item.name === "Newsletter") return showNewsletter;
       if (item.name === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
       if (item.name === "License") return roleForPerm === "admin";
-      if (item.name === "System Status") return roleForPerm === "admin";
       if (item.name === "Audit") {
         const rule = (effective as any)["audit"];
         return (
@@ -887,6 +887,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         <div className="p-4">
           {!collapsed && (
             <>
+            <div className="mb-3">
+              <Link to="/status" className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+                <div className={cn("h-2 w-2 rounded-full animate-pulse", 
+                  overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
+                  overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
+                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                )} />
+                <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+              </Link>
+            </div>
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
