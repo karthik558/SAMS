@@ -67,12 +67,6 @@ export default function Settings() {
     root.style.setProperty('--primary-hover', accent.hover);
     root.style.setProperty('--ring', accent.value);
 
-    // Update theme-color meta tag
-    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-    if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', `hsl(${accent.value})`);
-    }
-
     // Sidebar accent colors
     root.style.setProperty('--sidebar-primary', accent.value);
     root.style.setProperty('--sidebar-ring', accent.value);
@@ -114,9 +108,13 @@ export default function Settings() {
   useEffect(() => {
     const root = document.documentElement;
     const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
+    
+    let bgValue = '0 0% 100%';
+
     // Only apply if in dark mode, but we set the variables on a special class or just override
     // Since .dark class sets these variables, we need to override them with higher specificity or inline styles on body/root when dark
     if (darkMode) {
+      bgValue = level.bg;
       root.style.setProperty('--background', level.bg);
       root.style.setProperty('--card', level.card);
       root.style.setProperty('--popover', level.card);
@@ -144,6 +142,13 @@ export default function Settings() {
       root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
       root.style.setProperty('--header-food', 'hsl(150 100% 96%)'); // emerald-50
     }
+
+    // Update theme-color meta tag to match background
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', `hsl(${bgValue})`);
+    }
+
     localStorage.setItem('theme_dark_level', darkLevel);
   }, [darkLevel, darkMode, accentColor]);
 
