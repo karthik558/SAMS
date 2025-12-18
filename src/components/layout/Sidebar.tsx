@@ -882,6 +882,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         {/* Footer */}
         <div className="p-4">
           {!collapsed && (
+            <>
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -937,6 +938,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
             </div>
+            <p className="mt-4 text-xs text-center text-sidebar-foreground/50">
+              © 2025 SAMS. All rights reserved.
+            </p>
+          </>
           )}
         </div>
       </div>
