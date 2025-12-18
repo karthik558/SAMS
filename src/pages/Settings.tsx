@@ -418,14 +418,14 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="personalization" className="space-y-8">
-        <TabsList className="inline-flex h-auto w-full flex-wrap justify-start gap-2 rounded-none border-b bg-transparent p-0 sm:w-auto">
+        <TabsList className="inline-flex h-auto w-full flex-wrap justify-start gap-2 rounded-full bg-muted/50 p-1.5 sm:w-auto">
           {tabItems.map(({ value, label, icon: Icon }) => (
             <TabsTrigger
               key={value}
               value={value}
-              className="group inline-flex items-center gap-2 rounded-t-lg border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-muted/10 data-[state=active]:text-foreground"
+              className="group inline-flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-medium text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
             >
-              <Icon className="h-4 w-4 group-data-[state=active]:text-primary" />
+              <Icon className="h-4 w-4 transition-colors group-hover:text-foreground group-data-[state=active]:text-primary" />
               {label}
             </TabsTrigger>
           ))}
