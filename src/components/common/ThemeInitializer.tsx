@@ -16,6 +16,12 @@ export function ThemeInitializer() {
       root.style.setProperty('--primary-hover', accent.hover);
       root.style.setProperty('--ring', accent.value);
       
+      // Update theme-color meta tag
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', `hsl(${accent.value})`);
+      }
+
       // Sidebar accent colors
       root.style.setProperty('--sidebar-primary', accent.value);
       root.style.setProperty('--sidebar-ring', accent.value);

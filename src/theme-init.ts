@@ -17,7 +17,12 @@ try {
   const accent = ACCENT_COLORS.find(c => c.id === storedAccent) || ACCENT_COLORS[0];
   
   root.style.setProperty('--primary', accent.value);
-  // We can set other accent vars here if needed for the preloader
+  
+  // Update theme-color meta tag
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    metaThemeColor.setAttribute('content', `hsl(${accent.value})`);
+  }
   
   // 3. Dark Level (Background)
   if (isDark) {
