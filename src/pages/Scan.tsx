@@ -158,12 +158,19 @@ export default function Scan() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <Button variant="ghost" size="sm" className="gap-2" onClick={handleBack}><ArrowLeft className="h-4 w-4" /> Back</Button>
+            <Button variant="ghost" size="sm" className="gap-2 shrink-0" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4" />
+              <span className="hidden sm:inline">Back</span>
+            </Button>
             <div className="flex gap-2">
               {!active ? (
-                <Button onClick={start} className="gap-2" disabled={loading}><Camera className="h-4 w-4" /> {loading ? 'Starting…' : 'Start Camera'}</Button>
+                <Button onClick={start} className="gap-2 shrink-0" disabled={loading}>
+                  <Camera className="h-4 w-4" />
+                  <span className="hidden sm:inline">{loading ? 'Starting…' : 'Start Camera'}</span>
+                  <span className="sm:hidden">{loading ? '...' : 'Camera'}</span>
+                </Button>
               ) : (
-                <Button variant="outline" onClick={stop} className="gap-2"><RotateCcw className="h-4 w-4" /> Stop</Button>
+                <Button variant="outline" onClick={stop} className="gap-2 shrink-0"><RotateCcw className="h-4 w-4" /> Stop</Button>
               )}
               <input
                 ref={fileRef}
@@ -172,8 +179,10 @@ export default function Scan() {
                 className="hidden"
                 onChange={(e) => { onPickImage(e.target.files?.[0] || undefined); if (e.target) (e.target as HTMLInputElement).value = ""; }}
               />
-              <Button type="button" variant="outline" className="gap-2" onClick={() => fileRef.current?.click()}>
-                <ImageIcon className="h-4 w-4" /> Scan from Photo
+              <Button type="button" variant="outline" className="gap-2 shrink-0" onClick={() => fileRef.current?.click()}>
+                <ImageIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Scan from Photo</span>
+                <span className="sm:hidden">Photo</span>
               </Button>
             </div>
           </div>
