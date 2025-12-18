@@ -689,12 +689,22 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           ))}
         </div>
         <div className="border-t border-sidebar-border px-4 py-5">
+          <div className="mb-3">
+            <Link to="/status" className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+              <div className={cn("h-2 w-2 rounded-full animate-pulse", 
+                overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
+                overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
+                "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+              )} />
+              <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+            </Link>
+          </div>
           <div className="flex items-center gap-2 mb-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
+                <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-2 transition-colors hover:bg-sidebar-accent/50">
                   {(role || '').toLowerCase() === 'admin' ? (
-                    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                    <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
                       <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
                         <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
                           <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
@@ -702,12 +712,12 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                           </div>
                         </span>
                       </span>
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
                         <ShieldCheck className="h-2 w-2" />
                       </span>
                     </div>
                   ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
                       <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                     </div>
                   )}
@@ -739,7 +749,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              className="h-[58px] w-[58px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              className="h-[50px] w-[50px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
             >
               {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
