@@ -1108,7 +1108,7 @@ export default function Assets() {
                 visible={prefs.visibleCols}
                 onChange={prefs.setVisibleCols}
               />
-              <Button size="sm" onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+              <Button size="sm" onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
                 <Plus className="h-4 w-4" />
                 Add Asset
               </Button>

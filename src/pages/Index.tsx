@@ -1010,7 +1010,7 @@ const Index = () => {
           <div className="flex flex-wrap gap-3">
               <Button 
                 onClick={() => handleQuickAction("Add Asset")} 
-                className="group flex h-12 w-12 items-center justify-center gap-0 rounded-full bg-primary text-primary-foreground shadow-lg transition-all duration-300 hover:w-36 hover:shadow-xl overflow-hidden p-0"
+                className="group flex h-12 w-12 items-center justify-center gap-0 rounded-full bg-primary text-primary-foreground transition-all duration-300 hover:w-36 overflow-hidden p-0"
               >
                 <Plus className="h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
                 <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2 font-medium">

@@ -1266,7 +1266,7 @@ export default function QRCodes() {
                  Download
                </Button>
                <Button 
-                 className="w-full shadow-md hover:shadow-lg transition-all"
+                 className="w-full transition-all"
                  onClick={async () => {
                    if (previewTarget) {
                      try {

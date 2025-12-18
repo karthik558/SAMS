@@ -339,7 +339,7 @@ export default function Help() {
           </p>
           
           <div className="flex flex-wrap gap-3 pt-4">
-             <Button size="lg" onClick={() => startGuide("add-asset")} className="h-12 gap-2 rounded-full px-6 text-base shadow-lg shadow-primary/20 transition-all hover:shadow-xl hover:shadow-primary/30">
+             <Button size="lg" onClick={() => startGuide("add-asset")} className="h-12 gap-2 rounded-full px-6 text-base transition-all">
                 <PlayCircle className="h-5 w-5" />
                 Start “Add asset” tour
               </Button>

@@ -1291,7 +1291,7 @@ export default function Users() {
                     type="button" 
                     onClick={handleAddUser} 
                     disabled={authRole !== 'admin' || addRequiredMissing || emailInvalid}
-                    className="rounded-xl gap-2 shadow-md hover:shadow-lg transition-all"
+                    className="rounded-xl gap-2 transition-all"
                   >
                     <UserPlus className="h-4 w-4" />
                     Create User Account
