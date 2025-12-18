@@ -234,8 +234,8 @@ export function Layout({ children }: LayoutProps) {
         </main>
         {/* Mobile bottom tab bar */}
         {isMobile && (
-          <nav className="sticky bottom-0 left-0 right-0 z-40 border-t border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <div className="mx-auto flex max-w-2xl items-center px-2">
+          <div className="fixed bottom-6 left-4 right-4 z-50 flex justify-center pointer-events-none">
+            <nav className="pointer-events-auto flex h-16 w-full max-w-md items-center justify-around rounded-full border border-border/40 bg-background/80 px-2 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
               {mobileNavItems.map((item) => {
                 const active = pathname === item.path || pathname.startsWith(item.path + "/");
                 const Icon = item.icon;
@@ -244,30 +244,28 @@ export function Layout({ children }: LayoutProps) {
                     key={item.path}
                     type="button"
                     className={cn(
-                      "relative flex flex-1 select-none flex-col items-center justify-center gap-1 py-2 text-xs font-medium transition-colors",
-                      "text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-background",
-                      active
-                        ? "text-primary"
-                        : "hover:text-foreground"
+                      "group relative flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300",
+                      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      active 
+                        ? "bg-primary text-primary-foreground shadow-lg scale-110" 
+                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     )}
                     onClick={() => navigate(item.path)}
                     aria-label={item.label}
                     aria-current={active ? "page" : undefined}
                   >
-                    <Icon className={cn("h-5 w-5 transition", active ? "text-primary" : "text-muted-foreground/80")} />
-                    <span>{item.label}</span>
-                    <span
+                    <Icon 
                       className={cn(
-                        "pointer-events-none absolute -bottom-[2px] left-1/2 h-1 w-8 -translate-x-1/2 rounded-full bg-primary transition-all duration-200",
-                        active ? "opacity-100 scale-100" : "opacity-0 scale-75"
-                      )}
-                      aria-hidden="true"
+                        "h-5 w-5 transition-transform duration-300",
+                        active ? "scale-100" : "group-hover:scale-110"
+                      )} 
+                      strokeWidth={active ? 2.5 : 2}
                     />
                   </button>
                 );
               })}
-            </div>
-          </nav>
+            </nav>
+          </div>
         )}
       </div>
       </div>
