@@ -21,6 +21,7 @@ import {
   Users as UsersIcon,
   Moon,
   Sun,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
@@ -62,6 +63,7 @@ const baseNav: NavItem[] = [
   { name: "Help Center", href: "/help", icon: LifeBuoy },
   { name: "Users", href: "/users", icon: Users },
   { name: "Settings", href: "/settings", icon: Settings },
+  { name: "System Status", href: "/status", icon: Activity },
   { name: "License", href: "/license", icon: ShieldCheck },
 ];
 
@@ -84,7 +86,7 @@ const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> 
   { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
   { key: "operations", title: "Operations", items: ["Approvals", "Tickets", "Help Center", "QR Codes", "Newsletter"] },
   { key: "insights", title: "Insights", items: ["Reports", "Audit"] },
-  { key: "administration", title: "Administration", items: ["Users", "Settings", "License"] },
+  { key: "administration", title: "Administration", items: ["Users", "Settings", "System Status", "License"] },
 ];
 
 const pageNameToKey: Record<string, PageKey | null> = {
@@ -98,6 +100,7 @@ const pageNameToKey: Record<string, PageKey | null> = {
   Reports: "reports",
   Audit: "audit",
   Users: "users",
+  "System Status": null,
   Settings: "settings",
   License: null,
   Newsletter: null,
@@ -273,6 +276,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       if (item.name === "Newsletter") return showNewsletter;
       if (item.name === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
       if (item.name === "License") return roleForPerm === "admin";
+      if (item.name === "System Status") return roleForPerm === "admin";
       if (item.name === "Audit") {
         const rule = (effective as any)["audit"];
         return (

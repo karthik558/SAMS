@@ -22,6 +22,7 @@ import AssetDetails from "./pages/AssetDetails";
 import Scan from "./pages/Scan";
 import Website from "./pages/Website";
 import Newsletter from "./pages/Newsletter";
+import Status from "./pages/Status";
 import LicensePage from "./pages/License";
 import Help from "./pages/Help";
 // SingleDeviceGuard removed per user request
@@ -115,6 +116,7 @@ const App = () => (
             <Route path="/audit" element={<RoleGate roles={["manager","admin"]}><Audit /></RoleGate>} />
             <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
             <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
+            <Route path="/status" element={<RoleGate roles={['admin']}><Status /></RoleGate>} />
             <Route path="/license" element={<RoleGate roles={['admin']}><LicensePage /></RoleGate>} />
           </Route>
           <Route path="*" element={<NotFound />} />
