@@ -4,6 +4,7 @@ import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
+import { BulkImportModal } from "@/components/assets/BulkImportModal";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,6 +138,7 @@ export default function Assets() {
   const isSupabase = hasSupabaseEnv;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
@@ -346,21 +348,23 @@ export default function Assets() {
   // Simple UI loading flag
   const [loadingUI, setLoadingUI] = useState(true);
 
+  const fetchAssets = useCallback(async () => {
+    if (!isSupabase || isDemoMode()) return;
+    try {
+      const data = await listAssets();
+      setAssets(data as any);
+      setLoadingUI(false);
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Failed to load assets from Supabase; using local data");
+      setLoadingUI(false);
+    }
+  }, [isSupabase]);
+
   // Load from Supabase when configured
   useEffect(() => {
-    if (!isSupabase || isDemoMode()) return;
-    (async () => {
-      try {
-        const data = await listAssets();
-        setAssets(data as any);
-        setLoadingUI(false);
-      } catch (e: any) {
-        console.error(e);
-        toast.error("Failed to load assets from Supabase; using local data");
-        setLoadingUI(false);
-      }
-    })();
-  }, [isSupabase]);
+    fetchAssets();
+  }, [fetchAssets]);
 
   // Load dynamic filter options
   useEffect(() => {
@@ -2077,15 +2081,27 @@ export default function Assets() {
               {selectedAsset ? "Update the details of this asset." : "Fill in the details to create a new asset."}
             </DialogDescription>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0 hidden sm:flex"
-            onClick={() => setIsExpanded(!isExpanded)}
-            title={isExpanded ? "Collapse" : "Expand"}
-          >
-            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </Button>
+          <div className="flex items-center gap-2">
+            {!selectedAsset && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => { setShowAddForm(false); setShowBulkImport(true); }}
+                className="hidden sm:flex"
+              >
+                Bulk Import
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 hidden sm:flex"
+              onClick={() => setIsExpanded(!isExpanded)}
+              title={isExpanded ? "Collapse" : "Expand"}
+            >
+              {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </Button>
+          </div>
         </DialogHeader>
         <AssetForm
           mode="modal"
@@ -2095,6 +2111,14 @@ export default function Assets() {
         />
       </DialogContent>
     </Dialog>
+    <BulkImportModal 
+      open={showBulkImport} 
+      onOpenChange={setShowBulkImport} 
+      onSuccess={() => {
+        fetchAssets();
+      }}
+      propertyCount={propertyOptions.length}
+    />
     <RequestEditModal
       open={requestEditOpen}
       asset={requestEditAsset}
