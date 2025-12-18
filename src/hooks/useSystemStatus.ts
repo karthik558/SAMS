@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { Database, Shield, Globe, GitBranch, Cloud, Server } from "lucide-react";
+import { Database, Shield, Globe, GitBranch, Cloud, Server, HardDrive, Zap, Workflow } from "lucide-react";
 
 export type ServiceStatus = "operational" | "degraded" | "outage" | "checking";
 
@@ -21,8 +21,11 @@ export function useSystemStatus() {
   const [services, setServices] = useState<ServiceHealth[]>([
     { id: 'db', name: 'Primary Database Cluster', status: 'checking', latency: 0, icon: Database, description: 'PostgreSQL High Availability', region: 'us-east-1', uptime: '99.99%' },
     { id: 'auth', name: 'Identity Provider', status: 'checking', latency: 0, icon: Shield, description: 'OAuth2 & Session Management', region: 'Global', uptime: '99.95%' },
-    { id: 'hosting', name: 'Edge Network', status: 'checking', latency: 0, icon: Globe, description: 'CDN & Serverless Functions', region: 'Global', uptime: '100%' },
-    { id: 'repo', name: 'Version Control System', status: 'checking', latency: 0, icon: GitBranch, description: 'CI/CD Pipeline Status', region: 'Global', uptime: '99.9%' },
+    { id: 'storage', name: 'Object Storage', status: 'checking', latency: 0, icon: HardDrive, description: 'Asset & Media Storage', region: 'Global', uptime: '99.99%' },
+    { id: 'edge', name: 'Edge Functions', status: 'checking', latency: 0, icon: Zap, description: 'Serverless Compute', region: 'Global', uptime: '99.99%' },
+    { id: 'hosting', name: 'Edge Network', status: 'checking', latency: 0, icon: Globe, description: 'CDN & Static Assets', region: 'Global', uptime: '100%' },
+    { id: 'build', name: 'Build & Deploy', status: 'checking', latency: 0, icon: Workflow, description: 'CI/CD Pipeline', region: 'Global', uptime: '99.9%' },
+    { id: 'repo', name: 'Version Control System', status: 'checking', latency: 0, icon: GitBranch, description: 'Source Code Management', region: 'Global', uptime: '99.9%' },
     { id: 'dns', name: 'DNS & CDN Layer', status: 'checking', latency: 0, icon: Cloud, description: 'DDoS Protection & Routing', region: 'Global', uptime: '100%' },
     { id: 'api', name: 'API Gateway', status: 'checking', latency: 0, icon: Server, description: 'REST/GraphQL Endpoints', region: 'us-east-1', uptime: '99.99%' },
   ]);
@@ -99,10 +102,35 @@ export function useSystemStatus() {
     // 6. API (Simulated)
     const apiLatency = dbLatency + Math.floor(Math.random() * 20);
 
+    // 7. Check Storage
+    let storageStatus: ServiceStatus = 'operational';
+    let storageLatency = 0;
+    try {
+      const storageStart = performance.now();
+      const { error } = await supabase.storage.listBuckets();
+      if (error) throw error;
+      storageLatency = Math.round(performance.now() - storageStart);
+    } catch {
+      storageStatus = 'degraded';
+    }
+
+    // 8. Check Edge Functions (Simulated based on API/DB)
+    let edgeStatus: ServiceStatus = 'operational';
+    let edgeLatency = Math.floor(Math.random() * 50) + 20;
+    if (dbStatus === 'degraded' || apiLatency > 500) edgeStatus = 'degraded';
+
+    // 9. Check Build (Simulated based on Repo)
+    let buildStatus: ServiceStatus = 'operational';
+    let buildLatency = Math.floor(Math.random() * 100) + 50;
+    if (gitStatus === 'degraded') buildStatus = 'degraded';
+
     setServices(prev => prev.map(s => {
       if (s.id === 'db') return { ...s, status: dbStatus, latency: dbLatency };
       if (s.id === 'auth') return { ...s, status: authStatus, latency: authLatency };
+      if (s.id === 'storage') return { ...s, status: storageStatus, latency: storageLatency };
+      if (s.id === 'edge') return { ...s, status: edgeStatus, latency: edgeLatency };
       if (s.id === 'hosting') return { ...s, status: hostStatus, latency: hostLatency };
+      if (s.id === 'build') return { ...s, status: buildStatus, latency: buildLatency };
       if (s.id === 'repo') return { ...s, status: gitStatus, latency: gitLatency };
       if (s.id === 'dns') return { ...s, status: dnsStatus, latency: dnsLatency };
       if (s.id === 'api') return { ...s, status: 'operational', latency: apiLatency };
