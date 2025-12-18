@@ -19,6 +19,8 @@ import {
   LogOut,
   Settings as SettingsIcon,
   Users as UsersIcon,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SheetClose } from "@/components/ui/sheet";
@@ -119,6 +121,35 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     }
   }, []);
   const [collapsed, setCollapsed] = useState(false);
+  const [isDark, setIsDark] = useState(false);
+
+  const toggleTheme = () => {
+    const next = !isDark;
+    setIsDark(next);
+    const root = document.documentElement;
+    if (next) {
+      root.classList.add("dark");
+      try { localStorage.setItem("theme", "dark"); } catch {}
+    } else {
+      root.classList.remove("dark");
+      try { localStorage.setItem("theme", "light"); } catch {}
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const dark = stored ? stored === "dark" : prefersDark;
+      setIsDark(dark);
+      // Sync with class in case it changed elsewhere
+      const root = document.documentElement;
+      if (root.classList.contains('dark') !== dark) {
+         if (dark) root.classList.add('dark'); else root.classList.remove('dark');
+      }
+    } catch {}
+  }, []);
+
   const [isTablet, setIsTablet] = useState(false);
   const location = useLocation();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
@@ -654,7 +685,62 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           ))}
         </div>
         <div className="border-t border-sidebar-border px-4 py-5">
-          <p className="text-xs text-sidebar-foreground/50">
+          <div className="flex items-center gap-2 mb-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
+                  {(role || '').toLowerCase() === 'admin' ? (
+                    <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                      <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
+                        <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
+                          <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+                            <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                          </div>
+                        </span>
+                      </span>
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
+                        <ShieldCheck className="h-2 w-2" />
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                      <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                    </div>
+                  )}
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
+                    <span className="truncate text-[10px] text-sidebar-foreground/60 capitalize">{role || 'Guest'}</span>
+                  </div>
+                  <SettingsIcon className="ml-auto h-4 w-4 text-sidebar-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                side="top"
+                className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
+              >
+                <div className="p-1">
+                  <DropdownMenuItem
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    <span>Sign out</span>
+                  </DropdownMenuItem>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              className="h-[58px] w-[58px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+            >
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </Button>
+          </div>
+          <p className="text-xs text-center text-sidebar-foreground/50">
             © 2025 SAMS. All rights reserved.
           </p>
         </div>
@@ -796,10 +882,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         {/* Footer */}
         <div className="p-4">
           {!collapsed && (
-            <>
+            <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <div className="group flex cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
+                  <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
                     {(role || '').toLowerCase() === 'admin' ? (
                       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
                         <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
@@ -841,10 +927,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   </div>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <div className="mt-3 px-1 text-[10px] text-sidebar-foreground/40">
-                <p>© 2025 <a href="https://karthiklal.in" target="_blank" rel="noopener noreferrer" className="hover:text-sidebar-foreground/80 hover:underline transition-colors">SAMS</a>. All rights reserved.</p>
-              </div>
-            </>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="h-[58px] w-[58px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              >
+                {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </Button>
+            </div>
           )}
         </div>
       </div>

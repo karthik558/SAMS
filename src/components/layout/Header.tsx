@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, Menu, Settings as SettingsIcon, Users as UsersIcon, LogOut, ShieldCheck } from "lucide-react";
+import { Bell, Search, Menu, Settings as SettingsIcon, Users as UsersIcon, LogOut, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,6 @@ interface HeaderProps {
 export function Header({ onMenuClick }: HeaderProps) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [isDark, setIsDark] = useState(false);
   const [, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [authUser, setAuthUser] = useState<{ id: string; name: string; email: string; role?: string } | null>(null);
@@ -38,33 +37,6 @@ export function Header({ onMenuClick }: HeaderProps) {
   const [searching, setSearching] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutHint, setShortcutHint] = useState("");
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    const root = document.documentElement;
-    if (next) {
-      root.classList.add("dark");
-      try { localStorage.setItem("theme", "dark"); } catch {}
-    } else {
-      root.classList.remove("dark");
-      try { localStorage.setItem("theme", "light"); } catch {}
-    }
-  };
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const dark = stored ? stored === "dark" : prefersDark;
-      setIsDark(dark);
-      const root = document.documentElement;
-      if (dark) root.classList.add("dark");
-      else root.classList.remove("dark");
-    } catch {
-      // no-op if storage unavailable
-    }
-  }, []);
 
   const roleLower = (authUser?.role || "").toLowerCase();
   const isAdminRole = roleLower === "admin";
@@ -527,14 +499,6 @@ export function Header({ onMenuClick }: HeaderProps) {
             />
           </Link>
           <div className="ml-auto flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleTheme}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 p-0 shadow-sm"
-            >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
             {notificationsDropdown}
             <div className="md:hidden">
               {userMenu}
@@ -569,14 +533,6 @@ export function Header({ onMenuClick }: HeaderProps) {
             </div>
           </div>
           <div className="flex items-center gap-3 md:gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleTheme}
-              className="h-8 w-8 p-0"
-            >
-              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
             {notificationsDropdown}
             <div className="md:hidden">
               {userMenu}
