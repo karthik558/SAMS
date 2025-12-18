@@ -25,24 +25,28 @@ export type BulkAssetRow = {
   location?: string | null;
   description?: string | null;
   serialNumber?: string | null;
+  amcEnabled?: boolean;
+  amcStartDate?: string | null;
+  amcEndDate?: string | null;
 };
 
-// Template header: omit id so it's generated automatically
-const HEADER: (keyof BulkAssetRow)[] = [
-  "name",
-  "type",
-  "property",
-  "department",
-  "quantity",
-  "purchaseDate",
-  "expiryDate",
-  "poNumber",
-  "condition",
-  "status",
-  "location",
-  "description",
-  "serialNumber",
-];
+const COLUMN_CONFIG = [
+  { header: "Item Name", key: "name", required: true, width: 30 },
+  { header: "Quantity", key: "quantity", required: true, width: 12 },
+  { header: "Item Type", key: "type", required: true, width: 20 },
+  { header: "Condition", key: "condition", required: true, width: 15 },
+  { header: "Property", key: "property", required: true, width: 25 },
+  { header: "Department", key: "department", required: true, width: 20 },
+  { header: "Location", key: "location", required: true, width: 25 },
+  { header: "Serial Number", key: "serialNumber", required: false, width: 20 },
+  { header: "Purchase Date", key: "purchaseDate", required: false, width: 15 },
+  { header: "Expiry Date", key: "expiryDate", required: false, width: 15 },
+  { header: "PO Number", key: "poNumber", required: false, width: 15 },
+  { header: "Enable AMC", key: "amcEnabled", required: false, width: 15 },
+  { header: "AMC Start Date", key: "amcStartDate", required: false, width: 15 },
+  { header: "AMC End Date", key: "amcEndDate", required: false, width: 15 },
+  { header: "Description", key: "description", required: false, width: 40 },
+] as const;
 
 export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Template.xlsx") {
   // Gather dropdown sources
@@ -69,7 +73,6 @@ export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Templat
     ? allPropertyCodes
     : allPropertyCodes.filter((code) => accessibleSet.has(code));
   const conditions = ["Excellent", "Good", "Fair", "Poor", "Damaged"];
-  const statuses = ["Active", "Expiring Soon", "Expired", "Inactive"];
   // Fetch department names from Supabase settings > departments (fallback to a small static list)
   let departments: string[] = [];
   try {
@@ -94,92 +97,83 @@ export async function downloadAssetTemplate(filename = "SAMS_Bulk_Import_Templat
   propertyCodes.forEach((v, i) => (lists.getCell(i + 2, 2).value = v));
   lists.getCell("C1").value = "Conditions";
   conditions.forEach((v, i) => (lists.getCell(i + 2, 3).value = v));
-  lists.getCell("D1").value = "Statuses";
-  statuses.forEach((v, i) => (lists.getCell(i + 2, 4).value = v));
-  lists.getCell("E1").value = "Departments";
-  departments.forEach((v, i) => (lists.getCell(i + 2, 5).value = v));
+  lists.getCell("D1").value = "Departments";
+  departments.forEach((v, i) => (lists.getCell(i + 2, 4).value = v));
   lists.state = "veryHidden";
 
   // Header
-  input.addRow(HEADER as any);
-  input.getRow(1).font = { bold: true };
-  // Highlight required headers (name, type, property, department, quantity)
-  const requiredCols = new Set([1, 2, 3, 4, 5]);
-  requiredCols.forEach((colIdx) => {
-    const cell = input.getRow(1).getCell(colIdx);
-    // Light highlight and note without changing header text (import relies on exact header names)
-    (cell as any).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF0B3' } };
-    try { (cell as any).note = 'Required'; } catch {}
+  const headerRow = input.addRow(COLUMN_CONFIG.map(c => c.required ? `${c.header}*` : c.header));
+  headerRow.height = 24;
+  
+  headerRow.eachCell((cell, colNumber) => {
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF1F4E78' } // Professional Dark Blue
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    cell.border = {
+      top: { style: 'thin' },
+      left: { style: 'thin' },
+      bottom: { style: 'medium' },
+      right: { style: 'thin' }
+    };
   });
 
   // Sample row
-  input.addRow([
-    "Sample Laptop",
-  types[0] || "Electronics",
-  propertyCodes[0] || "",
-  departments[0] || "",
-    10,
-    "2025-01-15",
-    "2027-01-15",
-    "PO-1001",
-    "Good",
-    "Active",
-    "Floor 2, IT Room",
-    "15\" laptop, 16GB RAM",
-    "SN-ABC-12345",
+  const sampleRow = input.addRow([
+    "Sample Laptop", // Item Name
+    10,              // Quantity
+    types[0] || "Electronics", // Item Type
+    "Good",          // Condition
+    propertyCodes[0] || "", // Property
+    departments[0] || "",   // Department
+    "Floor 2, IT Room",     // Location
+    "SN-ABC-12345",         // Serial Number
+    "2025-01-15",           // Purchase Date
+    "2027-01-15",           // Expiry Date
+    "PO-1001",              // PO Number
+    "No",                   // Enable AMC
+    "",                     // AMC Start Date
+    "",                     // AMC End Date
+    "15\" laptop, 16GB RAM" // Description
   ]);
+  
+  // Style sample row
+  sampleRow.eachCell((cell) => {
+    cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    if (typeof cell.value === 'number') cell.alignment.horizontal = 'right';
+  });
 
-  // Column widths matching HEADER order
-  const widths = [24, 18, 22, 18, 10, 14, 14, 16, 14, 14, 28, 28, 18];
-  input.columns = widths.map((wch) => ({ width: wch } as any));
+  // Column widths
+  input.columns = COLUMN_CONFIG.map((c) => ({ width: c.width } as any));
 
   // Data validation for rows 2..1000
   const maxRows = 1000;
-  const range = (col: number) => ({ start: 2, end: maxRows, col });
-  const setListValidation = (col: number, formulae: string, allowBlank = true) => {
+  const setListValidation = (col: number, formulae: string | string[], allowBlank = true) => {
     for (let r = 2; r <= maxRows; r++) {
       input.getCell(r, col).dataValidation = {
         type: 'list',
         allowBlank,
-        formulae: [formulae],
+        formulae: Array.isArray(formulae) ? formulae : [formulae],
         showErrorMessage: true,
         error: 'Select a value from the dropdown list',
       } as any;
     }
   };
-  // Helper to enforce non-empty custom validation on a column
-  const colToA1 = (n: number): string => {
-    let s = "";
-    let num = n;
-    while (num > 0) {
-      const rem = (num - 1) % 26;
-      s = String.fromCharCode(65 + rem) + s;
-      num = Math.floor((num - 1) / 26);
-    }
-    return s;
-  };
-  const setRequiredValidation = (col: number) => {
-    for (let r = 2; r <= maxRows; r++) {
-      const addr = `${colToA1(col)}${r}`;
-      input.getCell(r, col).dataValidation = {
-        type: 'custom',
-        allowBlank: false,
-        formulae: [`LEN(TRIM(${addr}))>0`],
-        showErrorMessage: true,
-        error: 'This field is required',
-      } as any;
-    }
-  };
 
-  // Only apply list validations if we have values; otherwise leave free text
-  if (types.length) setListValidation(2, `=Lists!$A$2:$A$${types.length + 1}`, false); // type (required)
-  if (propertyCodes.length) setListValidation(3, `=Lists!$B$2:$B$${propertyCodes.length + 1}`, false); // property code (required)
-  if (departments.length) setListValidation(4, `=Lists!$E$2:$E$${departments.length + 1}`, false); // department (required)
-  setListValidation(9, `=Lists!$C$2:$C$${conditions.length + 1}`); // condition (optional)
-  setListValidation(10, `=Lists!$D$2:$D$${statuses.length + 1}`); // status (optional)
-  // Additional non-empty checks for name (1) and quantity (5)
-  setRequiredValidation(1); // name
-  setRequiredValidation(5); // quantity
+  // Apply validations based on column index (1-based)
+  // Item Type (3)
+  if (types.length) setListValidation(3, `=Lists!$A$2:$A$${types.length + 1}`, false);
+  // Condition (4)
+  setListValidation(4, `=Lists!$C$2:$C$${conditions.length + 1}`, false);
+  // Property (5)
+  if (propertyCodes.length) setListValidation(5, `=Lists!$B$2:$B$${propertyCodes.length + 1}`, false);
+  // Department (6)
+  if (departments.length) setListValidation(6, `=Lists!$D$2:$D$${departments.length + 1}`, false);
+  // Enable AMC (12)
+  setListValidation(12, ['"Yes,No"'], true);
 
   // Save
   const buf = await book.xlsx.writeBuffer();
@@ -210,12 +204,22 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
 
   // Read header from first row
   const headerRow = ws.getRow(1);
-  const headers: string[] = [];
+  const fileHeaders: string[] = [];
   const maxCol = ws.columnCount || headerRow.cellCount || 0;
   for (let c = 1; c <= maxCol; c++) {
     const v = headerRow.getCell(c).value;
-    headers[c - 1] = (typeof v === 'string' ? v : (v as any)?.toString?.() || '').trim();
+    fileHeaders[c - 1] = (typeof v === 'string' ? v : (v as any)?.toString?.() || '').trim();
   }
+
+  // Map file columns to internal keys
+  const colMap: Record<number, string> = {};
+  fileHeaders.forEach((h, idx) => {
+    const cleanHeader = h.replace(/\*$/, '').trim().toLowerCase();
+    const config = COLUMN_CONFIG.find(c => c.header.toLowerCase() === cleanHeader);
+    if (config) {
+      colMap[idx + 1] = config.key;
+    }
+  });
 
   // Helper to normalize cell values
   const toPlain = (v: any): any => {
@@ -236,13 +240,28 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
     // Skip empty rows
     const isEmpty = row.values === undefined || (Array.isArray(row.values) && row.values.slice(1).every((x) => x == null || x === ''));
     if (isEmpty) continue;
+    
     const rec: Record<string, any> = {};
+    let hasData = false;
+    
     for (let c = 1; c <= maxCol; c++) {
-      const key = headers[c - 1];
+      const key = colMap[c];
       if (!key) continue;
-      rec[key] = toPlain(row.getCell(c).value);
+      
+      let val = toPlain(row.getCell(c).value);
+      
+      // Special handling for boolean/list fields
+      if (key === 'amcEnabled') {
+        val = String(val).toLowerCase() === 'yes';
+      } else if (key === 'quantity') {
+        val = Number(val) || 0;
+      }
+      
+      if (val !== "" && val !== null && val !== undefined) hasData = true;
+      rec[key] = val;
     }
-    rows.push(rec);
+    
+    if (hasData) rows.push(rec);
   }
 
   // Build property code/name -> id map (best effort if backend connected)
@@ -388,6 +407,9 @@ export async function importAssetsFromFile(file: File): Promise<ImportResult> {
       location: r["location"] ? String(r["location"]).trim() : null,
   description: r["description"] ? String(r["description"]).trim() : null,
   serialNumber: r["serialNumber"] ? String(r["serialNumber"]).trim() : null,
+  amcEnabled: !!r["amcEnabled"],
+  amcStartDate: r["amcStartDate"] ? String(r["amcStartDate"]).slice(0, 10) : null,
+  amcEndDate: r["amcEndDate"] ? String(r["amcEndDate"]).slice(0, 10) : null,
     };
 
     try {
