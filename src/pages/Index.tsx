@@ -1,6 +1,8 @@
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { MyAudits } from "@/components/dashboard/MyAudits";
+import { AmcWatchlist, AmcAlertItem } from "@/components/dashboard/AmcWatchlist";
+import { FoodExpiryTracker, FoodExpiryItem } from "@/components/dashboard/FoodExpiryTracker";
 import MetricCard from "@/components/ui/metric-card";
 import {
   Package,
@@ -168,29 +170,6 @@ const describeMonthlyChange = (current: number, previous: number) => {
 };
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
-const WATCHLIST_DISPLAY_LIMIT = 2;
-
-type AmcAlertItem = {
-  id: string;
-  name: string;
-  propertyName: string;
-  startDate: Date | null;
-  endDate: Date;
-  daysRemaining: number;
-  severity: "urgent" | "soon" | "info";
-};
-
-type FoodExpiryItem = {
-  id: string;
-  name: string;
-  propertyName: string;
-  departmentName: string | null;
-  endDate: Date;
-  daysRemaining: number;
-  severity: "urgent" | "soon" | "info";
-  quantity: number;
-  typeLabel: string;
-};
 
 const Index = () => {
   const navigate = useNavigate();
@@ -223,8 +202,6 @@ const Index = () => {
   const [showAnnouncements, setShowAnnouncements] = useState(true);
   const [scopedAssets, setScopedAssets] = useState<Asset[]>(() => initialSnapshot?.scopedAssets ?? []);
   const [scopedProperties, setScopedProperties] = useState<Property[]>(() => initialSnapshot?.scopedProperties ?? []);
-  const [showAllWatchlist, setShowAllWatchlist] = useState(false);
-  const [showAllFoodExpiry, setShowAllFoodExpiry] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -625,13 +602,9 @@ const Index = () => {
   const overdueAmcItems = amcTracker.overdueItems ?? [];
   const overdueAmc = amcTracker.overdue;
   const amcWatchList = overdueAmcItems.concat(upcomingAmc);
-  const displayedAmcWatchList = showAllWatchlist ? amcWatchList : amcWatchList.slice(0, WATCHLIST_DISPLAY_LIMIT);
-  const remainingAmcCount = Math.max(0, amcWatchList.length - displayedAmcWatchList.length);
   const foodExpiryList = foodExpiryTracker.items ?? [];
   const foodExpiryTracked = foodExpiryTracker.tracked ?? 0;
   const foodExpiryOverdue = foodExpiryTracker.overdue ?? 0;
-  const displayedFoodExpiryList = showAllFoodExpiry ? foodExpiryList : foodExpiryList.slice(0, WATCHLIST_DISPLAY_LIMIT);
-  const remainingFoodExpiryCount = Math.max(0, foodExpiryList.length - displayedFoodExpiryList.length);
 
   const averageResolutionLabel = ticketSummary.averageResolutionHours !== null
     ? `${ticketSummary.averageResolutionHours.toFixed(1)}h`
@@ -1062,223 +1035,18 @@ const Index = () => {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* AMC Watchlist */}
-        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-orange-500/5 shadow-sm">
-          <CardHeader className="border-b border-border/40 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
-                  <AlertTriangle className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-bold text-foreground">AMC Watchlist</CardTitle>
-                  <CardDescription className="text-xs font-medium text-muted-foreground">Renewals within 60 days</CardDescription>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-muted/50 font-medium text-muted-foreground">
-                  {trackedAmc.toLocaleString()} Tracked
-                </Badge>
-                {overdueAmc > 0 && (
-                  <Badge variant="destructive" className="shadow-sm">
-                    {overdueAmc} Overdue
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4">
-            {hasSupabaseEnv ? (
-              amcWatchList.length ? (
-                <div className="space-y-3">
-                  {displayedAmcWatchList.map((item) => {
-                    const dueLabel = (() => {
-                      if (item.daysRemaining === 0) return "Due today";
-                      if (item.daysRemaining === 1) return "Due tomorrow";
-                      if (item.daysRemaining > 1) return `Due in ${item.daysRemaining} days`;
-                      const overdueBy = Math.abs(item.daysRemaining);
-                      return overdueBy === 1 ? "Overdue by 1 day" : `Overdue by ${overdueBy} days`;
-                    })();
-                    return (
-                      <div
-                        key={item.id}
-                        className="group flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 p-3 transition-all hover:bg-muted/40"
-                      >
-                        <div className="flex items-center gap-3 overflow-hidden">
-                           <div className={cn("h-2 w-2 rounded-full shrink-0", 
-                              item.severity === 'urgent' ? "bg-destructive" : 
-                              item.severity === 'soon' ? "bg-orange-500" : "bg-yellow-500"
-                           )} />
-                           <div className="space-y-0.5 overflow-hidden">
-                              <h4 className="truncate text-sm font-medium text-foreground" title={item.name}>{item.name}</h4>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span className="truncate">{item.propertyName}</span>
-                                <span>•</span>
-                                <span>{item.id}</span>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <span className={cn("text-[10px] font-medium", 
-                              item.severity === 'urgent' ? "text-red-600 dark:text-red-400" : 
-                              item.severity === 'soon' ? "text-orange-600 dark:text-orange-400" : "text-yellow-600 dark:text-yellow-400"
-                          )}>
-                            {dueLabel}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {amcWatchList.length > WATCHLIST_DISPLAY_LIMIT && (
-                    <div className="col-span-full flex justify-center pt-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowAllWatchlist((prev) => !prev)}
-                      >
-                        {showAllWatchlist ? "Show less" : `Show ${remainingAmcCount} more`}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                  <div className="rounded-full bg-muted/50 p-3">
-                    <CheckCircle2 className="h-6 w-6 text-muted-foreground" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">All caught up!</p>
-                    <p className="text-xs text-muted-foreground/80">No AMC renewals due in the next 60 days.</p>
-                  </div>
-                </div>
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                <div className="rounded-full bg-muted/50 p-3">
-                  <AlertTriangle className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm">Connect Supabase to enable tracking</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Food Expiry Tracker */}
-        <Card className="overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-card to-emerald-500/5 shadow-sm">
-          <CardHeader className="border-b border-border/40 pb-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <Utensils className="h-5 w-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-base font-bold text-foreground">Food Expiry Tracker</CardTitle>
-                  <CardDescription className="text-xs font-medium text-muted-foreground">Items expiring within 60 days</CardDescription>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Badge variant="secondary" className="bg-muted/50 font-medium text-muted-foreground">
-                  {foodExpiryTracked.toLocaleString()} Tracked
-                </Badge>
-                {foodExpiryOverdue > 0 ? (
-                  <Badge variant="destructive" className="shadow-sm">
-                    {foodExpiryOverdue} Overdue
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-emerald-200/50 bg-emerald-500/5 text-emerald-700 dark:border-emerald-800/50 dark:text-emerald-400">
-                    All Fresh
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4">
-            {hasSupabaseEnv ? (
-              foodExpiryList.length ? (
-                <div className="space-y-3">
-                  {displayedFoodExpiryList.map((item) => {
-                    const dueLabel = (() => {
-                      if (item.daysRemaining === 0) return "Expires today";
-                      if (item.daysRemaining === 1) return "Expires tomorrow";
-                      if (item.daysRemaining > 1) return `Expires in ${item.daysRemaining} days`;
-                      const overdueBy = Math.abs(item.daysRemaining);
-                      return overdueBy === 1 ? "Expired 1 day ago" : `Expired ${overdueBy} days ago`;
-                    })();
-                    return (
-                      <div
-                        key={item.id}
-                        className="group flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/20 p-3 transition-all hover:bg-muted/40"
-                      >
-                        <div className="flex items-center gap-3 overflow-hidden">
-                           <div className={cn("h-2 w-2 rounded-full shrink-0", 
-                              item.severity === 'urgent' ? "bg-destructive" : 
-                              item.severity === 'soon' ? "bg-orange-500" : "bg-yellow-500"
-                           )} />
-                           <div className="space-y-0.5 overflow-hidden">
-                              <h4 className="truncate text-sm font-medium text-foreground" title={item.name}>{item.name}</h4>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <span className="truncate">{item.propertyName}</span>
-                                {item.quantity && (
-                                  <>
-                                    <span>•</span>
-                                    <span>Qty: {item.quantity}</span>
-                                  </>
-                                )}
-                              </div>
-                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          <span className={cn("text-[10px] font-medium", 
-                              item.severity === 'urgent' ? "text-red-600 dark:text-red-400" : 
-                              item.severity === 'soon' ? "text-orange-600 dark:text-orange-400" : "text-yellow-600 dark:text-yellow-400"
-                          )}>
-                            {dueLabel}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {item.endDate.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {foodExpiryList.length > WATCHLIST_DISPLAY_LIMIT && (
-                    <div className="col-span-full flex justify-center pt-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => setShowAllFoodExpiry((prev) => !prev)}
-                      >
-                        {showAllFoodExpiry ? "Show less" : `Show ${remainingFoodExpiryCount} more`}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                  <div className="rounded-full bg-green-100 p-3 dark:bg-green-900/20">
-                    <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-foreground">Everything looks good!</p>
-                    <p className="text-xs text-muted-foreground/80">No food items expiring soon.</p>
-                  </div>
-                </div>
-              )
-            ) : (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 text-center text-muted-foreground">
-                <div className="rounded-full bg-emerald-100 p-3 dark:bg-emerald-900/20">
-                  <Utensils className="h-6 w-6 text-emerald-500" />
-                </div>
-                <p className="text-sm">Connect Supabase to enable tracking</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <AmcWatchlist 
+          items={amcWatchList} 
+          trackedCount={trackedAmc} 
+          overdueCount={overdueAmc} 
+          hasSupabase={hasSupabaseEnv} 
+        />
+        <FoodExpiryTracker 
+          items={foodExpiryList} 
+          trackedCount={foodExpiryTracked} 
+          overdueCount={foodExpiryOverdue} 
+          hasSupabase={hasSupabaseEnv} 
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3 min-w-0">

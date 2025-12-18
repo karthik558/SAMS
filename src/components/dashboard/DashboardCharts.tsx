@@ -293,6 +293,17 @@ export function DashboardCharts() {
             </Badge>
           </div>
           <div className="relative h-[240px] sm:h-[260px] md:h-[300px]">
+            {/* Center total */}
+            {hasData && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="text-3xl font-bold tracking-tighter text-foreground">
+                    {chartAssetsByType.reduce((sum, it) => sum + (it.value || 0), 0)}
+                  </div>
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</div>
+                </div>
+              </div>
+            )}
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -320,17 +331,6 @@ export function DashboardCharts() {
                 <Tooltip content={<CustomTooltip formatter={(value: any, name: any) => [value, name]} />} />
               </PieChart>
             </ResponsiveContainer>
-            {/* Center total */}
-            {hasData && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-3xl font-bold tracking-tighter text-foreground">
-                    {chartAssetsByType.reduce((sum, it) => sum + (it.value || 0), 0)}
-                  </div>
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</div>
-                </div>
-              </div>
-            )}
           </div>
           {/* Legend */}
           <div className="grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
