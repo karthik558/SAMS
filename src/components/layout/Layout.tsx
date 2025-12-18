@@ -229,7 +229,11 @@ export function Layout({ children }: LayoutProps) {
         ) : (
           <Header onMenuClick={() => setSidebarOpen(true)} />
         )}
-        <main className="flex-1 overflow-auto overscroll-contain p-4 md:p-6 bg-muted/30">
+        <main className={cn(
+          "flex-1 overflow-auto overscroll-contain bg-muted/30",
+          "p-4 md:p-6",
+          isMobile && "pb-32"
+        )}>
           {children}
         </main>
         {/* Mobile bottom tab bar */}
