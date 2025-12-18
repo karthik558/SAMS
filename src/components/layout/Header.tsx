@@ -421,7 +421,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const userMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={cn("rounded-full p-0", iconBase)}>
+        <Button variant="ghost" className={cn("rounded-full p-0 overflow-visible", iconBase)}>
           {decoratedTriggerAvatar}
         </Button>
       </DropdownMenuTrigger>
