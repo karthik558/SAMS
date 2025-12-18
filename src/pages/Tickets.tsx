@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type React from "react";
 import { isDemoMode } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 import { createTicket, listTickets, updateTicket, listTicketEvents, listAssigneesForProperty, type Ticket } from "@/services/tickets";
 import { listUsers, type AppUser } from "@/services/users";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Ticket as TicketIcon, Mail } from "lucide-react";
+import { Ticket as TicketIcon, Mail, ShieldCheck } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import MetricCard from "@/components/ui/metric-card";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import DateRangePicker, { type DateRange } from "@/components/ui/date-range-picker";
@@ -1083,12 +1091,10 @@ export default function Tickets() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
               <CardTitle>Tickets</CardTitle>
-        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)}>
-                <TabsList>
-          <TabsTrigger value="received" aria-label="Received tickets">Received</TabsTrigger>
-          <TabsTrigger value="raised" aria-label="Raised tickets">Raised</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)}>
+                <ToggleGroupItem value="received" aria-label="Received tickets">Received</ToggleGroupItem>
+                <ToggleGroupItem value="raised" aria-label="Raised tickets">Raised</ToggleGroupItem>
+              </ToggleGroup>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <DateRangePicker value={range} onChange={setRange} />
@@ -1113,31 +1119,34 @@ export default function Tickets() {
             <PageSkeleton />
           ) : layout === 'list' ? (
             filteredItems.map(t => (
-              <div key={t.id} id={`ticket-${t.id}`} className="border rounded p-4 bg-card">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="font-medium flex items-center gap-2">
-                      <span>{t.id}</span>
-                      <span className="text-foreground/80">•</span>
-                      <span>{t.title}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded border px-1.5 py-0.5">To: {t.targetRole}</span>
-                      <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${statusColor(t.status)}`}>Status: {t.status}</span>
-                      <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${priorityColor(t.priority || 'medium')}`}>Priority: {t.priority || 'medium'}</span>
+              <div key={t.id} id={`ticket-${t.id}`} className="group relative rounded-xl border border-border/60 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{t.id}</span>
+                      <span className="font-semibold text-base tracking-tight">{t.title}</span>
                       {slaBadge(t)}
-                      <span className="inline-flex items-center gap-2 rounded border px-1.5 py-0.5">
-                        <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
-                        <span>Assignee: {assigneeLabel(t)}</span>
-                      </span>
                     </div>
-                    <div className="text-xs text-muted-foreground">Created by: {t.createdBy} • {fmt(t.createdAt)}</div>
-                    <div className="text-sm text-foreground mt-2">
-                      <div className={`whitespace-pre-wrap break-words ${descExpanded[t.id] ? '' : 'line-clamp-3'}`}>{t.description}</div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Badge variant="outline" className="font-normal bg-background/50">To: {t.targetRole}</Badge>
+                      <Badge variant="outline" className={cn("font-normal bg-background/50", statusColor(t.status))}>
+                        {t.status.replace('_', ' ')}
+                      </Badge>
+                      <Badge variant="outline" className={cn("font-normal bg-background/50", priorityColor(t.priority || 'medium'))}>
+                        {t.priority || 'medium'}
+                      </Badge>
+                      <div className="flex items-center gap-1.5 ml-1 px-2 py-0.5 rounded-full bg-muted/30 border border-border/40">
+                        <Avatar className="h-4 w-4"><AvatarFallback className="text-[9px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
+                        <span>{assigneeLabel(t)}</span>
+                      </div>
+                      <span className="ml-auto sm:ml-0">Created by {t.createdBy} • {fmt(t.createdAt)}</span>
+                    </div>
+                    <div className="text-sm text-foreground/90 mt-3 pl-1 border-l-2 border-border/60">
+                      <div className={`whitespace-pre-wrap break-words ${descExpanded[t.id] ? '' : 'line-clamp-2'}`}>{t.description}</div>
                       {((t.description || '').length > 160 || (t.description || '').split('\n').length > 3) && (
                         <button
                           type="button"
-                          className="mt-1 text-xs text-primary hover:underline"
+                          className="mt-1 text-xs font-medium text-primary hover:underline"
                           aria-expanded={!!descExpanded[t.id]}
                           onClick={() => setDescExpanded(s => ({ ...s, [t.id]: !s[t.id] }))}
                         >
@@ -1146,49 +1155,71 @@ export default function Tickets() {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+                  <div className="flex flex-col items-end gap-2 shrink-0">
                     <div className="flex gap-2">
                       {t.status !== 'closed' && canChangeStatus(t) && (
                         <>
-                          <Button aria-label={`Mark ticket ${t.id} open`} size="sm" variant={t.status==='open' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'open')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'Open'}</Button>
-                          <Button aria-label={`Mark ticket ${t.id} in progress`} size="sm" variant={t.status==='in_progress' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'in_progress')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'In Progress'}</Button>
-                          <Button aria-label={`Mark ticket ${t.id} resolved`} size="sm" variant={t.status==='resolved' ? 'default' : 'outline'} onClick={() => setStatus(t.id, 'resolved')} disabled={!!updatingStatus[t.id]}>{updatingStatus[t.id] ? '…' : 'Resolved'}</Button>
-                          <Button aria-label={`Close ticket ${t.id}`} size="sm" variant="outline" onClick={() => openCloseDialog(t.id)} disabled={!!updatingStatus[t.id]}>Closed</Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" disabled={!!updatingStatus[t.id]}>
+                                {updatingStatus[t.id] ? 'Updating…' : 'Update Status'}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setStatus(t.id, 'open')} disabled={t.status === 'open'}>Mark Open</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setStatus(t.id, 'in_progress')} disabled={t.status === 'in_progress'}>Mark In Progress</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setStatus(t.id, 'resolved')} disabled={t.status === 'resolved'}>Mark Resolved</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openCloseDialog(t.id)} className="text-destructive focus:text-destructive">Close Ticket</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </>
                       )}
                       {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
                         <Button size="sm" variant="outline" onClick={() => assignToMe(t.id)}>Assign to me</Button>
                       )}
-                      <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>Log</Button>
+                      <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>
+                        {expanded[t.id] ? 'Hide Log' : 'View Log'}
+                      </Button>
                     </div>
                   </div>
                 </div>
                 {expanded[t.id] && (
-                  <div className="mt-3 border-t pt-3 space-y-3">
-                    <div className="text-xs space-y-1">
-                      {(events[t.id] || []).map(e => (
-                        <div key={e.id} className="flex items-start gap-2">
-                          <span className="text-muted-foreground w-52 shrink-0">{fmt(e.createdAt)} • {e.author}</span>
-                          <span>{e.eventType}: {e.message}</span>
-                        </div>
-                      ))}
-                      {!events[t.id]?.length && <div className="text-muted-foreground">No events yet.</div>}
+                  <div className="mt-4 border-t border-border/60 pt-4 space-y-4 bg-muted/10 -mx-4 px-4 pb-2">
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Activity Log</div>
+                      <div className="space-y-2 pl-2 border-l border-border/60">
+                        {(events[t.id] || []).map(e => (
+                          <div key={e.id} className="text-xs flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <span className="text-muted-foreground min-w-[140px]">{fmt(e.createdAt)}</span>
+                            <span className="font-medium text-foreground/80">{e.author}</span>
+                            <span className="text-muted-foreground hidden sm:inline">•</span>
+                            <span><span className="font-medium">{e.eventType}:</span> {e.message}</span>
+                          </div>
+                        ))}
+                        {!events[t.id]?.length && <div className="text-xs text-muted-foreground italic">No events recorded.</div>}
+                      </div>
                     </div>
-                    <div className="text-xs space-y-2">
-                      <div className="font-medium">Comments</div>
-                      <div className="space-y-1">
+                    
+                    <div className="space-y-3">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Comments</div>
+                      <div className="space-y-3">
                         {(comments[t.id]||[]).map(c => {
                           const expanded = !!expandedComment[c.id];
                           const isLong = (c.message?.length || 0) > 160 || (c.message?.split('\n').length || 0) > 3;
                           return (
-                            <div key={c.id} className="flex items-start gap-2">
-                              <span className="text-muted-foreground w-52 shrink-0">{fmt(c.createdAt)} • {c.author}</span>
-                              <div className="flex-1">
-                                <div className={`text-sm whitespace-pre-wrap break-words ${expanded ? '' : 'line-clamp-3'}`}>{c.message}</div>
+                            <div key={c.id} className="flex gap-3 bg-background p-3 rounded-lg border border-border/50">
+                              <Avatar className="h-6 w-6 mt-0.5"><AvatarFallback className="text-[10px]">{initials(c.author)}</AvatarFallback></Avatar>
+                              <div className="flex-1 space-y-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium">{c.author}</span>
+                                  <span className="text-[10px] text-muted-foreground">{fmt(c.createdAt)}</span>
+                                </div>
+                                <div className={`text-sm text-foreground/90 whitespace-pre-wrap break-words ${expanded ? '' : 'line-clamp-3'}`}>{c.message}</div>
                                 {isLong && (
                                   <button
                                     type="button"
-                                    className="mt-1 text-xs text-primary hover:underline"
+                                    className="text-xs text-primary hover:underline"
                                     aria-expanded={expanded}
                                     onClick={() => setExpandedComment(s => ({ ...s, [c.id]: !s[c.id] }))}
                                   >
@@ -1200,74 +1231,80 @@ export default function Tickets() {
                           );
                         })}
                         {t.status !== 'closed' ? (
-                          <div className="flex items-center gap-2">
-                            <Input aria-label={`Add comment to ticket ${t.id}`} placeholder="Add comment" value={commentText[t.id]||''} onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} />
-                            <Button aria-label={`Post comment on ticket ${t.id}`} size="sm" onClick={() => addComment(t.id)} disabled={posting[t.id] || !(commentText[t.id]||'').trim()}>{posting[t.id] ? 'Posting…' : 'Post'}</Button>
+                          <div className="flex gap-2 mt-2">
+                            <Input 
+                              className="bg-background"
+                              aria-label={`Add comment to ticket ${t.id}`} 
+                              placeholder="Write a comment..." 
+                              value={commentText[t.id]||''} 
+                              onChange={(e)=> setCommentText(s=>({ ...s, [t.id]: e.target.value }))} 
+                              onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addComment(t.id); } }}
+                            />
+                            <Button aria-label={`Post comment on ticket ${t.id}`} size="sm" onClick={() => addComment(t.id)} disabled={posting[t.id] || !(commentText[t.id]||'').trim()}>
+                              {posting[t.id] ? 'Posting…' : 'Post'}
+                            </Button>
                           </div>
                         ) : (
-                          <div className="text-muted-foreground">Ticket is closed. Comments are disabled.</div>
+                          <div className="flex items-center justify-center p-2 rounded bg-muted/30 text-xs text-muted-foreground border border-dashed border-border">
+                            <span className="flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" /> Ticket is closed. Comments are disabled.</span>
+                          </div>
                         )}
                       </div>
                     </div>
-                    
                   </div>
                 )}
               </div>
             ))
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 h-full items-start">
               {columns.map(col => (
-                <div key={col.key} className="rounded border bg-background">
-                  <div className="px-3 py-2 border-b bg-muted/50 text-sm font-medium flex items-center justify-between">
-                    <span>{col.label}</span>
-                    <Badge variant="secondary">{grouped[col.key].length}</Badge>
+                <div key={col.key} className="rounded-xl border bg-muted/30 flex flex-col">
+                  <div className="px-3 py-3 border-b bg-background/50 text-sm font-medium flex items-center justify-between rounded-t-xl backdrop-blur-sm">
+                    <span className="flex items-center gap-2">
+                      <span className={cn("w-2 h-2 rounded-full", statusColor(col.key as any))} />
+                      {col.label}
+                    </span>
+                    <Badge variant="secondary" className="bg-background/80">{grouped[col.key].length}</Badge>
                   </div>
                   <div
-                    className="p-2 min-h-[200px] space-y-2"
+                    className="p-2 flex-1 space-y-2 min-h-[150px]"
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => onDropTo(e, col.key)}
                   >
                     {grouped[col.key].map(t => (
-                      <div
+                      <Card
                         key={t.id}
                         id={`ticket-${t.id}`}
-                        className="rounded border bg-card p-3 shadow-sm cursor-grab"
+                        className="cursor-grab hover:shadow-md transition-all active:cursor-grabbing"
                         draggable={t.status !== 'closed' && canChangeStatus(t)}
                         onDragStart={(e) => onDragStart(e, t.id)}
                       >
-                        <div className="text-xs text-muted-foreground mb-1 flex items-center justify-between">
-                          <span>{t.id}</span>
-                          <span className="inline-flex items-center gap-1">
-                            <Badge variant="outline">{t.priority || 'medium'}</Badge>
-                          </span>
-                        </div>
-                        <div className="font-medium text-sm">{t.title}</div>
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <span className="inline-flex items-center gap-2 text-xs">
-                            <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
-                            <span className="truncate max-w-[140px]">{assigneeLabel(t)}</span>
-                          </span>
-                          <span className="text-xs">{slaBadge(t)}</span>
-                        </div>
-                        <div className="mt-2 flex items-center gap-2">
-                          {t.status !== 'closed' && !canChangeStatus(t) && canAssign && (
-                            <Button size="sm" variant="outline" onClick={() => assignToMe(t.id)}>Assign to me</Button>
-                          )}
-                          <Button size="sm" variant="ghost" onClick={() => toggleEvents(t.id)}>Log</Button>
-                        </div>
-                        {expanded[t.id] && (
-                          <div className="mt-2 border-t pt-2 text-[11px] space-y-1">
-                            {(events[t.id] || []).map(e => (
-                              <div key={e.id} className="flex items-start gap-2">
-                                <span className="text-muted-foreground w-40 shrink-0">{fmt(e.createdAt)} • {e.author}</span>
-                                <span>{e.eventType}: {e.message}</span>
-                              </div>
-                            ))}
-                            {!events[t.id]?.length && <div className="text-muted-foreground">No events yet.</div>}
+                        <CardContent className="p-3 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                             <span className="font-mono text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{t.id}</span>
+                             <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 h-5 font-normal", priorityColor(t.priority || 'medium'))}>{t.priority || 'medium'}</Badge>
                           </div>
-                        )}
-                      </div>
+                          <div className="font-medium text-sm leading-snug line-clamp-3">{t.title}</div>
+                          
+                          <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 mt-2">
+                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <Avatar className="h-4 w-4"><AvatarFallback className="text-[8px]">{initials(assigneeLabel(t))}</AvatarFallback></Avatar>
+                                <span className="truncate max-w-[80px]">{assigneeLabel(t)}</span>
+                             </div>
+                             <div className="scale-90 origin-right">{slaBadge(t)}</div>
+                          </div>
+                          
+                          {(t.status !== 'closed' && !canChangeStatus(t) && canAssign) && (
+                             <Button size="sm" variant="outline" className="w-full h-7 text-xs mt-1" onClick={() => assignToMe(t.id)}>Assign to me</Button>
+                          )}
+                        </CardContent>
+                      </Card>
                     ))}
+                    {grouped[col.key].length === 0 && (
+                      <div className="h-24 flex items-center justify-center text-xs text-muted-foreground border-2 border-dashed border-border/40 rounded-lg">
+                        No tickets
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
