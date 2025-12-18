@@ -884,8 +884,52 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="p-4">
-          {!collapsed && (
+        <div className={cn("p-4", collapsed ? "flex flex-col items-center gap-4" : "")}>
+          {collapsed ? (
+            <>
+              <Link to="/status" className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-accent/30 border border-sidebar-border hover:bg-sidebar-accent transition-colors" title={`System ${overallStatus}`}>
+                <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", 
+                  overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
+                  overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
+                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                )} />
+              </Link>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="cursor-pointer">
+                    {(role || '').toLowerCase() === 'admin' ? (
+                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+                        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
+                          <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
+                            <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+                              <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                            </div>
+                          </span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                        <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                      </div>
+                    )}
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="right" align="end" className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl">
+                  <div className="p-1">
+                    <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive">
+                      <LogOut className="h-3.5 w-3.5" />
+                      <span>Sign out</span>
+                    </DropdownMenuItem>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground">
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+            </>
+          ) : (
             <>
             <div className="mb-3">
               <Link to="/status" className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
