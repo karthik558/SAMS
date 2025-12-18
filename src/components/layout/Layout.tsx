@@ -39,6 +39,30 @@ export function Layout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const redirectedRef = useRef(false);
+  
+  // Scroll behavior for header
+  const mainRef = useRef<HTMLElement>(null);
+  const lastScrollY = useRef(0);
+  const [headerVisible, setHeaderVisible] = useState(true);
+
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main) return;
+
+    const handleScroll = () => {
+      const currentScrollY = main.scrollTop;
+      // Threshold of 10px difference to avoid jitter
+      if (currentScrollY > lastScrollY.current + 10 && currentScrollY > 50) {
+        setHeaderVisible(false);
+      } else if (currentScrollY < lastScrollY.current - 10) {
+        setHeaderVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+
+    main.addEventListener('scroll', handleScroll, { passive: true });
+    return () => main.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Load navigation layout preference & reactive updates when settings page toggles it
   useEffect(() => {
@@ -224,12 +248,14 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        {effectiveTopNavMode ? (
-          <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
-        ) : (
-          <Header onMenuClick={() => setSidebarOpen(true)} />
-        )}
-        <main className={cn(
+        <div className={cn("transition-all duration-300 ease-in-out z-20", !headerVisible && "-mt-14 md:-mt-16")}>
+          {effectiveTopNavMode ? (
+            <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
+          ) : (
+            <Header onMenuClick={() => setSidebarOpen(true)} />
+          )}
+        </div>
+        <main ref={mainRef} className={cn(
           "flex-1 overflow-auto overscroll-contain bg-muted/30",
           "p-4 md:p-6",
           isMobile && "pb-32"
