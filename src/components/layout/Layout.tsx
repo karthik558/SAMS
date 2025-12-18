@@ -244,11 +244,11 @@ export function Layout({ children }: LayoutProps) {
                     key={item.path}
                     type="button"
                     className={cn(
-                      "group relative flex h-12 w-12 items-center justify-center rounded-full transition-all duration-300",
+                      "group relative flex items-center justify-center rounded-full transition-all duration-300",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       active 
-                        ? "bg-primary text-primary-foreground shadow-lg scale-110" 
-                        : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                        ? "h-10 w-16 bg-primary text-primary-foreground shadow-lg" 
+                        : "h-12 w-12 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                     )}
                     onClick={() => navigate(item.path)}
                     aria-label={item.label}
