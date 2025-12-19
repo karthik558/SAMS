@@ -113,13 +113,26 @@ export default function Scan() {
     if (!streamRef.current) return;
     const track = streamRef.current.getVideoTracks()[0];
     try {
+      // Check if track is active
+      if (track.readyState === 'ended') {
+        toast.error("Camera stream ended");
+        return;
+      }
+
+      // Try to apply the constraint
       await track.applyConstraints({
         advanced: [{ torch: !torch }] as any
       });
       setTorch(!torch);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Torch failed", e);
-      toast.error("Flashlight not available");
+      if (e.name === 'OverconstrainedError') {
+        toast.error("Flashlight not supported by this camera");
+      } else if (e.name === 'NotAllowedError') {
+        toast.error("Flashlight permission denied");
+      } else {
+        toast.error("Could not toggle flashlight");
+      }
     }
   };
 
