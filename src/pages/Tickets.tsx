@@ -1093,9 +1093,9 @@ export default function Tickets() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
               <CardTitle>Tickets</CardTitle>
-              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)}>
-                <ToggleGroupItem value="received" aria-label="Received tickets">Received</ToggleGroupItem>
-                <ToggleGroupItem value="raised" aria-label="Raised tickets">Raised</ToggleGroupItem>
+              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)} className="bg-muted/50 p-1 rounded-full border border-border/50">
+                <ToggleGroupItem value="received" aria-label="Received tickets" className="rounded-full px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Received</ToggleGroupItem>
+                <ToggleGroupItem value="raised" aria-label="Raised tickets" className="rounded-full px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Raised</ToggleGroupItem>
               </ToggleGroup>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -1109,9 +1109,9 @@ export default function Tickets() {
               >
                 {showClosedOnly ? 'Closed only' : 'Show closed'}
               </Button>
-              <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)}>
-                <ToggleGroupItem value="list" aria-label="List view">List</ToggleGroupItem>
-                <ToggleGroupItem value="board" aria-label="Board view">Board</ToggleGroupItem>
+              <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)} className="bg-muted/50 p-1 rounded-full border border-border/50">
+                <ToggleGroupItem value="list" aria-label="List view" className="rounded-full px-3 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">List</ToggleGroupItem>
+                <ToggleGroupItem value="board" aria-label="Board view" className="rounded-full px-3 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Board</ToggleGroupItem>
               </ToggleGroup>
             </div>
           </div>
