@@ -609,6 +609,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               <div className="flex items-center gap-3">
                 <Link
                   to={homeHref}
+                  onClick={onNavigate}
                   className="inline-flex items-center justify-center"
                   aria-label="Go to dashboard"
                 >
@@ -690,7 +691,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </div>
         <div className="border-t border-sidebar-border px-4 py-5">
           <div className="mb-3">
-            <Link to="/status" className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+            <Link to="/status" onClick={onNavigate} className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
               <div className={cn("h-2 w-2 rounded-full animate-pulse", 
                 overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
                 overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
