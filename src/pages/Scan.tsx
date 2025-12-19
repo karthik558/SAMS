@@ -47,9 +47,19 @@ export default function Scan() {
       streamRef.current = stream;
       
       // Check for torch capability
-      const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities() as any;
-      setHasTorch(!!capabilities.torch);
+      try {
+        const track = stream.getVideoTracks()[0];
+        if (track.getCapabilities) {
+          const capabilities = track.getCapabilities() as any;
+          setHasTorch(!!capabilities.torch);
+        } else {
+          // Fallback: assume it might work if we can't check
+          setHasTorch(true);
+        }
+      } catch (e) {
+        console.warn("Torch capability check failed", e);
+        setHasTorch(true); // Allow trying anyway
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -290,7 +300,7 @@ export default function Scan() {
                 torch && "bg-yellow-500/20 border-yellow-500/50 text-yellow-400"
               )}
               onClick={toggleTorch}
-              disabled={!active || !hasTorch}
+              disabled={!active}
             >
               {torch ? <ZapOff className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
             </Button>
