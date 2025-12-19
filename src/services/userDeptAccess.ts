@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { listUserPermissions } from "./permissions";
 
 const TABLE = "user_department_access";
 const LS_KEY = "user_dept_access"; // { [userId: string]: string[] of department names }
@@ -101,6 +102,16 @@ export async function getAccessibleDepartmentsForCurrentUser(): Promise<Set<stri
   try {
     const uid = localStorage.getItem(CURRENT_USER_KEY);
     if (!uid) return new Set();
+
+    // Check for "all_departments" permission
+    if (hasSupabaseEnv) {
+      const perms = await listUserPermissions(uid);
+      if (perms.all_departments?.v || perms.all_departments?.e) {
+        const { data } = await supabase.from('departments').select('name').eq('is_active', true);
+        if (data) return new Set(data.map(d => d.name));
+      }
+    }
+
     const depts = await listUserDepartmentAccess(uid);
     return new Set(depts.map(d => d.toString()));
   } catch {

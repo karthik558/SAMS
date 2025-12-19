@@ -1,7 +1,7 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
-export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings' | 'audit';
+export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings' | 'audit' | 'all_properties' | 'all_departments';
 
 export type UserPermission = {
   id?: string;
@@ -168,6 +168,8 @@ export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e:
     reports: { v: false, e: false },
     settings: { v: false, e: false },
     audit: { v: false, e: false },
+    all_properties: { v: false, e: false },
+    all_departments: { v: false, e: false },
   };
   if (role === 'admin') {
     (Object.keys(base) as Array<keyof typeof base>).forEach((k) => {

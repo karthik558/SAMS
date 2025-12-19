@@ -1,4 +1,5 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { listUserPermissions } from "./permissions";
 
 const TABLE = "user_property_access";
 const LS_KEY = "user_access"; // { [userId: string]: string[] }
@@ -105,6 +106,16 @@ export async function getAccessiblePropertyIdsForCurrentUser(): Promise<Set<stri
   try {
     const uid = localStorage.getItem(CURRENT_USER_KEY);
     if (!uid) return new Set();
+
+    // Check for "all_properties" permission
+    if (hasSupabaseEnv) {
+      const perms = await listUserPermissions(uid);
+      if (perms.all_properties?.v || perms.all_properties?.e) {
+        const { data } = await supabase.from('properties').select('id').eq('status', 'active');
+        if (data) return new Set(data.map(d => d.id));
+      }
+    }
+
     const props = await listUserPropertyAccess(uid);
     return new Set(props);
   } catch {
