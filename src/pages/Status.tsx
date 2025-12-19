@@ -25,6 +25,31 @@ const MOCK_LOGS = [
 export default function Status() {
   const { services, checking, checkServices } = useSystemStatus();
 
+  const ChartTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+          {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2 w-2 rounded-full" 
+                style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+              />
+              <span className="font-medium text-foreground">
+                {entry.value}ms
+              </span>
+              <span className="text-muted-foreground">
+                Latency
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   const getStatusColor = (status: ServiceStatus) => {
     switch (status) {
       case 'operational': return 'text-primary';
@@ -175,7 +200,7 @@ export default function Status() {
         {/* Charts & Logs */}
         <div className="md:col-span-1 lg:col-span-3 space-y-6">
           {/* Latency Chart */}
-          <Card className="border-border/50 shadow-sm rounded-3xl">
+          <Card className="border-border/50 shadow-sm rounded-2xl">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -192,13 +217,10 @@ export default function Status() {
                         <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
                     <XAxis dataKey="time" hide />
                     <YAxis hide domain={[0, 'auto']} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-                      itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                    />
+                    <Tooltip content={<ChartTooltip />} />
                     <Area 
                       type="monotone" 
                       dataKey="latency" 

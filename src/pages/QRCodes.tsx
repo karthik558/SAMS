@@ -661,7 +661,7 @@ export default function QRCodes() {
     ];
   }, [filteredQRCodes]);
 
-  const ChartTooltip = ({ active, payload, label }: any) => {
+  const ChartTooltip = ({ active, payload, label, formatter }: any) => {
     if (active && payload && payload.length) {
       return (
         <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
@@ -673,10 +673,10 @@ export default function QRCodes() {
                 style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
               />
               <span className="font-medium text-foreground">
-                {entry.value}
+                {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
               </span>
               <span className="text-muted-foreground">
-                {entry.name}
+                {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
               </span>
             </div>
           ))}
@@ -864,7 +864,7 @@ export default function QRCodes() {
           ))}
         </div>
 
-        <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
           <CardHeader className="space-y-1">
             <CardTitle>QR Code Insights</CardTitle>
             <CardDescription>Recent trends and status breakdowns</CardDescription>
@@ -876,7 +876,7 @@ export default function QRCodes() {
                 <div className="h-48 sm:h-56">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={qrMonthlyTrend} margin={{ top: 12, right: 16, left: 8, bottom: 12 }}>
-                      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 4" strokeOpacity={0.35} vertical={false} horizontal={true} />
+                      <CartesianGrid stroke="hsl(var(--border) / 0.5)" strokeDasharray="3 3" vertical={false} horizontal={true} />
                       <XAxis 
                         dataKey="label" 
                         tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} 
@@ -890,7 +890,7 @@ export default function QRCodes() {
                         axisLine={false} 
                         tickLine={false} 
                       />
-                      <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                      <RechartsTooltip content={<ChartTooltip formatter={(v: any) => [v, 'Generated']} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
                       <Bar dataKey="generated" radius={[4, 4, 0, 0]} fill="hsl(221, 83%, 53%)" barSize={32}>
                         <LabelList dataKey="generated" position="top" className="text-[10px] font-medium" fill="hsl(var(--foreground))" offset={8} />
                       </Bar>
@@ -906,10 +906,12 @@ export default function QRCodes() {
                       <Pie 
                         data={qrStatusChart} 
                         dataKey="value" 
+                        cx="50%"
+                        cy="50%"
                         innerRadius={55} 
                         outerRadius={80} 
                         paddingAngle={4}
-                        cornerRadius={4}
+                        cornerRadius={6}
                         stroke="none"
                       >
                         {qrStatusChart.map((entry, index) => (
@@ -922,11 +924,11 @@ export default function QRCodes() {
                         ))}
                         <LabelList dataKey="value" position="outside" className="text-[10px] font-medium" fill="hsl(var(--foreground))" />
                       </Pie>
-                      <RechartsTooltip content={<ChartTooltip />} />
+                      <RechartsTooltip content={<ChartTooltip formatter={(value: any, name: any) => [value, name]} />} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
-                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap gap-2 text-xs text-muted-foreground justify-center">
                   {qrStatusChart.map((entry) => (
                     <span key={entry.key} className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-1">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.fill }} />

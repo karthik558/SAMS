@@ -467,7 +467,7 @@ export default function Properties() {
   );
 
   // Themed tooltip for charts to ensure readability in dark mode
-  function ChartTooltip({ active, payload, label }: any) {
+  function ChartTooltip({ active, payload, label, formatter }: any) {
     if (active && payload && payload.length) {
       return (
         <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
@@ -479,10 +479,10 @@ export default function Properties() {
                 style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
               />
               <span className="font-medium text-foreground">
-                {entry.value}
+                {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
               </span>
               <span className="text-muted-foreground">
-                {entry.name}
+                {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
               </span>
             </div>
           ))}
@@ -671,37 +671,37 @@ export default function Properties() {
 
         {/* Property Types & Assets by Type (compact two-chart grid) */}
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
             <CardHeader className="space-y-1">
               <CardTitle>Property Types Distribution</CardTitle>
               <CardDescription>See how your portfolio is spread across location types</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <RechartsTooltip content={<ChartTooltip />} />
-                      <Pie
-                        dataKey="value"
-                        data={typeCounts}
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={2}
-                        startAngle={90}
-                        endAngle={-270}
-                        stroke="hsl(var(--background))"
-                        strokeWidth={2}
-                      >
-                        {typeCounts.map((d) => (
-                          <Cell key={d.name} fill={d.fill} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <RechartsTooltip content={<ChartTooltip formatter={(value: any, name: any) => [value, name]} />} />
+                    <Pie
+                      dataKey="value"
+                      data={typeCounts}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={65}
+                      outerRadius={95}
+                      paddingAngle={4}
+                      cornerRadius={6}
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="none"
+                    >
+                      {typeCounts.map((d) => (
+                        <Cell key={d.name} fill={d.fill} className="stroke-background hover:opacity-80 transition-opacity" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 justify-center">
                 {typeCounts.map((t) => (
                   <span
                     key={t.name}
@@ -716,39 +716,54 @@ export default function Properties() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border border-border/70 bg-card/95 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 bg-card shadow-sm min-w-0">
             <CardHeader className="space-y-1">
               <CardTitle>Assets by Property Type</CardTitle>
               <CardDescription>Compare asset volume across each property category</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
-                <div className="h-[220px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={assetsByTypeSorted}
-                      layout="vertical"
-                      margin={{ top: 0, right: 0, left: 0, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" strokeOpacity={0.5} />
-                      <XAxis type="number" hide />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        width={100}
-                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                        axisLine={false}
-                        tickLine={false}
+              <div className="h-[220px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={assetsByTypeSorted}
+                    layout="vertical"
+                    margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
+                    barSize={24}
+                  >
+                    <defs>
+                      <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="hsl(191, 91%, 46%)" stopOpacity={0.6} />
+                        <stop offset="100%" stopColor="hsl(191, 91%, 46%)" stopOpacity={1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border) / 0.5)" />
+                    <XAxis 
+                      type="number" 
+                      hide 
+                      stroke="hsl(var(--muted-foreground))"
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      type="category"
+                      dataKey="name"
+                      width={100}
+                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <RechartsTooltip content={<ChartTooltip formatter={(v: any) => [v, 'Assets']} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
+                    <Bar dataKey="assets" fill="url(#barGradient)" radius={[0, 4, 4, 0]}>
+                      <LabelList 
+                        dataKey="assets" 
+                        position="right" 
+                        className="text-[10px] font-medium fill-foreground" 
+                        offset={8}
                       />
-                      <RechartsTooltip content={<ChartTooltip />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.2 }} />
-                      <Bar dataKey="assets" radius={[0, 4, 4, 0]} barSize={20}>
-                        {assetsByTypeSorted.map((d) => (
-                          <Cell key={d.name} fill={d.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>

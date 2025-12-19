@@ -11,8 +11,7 @@ import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert, Building2, User, CalendarClock, StopCircle, PlayCircle, Play } from "lucide-react";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, formatAuditSessionName, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { listAssets, getAssetById, type Asset } from "@/services/assets";
-import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, Legend } from "recharts";
 import { toast } from "sonner";
 import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
@@ -78,6 +77,31 @@ export default function Audit() {
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
   const [scanActive, setScanActive] = useState(false);
   const [scanComment, setScanComment] = useState("");
+
+  const ChartTooltip = ({ active, payload, label, formatter }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
+          {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
+          {payload.map((entry: any, index: number) => (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2 w-2 rounded-full" 
+                style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
+              />
+              <span className="font-medium text-foreground">
+                {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
+              </span>
+              <span className="text-muted-foreground">
+                {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
 
   const stopScan = () => {
     try { (readerRef.current as any)?.reset?.(); } catch {}
@@ -1522,27 +1546,21 @@ export default function Audit() {
                                   },
                                 ];
                                 return (
-                                  <ChartContainer
-                                    config={{
-                                      Verified: { color: "hsl(142, 71%, 45%)", label: "Verified" },
-                                      Missing: { color: "hsl(339, 90%, 51%)", label: "Missing" },
-                                      Damaged: { color: "hsl(31, 97%, 55%)", label: "Damaged" },
-                                    }}
-                                  >
+                                  <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
                                       <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
                                       <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                                      <ChartTooltip 
-                                        content={<ChartTooltipContent indicator="line" />} 
+                                      <Tooltip 
+                                        content={<ChartTooltip formatter={(v: any, n: any) => [v, n]} />} 
                                         cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }} 
                                       />
-                                      <Bar dataKey="Verified" radius={[4, 4, 0, 0]} fill="var(--color-Verified)" maxBarSize={80} />
-                                      <Bar dataKey="Missing" radius={[4, 4, 0, 0]} fill="var(--color-Missing)" maxBarSize={80} />
-                                      <Bar dataKey="Damaged" radius={[4, 4, 0, 0]} fill="var(--color-Damaged)" maxBarSize={80} />
-                                      <ChartLegend content={<ChartLegendContent />} />
+                                      <Bar dataKey="Verified" radius={[4, 4, 0, 0]} fill="hsl(142, 71%, 45%)" maxBarSize={80} />
+                                      <Bar dataKey="Missing" radius={[4, 4, 0, 0]} fill="hsl(339, 90%, 51%)" maxBarSize={80} />
+                                      <Bar dataKey="Damaged" radius={[4, 4, 0, 0]} fill="hsl(31, 97%, 55%)" maxBarSize={80} />
+                                      <Legend />
                                     </BarChart>
-                                  </ChartContainer>
+                                  </ResponsiveContainer>
                                 );
                               })()}
                             </div>
@@ -1565,15 +1583,9 @@ export default function Audit() {
                                   Damaged: d.damaged,
                                 }));
                                 return (
-                                  <ChartContainer
-                                    config={{
-                                      Verified: { color: "hsl(142, 71%, 45%)", label: "Verified" },
-                                      Missing: { color: "hsl(339, 90%, 51%)", label: "Missing" },
-                                      Damaged: { color: "hsl(31, 97%, 55%)", label: "Damaged" },
-                                    }}
-                                  >
+                                  <ResponsiveContainer width="100%" height="100%">
                                     <BarChart data={data} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.5} />
+                                      <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" />
                                       <XAxis 
                                         dataKey="name" 
                                         tickLine={false} 
@@ -1585,13 +1597,13 @@ export default function Audit() {
                                         dy={10}
                                       />
                                       <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                                      <ChartTooltip content={<ChartTooltipContent indicator="line" />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }} />
-                                      <Bar dataKey="Verified" stackId="a" fill="var(--color-Verified)" radius={[0, 0, 4, 4]} />
-                                      <Bar dataKey="Missing" stackId="a" fill="var(--color-Missing)" radius={[0, 0, 0, 0]} />
-                                      <Bar dataKey="Damaged" stackId="a" fill="var(--color-Damaged)" radius={[4, 4, 0, 0]} />
-                                      <ChartLegend content={<ChartLegendContent />} />
+                                      <Tooltip content={<ChartTooltip formatter={(v: any, n: any) => [v, n]} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.1 }} />
+                                      <Bar dataKey="Verified" stackId="a" fill="hsl(142, 71%, 45%)" radius={[0, 0, 4, 4]} />
+                                      <Bar dataKey="Missing" stackId="a" fill="hsl(339, 90%, 51%)" radius={[0, 0, 0, 0]} />
+                                      <Bar dataKey="Damaged" stackId="a" fill="hsl(31, 97%, 55%)" radius={[4, 4, 0, 0]} />
+                                      <Legend />
                                     </BarChart>
-                                  </ChartContainer>
+                                  </ResponsiveContainer>
                                 );
                               })()}
                             </div>

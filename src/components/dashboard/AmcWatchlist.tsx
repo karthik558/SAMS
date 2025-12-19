@@ -25,15 +25,25 @@ interface AmcWatchlistProps {
 
 const WATCHLIST_DISPLAY_LIMIT = 4;
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const ChartTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm text-xs">
-        <div className="font-medium text-foreground mb-1">{label}</div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Cumulative Expiries:</span>
-          <span className="font-bold text-foreground">{payload[0].value}</span>
-        </div>
+      <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm">
+        <div className="text-xs font-medium text-muted-foreground mb-1">{label}</div>
+        {payload.map((entry: any, index: number) => (
+          <div key={index} className="flex items-center gap-2 text-sm">
+            <div 
+              className="w-2 h-2 rounded-full" 
+              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }}
+            />
+            <span className="text-muted-foreground">
+              Cumulative Expiries:
+            </span>
+            <span className="font-medium text-foreground">
+              {entry.value}
+            </span>
+          </div>
+        ))}
       </div>
     );
   }
@@ -124,7 +134,7 @@ export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }:
                       axisLine={false}
                       allowDecimals={false}
                     />
-                    <Tooltip content={<CustomTooltip />} />
+                    <Tooltip content={<ChartTooltip />} />
                     <Area 
                       type="monotone" 
                       dataKey="value" 
