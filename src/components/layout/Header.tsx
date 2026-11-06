@@ -393,7 +393,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   const userMenu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className={cn("rounded-full p-0 overflow-visible", iconBase)}>
+        <Button variant="ghost" aria-label="Open account menu" className={cn("rounded-full p-0 overflow-visible", iconBase)}>
           {decoratedTriggerAvatar}
         </Button>
       </DropdownMenuTrigger>
@@ -473,6 +473,7 @@ export function Header({ onMenuClick }: HeaderProps) {
             </button>
             <button
               type="button"
+              aria-label="Search pages and actions"
               onClick={() => setPaletteOpen(true)}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-xs text-muted-foreground shadow-sm"
             >
@@ -520,7 +521,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Input
                 aria-label="Search"
                 placeholder="Search pages and actions…"
-                className="h-10 pl-10 pr-12 rounded-full border border-border/60 bg-muted/60 text-sm placeholder:text-muted-foreground/70 shadow-sm transition-colors hover:bg-muted/70 focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="h-10 pl-10 pr-12 rounded-lg border border-border/60 bg-muted/60 text-sm placeholder:text-muted-foreground/70 shadow-sm transition-colors hover:bg-muted/70 focus-visible:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                 readOnly
                 onFocus={() => setPaletteOpen(true)}
                 onClick={() => setPaletteOpen(true)}

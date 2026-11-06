@@ -852,11 +852,11 @@ export default function Users() {
   return (
     <div className="space-y-6 sm:space-y-8">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Users" }]} />
-      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm">
+      <div className="page-intro">
         <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">People & Access</h1>
+            <h1 className="heading-xl">People & Access</h1>
             <p className="mt-2 max-w-2xl text-muted-foreground">
               Curate roles, onboarding, and audit trails for everyone using SAMS
             </p>

@@ -343,7 +343,15 @@ export default function Login() {
         <div className="mx-auto w-full max-w-sm lg:w-96">
           <div className="mb-10">
             <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/5 p-3 shadow-sm ring-1 ring-inset ring-primary/10">
-              <img src="/sams_logo.png" alt="Logo" className="h-full w-full object-contain" />
+              <span
+                role="img"
+                aria-label="SAMS"
+                className="h-full w-full bg-primary"
+                style={{
+                  mask: 'url("/sams_logo.png") center / contain no-repeat',
+                  WebkitMask: 'url("/sams_logo.png") center / contain no-repeat',
+                }}
+              />
             </div>
             <h2 className="text-3xl font-bold tracking-tight text-foreground">Welcome back</h2>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -413,7 +421,7 @@ export default function Login() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="h-11 w-full text-base font-medium transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="h-11 w-full text-base font-medium transition-colors"
               >
                 {loading ? "Signing in..." : "Sign in"}
               </Button>

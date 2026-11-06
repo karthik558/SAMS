@@ -39,8 +39,8 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 225 25% 15%;
+    --background: 40 20% 97%;
+    --foreground: 220 20% 18%;
 
     --card: 0 0% 100%;
     --card-foreground: 225 25% 15%;
@@ -48,16 +48,18 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 225 25% 15%;
 
-  /* Brand: #cc7c5e (hsl ~ 16 52% 58%) */
-  --primary: 16 52% 58%;
+  /* Brand: #cc7c5e (hsl ~ 16.36 51.89% 58.43%) */
+  --primary: 16.36 51.89% 58.43%;
   --primary-foreground: 0 0% 100%;
-  --primary-hover: 16 52% 64%;
+  --primary-hover: 16 48% 36%;
+  --primary-action: 16 48% 43%;
+  --primary-action-foreground: 0 0% 100%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 15% 25%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 35 16% 94%;
+    --muted-foreground: 220 10% 35%;
 
   /* Accent uses a light tint of the brand for subtle backgrounds */
   --accent: 16 52% 94%;
@@ -72,27 +74,27 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
+    --border: 30 14% 81%;
+    --input: 35 14% 83%;
   /* Focus ring aligns with brand */
-  --ring: 16 52% 58%;
+  --ring: 16.36 51.89% 58.43%;
 
   --chart-created: 217 91% 60%;
   --chart-resolved: var(--success);
   --chart-backlog: var(--warning);
 
   /* Gradients updated to brand; second stop slightly lighter to simulate hover */
-  --gradient-primary: linear-gradient(135deg, hsl(16 52% 58%), hsl(16 52% 64%));
+  --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-hover)));
   --gradient-secondary: linear-gradient(135deg, hsl(210 40% 96%), hsl(210 40% 98%));
   --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     
-  --shadow-soft: 0 4px 16px -4px hsl(16 52% 58% / 0.1);
-  --shadow-medium: 0 8px 32px -8px hsl(16 52% 58% / 0.15);
-  --shadow-strong: 0 16px 64px -16px hsl(16 52% 58% / 0.2);
+  --shadow-soft: 0 2px 8px -3px hsl(220 20% 18% / 0.08);
+  --shadow-medium: 0 8px 28px -8px hsl(220 20% 18% / 0.12);
+  --shadow-strong: 0 16px 64px -16px hsl(16.36 51.89% 58.43% / 0.2);
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 16 52% 96%;
+    --sidebar-background: 16 45% 94%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
 
@@ -106,10 +108,12 @@ All colors MUST be HSL.
 
     --sidebar-border: 20 24% 88%;
 
-  --sidebar-ring: 16 52% 58%;
+  --sidebar-ring: 16.36 51.89% 58.43%;
   }
 
   .dark {
+    --primary-action: var(--primary);
+    --primary-action-foreground: var(--primary-foreground);
     /* Dark background: #262624 */
     --background: 60 3% 15%;
     --foreground: 210 40% 98%;
@@ -121,7 +125,7 @@ All colors MUST be HSL.
     --popover-foreground: 210 40% 98%;
 
     /* Keep brand accent for interactive elements in dark mode */
-    --primary: 16 52% 58%;
+    --primary: 16.36 51.89% 58.43%;
     --primary-foreground: 0 0% 100%;
   --primary-hover: 16 52% 62%;
 
@@ -142,18 +146,18 @@ All colors MUST be HSL.
   /* Stronger borders/inputs for clear separation */
   --border: 60 3% 25%;
   --input: 60 3% 22%;
-  --ring: 16 52% 58%;
+  --ring: 16.36 51.89% 58.43%;
   --chart-created: 217 91% 70%;
   --chart-resolved: var(--success);
   --chart-backlog: var(--warning);
   --sidebar-background: 60 3% 13%;
     --sidebar-foreground: 240 4.8% 95.9%;
-  --sidebar-primary: 16 52% 58%;
+  --sidebar-primary: 16.36 51.89% 58.43%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 60 3% 20%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
   --sidebar-border: 60 3% 20%;
-  --sidebar-ring: 16 52% 58%;
+  --sidebar-ring: 16.36 51.89% 58.43%;
   }
 }
 
@@ -163,7 +167,9 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
@@ -226,3 +232,50 @@ All colors MUST be HSL.
 
   /* Sticky header utility class */
   .sticky-header .app-header, .sticky-header header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(8px); background-color: hsl(var(--background) / 0.85); }
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  ::selection { background: hsl(var(--primary) / 0.18); }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  button, input, select, textarea { font: inherit; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  section[id] { scroll-margin-top: 6rem; }
+}
+
+@layer components {
+  .page-intro { @apply relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-soft md:p-7; }
+  .page-intro h1 + p { @apply mt-2 text-sm leading-6 text-muted-foreground; }
+  .heading-xl { @apply text-2xl font-semibold tracking-tight md:text-3xl; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-primary; }
+  .app-content { background-color: hsl(var(--background)); }
+  .app-content > * { width: 100%; max-width: 1600px; margin-inline: auto; }
+  .site-container { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-12; }
+  .site-heading { @apply text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl; text-wrap: balance; }
+  .site-copy { @apply text-base leading-7 text-muted-foreground; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer components {
+  .button-reveal-label {
+    max-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    opacity: 0;
+    transition: max-width 300ms, opacity 300ms, margin-left 300ms;
+  }
+  .button-reveal:hover .button-reveal-label,
+  .button-reveal:focus-visible .button-reveal-label {
+    max-width: 100px;
+    margin-left: 0.5rem;
+    opacity: 1;
+  }
+}

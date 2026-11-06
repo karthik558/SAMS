@@ -1092,10 +1092,10 @@ export default function Assets() {
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Assets" }]} />
         
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+        <div className="page-intro">
           <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl space-y-4">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+              <h1 className="heading-xl text-foreground">
                 Asset Management
               </h1>
               <p className="text-lg text-muted-foreground">
@@ -1108,9 +1108,9 @@ export default function Assets() {
                 visible={prefs.visibleCols}
                 onChange={prefs.setVisibleCols}
               />
-              <Button size="sm" onClick={() => setShowAddForm(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground transition-all" disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
-                <Plus className="h-4 w-4" />
-                Add Asset
+              <Button size="reveal" aria-label="Add Asset" onClick={() => setShowAddForm(true)} disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+                <Plus />
+                <span className="button-reveal-label">Add Asset</span>
               </Button>
             </div>
           </div>

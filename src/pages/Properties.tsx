@@ -498,9 +498,9 @@ export default function Properties() {
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Properties" }]} />
         
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+        <div className="page-intro">
           <div className="relative z-10 max-w-3xl space-y-4">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            <h1 className="heading-xl text-foreground">
               Property Management
             </h1>
             <p className="text-lg text-muted-foreground">

@@ -5,11 +5,11 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 relative overflow-hidden",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 relative overflow-hidden",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-lg hover:shadow-primary/25 hover:bg-[hsl(var(--primary-hover))]",
+        default: "bg-[hsl(var(--primary-action))] text-[hsl(var(--primary-action-foreground))] shadow-sm hover:bg-[hsl(var(--primary-hover))]",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
         outline:
@@ -24,6 +24,7 @@ const buttonVariants = cva(
         sm: "h-9 px-4",
         lg: "h-11 px-8",
         icon: "h-10 w-10",
+        reveal: "button-reveal h-12 w-12 gap-0 rounded-full p-0 transition-[width,background-color] duration-300 hover:w-36 focus-visible:w-36 [&_svg]:size-5",
       },
     },
     defaultVariants: {

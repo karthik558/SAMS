@@ -1,4 +1,4 @@
-import { ACCENT_COLORS, DARK_LEVELS } from './lib/theme-config';
+import { ACCENT_COLORS, DARK_LEVELS, applyAccentTheme } from './lib/theme-config';
 
 // Initialize theme class before React mounts (CSP-safe)
 try {
@@ -16,11 +16,11 @@ try {
   const storedAccent = localStorage.getItem('theme_accent') || 'orange';
   const accent = ACCENT_COLORS.find(c => c.id === storedAccent) || ACCENT_COLORS[0];
   
-  root.style.setProperty('--primary', accent.value);
+  applyAccentTheme(root, accent, isDark);
   // We can set other accent vars here if needed for the preloader
   
   // 3. Dark Level (Background)
-  let bgValue = '0 0% 100%';
+  let bgValue = '40 20% 97%';
   if (isDark) {
       const storedLevel = localStorage.getItem('theme_dark_level') || 'standard';
       const level = DARK_LEVELS.find(l => l.id === storedLevel) || DARK_LEVELS[0];
@@ -28,7 +28,7 @@ try {
       root.style.setProperty('--background', level.bg);
   } else {
       // Light mode default background
-      root.style.setProperty('--background', '0 0% 100%');
+      root.style.removeProperty('--background');
   }
 
   // Update theme-color meta tag to match background

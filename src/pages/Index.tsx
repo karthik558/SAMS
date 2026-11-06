@@ -1000,27 +1000,28 @@ const Index = () => {
                <Calendar className="h-4 w-4" />
                {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-5xl">
               {greeting}
             </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl">
+            <p className="text-sm leading-6 text-muted-foreground max-w-2xl">
               Here's what's happening with your assets today.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
               <Button 
                 onClick={() => handleQuickAction("Add Asset")} 
-                className="group flex h-12 w-12 items-center justify-center gap-0 rounded-full bg-primary text-primary-foreground transition-all duration-300 hover:w-36 overflow-hidden p-0"
+                size="reveal"
+                aria-label="Add Asset"
               >
-                <Plus className="h-8 w-8 transition-transform duration-300 group-hover:scale-110" />
-                <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-300 group-hover:max-w-[100px] group-hover:opacity-100 group-hover:ml-2 font-medium">
+                <Plus />
+                <span className="button-reveal-label">
                   Add Asset
                 </span>
               </Button>
           </div>
         </div>
         
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {heroHighlights.map((item) => (
             <MetricCard
               key={item.key}

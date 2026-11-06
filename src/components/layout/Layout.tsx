@@ -188,12 +188,13 @@ export function Layout({ children }: LayoutProps) {
     })();
   }, [pathname, navigate]);
 
+  const navPrefix = pathname === "/demo" || pathname.startsWith("/demo/") ? "/demo" : "";
   const mobileNavItems = [
-    { label: "Home", path: "/", icon: Home },
-    { label: "Assets", path: "/assets", icon: Package },
+    { label: "Home", path: navPrefix || "/", icon: Home },
+    { label: "Assets", path: `${navPrefix}/assets`, icon: Package },
     { label: "Scan", path: "/scan", icon: ScanLine },
-    { label: "QR", path: "/qr-codes", icon: QrCode },
-    { label: "Tickets", path: "/tickets", icon: Ticket },
+    { label: "QR", path: `${navPrefix}/qr-codes`, icon: QrCode },
+    { label: "Tickets", path: `${navPrefix}/tickets`, icon: Ticket },
   ] as const;
 
   useEffect(() => {
@@ -224,6 +225,7 @@ export function Layout({ children }: LayoutProps) {
   return (
     <HelpGuideProvider>
       <div className="flex h-dvh bg-background">
+      <a href="#app-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-3 focus:text-primary-foreground">Skip to content</a>
       {/* Desktop Primary Navigation (Sidebar or TopNav) */}
       {!effectiveTopNavMode && (
         <div className="hidden md:block">
@@ -255,9 +257,9 @@ export function Layout({ children }: LayoutProps) {
             <Header onMenuClick={() => setSidebarOpen(true)} />
           )}
         </div>
-        <main ref={mainRef} className={cn(
-          "flex-1 overflow-auto overscroll-contain bg-muted/30",
-          "p-4 md:p-6",
+        <main id="app-main" tabIndex={-1} ref={mainRef} className={cn(
+          "app-content flex-1 overflow-auto overscroll-contain",
+          "p-4 md:p-7 lg:p-9",
           isMobile && "pb-32"
         )}>
           {children}
@@ -267,7 +269,7 @@ export function Layout({ children }: LayoutProps) {
           <div className="fixed bottom-6 left-4 right-4 z-50 flex justify-center pointer-events-none">
             <nav className="pointer-events-auto flex h-16 w-full max-w-md items-center justify-around rounded-full border border-border/40 bg-background/80 px-2 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
               {mobileNavItems.map((item) => {
-                const active = pathname === item.path || pathname.startsWith(item.path + "/");
+                const active = pathname === item.path || (item.label !== "Home" && pathname.startsWith(item.path + "/"));
                 const Icon = item.icon;
                 return (
                   <button

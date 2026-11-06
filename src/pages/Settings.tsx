@@ -18,7 +18,7 @@ import { Palette, Moon } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 // Audit controls have moved to the main Audit page
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import { ACCENT_COLORS, DARK_LEVELS } from "@/lib/theme-config";
+import { ACCENT_COLORS, DARK_LEVELS, applyAccentTheme } from "@/lib/theme-config";
 
 export default function Settings() {
   const { toast } = useToast();
@@ -62,45 +62,7 @@ export default function Settings() {
     const root = document.documentElement;
     const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
 
-    // Main accent colors
-    root.style.setProperty('--primary', accent.value);
-    root.style.setProperty('--primary-hover', accent.hover);
-    root.style.setProperty('--ring', accent.value);
-
-    // Sidebar accent colors
-    root.style.setProperty('--sidebar-primary', accent.value);
-    root.style.setProperty('--sidebar-ring', accent.value);
-    // In light mode, sidebar accent is a light tint. In dark mode, it might be overridden by class .dark
-    // but setting it here ensures it updates dynamically.
-    // We need to check if we are in dark mode to decide what --sidebar-accent should be, 
-    // OR we rely on the fact that .dark redefines it.
-    // However, .dark defines --sidebar-accent as a specific color.
-    // If we set it on :root (inline style), it overrides the class definition.
-    // So we should set it conditionally or set a separate variable.
-
-    // Actually, looking at index.css:
-    // Light mode: --sidebar-accent: 16 52% 92%;
-    // Dark mode: --sidebar-accent: 60 3% 20%; (neutral)
-
-    // If we want the sidebar selection to follow the accent color in light mode, we set it to accent.light.
-    // In dark mode, usually sidebar selection is just a lighter grey or the accent color itself with opacity.
-    // But let's stick to the pattern.
-
-    if (!darkMode) {
-      root.style.setProperty('--sidebar-accent', accent.light);
-      if (accent.sidebar) {
-        root.style.setProperty('--sidebar-background', accent.sidebar);
-      }
-      root.style.setProperty('--accent', accent.light);
-      root.style.setProperty('--accent-foreground', accent.value);
-    } else {
-      // In dark mode, we might want to keep it neutral or use the accent?
-      // The original css had neutral for dark mode. Let's reset it to neutral if dark mode, 
-      // or just remove the property to let CSS take over if we switch to dark.
-      root.style.removeProperty('--sidebar-accent');
-      root.style.removeProperty('--accent');
-      root.style.removeProperty('--accent-foreground');
-    }
+    applyAccentTheme(root, accent, darkMode);
 
     localStorage.setItem('theme_accent', accentColor);
   }, [accentColor, darkMode]);
@@ -109,7 +71,7 @@ export default function Settings() {
     const root = document.documentElement;
     const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
     
-    let bgValue = '0 0% 100%';
+    let bgValue = '40 20% 97%';
 
     // Only apply if in dark mode, but we set the variables on a special class or just override
     // Since .dark class sets these variables, we need to override them with higher specificity or inline styles on body/root when dark
@@ -404,9 +366,9 @@ export default function Settings() {
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+      <div className="page-intro">
         <div className="relative z-10 max-w-3xl space-y-4">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          <h1 className="heading-xl text-foreground">
             Settings & Configuration
           </h1>
           <p className="text-lg text-muted-foreground">

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { ACCENT_COLORS, DARK_LEVELS } from '@/lib/theme-config';
+import { ACCENT_COLORS, DARK_LEVELS, applyAccentTheme } from '@/lib/theme-config';
 
 export function ThemeInitializer() {
   useEffect(() => {
@@ -10,29 +10,11 @@ export function ThemeInitializer() {
       const isDark = root.classList.contains('dark');
 
       const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
-      
-      // Main accent colors
-      root.style.setProperty('--primary', accent.value);
-      root.style.setProperty('--primary-hover', accent.hover);
-      root.style.setProperty('--ring', accent.value);
-      
-      // Sidebar accent colors
-      root.style.setProperty('--sidebar-primary', accent.value);
-      root.style.setProperty('--sidebar-ring', accent.value);
-      
-      if (!isDark) {
-         root.style.setProperty('--sidebar-accent', accent.light);
-         root.style.setProperty('--accent', accent.light);
-         root.style.setProperty('--accent-foreground', accent.value);
-      } else {
-         root.style.removeProperty('--sidebar-accent');
-         root.style.removeProperty('--accent');
-         root.style.removeProperty('--accent-foreground');
-      }
+      applyAccentTheme(root, accent, isDark);
 
       const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
       
-      let bgValue = '0 0% 100%';
+      let bgValue = '40 20% 97%';
       if (isDark) {
         bgValue = level.bg;
         root.style.setProperty('--background', level.bg);
@@ -41,7 +23,6 @@ export function ThemeInitializer() {
         root.style.setProperty('--sidebar-background', level.card);
 
         // Adjust dashboard card headers for dark mode depth
-        // @ts-ignore
         const opacity = level.headerOpacity || 0.1;
         root.style.setProperty('--header-amc', `hsl(30 100% 50% / ${opacity})`);
         root.style.setProperty('--header-food', `hsl(150 100% 50% / ${opacity})`);

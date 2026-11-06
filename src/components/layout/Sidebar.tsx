@@ -301,7 +301,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
 
       const isActive =
         location.pathname === href ||
-        (href !== "/" && location.pathname.startsWith(`${href}/`));
+        (item.name !== "Dashboard" && location.pathname.startsWith(`${href}/`));
 
       const badges: SidebarEntry["badges"] = [];
       if (item.name === "Approvals" && pendingApprovals > 0) {
@@ -651,6 +651,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   <NavLink
                     key={entry.name}
                     to={entry.href}
+                      end={entry.name === "Dashboard"}
                     onClick={onNavigate}
                     className={cn(
                       "relative flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-200",
@@ -749,14 +750,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={toggleTheme}
+              aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}
               className="h-[50px] w-[50px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
             >
               {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
           </div>
           <p className="text-xs text-center text-sidebar-foreground/50">
-            © 2025 SAMS. All rights reserved.
+            © {new Date().getFullYear()} SAMS.
           </p>
         </div>
       </div>
@@ -768,7 +769,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       className={cn(
         "group/sidebar relative h-full overflow-hidden border-r border-sidebar-border transition-[width] duration-300 ease-in-out",
         "bg-sidebar text-sidebar-foreground",
-        isMobile ? "w-full" : collapsed ? "w-[70px]" : "w-72",
+        isMobile ? "w-full" : collapsed ? "w-[70px]" : "w-64",
         className
       )}
     >
@@ -800,6 +801,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
           <Button
             variant="ghost"
             size="sm"
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
             onClick={() => {
               const newState = !collapsed;
               setCollapsed(newState);
@@ -831,6 +833,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 <NavLink
                   key={entry.name}
                   to={entry.href}
+                      end={entry.name === "Dashboard"}
                   className={cn(
                     "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-lg transition-all duration-200",
                     entry.isActive
@@ -861,10 +864,11 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     <NavLink
                       key={entry.name}
                       to={entry.href}
+                      end={entry.name === "Dashboard"}
                       className={cn(
                         "group/nav flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                         entry.isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                          ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-inset ring-sidebar-primary/10"
                           : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                       )}
                       onClick={onNavigate}
@@ -936,7 +940,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button variant="ghost" size="icon" onClick={toggleTheme} className="h-9 w-9 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground">
+              <Button variant="ghost" size="icon" aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme} className="h-9 w-9 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground">
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             </>
@@ -1001,14 +1005,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={toggleTheme}
+                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}
                 className="h-[58px] w-[58px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
               >
                 {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
             </div>
             <p className="mt-4 text-xs text-center text-sidebar-foreground/50">
-              © 2025 SAMS. All rights reserved.
+              © {new Date().getFullYear()} SAMS.
             </p>
           </>
           )}
