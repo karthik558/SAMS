@@ -4,7 +4,7 @@ import { Command as CommandPrimitive } from "cmdk"
 import { Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 
 const Command = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive>,
@@ -27,6 +27,8 @@ const CommandDialog = ({ children, ...props }: CommandDialogProps) => {
   return (
     <Dialog {...props}>
       <DialogContent hideCloseButton className="w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-3xl border border-border/70 bg-card/95 p-0 shadow-[0_26px_90px_rgba(15,23,42,0.25)] backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:w-full [&_[data-radix-dialog-close]]:right-5 [&_[data-radix-dialog-close]]:top-5 [&_[data-radix-dialog-close]]:rounded-full [&_[data-radix-dialog-close]]:border [&_[data-radix-dialog-close]]:border-border/70 [&_[data-radix-dialog-close]]:bg-card [&_[data-radix-dialog-close]]:p-2 [&_[data-radix-dialog-close]]:text-muted-foreground [&_[data-radix-dialog-close]]:transition [&_[data-radix-dialog-close]]:hover:border-primary/50 [&_[data-radix-dialog-close]]:hover:text-primary [&_[data-radix-dialog-close]]:hover:shadow-sm [&_[data-radix-dialog-close]_svg]:h-4 [&_[data-radix-dialog-close]_svg]:w-4">
+        <DialogTitle className="sr-only">Quick Search and Navigation</DialogTitle>
+        <DialogDescription className="sr-only">Search for assets, properties, or actions</DialogDescription>
         <Command className="bg-transparent [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4">
           {children}
         </Command>

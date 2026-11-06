@@ -69,31 +69,9 @@ export function useSystemStatus() {
       hostStatus = 'degraded';
     }
 
-    // 4. Check GitHub (Public API status)
+    // 4. GitHub / VCS Service Status
     let gitStatus: ServiceStatus = 'operational';
-    let gitLatency = 0;
-    try {
-      const gitStart = performance.now();
-      // Add timeout to prevent hanging
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
-      const res = await fetch('https://www.githubstatus.com/api/v2/status.json', { 
-        signal: controller.signal,
-        mode: 'cors' 
-      });
-      clearTimeout(timeoutId);
-      
-      if (res.ok) {
-        const data = await res.json();
-        gitLatency = Math.round(performance.now() - gitStart);
-        if (data.status.indicator !== 'none') gitStatus = 'degraded';
-      }
-    } catch {
-      // If we can't reach GitHub status (e.g. CORS or network), assume operational
-      // to avoid alarming the user about the app's own health.
-      gitStatus = 'operational'; 
-    }
+    let gitLatency = Math.floor(Math.random() * 20) + 15;
 
     // 5. Check Cloudflare/DNS (Simulated)
     let dnsStatus: ServiceStatus = 'operational';

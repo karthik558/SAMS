@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, Fragment } from "react";
 import { useNavigate } from 'react-router-dom';
 import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
@@ -1490,8 +1490,8 @@ export default function Assets() {
                     });
                   };
                   return (
-                    <>
-                    <TableRow key={key} className="transition-colors hover:bg-primary/5 border-b border-border/60">
+                    <Fragment key={key}>
+                    <TableRow className="transition-colors hover:bg-primary/5 border-b border-border/60">
                       {isVisible('select') && (
                         <TableCell className="w-10">
                           <Checkbox
@@ -1841,7 +1841,7 @@ export default function Assets() {
                           ))}
                       </>
                     )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>

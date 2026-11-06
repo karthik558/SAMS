@@ -640,48 +640,48 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             </div>
           </div>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
           {groupedNav.map((group) => (
-            <div key={group.key} className="space-y-2">
-              <p className="px-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/60">
+            <div key={group.key} className="space-y-1.5">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
                 {group.title}
               </p>
-              <div className="overflow-hidden rounded-3xl border border-sidebar-border bg-sidebar-accent/10 shadow-sm">
-                {group.items.map((entry, idx) => (
+              <div className="space-y-1">
+                {group.items.map((entry) => (
                   <NavLink
                     key={entry.name}
                     to={entry.href}
-                      end={entry.name === "Dashboard"}
+                    end={entry.name === "Dashboard"}
                     onClick={onNavigate}
                     className={cn(
-                      "relative flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors duration-200",
+                      "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
                       entry.isActive
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
-                      idx !== group.items.length - 1 ? "border-b border-sidebar-border/50" : ""
+                        ? "bg-white text-foreground shadow-xs border border-border/40 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                        : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                     )}
                   >
                     <span className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-2xl transition-colors",
-                      entry.isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "bg-sidebar-accent/50 text-sidebar-foreground"
+                      "flex h-8 w-8 items-center justify-center rounded-lg transition-colors shrink-0",
+                      entry.isActive
+                        ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
+                        : "bg-sidebar-accent/50 text-sidebar-foreground/70"
                     )}>
-                      <entry.icon className="h-5 w-5" strokeWidth={1.6} />
+                      <entry.icon className="h-4 w-4" strokeWidth={1.8} />
                     </span>
-                    <span className="flex flex-1 items-center justify-between gap-3">
-                      <span className="text-sm font-medium">{entry.name}</span>
-                      <span className="flex items-center gap-2">
+                    <span className="flex flex-1 items-center justify-between gap-2 min-w-0">
+                      <span className="truncate">{entry.name}</span>
+                      <span className="flex items-center gap-1.5 shrink-0">
                         {entry.badges.map((badge) => (
                           <span
                             key={`${entry.name}-${badge.value}-${badge.tone}`}
                             className={cn(
-                              "inline-flex min-w-[26px] justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none",
+                              "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-[10px] font-bold ring-1 ring-inset",
                               badgeToneClasses[badge.tone]
                             )}
                           >
                             {badge.value}
                           </span>
                         ))}
-                        <ChevronRight className="h-4 w-4 text-sidebar-foreground/40" />
                       </span>
                     </span>
                   </NavLink>
@@ -690,44 +690,50 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             </div>
           ))}
         </div>
-        <div className="border-t border-sidebar-border px-4 py-5">
-          <div className="mb-3">
-            <Link to="/status" onClick={onNavigate} className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
-              <div className={cn("h-2 w-2 rounded-full animate-pulse", 
-                overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
-                overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
-                "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-              )} />
-              <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+        <div className="border-t border-sidebar-border px-4 py-4">
+          <div className="mb-2.5">
+            <Link
+              to="/status"
+              onClick={onNavigate}
+              className="flex items-center justify-between rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-3 py-2 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <div className={cn("h-2 w-2 rounded-full animate-pulse", 
+                  overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
+                  overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
+                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                )} />
+                <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
             </Link>
           </div>
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 mb-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-2 transition-colors hover:bg-sidebar-accent/50">
+                <div className="group flex flex-1 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 p-2 transition-all hover:bg-sidebar-accent/60">
                   {(role || '').toLowerCase() === 'admin' ? (
                     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-                      <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
+                      <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
                         <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                          <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+                          <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
                             <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                           </div>
                         </span>
                       </span>
-                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
+                      <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs ring-1 ring-sidebar">
                         <ShieldCheck className="h-2 w-2" />
                       </span>
                     </div>
                   ) : (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
                       <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                     </div>
                   )}
-                  <div className="flex flex-col overflow-hidden">
+                  <div className="flex flex-col overflow-hidden min-w-0">
                     <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
-                    <span className="truncate text-[10px] text-sidebar-foreground/60 capitalize">{role || 'Guest'}</span>
+                    <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Staff'}</span>
                   </div>
-                  <SettingsIcon className="ml-auto h-4 w-4 text-sidebar-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
                 </div>
               </DropdownMenuTrigger>
               <DropdownMenuContent
@@ -737,8 +743,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               >
                 <div className="p-1">
                   <DropdownMenuItem
+                    onClick={() => { onNavigate?.(); navigate(isDemoMode() ? '/demo/settings' : '/settings'); }}
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+                  >
+                    <SettingsIcon className="h-3.5 w-3.5" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator className="my-1 bg-border/50" />
+                  <DropdownMenuItem
                     onClick={handleSignOut}
-                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
+                    className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive focus:text-destructive cursor-pointer"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     <span>Sign out</span>
@@ -748,17 +762,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             </DropdownMenu>
 
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
-              aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}
-              className="h-[50px] w-[50px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+              aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+              onClick={toggleTheme}
+              className="h-10 w-10 shrink-0 rounded-xl border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground shadow-xs transition-colors"
             >
-              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
           </div>
-          <p className="text-xs text-center text-sidebar-foreground/50">
-            © {new Date().getFullYear()} SAMS.
-          </p>
         </div>
       </div>
     );
@@ -833,17 +845,17 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 <NavLink
                   key={entry.name}
                   to={entry.href}
-                      end={entry.name === "Dashboard"}
+                  end={entry.name === "Dashboard"}
                   className={cn(
-                    "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-lg transition-all duration-200",
+                    "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-xl transition-all duration-200",
                     entry.isActive
-                      ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                      ? "bg-white text-primary shadow-xs border border-border/40 dark:bg-card dark:text-primary dark:border-border/80 dark:shadow-sm"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
                   )}
                   onClick={onNavigate}
                   title={entry.name}
                 >
-                  <entry.icon className="h-5 w-5" strokeWidth={2} />
+                  <entry.icon className="h-4.5 w-4.5" strokeWidth={2} />
                   {entry.badges.length > 0 && (
                     <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-destructive ring-2 ring-sidebar">
                       <span className="h-1.5 w-1.5 rounded-full bg-white" />
@@ -856,7 +868,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             // Expanded View: Grouped list
             groupedNav.map((group) => (
               <div key={group.key} className="space-y-1">
-                <h4 className="px-3 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50 mb-2">
+                <h4 className="px-3 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50 mb-1.5">
                   {group.title}
                 </h4>
                 <div className="space-y-1">
@@ -866,14 +878,20 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       to={entry.href}
                       end={entry.name === "Dashboard"}
                       className={cn(
-                        "group/nav flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                        "group/nav flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200",
                         entry.isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-inset ring-sidebar-primary/10"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                          ? "bg-white text-foreground shadow-xs border border-border/40 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                          : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                       )}
                       onClick={onNavigate}
                     >
-                      <entry.icon className={cn("h-4 w-4 shrink-0 transition-colors", entry.isActive ? "text-sidebar-primary" : "text-sidebar-foreground/60 group-hover/nav:text-sidebar-foreground")} strokeWidth={2} />
+                      <entry.icon
+                        className={cn(
+                          "h-4 w-4 shrink-0 transition-colors",
+                          entry.isActive ? "text-primary" : "text-sidebar-foreground/60 group-hover/nav:text-sidebar-foreground"
+                        )}
+                        strokeWidth={2}
+                      />
                       <span className="flex flex-1 items-center justify-between truncate">
                         <span>{entry.name}</span>
                         {entry.badges.map((badge) => (
@@ -899,12 +917,12 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className={cn("p-4", collapsed ? "flex flex-col items-center gap-4" : "")}>
+        <div className={cn("p-4", collapsed ? "flex flex-col items-center gap-3" : "")}>
           {collapsed ? (
             <>
-              <Link to="/status" className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-accent/30 border border-sidebar-border hover:bg-sidebar-accent transition-colors" title={`System ${overallStatus}`}>
+              <Link to="/status" className="flex h-9 w-9 items-center justify-center rounded-xl bg-sidebar-accent/25 border border-sidebar-border/70 hover:bg-sidebar-accent transition-colors" title={`System ${overallStatus}`}>
                 <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", 
-                  overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
+                  overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
                   overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
                   "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
                 )} />
@@ -915,16 +933,16 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   <div className="cursor-pointer">
                     {(role || '').toLowerCase() === 'admin' ? (
                       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-                        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
+                        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
                           <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                            <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
+                            <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
                               <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                             </div>
                           </span>
                         </span>
                       </div>
                     ) : (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
                         <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                       </div>
                     )}
@@ -932,7 +950,15 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="right" align="end" className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl">
                   <div className="p-1">
-                    <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive">
+                    <DropdownMenuItem
+                      onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
+                      className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+                    >
+                      <SettingsIcon className="h-3.5 w-3.5" />
+                      <span>Settings</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator className="my-1 bg-border/50" />
+                    <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive cursor-pointer">
                       <LogOut className="h-3.5 w-3.5" />
                       <span>Sign out</span>
                     </DropdownMenuItem>
@@ -940,81 +966,93 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <Button variant="ghost" size="icon" aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme} className="h-9 w-9 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground">
+              <Button variant="outline" size="icon" aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme} className="h-9 w-9 rounded-xl border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground shadow-xs transition-colors">
                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             </>
           ) : (
             <>
-            <div className="mb-3">
-              <Link to="/status" className="flex items-center justify-center gap-2 rounded-full bg-sidebar-accent/30 border border-sidebar-border py-1.5 text-xs font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
-                <div className={cn("h-2 w-2 rounded-full animate-pulse", 
-                  overallStatus === 'operational' ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" : 
-                  overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
-                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
-                )} />
-                <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
-              </Link>
-            </div>
-            <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="group flex flex-1 cursor-pointer items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/30 p-3 transition-colors hover:bg-sidebar-accent/50">
-                    {(role || '').toLowerCase() === 'admin' ? (
-                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
-                        <span className="relative flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary p-0.5 shadow-sm">
-                          <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                            <div className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary">
-                              <span className="text-xs font-bold">{firstName.charAt(0)}</span>
-                            </div>
-                          </span>
-                        </span>
-                        <span className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sidebar-primary text-sidebar-primary-foreground shadow-sm ring-2 ring-sidebar">
-                          <ShieldCheck className="h-2 w-2" />
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sidebar-primary/10 text-sidebar-primary ring-1 ring-sidebar-primary/20">
-                        <span className="text-xs font-bold">{firstName.charAt(0)}</span>
-                      </div>
-                    )}
-                    <div className="flex flex-col overflow-hidden">
-                      <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
-                      <span className="truncate text-[10px] text-sidebar-foreground/60 capitalize">{role || 'Guest'}</span>
-                    </div>
-                    <SettingsIcon className="ml-auto h-4 w-4 text-sidebar-foreground/40 opacity-0 transition-opacity group-hover:opacity-100" />
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  side="top"
-                  className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
+              <div className="mb-2.5">
+                <Link
+                  to="/status"
+                  className="flex items-center justify-between rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-3 py-2 text-xs font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-all"
                 >
-                  <div className="p-1">
-                    <DropdownMenuItem
-                      onClick={handleSignOut}
-                      className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-destructive focus:text-destructive"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                      <span>Sign out</span>
-                    </DropdownMenuItem>
+                  <div className="flex items-center gap-2">
+                    <div className={cn("h-2 w-2 rounded-full animate-pulse", 
+                      overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
+                      overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
+                      "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                    )} />
+                    <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
                   </div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
+                </Link>
+              </div>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'} onClick={toggleTheme}
-                className="h-[58px] w-[58px] shrink-0 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-              >
-                {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-              </Button>
-            </div>
-            <p className="mt-4 text-xs text-center text-sidebar-foreground/50">
-              © {new Date().getFullYear()} SAMS.
-            </p>
-          </>
+              <div className="flex items-center gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="group flex flex-1 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 p-2 transition-all hover:bg-sidebar-accent/60">
+                      {(role || '').toLowerCase() === 'admin' ? (
+                        <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+                          <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
+                            <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
+                              <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
+                                <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                              </div>
+                            </span>
+                          </span>
+                          <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xs ring-1 ring-sidebar">
+                            <ShieldCheck className="h-2 w-2" />
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                          <span className="text-xs font-bold">{firstName.charAt(0)}</span>
+                        </div>
+                      )}
+                      <div className="flex flex-col overflow-hidden min-w-0">
+                        <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
+                        <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Staff'}</span>
+                      </div>
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="top"
+                    className="w-56 overflow-hidden rounded-xl border border-border/60 bg-popover p-1 shadow-xl"
+                  >
+                    <div className="p-1">
+                      <DropdownMenuItem
+                        onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+                      >
+                        <SettingsIcon className="h-3.5 w-3.5" />
+                        <span>Settings</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="my-1 bg-border/50" />
+                      <DropdownMenuItem
+                        onClick={handleSignOut}
+                        className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium text-destructive focus:text-destructive cursor-pointer"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        <span>Sign out</span>
+                      </DropdownMenuItem>
+                    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                  onClick={toggleTheme}
+                  className="h-10 w-10 shrink-0 rounded-xl border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground shadow-xs transition-colors"
+                >
+                  {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </Button>
+              </div>
+            </>
           )}
         </div>
       </div>

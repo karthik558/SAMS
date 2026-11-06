@@ -1,5 +1,6 @@
 import { isDemoMode } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import type { Result } from "@zxing/library";
 import { cn } from "@/lib/utils";
 
 export default function Scan() {
+  const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -137,33 +139,52 @@ export default function Scan() {
   };
 
   const handleResult = (result: Result) => {
-    const text = result.getText();
+    const text = result.getText().trim();
     if (!text) return;
-    
-    // Play a beep sound if possible (optional)
     
     stop();
     try {
-      if (/^https?:\/\//i.test(text)) {
-        window.location.assign(text);
-      } else if (/^\//.test(text)) {
-        window.location.assign(text);
-      } else {
-        const idMatch = text.match(/[A-Z]{2,}[A-Z0-9\-]*\d{3,}$/);
-        if (idMatch) {
-          window.location.assign(`/assets/${idMatch[0]}`);
-        } else {
-          toast.success("Code Scanned");
-          // Show result dialog or toast with action
-          setTimeout(() => {
-             if (confirm(`Scanned: ${text}\n\nCopy to clipboard?`)) {
-               navigator.clipboard.writeText(text);
-             }
-             // Restart scanning if they didn't navigate
-             start();
-          }, 100);
-        }
+      // Check if it's an asset URL (e.g. /assets/:id or https://.../assets/:id)
+      const assetUrlMatch = text.match(/\/assets\/([A-Za-z0-9_-]+)/i);
+      if (assetUrlMatch && assetUrlMatch[1]) {
+        toast.success(`Asset detected: ${assetUrlMatch[1]}`);
+        navigate(`/assets/${assetUrlMatch[1]}`);
+        return;
       }
+
+      // Check if it's an internal relative path
+      if (/^\//.test(text)) {
+        navigate(text);
+        return;
+      }
+
+      // Check if text is directly an asset ID (e.g. AST-001 or AST001)
+      if (/^AST-?[0-9]+/i.test(text)) {
+        toast.success(`Asset detected: ${text}`);
+        navigate(`/assets/${text}`);
+        return;
+      }
+
+      // Check if it's a URL matching our current origin
+      if (/^https?:\/\//i.test(text)) {
+        try {
+          const parsed = new URL(text);
+          if (parsed.origin === window.location.origin) {
+            navigate(parsed.pathname + parsed.search + parsed.hash);
+            return;
+          }
+        } catch {}
+        window.location.assign(text);
+        return;
+      }
+
+      toast.success("Code Scanned");
+      setTimeout(() => {
+        if (confirm(`Scanned: ${text}\n\nCopy to clipboard?`)) {
+          navigator.clipboard.writeText(text);
+        }
+        start();
+      }, 100);
     } catch (e) {
       console.error(e);
     }
@@ -171,11 +192,7 @@ export default function Scan() {
 
   const handleBack = () => {
     stop();
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.location.assign('/');
-    }
+    navigate(-1);
   };
 
   const onPickImage = async (file?: File) => {

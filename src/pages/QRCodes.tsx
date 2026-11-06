@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { cn } from "@/lib/utils";
 import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels, printImagesOnA4Grid } from "@/lib/qr";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
@@ -943,7 +944,7 @@ export default function QRCodes() {
         </Card>
 
         {/* Filters and Search */}
-        <Card>
+        <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
           <CardHeader>
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -952,22 +953,36 @@ export default function QRCodes() {
                   Search and filter your generated QR codes
                 </CardDescription>
               </div>
-              <div className="flex items-center gap-2 self-start">
+              <div className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/50 self-start">
                 <Button
-                  variant={viewMode === 'grid' ? 'default' : 'outline'}
-                  size="icon"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setViewMode('grid')}
                   aria-label="Grid view"
+                  className={cn(
+                    "h-8 px-2.5 rounded-md text-xs font-medium transition-all",
+                    viewMode === 'grid'
+                      ? "bg-white text-foreground shadow-xs border border-border/30 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <LayoutGrid className="h-3.5 w-3.5 mr-1.5" />
+                  Grid
                 </Button>
                 <Button
-                  variant={viewMode === 'list' ? 'default' : 'outline'}
-                  size="icon"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setViewMode('list')}
                   aria-label="List view"
+                  className={cn(
+                    "h-8 px-2.5 rounded-md text-xs font-medium transition-all",
+                    viewMode === 'list'
+                      ? "bg-white text-foreground shadow-xs border border-border/30 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
                 >
-                  <ListIcon className="h-4 w-4" />
+                  <ListIcon className="h-3.5 w-3.5 mr-1.5" />
+                  List
                 </Button>
               </div>
             </div>

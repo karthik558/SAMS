@@ -246,6 +246,21 @@ export default function Tickets() {
     }, 50);
   }, [location.search, items]);
 
+  // Pre-fill ticket creation form from query params (e.g. from Asset Details or AMC Watchlist)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const paramTitle = params.get('title');
+    const paramProperty = params.get('propertyId');
+    const paramPriority = params.get('priority');
+    const paramDesc = params.get('description');
+    if (paramTitle) setTitle(paramTitle);
+    if (paramProperty) setPropertyId(paramProperty);
+    if (paramPriority && ['low', 'medium', 'high', 'urgent'].includes(paramPriority)) {
+      setPriority(paramPriority as any);
+    }
+    if (paramDesc) setDescription(paramDesc);
+  }, [location.search]);
+
   useEffect(() => {
     if (!hasSupabaseEnv) return;
     const authSnapshot = (() => {
@@ -902,7 +917,7 @@ export default function Tickets() {
         ) : null}
       </section>
 
-      <Card>
+      <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
         <CardHeader>
           <CardTitle>New Ticket</CardTitle>
           {draftBanner && (
@@ -1088,7 +1103,7 @@ export default function Tickets() {
           />
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
@@ -1106,6 +1121,12 @@ export default function Tickets() {
                 onClick={() => setShowClosedOnly(v => !v)}
                 aria-pressed={showClosedOnly}
                 aria-label="Toggle closed-only filter"
+                className={cn(
+                  "h-8 text-xs font-medium rounded-lg transition-colors",
+                  showClosedOnly 
+                    ? "bg-primary text-primary-foreground shadow-xs" 
+                    : "border-border/70 bg-background hover:bg-muted text-muted-foreground hover:text-foreground shadow-xs"
+                )}
               >
                 {showClosedOnly ? 'Closed only' : 'Show closed'}
               </Button>
