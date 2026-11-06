@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,7 +8,27 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Shield, Save, Settings as SettingsIcon, Layout, Monitor, Volume2, Menu, Lock, User, Mail } from "lucide-react";
+import { 
+  Bell, 
+  Shield, 
+  Save, 
+  Settings as SettingsIcon, 
+  Layout, 
+  Monitor, 
+  Volume2, 
+  Menu, 
+  Lock, 
+  User, 
+  Mail, 
+  Building2, 
+  CheckCircle2, 
+  Copy, 
+  ShieldCheck, 
+  Key, 
+  Smartphone 
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserSettings, upsertUserSettings } from "@/services/settings";
@@ -22,6 +43,8 @@ import { ACCENT_COLORS, DARK_LEVELS, applyAccentTheme } from "@/lib/theme-config
 
 export default function Settings() {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "profile";
   const cachedPrefs = useMemo(() => {
     try {
       const uid = localStorage.getItem("current_user_id");
@@ -150,6 +173,9 @@ export default function Settings() {
   // Demo current user id (wire to auth user/app user as needed)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("");
+  const [userPhone, setUserPhone] = useState<string>("");
+  const [userDept, setUserDept] = useState<string>("");
 
   // Password change fields
   const [currentPassword, setCurrentPassword] = useState("");
@@ -160,9 +186,10 @@ export default function Settings() {
 
 
   const baseTabs = [
-    { value: "notifications", label: "Notifications", icon: Bell },
-    { value: "security", label: "Security", icon: Shield },
+    { value: "profile", label: "My Profile", icon: User },
     { value: "personalization", label: "Personalization", icon: SettingsIcon },
+    { value: "security", label: "Security", icon: Shield },
+    { value: "notifications", label: "Notifications", icon: Bell },
   ];
   const tabItems = baseTabs;
 
@@ -175,8 +202,12 @@ export default function Settings() {
         const authRaw = localStorage.getItem("auth_user");
         if (uid) setCurrentUserId(uid);
         if (authRaw) {
-          const au = JSON.parse(authRaw) as { email?: string };
+          const au = JSON.parse(authRaw) as { email?: string; name?: string; phone?: string; department?: string; role?: string };
           setCurrentUserEmail(au?.email || null);
+          setUserName(au?.name || "");
+          setUserPhone(au?.phone || "");
+          setUserDept(au?.department || "");
+          if (au?.role) setRole(au.role.toLowerCase());
         }
       } catch { }
 
@@ -361,6 +392,24 @@ export default function Settings() {
     }
   };
 
+  const handleSaveProfile = async () => {
+    try {
+      const authRaw = localStorage.getItem("auth_user");
+      const current = authRaw ? JSON.parse(authRaw) : {};
+      const updated = {
+        ...current,
+        name: userName.trim() || current.name || "User",
+        phone: userPhone.trim(),
+        department: userDept.trim(),
+      };
+      localStorage.setItem("auth_user", JSON.stringify(updated));
+      window.dispatchEvent(new Event("storage"));
+      toast({ title: "Profile saved", description: "Your profile details have been updated." });
+    } catch (e: any) {
+      toast({ title: "Save failed", description: e?.message || "Could not save profile", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-8 pb-10">
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Settings" }]} />
@@ -379,7 +428,7 @@ export default function Settings() {
         <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
       </div>
 
-      <Tabs defaultValue="personalization" className="space-y-8">
+      <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="space-y-8">
         <TabsList className="flex h-auto w-full flex-col gap-2 rounded-3xl bg-muted/50 p-2 sm:w-auto sm:flex-row sm:rounded-full sm:p-1.5">
           {tabItems.map(({ value, label, icon: Icon }) => (
             <TabsTrigger
@@ -392,6 +441,159 @@ export default function Settings() {
             </TabsTrigger>
           ))}
         </TabsList>
+
+        {/* Profile Tab */}
+        <TabsContent value="profile" className="space-y-6">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Profile Overview Card */}
+            <Card className="rounded-2xl border border-border/70 bg-card p-6 shadow-sm flex flex-col items-center text-center justify-between">
+              <div className="w-full flex flex-col items-center">
+                <div className="relative mb-4">
+                  <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
+                    <AvatarImage src="/placeholder-avatar.jpg" />
+                    <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
+                      {(userName || "User")
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((n) => n[0])
+                        .join("")
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute bottom-0 right-1 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-background">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-bold text-foreground">{userName || "SAMS User"}</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">{currentUserEmail || "user@organization.com"}</p>
+                
+                <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                  <Badge variant="outline" className="border-primary/40 bg-primary/10 text-primary font-semibold uppercase tracking-wider text-[10px]">
+                    {role || "User"}
+                  </Badge>
+                  {userDept && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {userDept}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-full mt-6 pt-5 border-t border-border/60 space-y-2.5 text-xs text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Account Status</span>
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">Active</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Session Mode</span>
+                  <span className="font-medium text-foreground">{hasSupabaseEnv ? "Supabase Cloud" : "Local Workspace"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">User ID</span>
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (currentUserId) {
+                        navigator.clipboard.writeText(currentUserId);
+                        toast({ title: "User ID copied" });
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 font-mono text-[11px] text-foreground hover:text-primary transition-colors"
+                  >
+                    {currentUserId ? `${currentUserId.slice(0, 8)}...` : "Local"}
+                    <Copy className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                </div>
+              </div>
+            </Card>
+
+            {/* Profile Edit Form */}
+            <Card className="rounded-2xl border border-border/70 bg-card shadow-sm lg:col-span-2">
+              <CardHeader className="border-b border-border/60 bg-muted/20 px-6 py-5">
+                <CardTitle className="text-lg font-semibold">Personal Information</CardTitle>
+                <CardDescription>Update your personal identity, contact details, and organization role</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6 space-y-5">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="prof-name" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Full Name</Label>
+                    <Input 
+                      id="prof-name"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      placeholder="e.g. Jane Doe"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prof-email" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email Address</Label>
+                    <div className="relative">
+                      <Input 
+                        id="prof-email"
+                        value={currentUserEmail || ""}
+                        disabled
+                        className="bg-muted/40 pr-24 font-mono text-xs"
+                      />
+                      <Badge className="absolute right-2.5 top-1/2 -translate-y-1/2 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-none text-[9px] py-0 px-2 pointer-events-none">
+                        Verified
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prof-phone" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone Number</Label>
+                    <Input 
+                      id="prof-phone"
+                      value={userPhone}
+                      onChange={(e) => setUserPhone(e.target.value)}
+                      placeholder="+1 (555) 000-0000"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prof-dept" className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Department</Label>
+                    <Input 
+                      id="prof-dept"
+                      value={userDept}
+                      onChange={(e) => setUserDept(e.target.value)}
+                      placeholder="e.g. IT, Operations, Facilities"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <ShieldCheck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground">Role Permissions: {role ? role.toUpperCase() : "USER"}</h4>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                        {role === "admin"
+                          ? "You have full administrator privileges, including user management, audit sessions, approval authorization, and security configurations."
+                          : role === "manager"
+                          ? "You have managerial oversight over assets, properties, tickets, and report exports."
+                          : "You have standard operative access to look up assets, verify equipment, and log maintenance tickets."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button 
+                    onClick={handleSaveProfile}
+                    className="gap-2 rounded-lg font-medium shadow-xs"
+                  >
+                    <Save className="h-4 w-4" />
+                    Save Profile Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="notifications" className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">

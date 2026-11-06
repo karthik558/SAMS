@@ -432,28 +432,36 @@ export function Header({ onMenuClick }: HeaderProps) {
           </div>
         </div>
         <div className="py-2">
+          <DropdownMenuItem
+            onClick={() => navigate(isDemoMode() ? '/demo/settings?tab=profile' : '/settings?tab=profile')}
+            className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer"
+          >
+            <UsersIcon className="h-4 w-4 text-muted-foreground" />
+            <span>My Profile</span>
+          </DropdownMenuItem>
+
           {isAdminRole && (
             <>
               <DropdownMenuItem
                 onClick={() => navigate(isDemoMode() ? '/demo/users' : '/users')}
-                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
+                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer"
               >
-                <UsersIcon className="h-4 w-4" />
+                <UsersIcon className="h-4 w-4 text-muted-foreground" />
                 <span>Users</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => navigate(isDemoMode() ? '/demo/settings' : '/settings')}
-                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2"
+                className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 cursor-pointer"
               >
-                <SettingsIcon className="h-4 w-4" />
+                <SettingsIcon className="h-4 w-4 text-muted-foreground" />
                 <span>Settings</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="my-2" />
             </>
           )}
+          <DropdownMenuSeparator className="my-2" />
           <DropdownMenuItem
             onClick={handleSignOut}
-            className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive"
+            className="mx-2 flex items-center gap-2 rounded-lg px-3 py-2 text-destructive focus:text-destructive cursor-pointer"
           >
             <LogOut className="h-4 w-4" />
             <span>Sign out</span>

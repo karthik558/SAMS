@@ -1017,29 +1017,33 @@ const Index = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
-              <Button 
-                onClick={() => handleQuickAction("Add Asset")} 
-                className="gap-2 shadow-sm font-medium"
-              >
-                <Plus className="h-4 w-4" />
+            <Button 
+              variant="outline"
+              onClick={() => navigate(isDemoMode() ? "/demo/scan" : "/scan")}
+              className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background"
+            >
+              <ScanLine className="h-4 w-4 text-muted-foreground" />
+              Scan QR
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => handleQuickAction("Bulk Import")}
+              className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background hidden sm:inline-flex"
+            >
+              <Upload className="h-4 w-4 text-muted-foreground" />
+              Bulk Import
+            </Button>
+            <Button 
+              onClick={() => handleQuickAction("Add Asset")} 
+              size="reveal"
+              aria-label="Add Asset"
+              title="Add Asset"
+            >
+              <Plus />
+              <span className="button-reveal-label">
                 Add Asset
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => navigate(isDemoMode() ? "/demo/scan" : "/scan")}
-                className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background"
-              >
-                <ScanLine className="h-4 w-4 text-muted-foreground" />
-                Scan QR
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => handleQuickAction("Bulk Import")}
-                className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background hidden sm:inline-flex"
-              >
-                <Upload className="h-4 w-4 text-muted-foreground" />
-                Bulk Import
-              </Button>
+              </span>
+            </Button>
           </div>
         </div>
         

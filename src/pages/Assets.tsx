@@ -1102,7 +1102,7 @@ export default function Assets() {
                 Track and manage all your organization's assets
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2.5">
               <ColumnChooser
                 columns={columnDefs}
                 visible={prefs.visibleCols}
@@ -1493,7 +1493,7 @@ export default function Assets() {
                     <Fragment key={key}>
                     <TableRow className="transition-colors hover:bg-primary/5 border-b border-border/60">
                       {isVisible('select') && (
-                        <TableCell className="w-10">
+                        <TableCell className="w-10 pl-6">
                           <Checkbox
                             aria-label={`Select group ${key}`}
                             checked={allSelected}
@@ -1511,22 +1511,20 @@ export default function Assets() {
                       )}
                       {isVisible('id') && (
                         <TableCell className="font-medium">
-                          <div className="flex items-start gap-2">
+                          <div className="flex items-center gap-2">
                             {members.length > 1 ? (
                               <button
                                 type="button"
                                 onClick={toggleExpanded}
                                 aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
                                 aria-expanded={isExpanded}
-                                className="mt-0.5 text-muted-foreground hover:text-foreground"
+                                className="text-muted-foreground hover:text-foreground inline-flex items-center"
                               >
                                 {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               </button>
-                            ) : (
-                              <span className="inline-block w-4" />
-                            )}
-                            <div className="flex flex-col">
-                              <span>{members[0]?.id}</span>
+                            ) : null}
+                            <div className="flex flex-col justify-center">
+                              <span className="font-mono text-sm">{members[0]?.id}</span>
                               {members.length > 1 && !isExpanded && (
                                 <span className="text-[11px] text-muted-foreground">+{members.length - 1} more</span>
                               )}
@@ -1704,7 +1702,7 @@ export default function Assets() {
                           .map((asset) => (
                             <TableRow key={`${key}::${asset.id}`} className="bg-muted/20">
                               {isVisible('select') && (
-                                <TableCell className="w-10">
+                                <TableCell className="w-10 pl-6">
                                   <Checkbox
                                     aria-label={`Select ${asset.id}`}
                                     checked={selectedIds.has(asset.id)}

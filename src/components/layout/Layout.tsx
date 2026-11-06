@@ -258,8 +258,8 @@ export function Layout({ children }: LayoutProps) {
           )}
         </div>
         <main id="app-main" tabIndex={-1} ref={mainRef} className={cn(
-          "app-content flex-1 overflow-auto overscroll-contain",
-          "p-4 md:p-7 lg:p-9",
+          "app-content flex-1 overflow-auto overscroll-contain w-full",
+          "p-4 md:p-6 lg:p-8",
           isMobile && "pb-32"
         )}>
           {children}

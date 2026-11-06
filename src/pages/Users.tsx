@@ -48,7 +48,8 @@ import {
   Minimize2,
   Save,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  X
 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -396,6 +397,17 @@ export default function Users() {
         iconClassName: 'text-primary h-4 w-4',
       },
     ];
+  }, [users]);
+
+  const deptMemberCount = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const u of users) {
+      const d = (u.department || "").trim().toLowerCase();
+      if (d) {
+        map[d] = (map[d] || 0) + 1;
+      }
+    }
+    return map;
   }, [users]);
 
   // Inline validation helpers
@@ -877,32 +889,50 @@ export default function Users() {
                 </Button>
               </DialogTrigger>
               <DialogContent
+                hideCloseButton
                 className={cn(
-                  "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+                  "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background shadow-2xl p-0",
                   isAddDialogMaximized
                     ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
-                    : "h-[min(92vh,800px)] w-[calc(100vw-1.5rem)] max-w-4xl sm:w-full"
+                    : "h-[min(92vh,850px)] w-[calc(100vw-1.5rem)] max-w-5xl sm:w-full"
                 )}
               >
-                <DialogHeader className="space-y-1.5 border-b border-border/60 bg-muted/10 px-6 py-5 text-left sm:px-8">
-                  <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-6 py-4 sm:px-8">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs">
+                      <UserPlus className="h-5 w-5" />
+                    </div>
                     <div>
-                      <DialogTitle className="text-xl font-semibold tracking-tight">Add New User</DialogTitle>
-                      <DialogDescription className="text-sm text-muted-foreground">
-                        Create a new user account and configure access permissions
+                      <DialogTitle className="text-lg font-bold text-foreground">Add New User</DialogTitle>
+                      <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                        Create credentials, role assignment, and access boundaries
                       </DialogDescription>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon"
                       onClick={() => setIsAddDialogMaximized((prev) => !prev)}
                       aria-label={isAddDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
-                      className="rounded-xl hover:bg-muted/50"
+                      className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       {isAddDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
                     </Button>
+                    <DialogClose asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label="Close dialog"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </DialogClose>
                   </div>
-                </DialogHeader>
+                </div>
                 
                 {authRole !== 'admin' && (
                   <div className="mx-6 mt-4 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive-foreground sm:mx-8">
@@ -1044,27 +1074,29 @@ export default function Users() {
 
                       <div className="space-y-4">
                         <div className="space-y-3">
-                          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions</Label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions Matrix</Label>
+                            <span className="text-[11px] text-muted-foreground">Role provides baseline; toggle module overrides</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
                               .filter((p) => !(p === 'audit' && (role || '').toLowerCase() === 'user'))
                               .map((p) => (
-                              <div key={p} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background p-3 shadow-sm">
-                                <div className="text-sm font-medium capitalize">{p}</div>
+                              <div key={p} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs hover:border-primary/40 transition-all">
+                                <div className="text-sm font-semibold capitalize text-foreground">{p === 'qrcodes' ? 'QR Codes' : p}</div>
                                 <div className="flex items-center gap-3">
-                                  <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary transition-colors">
-                                    <Checkbox checked={!!permView[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5" />
+                                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                                    <Checkbox checked={!!permView[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
                                     View
                                   </label>
-                                  <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary transition-colors">
-                                    <Checkbox checked={!!permEdit[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5" />
+                                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                                    <Checkbox checked={!!permEdit[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
                                     Edit
                                   </label>
                                 </div>
                               </div>
                             ))}
                           </div>
-                          <p className="text-[10px] text-muted-foreground">Role provides baseline permissions; these are additional per-user overrides.</p>
                         </div>
 
                         <div className="grid gap-5 sm:grid-cols-2 pt-2">
@@ -1606,162 +1638,160 @@ export default function Users() {
 
       {/* Departments management (moved from Settings) - Admin only and hidden in Demo */}
       {authRole === 'admin' && !isDemoMode() && (
-        <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm">
-          <CardHeader className="space-y-4 border-b border-border/60 pb-6">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="rounded-2xl border border-border/60 bg-card/95 shadow-sm overflow-hidden">
+          <CardHeader className={cn("transition-all px-6 py-5", isDepartmentsOpen ? "border-b border-border/60" : "")}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div 
-                className="flex items-center gap-2 cursor-pointer select-none" 
+                className="flex items-center gap-3 cursor-pointer select-none" 
                 onClick={() => setIsDepartmentsOpen(!isDepartmentsOpen)}
               >
-                {isDepartmentsOpen ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> : <ChevronDown className="h-5 w-5 text-muted-foreground" />}
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition-transform duration-200">
+                  {isDepartmentsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </div>
                 <div>
-                  <CardTitle className="text-xl font-semibold">Departments</CardTitle>
-                  <CardDescription>Manage department visibility, routing, and ownership</CardDescription>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-lg font-semibold text-foreground">Departments</CardTitle>
+                    <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5 rounded-full">
+                      {departmentsAll.length}
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                    Configure organizational departments, member distribution, and asset routing
+                  </CardDescription>
                 </div>
               </div>
               {isDepartmentsOpen && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="gap-2 px-4 py-2">
-                    <Plus className="h-4 w-4" />
-                    Add Department
-                  </Button>
-                </DialogTrigger>
-                <DepartmentEditorDialog
-                  onSave={async (name, code) => {
-                    if (!name.trim()) return;
-                    try {
-                      const created = await createDepartment({ name: name.trim(), code: code?.trim() || null });
-                      setDepartmentsAll((prev) => [created, ...prev]);
-                      // refresh active options
-                     
-                      setDeptOptions((prev) => [created, ...prev]);
-                      toast({ title: 'Department added', description: `${created.name} created.` });
-                                       } catch (e: any) {
-                      toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
-                    }
-                  }}
-                />
-              </Dialog>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="h-8 gap-1.5 px-3 rounded-lg text-xs font-medium shadow-xs">
+                      <Plus className="h-3.5 w-3.5" />
+                      Add Department
+                    </Button>
+                  </DialogTrigger>
+                  <DepartmentEditorDialog
+                    onSave={async (name, code) => {
+                      if (!name.trim()) return;
+                      try {
+                        const created = await createDepartment({ name: name.trim(), code: code?.trim() || null });
+                        setDepartmentsAll((prev) => [created, ...prev]);
+                        setDeptOptions((prev) => [created, ...prev]);
+                        toast({ title: 'Department added', description: `${created.name} created.` });
+                      } catch (e: any) {
+                        toast({ title: 'Add failed', description: e?.message || 'Unable to add department.', variant: 'destructive' });
+                      }
+                    }}
+                  />
+                </Dialog>
               )}
             </div>
           </CardHeader>
+
           {isDepartmentsOpen && (
-          <CardContent className="sm:p-8">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[200px]">Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Code</TableHead>
-                    <TableHead className="hidden sm:table-cell">Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Created</TableHead>
-                    <TableHead className="w-[70px]" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {deptLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={5}>
-                        <div className="py-6 text-center text-sm text-muted-foreground">Loading departments…</div>
-                      </TableCell>
-                    </TableRow>
-                  ) : departmentsAll.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5}>
-                        <div className="py-6 text-center text-sm text-muted-foreground">No departments found</div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    departmentsAll.map((d) => (
-                      <TableRow key={d.id}>
-                        <TableCell className="font-medium">{d.name}</TableCell>
-                        <TableCell className="hidden sm:table-cell">{d.code || '—'}</TableCell>
-                        <TableCell className="hidden sm:table-cell">
-                          <Badge variant={d.is_active ? 'default' : 'secondary'}>{d.is_active ? 'Active' : 'Inactive'}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
-                          {(() => { try { return d.created_at ? format(new Date(d.created_at), 'PP p') : '—'; } catch { return '—'; } })()}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                    <Edit className="h-4 w-4 mr-2" /> Edit
-                                  </DropdownMenuItem>
-                                </DialogTrigger>
-                                <DepartmentEditorDialog
-                                  initialName={d.name}
-                                  initialCode={d.code || ''}
-                                  onSave={async (name, code) => {
-                                    if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Editing departments is disabled in demo.', variant: 'destructive' }); return; }
-                                    try {
-                                      const updated = await updateDepartment(d.id, { name: name.trim(), code: code?.trim() || null });
-                                      setDepartmentsAll((prev) => prev.map(x => x.id === d.id ? updated : x));
-                                      setDeptOptions((prev) => {
-                                        const next = prev.map(x => x.id === d.id ? updated : x).filter(x => x.is_active);
-                                        // ensure active-only list
-                                        return next;
-                                      });
-                                      toast({ title: 'Department updated', description: `${updated.name} saved.` });
-                                    } catch (e: any) {
-                                      toast({ title: 'Update failed', description: e?.message || 'Unable to update department.', variant: 'destructive' });
-                                    }
-                                  }}
-                                />
-                              </Dialog>
-                              <DropdownMenuItem
-                                onClick={async () => {
+            <CardContent className="p-6">
+              {deptLoading ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">Loading departments…</div>
+              ) : departmentsAll.length === 0 ? (
+                <div className="py-12 text-center text-sm text-muted-foreground">No departments registered yet.</div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {departmentsAll.map((d) => {
+                    const memberCount = deptMemberCount[d.name.toLowerCase()] || 0;
+                    return (
+                      <div 
+                        key={d.id}
+                        className="group flex flex-col justify-between rounded-xl border border-border/70 bg-card p-4 shadow-xs hover:border-primary/40 hover:shadow-sm transition-all"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                              <Building2 className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-semibold text-sm text-foreground">{d.name}</h4>
+                                {d.code && (
+                                  <Badge variant="outline" className="font-mono text-[10px] uppercase px-1.5 py-0 border-border/70">
+                                    {d.code}
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {memberCount} active member{memberCount === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge 
+                            variant="outline" 
+                            className={cn(
+                              "text-[10px] font-medium px-2 py-0.5",
+                              d.is_active 
+                                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400" 
+                                : "bg-muted text-muted-foreground border-border/60"
+                            )}
+                          >
+                            {d.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between border-t border-border/40 pt-3">
+                          <span className="text-[11px] text-muted-foreground">
+                            {d.created_at ? format(new Date(d.created_at), 'MMM d, yyyy') : 'Standard'}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-7 px-2.5 text-xs text-muted-foreground hover:text-foreground rounded-lg">
+                                  <Edit className="h-3.5 w-3.5 mr-1" /> Edit
+                                </Button>
+                              </DialogTrigger>
+                              <DepartmentEditorDialog
+                                initialName={d.name}
+                                initialCode={d.code || ''}
+                                onSave={async (name, code) => {
                                   if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Editing departments is disabled in demo.', variant: 'destructive' }); return; }
                                   try {
-                                    const updated = await updateDepartment(d.id, { is_active: !d.is_active });
+                                    const updated = await updateDepartment(d.id, { name: name.trim(), code: code?.trim() || null });
                                     setDepartmentsAll((prev) => prev.map(x => x.id === d.id ? updated : x));
                                     setDeptOptions((prev) => {
-                                      const base = prev.filter(x => x.id !== d.id);
-                                      return updated.is_active ? [updated, ...base] : base;
+                                      const next = prev.map(x => x.id === d.id ? updated : x).filter(x => x.is_active);
+                                      return next;
                                     });
+                                    toast({ title: 'Department updated', description: `${updated.name} saved.` });
                                   } catch (e: any) {
-                                    toast({ title: 'Action failed', description: e?.message || 'Unable to toggle status.', variant: 'destructive' });
+                                    toast({ title: 'Update failed', description: e?.message || 'Unable to update department.', variant: 'destructive' });
                                   }
                                 }}
-                              >
-                                {d.is_active ? 'Deactivate' : 'Activate'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={async () => {
-                                  if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Deleting departments is disabled in demo.', variant: 'destructive' }); return; }
-                                  const ok = window.confirm(`Delete department "${d.name}"? This cannot be undone.`);
-                                  if (!ok) return;
-                                  try {
-                                    await deleteDepartment(d.id);
-                                    setDepartmentsAll((prev) => prev.filter(x => x.id !== d.id));
-                                    setDeptOptions((prev) => prev.filter(x => x.id !== d.id));
-                                    toast({ title: 'Department deleted', description: `${d.name} removed.` });
-                                  } catch (e: any) {
-                                    toast({ title: 'Delete failed', description: e?.message || 'Unable to delete department.', variant: 'destructive' });
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
+                              />
+                            </Dialog>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
+                              onClick={async () => {
+                                if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Deleting departments is disabled in demo.', variant: 'destructive' }); return; }
+                                const ok = window.confirm(`Delete department "${d.name}"? This cannot be undone.`);
+                                if (!ok) return;
+                                try {
+                                  await deleteDepartment(d.id);
+                                  setDepartmentsAll((prev) => prev.filter(x => x.id !== d.id));
+                                  setDeptOptions((prev) => prev.filter(x => x.id !== d.id));
+                                  toast({ title: 'Department deleted', description: `${d.name} removed.` });
+                                } catch (e: any) {
+                                  toast({ title: 'Delete failed', description: e?.message || 'Unable to delete department.', variant: 'destructive' });
+                                }
+                              }}
+                              title="Delete department"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
           )}
         </Card>
       )}
@@ -1807,32 +1837,50 @@ export default function Users() {
         }}
       >
         <DialogContent
+          hideCloseButton
           className={cn(
-            "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background/95 shadow-2xl",
+            "mx-auto flex flex-col overflow-hidden rounded-3xl border border-border/60 bg-background shadow-2xl p-0",
             isEditDialogMaximized
               ? "h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-none sm:h-[calc(100vh-3rem)] sm:w-[calc(100vw-3rem)]"
-              : "h-[min(92vh,800px)] w-[calc(100vw-1.5rem)] max-w-4xl sm:w-full"
+              : "h-[min(92vh,850px)] w-[calc(100vw-1.5rem)] max-w-5xl sm:w-full"
           )}
         >
-          <DialogHeader className="space-y-1.5 border-b border-border/60 bg-muted/10 px-6 py-5 text-left sm:px-8">
-            <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center justify-between border-b border-border/60 bg-muted/30 px-6 py-4 sm:px-8">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs">
+                <Shield className="h-5 w-5" />
+              </div>
               <div>
-                <DialogTitle className="text-xl font-semibold tracking-tight">Edit User</DialogTitle>
-                <DialogDescription className="text-sm text-muted-foreground">
-                  Update user details and access permissions
+                <DialogTitle className="text-lg font-bold text-foreground">Edit User & Permissions</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                  Update personal profile, role permissions, and branch scoping
                 </DialogDescription>
               </div>
+            </div>
+            <div className="flex items-center gap-1.5">
               <Button
+                type="button"
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsEditDialogMaximized((prev) => !prev)}
                 aria-label={isEditDialogMaximized ? "Restore dialog size" : "Maximize dialog"}
-                className="rounded-xl hover:bg-muted/50"
+                className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 {isEditDialogMaximized ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
               </Button>
+              <DialogClose asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label="Close dialog"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </DialogClose>
             </div>
-          </DialogHeader>
+          </div>
 
           <div className="no-scrollbar flex-1 overflow-y-auto bg-muted/5 px-6 py-6 sm:px-8">
             <div className="space-y-8">
@@ -1933,27 +1981,29 @@ export default function Users() {
 
                 <div className="space-y-4">
                   <div className="space-y-3">
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions</Label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions Matrix</Label>
+                      <span className="text-[11px] text-muted-foreground">Role provides baseline; toggle module overrides</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
                         .filter((p) => !(p === 'audit' && (eRole || '').toLowerCase() === 'user'))
                         .map((p) => (
-                        <div key={p} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 bg-background p-3 shadow-sm">
-                          <div className="text-sm font-medium capitalize">{p}</div>
+                        <div key={p} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs hover:border-primary/40 transition-all">
+                          <div className="text-sm font-semibold capitalize text-foreground">{p === 'qrcodes' ? 'QR Codes' : p}</div>
                           <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary transition-colors">
-                              <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5" />
+                            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                              <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
                               View
                             </label>
-                            <label className="flex items-center gap-1.5 text-xs cursor-pointer hover:text-primary transition-colors">
-                              <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5" />
+                            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
+                              <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
                               Edit
                             </label>
                           </div>
                         </div>
                       ))}
                     </div>
-                    <p className="text-[10px] text-muted-foreground">Role provides baseline permissions; these are additional per-user overrides.</p>
                   </div>
 
                   <div className="grid gap-5 sm:grid-cols-2 pt-2">

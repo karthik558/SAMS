@@ -247,9 +247,9 @@ All colors MUST be HSL.
   .page-intro h1 + p { @apply mt-2 text-sm leading-6 text-muted-foreground; }
   .heading-xl { @apply text-2xl font-semibold tracking-tight md:text-3xl; }
   .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-primary; }
-  .app-content { background-color: hsl(var(--background)); }
-  .app-content > * { width: 100%; max-width: 1600px; margin-inline: auto; }
-  .site-container { @apply mx-auto w-full max-w-7xl px-5 sm:px-8 lg:px-12; }
+  .app-content { background-color: hsl(var(--background)); width: 100%; }
+  .app-content > * { width: 100%; max-width: 100%; }
+  .site-container { @apply mx-auto w-full max-w-7xl 2xl:max-w-[1536px] px-5 sm:px-8 lg:px-12; }
   .site-heading { @apply text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl; text-wrap: balance; }
   .site-copy { @apply text-base leading-7 text-muted-foreground; }
 }
