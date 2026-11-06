@@ -42,17 +42,20 @@ function toSnake(p: Partial<Property>) {
 }
 
 export async function listProperties(options?: { force?: boolean }): Promise<Property[]> {
-  if (isDemoMode()) return getDemoProperties();
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
+  if (isDemoMode() || !hasSupabaseEnv) return getDemoProperties();
   return getCachedValue(
     PROPERTY_CACHE_KEY,
     async () => {
-      const { data, error } = await supabase
-        .from(table)
-        .select("id,name,address,type,status,manager,created_at,updated_at")
-        .order("id");
-      if (error) throw error;
-      return (data ?? []).map(toCamel);
+      try {
+        const { data, error } = await supabase
+          .from(table)
+          .select("id,name,address,type,status,manager,created_at,updated_at")
+          .order("id");
+        if (error) throw error;
+        return (data ?? []).map(toCamel);
+      } catch {
+        return getDemoProperties();
+      }
     },
     { ttlMs: PROPERTY_CACHE_TTL, force: options?.force },
   );

@@ -26,6 +26,7 @@ export type Asset = {
   amcEnabled?: boolean;
   amcStartDate?: string | null;
   amcEndDate?: string | null;
+  amcVendor?: string | null;
 };
 
 const table = "assets";
@@ -224,12 +225,26 @@ export async function deleteAsset(id: string): Promise<void> {
 }
 
 export async function getAssetById(id: string): Promise<Asset | null> {
+  const cleanId = (id || "").trim();
+  if (!cleanId) return null;
+
   if (isDemoMode()) {
     const list = getDemoAssets();
-    return list.find(a => a.id === id) || null;
+    return list.find(a => a.id.toLowerCase() === cleanId.toLowerCase()) || null;
   }
-  if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  return data ? toCamel(data) : null;
+  if (hasSupabaseEnv) {
+    try {
+      const { data, error } = await supabase.from(table).select("*").eq("id", cleanId).maybeSingle();
+      if (!error && data) return toCamel(data);
+    } catch {
+      // Fall through to demo fallback
+    }
+  }
+  // Graceful fallback to demo assets when offline or not found
+  try {
+    const list = getDemoAssets();
+    return list.find(a => a.id.toLowerCase() === cleanId.toLowerCase()) || null;
+  } catch {
+    return null;
+  }
 }

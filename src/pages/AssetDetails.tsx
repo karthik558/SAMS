@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +21,16 @@ import {
   Wrench,
   CalendarClock,
   Ticket,
-  Clock
+  Clock,
+  TrendingDown
 } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { isDemoMode } from "@/lib/demo";
+import { isDemoMode, getDemoAssets } from "@/lib/demo";
 import { getAssetById, type Asset } from "@/services/assets";
 import { listProperties, type Property } from "@/services/properties";
 import { toast } from "sonner";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
 export default function AssetDetails() {
   const { id } = useParams<{ id: string }>();
@@ -58,6 +60,15 @@ export default function AssetDetails() {
           data = await getAssetById(id);
         } catch {
           data = null;
+        }
+
+        // Graceful fallback to demo assets when asset not found in main DB
+        if (!data) {
+          try {
+            const list = getDemoAssets();
+            const clean = id.trim().toLowerCase();
+            data = list.find(a => a.id.toLowerCase() === clean) || null;
+          } catch {}
         }
 
         // As a fallback, use data from QR payload when present
@@ -91,18 +102,87 @@ export default function AssetDetails() {
     return propsById[code]?.name || code;
   };
 
-  const issuedDateLabel = asset?.purchaseDate ? new Date(asset.purchaseDate).toLocaleDateString() : '-';
-  const expiryDateLabel = asset?.expiryDate ? new Date(asset.expiryDate).toLocaleDateString() : '-';
+  const safeFormatDate = (val: string | null | undefined) => {
+    if (!val) return "-";
+    try {
+      const d = new Date(val);
+      return Number.isNaN(d.getTime()) ? String(val) : d.toLocaleDateString();
+    } catch {
+      return String(val);
+    }
+  };
+
+  const issuedDateLabel = safeFormatDate(asset?.purchaseDate);
+  const expiryDateLabel = safeFormatDate(asset?.expiryDate);
   const conditionLabel = asset?.condition || 'Not specified';
 
-  const amcEnd = asset?.amcEndDate ? new Date(asset.amcEndDate) : null;
   const amcDaysRemaining = useMemo(() => {
-    if (!amcEnd || Number.isNaN(amcEnd.getTime())) return null;
+    if (!asset?.amcEndDate) return null;
+    const amcEnd = new Date(asset.amcEndDate);
+    if (Number.isNaN(amcEnd.getTime())) return null;
     const today = new Date();
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const target = new Date(amcEnd.getFullYear(), amcEnd.getMonth(), amcEnd.getDate());
     return Math.ceil((target.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
-  }, [amcEnd]);
+  }, [asset?.amcEndDate]);
+
+  const formatCurrency = (val: number) => {
+    try {
+      return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(val);
+    } catch {
+      return `₹${val.toLocaleString()}`;
+    }
+  };
+
+  const depreciationInfo = useMemo(() => {
+    if (!asset?.purchaseDate) return null;
+    const pDate = new Date(asset.purchaseDate);
+    if (Number.isNaN(pDate.getTime())) return null;
+
+    const typeLower = (asset.type || "").toLowerCase();
+    if (typeLower.includes("food") || typeLower.includes("beverage") || typeLower.includes("consumable")) {
+      return null;
+    }
+
+    let usefulYears = 5;
+    let estimatedCost = 35000;
+    if (typeLower.includes("laptop") || typeLower.includes("computer") || typeLower.includes("it")) {
+      usefulYears = 4;
+      estimatedCost = 65000;
+    } else if (typeLower.includes("server") || typeLower.includes("network")) {
+      usefulYears = 5;
+      estimatedCost = 180000;
+    } else if (typeLower.includes("furniture") || typeLower.includes("chair") || typeLower.includes("desk")) {
+      usefulYears = 10;
+      estimatedCost = 18000;
+    } else if (typeLower.includes("hvac") || typeLower.includes("machinery") || typeLower.includes("air")) {
+      usefulYears = 10;
+      estimatedCost = 120000;
+    }
+
+    const salvageValue = Math.round(estimatedCost * 0.05);
+    const depreciableAmount = estimatedCost - salvageValue;
+
+    const now = new Date();
+    const elapsedDays = Math.max(0, (now.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+    const totalDays = usefulYears * 365.25;
+    const elapsedYears = elapsedDays / 365.25;
+
+    const annualDepreciation = depreciableAmount / usefulYears;
+    const accumulatedDepreciation = Math.min(depreciableAmount, Math.round(annualDepreciation * elapsedYears));
+    const netBookValue = Math.max(salvageValue, estimatedCost - accumulatedDepreciation);
+    const percentElapsed = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+
+    return {
+      estimatedCost,
+      salvageValue,
+      netBookValue,
+      accumulatedDepreciation,
+      usefulYears,
+      elapsedYears: Math.min(usefulYears, Number(elapsedYears.toFixed(1))),
+      percentElapsed,
+    };
+  }, [asset?.purchaseDate, asset?.type]);
 
   const handleRaiseTicket = () => {
     if (!asset) return;
@@ -131,14 +211,14 @@ export default function AssetDetails() {
           </CardHeader>
           <CardContent className="space-y-3">
             <Button asChild className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md rounded-lg">
-              <a href={isDemoMode() ? "/demo/assets" : "/assets"}>
+              <Link to={isDemoMode() ? "/demo/assets" : "/assets"}>
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back to assets
-              </a>
+              </Link>
             </Button>
             <Button asChild variant="outline" className="w-full border-border/70 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg">
-              <a href={isDemoMode() ? "/demo/scan" : "/scan"}>
+              <Link to={isDemoMode() ? "/demo/scan" : "/scan"}>
                 <ScanLine className="mr-2 h-4 w-4" /> Scan again
-              </a>
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -274,13 +354,72 @@ export default function AssetDetails() {
                           )
                         }
                       />
-                      <DetailRow label="AMC End Date" value={asset.amcEndDate ? new Date(asset.amcEndDate).toLocaleDateString() : '-'} />
-                      {asset.amcStartDate && <DetailRow label="AMC Start Date" value={new Date(asset.amcStartDate).toLocaleDateString()} />}
+                      <DetailRow label="AMC End Date" value={safeFormatDate(asset.amcEndDate)} />
+                      {asset.amcStartDate && <DetailRow label="AMC Start Date" value={safeFormatDate(asset.amcStartDate)} />}
                       {asset.amcVendor && <DetailRow label="Contractor / Vendor" value={asset.amcVendor} />}
                     </div>
                   </div>
                 )}
               </div>
+
+              {/* Lifecycle & Straight-Line Depreciation Valuation */}
+              {depreciationInfo && (
+                <div className="rounded-xl border border-border/70 bg-card p-5 space-y-4 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <TrendingDown className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-foreground">Asset Valuation & Depreciation</h4>
+                        <p className="text-xs text-muted-foreground">Straight-Line Depreciation model ({depreciationInfo.usefulYears}-year lifespan)</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-xs font-medium w-fit bg-muted/30">
+                      {depreciationInfo.percentElapsed}% Life Elapsed
+                    </Badge>
+                  </div>
+
+                  {/* Valuation Breakdown Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-center">
+                      <span className="text-[10px] uppercase font-medium text-muted-foreground">Original Est.</span>
+                      <p className="text-sm font-bold text-foreground mt-0.5">{formatCurrency(depreciationInfo.estimatedCost)}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-center">
+                      <span className="text-[10px] uppercase font-medium text-muted-foreground">Net Book Value</span>
+                      <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">{formatCurrency(depreciationInfo.netBookValue)}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-center">
+                      <span className="text-[10px] uppercase font-medium text-muted-foreground">Accum. Deprec.</span>
+                      <p className="text-sm font-bold text-foreground mt-0.5">{formatCurrency(depreciationInfo.accumulatedDepreciation)}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/50 bg-muted/20 p-2.5 text-center">
+                      <span className="text-[10px] uppercase font-medium text-muted-foreground">Salvage Value</span>
+                      <p className="text-sm font-bold text-muted-foreground mt-0.5">{formatCurrency(depreciationInfo.salvageValue)}</p>
+                    </div>
+                  </div>
+
+                  {/* Lifecycle Progress Bar */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Age: {depreciationInfo.elapsedYears} yrs</span>
+                      <span>Target: {depreciationInfo.usefulYears} yrs</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted/60">
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          depreciationInfo.percentElapsed >= 90 ? "bg-destructive" :
+                          depreciationInfo.percentElapsed >= 70 ? "bg-amber-500" :
+                          "bg-primary"
+                        )}
+                        style={{ width: `${depreciationInfo.percentElapsed}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {qrPayload?.notes && (
                 <div className="rounded-xl border border-border/60 bg-muted/30 p-5">

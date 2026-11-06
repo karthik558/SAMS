@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import Index from "@/pages/Index";
 import Assets from "@/pages/Assets";
+import AssetDetails from "@/pages/AssetDetails";
 import Properties from "@/pages/Properties";
 import QRCodes from "@/pages/QRCodes";
 import Approvals from "@/pages/Approvals";
@@ -27,6 +28,7 @@ export default function DemoAppRouter() {
         <Routes>
           <Route index element={<Index />} />
           <Route path="assets" element={<Assets />} />
+          <Route path="assets/:id" element={<AssetDetails />} />
           <Route path="properties" element={<Properties />} />
           <Route path="qr-codes" element={<QRCodes />} />
           <Route path="reports" element={<Reports />} />

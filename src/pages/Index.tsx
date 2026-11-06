@@ -103,23 +103,28 @@ const DASHBOARD_SNAPSHOT_KEY = "dashboard_snapshot_v1";
 
 const CustomTooltip = ({ active, payload, label, formatter }: any) => {
   if (active && payload && payload.length) {
+    const title = label || payload[0]?.name;
     return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
-        {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <div 
-              className="h-2 w-2 rounded-full" 
-              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
-            />
-            <span className="font-medium text-foreground">
-              {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
-            </span>
-            <span className="text-muted-foreground">
-              {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
-            </span>
-          </div>
-        ))}
+      <div className="rounded-xl border border-border/80 bg-popover/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md z-50">
+        {title && <p className="mb-1.5 text-xs font-semibold text-foreground">{title}</p>}
+        {payload.map((entry: any, index: number) => {
+          const color = entry.color || entry.payload?.color || (entry.fill && !entry.fill.startsWith("url") ? entry.fill : "hsl(var(--primary))") || entry.stroke;
+          const [val, metricName] = formatter 
+            ? formatter(entry.value, entry.name, entry) 
+            : [entry.value, entry.name];
+          return (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2.5 w-2.5 rounded-full shrink-0 shadow-xs" 
+                style={{ backgroundColor: color }} 
+              />
+              <span className="text-muted-foreground">{metricName || "Count"}:</span>
+              <span className="font-mono font-semibold text-foreground">
+                {typeof val === "number" ? val.toLocaleString() : val}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -1067,49 +1072,8 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Operational Watchlist Attention Banner */}
-      {(overdueAmc > 0 || foodExpiryOverdue > 0) && (
-        <div className="flex flex-col gap-3 rounded-2xl border border-destructive/25 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive ring-1 ring-destructive/20">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-            <div className="space-y-0.5">
-              <p className="text-sm font-semibold text-foreground">
-                Critical Operations Notice: Items Require Immediate Review
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {overdueAmc > 0 && (
-                  <span className="font-medium text-destructive">
-                    {overdueAmc} AMC service contract{overdueAmc === 1 ? "" : "s"} overdue
-                  </span>
-                )}
-                {overdueAmc > 0 && foodExpiryOverdue > 0 && " • "}
-                {foodExpiryOverdue > 0 && (
-                  <span className="font-medium text-destructive">
-                    {foodExpiryOverdue} perishable food item{foodExpiryOverdue === 1 ? "" : "s"} expired
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const el = document.getElementById("watchlists-section");
-              el?.scrollIntoView({ behavior: "smooth" });
-            }}
-            className="h-8 shrink-0 gap-1.5 border-destructive/30 text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive"
-          >
-            Review Watchlists
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      )}
-
       {/* Section: Operational Watchlists */}
-      <section id="watchlists-section" className="grid gap-6 lg:grid-cols-2">
+      <section id="watchlists-section" className="grid gap-6 lg:grid-cols-2 w-full min-w-0">
         <AmcWatchlist 
           items={amcWatchList} 
           trackedCount={trackedAmc} 
@@ -1212,26 +1176,51 @@ const Index = () => {
           ))}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.6fr,1fr]">
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle>Ticket Flow</CardTitle>
-              <CardDescription>Created vs resolved over the last 6 months</CardDescription>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-2">
+              <div>
+                <CardTitle className="text-base text-foreground">Ticket Flow</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Created vs resolved over the last 6 months</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: chartColors.created }} />
+                  <span>Created</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: chartColors.resolved }} />
+                  <span>Resolved</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: chartColors.backlog }} />
+                  <span>Backlog</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors ml-1"
+                  onClick={() => navigate(isDemoMode() ? "/demo/tickets" : "/tickets")}
+                >
+                  Tickets
+                  <ExternalLink className="h-3 w-3" />
+                </Button>
+              </div>
             </CardHeader>
-            <CardContent className="h-64">
+            <CardContent className="h-52 pt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={ticketChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ticketCreated" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.created} stopOpacity={0.3} />
+                      <stop offset="5%" stopColor={chartColors.created} stopOpacity={0.15} />
                       <stop offset="95%" stopColor={chartColors.created} stopOpacity={0.0} />
                     </linearGradient>
                     <linearGradient id="ticketResolved" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={chartColors.resolved} stopOpacity={0.3} />
+                      <stop offset="5%" stopColor={chartColors.resolved} stopOpacity={0.15} />
                       <stop offset="95%" stopColor={chartColors.resolved} stopOpacity={0.0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.5)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border) / 0.4)" vertical={false} />
                   <XAxis
                     dataKey="month"
                     stroke="hsl(var(--muted-foreground))"
@@ -1249,6 +1238,7 @@ const Index = () => {
                     dx={-10}
                   />
                   <Tooltip
+                    cursor={{ stroke: 'hsl(var(--muted-foreground) / 0.25)', strokeWidth: 1, strokeDasharray: '3 3' }}
                     content={<CustomTooltip formatter={(value: any, name: any) => [value, name]} />}
                   />
                   <Area 
@@ -1258,7 +1248,7 @@ const Index = () => {
                     stroke={chartColors.created} 
                     fill="url(#ticketCreated)" 
                     strokeWidth={2} 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
                   />
                   <Area 
                     type="monotone" 
@@ -1267,7 +1257,7 @@ const Index = () => {
                     stroke={chartColors.resolved} 
                     fill="url(#ticketResolved)" 
                     strokeWidth={2} 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
                   />
                   <Line 
                     type="monotone" 
@@ -1275,20 +1265,23 @@ const Index = () => {
                     name="Backlog" 
                     stroke={chartColors.backlog} 
                     strokeWidth={2} 
+                    strokeDasharray="4 4"
                     dot={false} 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
+                    activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl border border-border/60 bg-card shadow-sm">
-            <CardHeader>
-              <CardTitle>Team Signals</CardTitle>
-              <CardDescription>Average resolution {averageResolutionLabel}</CardDescription>
+          <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-2">
+              <div>
+                <CardTitle className="text-base text-foreground">Team Signals</CardTitle>
+                <CardDescription className="text-xs text-muted-foreground">Average resolution {averageResolutionLabel}</CardDescription>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-5 pt-2">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

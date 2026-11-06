@@ -43,23 +43,28 @@ function monthLabel(d: Date) {
 
 const CustomTooltip = ({ active, payload, label, formatter }: any) => {
   if (active && payload && payload.length) {
+    const title = label || payload[0]?.name;
     return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-3 shadow-xl backdrop-blur-sm">
-        {label && <p className="mb-2 text-xs font-medium text-muted-foreground">{label}</p>}
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-xs">
-            <div 
-              className="h-2 w-2 rounded-full" 
-              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }} 
-            />
-            <span className="font-medium text-foreground">
-              {formatter ? formatter(entry.value, entry.name, entry)[0] : entry.value}
-            </span>
-            <span className="text-muted-foreground">
-              {formatter ? formatter(entry.value, entry.name, entry)[1] : entry.name}
-            </span>
-          </div>
-        ))}
+      <div className="rounded-xl border border-border/80 bg-popover/95 px-3.5 py-2.5 shadow-xl backdrop-blur-md z-50">
+        {title && <p className="mb-1.5 text-xs font-semibold text-foreground">{title}</p>}
+        {payload.map((entry: any, index: number) => {
+          const color = entry.color || (entry.payload?.color) || (entry.fill && !entry.fill.startsWith("url") ? entry.fill : "hsl(var(--primary))") || entry.stroke;
+          const [val, metricName] = formatter 
+            ? formatter(entry.value, entry.name, entry) 
+            : [entry.value, entry.name];
+          return (
+            <div key={index} className="flex items-center gap-2 text-xs">
+              <div 
+                className="h-2.5 w-2.5 rounded-full shrink-0 shadow-xs" 
+                style={{ backgroundColor: color }} 
+              />
+              <span className="text-muted-foreground">{metricName || "Count"}:</span>
+              <span className="font-mono font-semibold text-foreground">
+                {typeof val === "number" ? val.toLocaleString() : val}
+              </span>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -330,7 +335,7 @@ export function DashboardCharts() {
                     />
                   ))}
                 </Pie>
-                <Tooltip content={<CustomTooltip formatter={(value: any, name: any) => [value, name]} />} />
+                <Tooltip content={<CustomTooltip formatter={(value: any) => [value, 'Assets']} />} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -508,7 +513,7 @@ export function DashboardCharts() {
                 tickLine={false}
                 axisLine={false}
               />
-              <Tooltip content={<CustomTooltip formatter={(v: any) => [v, 'Assets']} />} />
+              <Tooltip cursor={false} content={<CustomTooltip formatter={(v: any) => [v, 'Assets']} />} />
               <Bar 
                 dataKey="assets" 
                 fill="url(#barGradient)" 

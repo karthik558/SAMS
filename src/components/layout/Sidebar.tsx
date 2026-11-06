@@ -989,10 +989,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 </Link>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-stretch gap-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <div className="group flex flex-1 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 p-2 transition-all hover:bg-sidebar-accent/60">
+                    <div className="group flex flex-1 h-11 min-w-0 cursor-pointer items-center gap-2.5 rounded-xl border border-sidebar-border/70 bg-sidebar-accent/25 px-2.5 transition-all hover:bg-sidebar-accent/60">
                       {(role || '').toLowerCase() === 'admin' ? (
                         <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
                           <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
@@ -1011,7 +1011,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                           <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                         </div>
                       )}
-                      <div className="flex flex-col overflow-hidden min-w-0">
+                      <div className="flex flex-col justify-center overflow-hidden min-w-0 leading-tight">
                         <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
                         <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Staff'}</span>
                       </div>
@@ -1047,7 +1047,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   size="icon"
                   aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
                   onClick={toggleTheme}
-                  className="h-10 w-10 shrink-0 rounded-xl border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground shadow-xs transition-colors"
+                  className="h-11 w-11 shrink-0 rounded-xl border-sidebar-border/70 bg-sidebar-accent/25 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground shadow-xs transition-colors flex items-center justify-center"
                 >
                   {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </Button>
