@@ -98,9 +98,9 @@ All colors MUST be HSL.
 
     --sidebar-foreground: 240 5.3% 26.1%;
 
-    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary: 16.36 51.89% 58.43%;
 
-    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-primary-foreground: 0 0% 100%;
 
   /* Light mode sidebar hover/active background and text */
   --sidebar-accent: 16 52% 92%; /* slightly deeper tint for contrast */
@@ -130,7 +130,7 @@ All colors MUST be HSL.
   --primary-hover: 16 52% 62%;
 
   /* Neutral, non-blue surfaces for subtle UI elements */
-  --secondary: 60 3% 20%;
+  --secondary: 60 3% 22%;
   --secondary-foreground: 210 40% 98%;
 
   --muted: 60 3% 20%;
@@ -143,9 +143,9 @@ All colors MUST be HSL.
     --destructive: 0 62.8% 60%;
     --destructive-foreground: 210 40% 98%;
 
-  /* Stronger borders/inputs for clear separation */
-  --border: 60 3% 25%;
-  --input: 60 3% 22%;
+  /* Stronger borders/inputs for clear separation & button visibility in dark mode */
+  --border: 60 3% 30%;
+  --input: 60 3% 32%;
   --ring: 16.36 51.89% 58.43%;
   --chart-created: 217 91% 70%;
   --chart-resolved: var(--success);
@@ -156,7 +156,7 @@ All colors MUST be HSL.
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 60 3% 20%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-  --sidebar-border: 60 3% 20%;
+  --sidebar-border: 60 3% 24%;
   --sidebar-ring: 16.36 51.89% 58.43%;
   }
 }

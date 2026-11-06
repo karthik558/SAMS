@@ -20,6 +20,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ExternalLink } from "lucide-react";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets, getDemoProperties } from "@/lib/demo";
 import { listAssets, type Asset } from "@/services/assets";
@@ -264,12 +265,13 @@ export function DashboardCharts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Asset Distribution by Type</CardTitle>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
-              onClick={() => window.location.assign('/assets')}
+              className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors sm:shrink-0"
+              onClick={() => window.location.assign(isDemoMode() ? '/demo/assets' : '/assets')}
             >
-              View assets
+              Assets
+              <ExternalLink className="h-3 w-3" />
             </Button>
           </div>
         </CardHeader>
@@ -356,12 +358,13 @@ export function DashboardCharts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Purchase Trends</CardTitle>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
-              onClick={() => window.location.assign('/reports')}
+              className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors sm:shrink-0"
+              onClick={() => window.location.assign(isDemoMode() ? '/demo/reports' : '/reports')}
             >
-              View reports
+              Reports
+              <ExternalLink className="h-3 w-3" />
             </Button>
           </div>
         </CardHeader>
@@ -450,12 +453,13 @@ export function DashboardCharts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Assets by Property</CardTitle>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
-              onClick={() => window.location.assign('/properties')}
+              className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors sm:shrink-0"
+              onClick={() => window.location.assign(isDemoMode() ? '/demo/properties' : '/properties')}
             >
-              Manage properties
+              Properties
+              <ExternalLink className="h-3 w-3" />
             </Button>
           </div>
         </CardHeader>
@@ -529,12 +533,13 @@ export function DashboardCharts() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-base text-foreground">Asset Expiry Tracking</CardTitle>
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-8 px-2 text-xs gap-1 sm:flex-shrink-0"
-              onClick={() => window.location.assign('/assets')}
+              className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors sm:shrink-0"
+              onClick={() => window.location.assign(isDemoMode() ? '/demo/assets' : '/assets')}
             >
-              View expiring list
+              Assets
+              <ExternalLink className="h-3 w-3" />
             </Button>
           </div>
         </CardHeader>

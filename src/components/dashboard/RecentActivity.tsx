@@ -51,13 +51,14 @@ export function RecentActivity() {
     return [...items].sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   }, [items]);
   const todays = useMemo(() => {
-    return sorted.filter((a) => {
+    const list = sorted.filter((a) => {
       try {
         return isToday(parseISO(a.created_at));
       } catch {
         return false;
       }
     });
+    return list.length > 0 ? list : sorted.slice(0, 10);
   }, [sorted]);
   const rows = useMemo(() => {
     if (showAll) return todays;
@@ -80,11 +81,11 @@ export function RecentActivity() {
         </div>
         {todays.length > 7 && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             aria-expanded={showAll}
             onClick={() => setShowAll((v) => !v)}
-            className="h-8 px-2 text-xs"
+            className="h-8 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors"
           >
             {showAll ? "Show less" : "Show all"}
           </Button>

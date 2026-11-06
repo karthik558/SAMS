@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CalendarClock, ArrowRight, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { 
+  ShieldCheck, 
+  CalendarClock, 
+  CheckCircle2, 
+  Clock, 
+  AlertTriangle, 
+  Building2, 
+  ExternalLink,
+  ChevronRight
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { isDemoMode } from "@/lib/demo";
 
 export type AmcAlertItem = {
   id: string;
@@ -23,201 +33,284 @@ interface AmcWatchlistProps {
   hasSupabase: boolean;
 }
 
-const WATCHLIST_DISPLAY_LIMIT = 4;
-
-const ChartTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="rounded-lg border border-border/50 bg-background/95 p-2 shadow-xl backdrop-blur-sm">
-        <div className="text-xs font-medium text-muted-foreground mb-1">{label}</div>
-        {payload.map((entry: any, index: number) => (
-          <div key={index} className="flex items-center gap-2 text-sm">
-            <div 
-              className="w-2 h-2 rounded-full" 
-              style={{ backgroundColor: entry.color || entry.fill || entry.stroke }}
-            />
-            <span className="text-muted-foreground">
-              Cumulative Expiries:
-            </span>
-            <span className="font-medium text-foreground">
-              {entry.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
+const DEFAULT_PAGE_SIZE = 5;
 
 export function AmcWatchlist({ items, trackedCount, overdueCount, hasSupabase }: AmcWatchlistProps) {
+  const navigate = useNavigate();
+  const [filterMode, setFilterMode] = useState<"action" | "all">("action");
   const [showAll, setShowAll] = useState(false);
 
-  const displayedItems = showAll ? items : items.slice(0, WATCHLIST_DISPLAY_LIMIT);
-  const remainingCount = Math.max(0, items.length - displayedItems.length);
+  // Stats calculation
+  const urgentCount = useMemo(() => 
+    items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length,
+    [items]
+  );
+  const upcomingCount = useMemo(() => 
+    items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length,
+    [items]
+  );
 
-  // Calculate stats
-  const urgentCount = items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 7).length;
-  const upcomingCount = items.filter(i => i.daysRemaining > 7 && i.daysRemaining <= 30).length;
+  // Filtered items
+  const filteredItems = useMemo(() => {
+    if (filterMode === "action") {
+      return items.filter(i => i.daysRemaining <= 30);
+    }
+    return items;
+  }, [items, filterMode]);
 
-  // Prepare trend data (Cumulative expiries over next 30 days)
-  const trendData = [
-    { name: 'Now', value: overdueCount },
-    { name: '+7d', value: overdueCount + urgentCount },
-    { name: '+14d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 14).length },
-    { name: '+30d', value: overdueCount + items.filter(i => i.daysRemaining >= 0 && i.daysRemaining <= 30).length },
-  ];
+  const displayedItems = showAll ? filteredItems : filteredItems.slice(0, DEFAULT_PAGE_SIZE);
+  const hasMore = filteredItems.length > DEFAULT_PAGE_SIZE;
+
+  const handleAssetClick = (assetId: string) => {
+    const path = isDemoMode() ? `/demo/assets/${assetId}` : `/assets/${assetId}`;
+    navigate(path);
+  };
+
+  const handleViewAllAssets = () => {
+    const path = isDemoMode() ? "/demo/assets" : "/assets";
+    navigate(path);
+  };
+
+  const isTrackingActive = hasSupabase || isDemoMode() || items.length > 0;
 
   return (
-    <Card className="rounded-xl border border-border/60 bg-card shadow-sm h-full flex flex-col">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0 pb-4">
-        <div className="flex items-start gap-3">
-          <span className="rounded-full bg-orange-500/10 p-2 text-orange-600 dark:text-orange-400">
-            <AlertTriangle className="h-4 w-4" />
-          </span>
-          <div className="space-y-1">
-            <CardTitle className="text-sm font-semibold text-foreground">AMC Watchlist</CardTitle>
-            <CardDescription className="text-xs text-muted-foreground sm:text-sm">
-              Contract renewals & expiries
-            </CardDescription>
+    <Card className="flex h-full flex-col overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm transition-all duration-200 hover:shadow-md">
+      {/* Card Header */}
+      <CardHeader className="border-b border-border/50 bg-muted/20 pb-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-inset ring-border/50">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold tracking-tight text-foreground">
+                AMC & Service Watchlist
+              </CardTitle>
+              <CardDescription className="text-xs text-muted-foreground">
+                Warranty renewals & vendor maintenance SLAs
+              </CardDescription>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {overdueCount > 0 ? (
+              <Badge variant="outline" className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-xs font-medium text-destructive border-destructive/30 bg-destructive/5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {overdueCount} Overdue
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="flex h-8 items-center gap-1.5 rounded-lg border-border/70 bg-muted/40 px-2.5 text-xs font-medium text-muted-foreground">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                All Covered
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleViewAllAssets}
+              className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors"
+            >
+              Assets
+              <ExternalLink className="h-3 w-3" />
+            </Button>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-           {overdueCount > 0 && (
-             <Badge variant="destructive" className="h-6 px-2 text-[10px] font-semibold uppercase tracking-wider">
-               {overdueCount} Overdue
-             </Badge>
-           )}
-        </div>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col gap-4 p-4 pt-0">
-        {hasSupabase ? (
+
+      <CardContent className="flex flex-1 flex-col gap-4 p-5">
+        {isTrackingActive ? (
           <>
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
-                <div className="text-lg font-bold text-foreground">{urgentCount}</div>
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Urgent</div>
+            {/* Clean Neutral Metrics Strip */}
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <div className="flex flex-col rounded-xl border border-border/60 bg-muted/20 p-3 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Overdue
+                  </span>
+                  {overdueCount > 0 && <span className="h-2 w-2 rounded-full bg-destructive" />}
+                </div>
+                <div className={cn("mt-1 text-2xl font-semibold tabular-nums", overdueCount > 0 ? "text-destructive" : "text-foreground")}>
+                  {overdueCount}
+                </div>
+                <span className="text-[10px] text-muted-foreground">Requires renewal</span>
               </div>
-              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
-                <div className="text-lg font-bold text-foreground">{upcomingCount}</div>
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Upcoming</div>
+
+              <div className="flex flex-col rounded-xl border border-border/60 bg-muted/20 p-3 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Due ≤ 7 Days
+                  </span>
+                  {urgentCount > 0 && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+                </div>
+                <div className={cn("mt-1 text-2xl font-semibold tabular-nums", urgentCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground")}>
+                  {urgentCount}
+                </div>
+                <span className="text-[10px] text-muted-foreground">Expiring this week</span>
               </div>
-              <div className="rounded-lg border border-border/40 bg-muted/20 p-2 text-center">
-                <div className="text-lg font-bold text-foreground">{trackedCount}</div>
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Total</div>
+
+              <div className="flex flex-col rounded-xl border border-border/60 bg-muted/20 p-3 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Due ≤ 30 Days
+                  </span>
+                </div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                  {upcomingCount}
+                </div>
+                <span className="text-[10px] text-muted-foreground">In review pipeline</span>
+              </div>
+
+              <div className="flex flex-col rounded-xl border border-border/60 bg-muted/20 p-3 text-left">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Total Tracked
+                  </span>
+                </div>
+                <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                  {trackedCount}
+                </div>
+                <span className="text-[10px] text-muted-foreground">Active contracts</span>
               </div>
             </div>
 
-            {/* Trend Chart */}
-            {trackedCount > 0 && (
-              <div className="h-24 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={trendData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="amcTrend" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border) / 0.5)" />
-                    <XAxis 
-                      dataKey="name" 
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
-                      tickLine={false}
-                      axisLine={false}
-                      dy={5}
-                    />
-                    <YAxis 
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} 
-                      tickLine={false}
-                      axisLine={false}
-                      allowDecimals={false}
-                    />
-                    <Tooltip content={<ChartTooltip />} />
-                    <Area 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#f97316" 
-                      fillOpacity={1} 
-                      fill="url(#amcTrend)" 
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+            {/* Filter Toggle: Active on WHITE in light mode, high contrast in dark mode */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="inline-flex items-center rounded-lg bg-muted/60 p-1 border border-border/50">
+                <button
+                  type="button"
+                  onClick={() => { setFilterMode("action"); setShowAll(false); }}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                    filterMode === "action"
+                      ? "bg-white text-foreground shadow-xs font-semibold border border-border/30 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Action Needed ({items.filter(i => i.daysRemaining <= 30).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setFilterMode("all"); setShowAll(false); }}
+                  className={cn(
+                    "rounded-md px-3 py-1 text-xs font-medium transition-all",
+                    filterMode === "all"
+                      ? "bg-white text-foreground shadow-xs font-semibold border border-border/30 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  All ({items.length})
+                </button>
               </div>
-            )}
 
-            {/* List Items */}
-            <div className="space-y-2 flex-1">
-              {items.length > 0 ? (
-                <div className="space-y-2">
-                  {displayedItems.map((item) => {
-                    const isUrgent = item.severity === 'urgent';
-                    const isSoon = item.severity === 'soon';
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-2.5 rounded-md border border-border/40 bg-muted/30 p-2 transition hover:border-border/70"
-                      >
-                        <div className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-background border", 
-                           isUrgent ? "border-red-200 text-red-600 dark:border-red-900/30 dark:text-red-400" : 
-                           isSoon ? "border-orange-200 text-orange-600 dark:border-orange-900/30 dark:text-orange-400" : 
-                           "border-blue-200 text-blue-600 dark:border-blue-900/30 dark:text-blue-400"
-                        )}>
-                           <CalendarClock className="h-3.5 w-3.5" />
+              <span className="text-[11px] text-muted-foreground">
+                Showing {displayedItems.length} of {filteredItems.length}
+              </span>
+            </div>
+
+            {/* Clean Interactive Items List */}
+            <div className="space-y-2">
+              {displayedItems.length > 0 ? (
+                displayedItems.map((item) => {
+                  const isOverdue = item.daysRemaining < 0;
+                  const isUrgent = item.daysRemaining >= 0 && item.daysRemaining <= 7;
+
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleAssetClick(item.id)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAssetClick(item.id); }}
+                      className="group flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border/60 bg-card p-3 transition-all duration-200 hover:border-border hover:bg-muted/30"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-muted/40 text-muted-foreground">
+                          {isOverdue ? (
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                          ) : isUrgent ? (
+                            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                          ) : (
+                            <CalendarClock className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-0.5">
-                            <h5 className="truncate text-xs font-medium text-foreground" title={item.name}>
-                              {item.name}
-                            </h5>
-                            <span className={cn("text-[9px] font-bold uppercase tracking-wider",
-                              isUrgent ? "text-red-600 dark:text-red-400" : 
-                              isSoon ? "text-orange-600 dark:text-orange-400" : 
-                              "text-blue-600 dark:text-blue-400"
-                            )}>
-                              {item.daysRemaining <= 0 ? `${Math.abs(item.daysRemaining)}d Overdue` : `${item.daysRemaining}d Left`}
+
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <p className="truncate text-sm font-medium text-foreground group-hover:text-primary transition-colors">
+                            {item.name}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1 truncate max-w-[150px] sm:max-w-[200px]">
+                              <Building2 className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                              {item.propertyName}
                             </span>
-                          </div>
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span className="truncate">{item.propertyName}</span>
-                            <span>{item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                            <span className="text-muted-foreground/30">•</span>
+                            <span>
+                              Expires {item.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                  
-                  {items.length > WATCHLIST_DISPLAY_LIMIT && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full h-7 text-[10px] text-muted-foreground hover:text-foreground"
-                      onClick={() => setShowAll(!showAll)}
-                    >
-                      {showAll ? "Show Less" : `View ${remainingCount} More`}
-                    </Button>
-                  )}
-                </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={cn(
+                          "rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors border",
+                          isOverdue 
+                            ? "bg-destructive/10 text-destructive border-destructive/20" 
+                            : isUrgent 
+                              ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20"
+                              : "bg-muted text-muted-foreground border-border/50"
+                        )}>
+                          {isOverdue 
+                            ? `${Math.abs(item.daysRemaining)}d Overdue` 
+                            : item.daysRemaining === 0 
+                              ? "Expires Today" 
+                              : `${item.daysRemaining}d Left`}
+                        </span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/60 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                      </div>
+                    </div>
+                  );
+                })
               ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <div className="rounded-full bg-green-100 p-2 dark:bg-green-900/20 mb-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-muted/10 py-8 text-center">
+                  <div className="rounded-full bg-muted p-2.5 text-muted-foreground mb-2">
+                    <CheckCircle2 className="h-5 w-5" />
                   </div>
-                  <p className="text-xs font-medium text-muted-foreground">All contracts are up to date</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {filterMode === "action" ? "No Urgent Renewals" : "No Service Contracts Tracked"}
+                  </p>
+                  <p className="max-w-xs text-xs text-muted-foreground mt-0.5">
+                    {filterMode === "action" 
+                      ? "All equipment contracts are covered and in good standing." 
+                      : "Enable AMC tracking on assets to monitor warranty dates and SLA renewals."}
+                  </p>
                 </div>
+              )}
+
+              {/* View More / Less Toggle */}
+              {hasMore && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAll(!showAll)}
+                  className="w-full h-8 rounded-lg border-border/60 bg-muted/20 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors"
+                >
+                  {showAll ? "Show Less" : `View ${filteredItems.length - DEFAULT_PAGE_SIZE} More Contracts`}
+                </Button>
               )}
             </div>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
-            <div className="rounded-full bg-muted p-3">
-              <AlertCircle className="h-6 w-6" />
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 p-8 text-center">
+            <div className="rounded-full bg-muted p-3 text-muted-foreground">
+              <ShieldCheck className="h-6 w-6" />
             </div>
-            <p className="text-sm">Connect Supabase to enable tracking</p>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">AMC Tracking Offline</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Connect database storage to monitor annual maintenance contracts and SLA renewals.
+              </p>
+            </div>
           </div>
         )}
       </CardContent>

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, ExternalLink } from "lucide-react";
 import { isDemoMode } from "@/lib/demo";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { listSessions, getSessionById, isAuditActive, getProgress, formatAuditSessionName } from "@/services/audit";
@@ -86,12 +86,13 @@ export function MyAudits() {
         </div>
         {!isDemoMode() && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="h-8 px-2 text-xs"
+            className="h-8 gap-1.5 rounded-lg border-border/70 bg-background px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground shadow-xs transition-colors"
             onClick={() => navigate("/audit")}
           >
-            View all
+            Audits
+            <ExternalLink className="h-3 w-3" />
           </Button>
         )}
       </CardHeader>

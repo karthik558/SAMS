@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { LucideIcon } from "lucide-react";
 import {
   LifeBuoy,
-  Sparkles,
+  Compass,
   Package,
   ClipboardCheck,
   BarChart3,
@@ -98,7 +98,7 @@ const knowledgeCategories: KnowledgeCategory[] = [
     id: "orientation",
     title: "Orientation & navigation",
     summary: "Stay productive with keyboard shortcuts, personalized layouts, and mobile friendly views.",
-    icon: Sparkles,
+    icon: Compass,
     articles: [
       {
         title: "Keyboard-first command palette",

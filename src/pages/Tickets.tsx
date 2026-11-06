@@ -1093,9 +1093,9 @@ export default function Tickets() {
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
               <CardTitle>Tickets</CardTitle>
-              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)} className="bg-muted/50 p-1 rounded-full border border-border/50">
-                <ToggleGroupItem value="received" aria-label="Received tickets" className="rounded-full px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Received</ToggleGroupItem>
-                <ToggleGroupItem value="raised" aria-label="Raised tickets" className="rounded-full px-4 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Raised</ToggleGroupItem>
+              <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as any)} className="bg-muted/60 p-1 rounded-full border border-border/50">
+                <ToggleGroupItem value="received" aria-label="Received tickets" className="rounded-full px-4 data-[state=on]:bg-white data-[state=on]:shadow-xs data-[state=on]:text-foreground data-[state=on]:border data-[state=on]:border-border/30 dark:data-[state=on]:bg-card dark:data-[state=on]:text-foreground dark:data-[state=on]:border-border/80">Received</ToggleGroupItem>
+                <ToggleGroupItem value="raised" aria-label="Raised tickets" className="rounded-full px-4 data-[state=on]:bg-white data-[state=on]:shadow-xs data-[state=on]:text-foreground data-[state=on]:border data-[state=on]:border-border/30 dark:data-[state=on]:bg-card dark:data-[state=on]:text-foreground dark:data-[state=on]:border-border/80">Raised</ToggleGroupItem>
               </ToggleGroup>
             </div>
             <div className="flex items-center gap-3 flex-wrap">
@@ -1109,9 +1109,9 @@ export default function Tickets() {
               >
                 {showClosedOnly ? 'Closed only' : 'Show closed'}
               </Button>
-              <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)} className="bg-muted/50 p-1 rounded-full border border-border/50">
-                <ToggleGroupItem value="list" aria-label="List view" className="rounded-full px-3 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">List</ToggleGroupItem>
-                <ToggleGroupItem value="board" aria-label="Board view" className="rounded-full px-3 data-[state=on]:bg-background data-[state=on]:shadow-sm data-[state=on]:text-primary">Board</ToggleGroupItem>
+              <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v as any)} className="bg-muted/60 p-1 rounded-full border border-border/50">
+                <ToggleGroupItem value="list" aria-label="List view" className="rounded-full px-3 data-[state=on]:bg-white data-[state=on]:shadow-xs data-[state=on]:text-foreground data-[state=on]:border data-[state=on]:border-border/30 dark:data-[state=on]:bg-card dark:data-[state=on]:text-foreground dark:data-[state=on]:border-border/80">List</ToggleGroupItem>
+                <ToggleGroupItem value="board" aria-label="Board view" className="rounded-full px-3 data-[state=on]:bg-white data-[state=on]:shadow-xs data-[state=on]:text-foreground data-[state=on]:border data-[state=on]:border-border/30 dark:data-[state=on]:bg-card dark:data-[state=on]:text-foreground dark:data-[state=on]:border-border/80">Board</ToggleGroupItem>
               </ToggleGroup>
             </div>
           </div>

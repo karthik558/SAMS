@@ -266,15 +266,15 @@ export function Header({ onMenuClick }: HeaderProps) {
           variant="ghost"
           size="sm"
           className={cn(
-            "relative flex items-center justify-center p-0 transition-colors",
+            "relative flex items-center justify-center p-0 transition-colors overflow-visible",
             isMobile 
               ? "h-9 w-9 rounded-full bg-muted/70 shadow-sm" 
-              : "h-8 w-8"
+              : "h-9 w-9 rounded-full hover:bg-muted/70"
           )}
         >
           <Bell className="h-4 w-4 text-muted-foreground" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] leading-[14px] text-destructive-foreground shadow-sm">
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground ring-2 ring-background shadow-sm">
               {badgeLabel}
             </span>
           )}
@@ -282,7 +282,8 @@ export function Header({ onMenuClick }: HeaderProps) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-80 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
+        sideOffset={8}
+        className="w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl z-50"
       >
         <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-3">
           <div>
@@ -300,7 +301,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                   try { sessionStorage.setItem('demo_notifs_cleared', '1'); } catch {}
                 }
               }}
-              className="text-xs font-semibold text-primary hover:text-primary/80"
+              className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
             >
               Clear all
             </button>
@@ -324,31 +325,34 @@ export function Header({ onMenuClick }: HeaderProps) {
                 >
                   <Link
                     to={to}
-                    className="flex w-full items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/70"
+                    className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/70"
                     onClick={() => setNotifOpen(false)}
                   >
                     <span
-                      className={`mt-1 inline-flex h-2 w-2 rounded-full ${isUnread ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+                      className={cn(
+                        "mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full",
+                        isUnread ? "bg-primary" : "bg-muted-foreground/30"
+                      )}
                       aria-hidden="true"
                     />
-                    <div className="flex flex-1 flex-col gap-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="line-clamp-2 text-sm font-semibold text-foreground">
+                    <div className="flex flex-1 flex-col gap-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 min-w-0">
+                        <p className="truncate text-xs font-semibold text-foreground min-w-0 flex-1">
                           {n.title || typeLabel || 'Notification'}
                         </p>
-                        <span className="whitespace-nowrap text-xs text-muted-foreground">
+                        <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
                           {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
                         </span>
                       </div>
                       {n.message && (
-                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground break-words">
                           {n.message}
                         </p>
                       )}
                       {typeLabel && (
                         <Badge
                           variant="outline"
-                          className="w-fit border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
+                          className="w-fit border-primary/30 bg-primary/10 text-[9px] font-semibold uppercase tracking-[0.08em] text-primary py-0 px-1.5"
                         >
                           {typeLabel}
                         </Badge>
@@ -462,12 +466,12 @@ export function Header({ onMenuClick }: HeaderProps) {
   return (
     <header className="app-header h-14 md:h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       {isMobile ? (
-        <div className="relative flex h-full w-full items-center px-3">
-          <div className="flex items-center gap-2">
+        <div className="grid h-full w-full grid-cols-[auto,1fr,auto] items-center gap-2 px-3">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               aria-label="Open menu"
               onClick={onMenuClick}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 shadow-sm"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-foreground transition-colors hover:bg-muted shadow-sm"
             >
               <Menu className="h-5 w-5" />
             </button>
@@ -475,31 +479,33 @@ export function Header({ onMenuClick }: HeaderProps) {
               type="button"
               aria-label="Search pages and actions"
               onClick={() => setPaletteOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-xs text-muted-foreground shadow-sm"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-muted/70 text-xs text-muted-foreground transition-colors hover:bg-muted shadow-sm"
             >
               <Search className="h-4 w-4" />
             </button>
           </div>
-          <Link
-            to={prefix || "/"}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            aria-label="Go to dashboard"
-          >
-            <div 
-              className="h-8 w-32 bg-primary transition-colors" 
-              style={{
-                maskImage: 'url("/sams_logo.png")',
-                maskSize: 'contain',
-                maskRepeat: 'no-repeat',
-                maskPosition: 'center',
-                WebkitMaskImage: 'url("/sams_logo.png")',
-                WebkitMaskSize: 'contain',
-                WebkitMaskRepeat: 'no-repeat',
-                WebkitMaskPosition: 'center'
-              }}
-            />
-          </Link>
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="flex items-center justify-center min-w-0 overflow-hidden px-1">
+            <Link
+              to={prefix || "/"}
+              className="flex items-center justify-center py-1"
+              aria-label="Go to dashboard"
+            >
+              <div 
+                className="h-7 w-24 sm:w-28 bg-primary transition-colors shrink-0" 
+                style={{
+                  maskImage: 'url("/sams_logo.png")',
+                  maskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                  WebkitMaskImage: 'url("/sams_logo.png")',
+                  WebkitMaskSize: 'contain',
+                  WebkitMaskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'center'
+                }}
+              />
+            </Link>
+          </div>
+          <div className="flex items-center justify-end gap-1.5 shrink-0">
             {notificationsDropdown}
             <div className="md:hidden">
               {userMenu}
@@ -508,15 +514,15 @@ export function Header({ onMenuClick }: HeaderProps) {
         </div>
       ) : (
         <div className="flex h-full items-center justify-between gap-3 px-3 md:px-6">
-          <div className="flex flex-1 items-center gap-2 max-w-md">
+          <div className="flex flex-1 items-center gap-2 max-w-md min-w-0">
             <button
               aria-label="Open menu"
               onClick={onMenuClick}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent md:hidden"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent md:hidden shrink-0"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="relative flex-1">
+            <div className="relative flex-1 min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 aria-label="Search"
@@ -533,7 +539,7 @@ export function Header({ onMenuClick }: HeaderProps) {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-3 md:gap-4 shrink-0">
             {notificationsDropdown}
             <div className="md:hidden">
               {userMenu}

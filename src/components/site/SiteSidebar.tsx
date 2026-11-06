@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import {
   Package,
   Home,
-  Sparkles,
+  Zap,
   Boxes,
   BadgeCheck,
   Users,
@@ -29,7 +29,7 @@ interface SiteSidebarProps {
 
 const navItems = [
   { name: "Overview", href: "#overview", icon: Home },
-  { name: "Key Capabilities", href: "#capabilities", icon: Sparkles },
+  { name: "Key Capabilities", href: "#capabilities", icon: Zap },
   { name: "Modules", href: "#modules", icon: Boxes },
   { name: "Benefits", href: "#benefits", icon: BadgeCheck },
   { name: "Who It’s For", href: "#audience", icon: Users },

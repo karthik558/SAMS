@@ -9,14 +9,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[hsl(var(--primary-action))] text-[hsl(var(--primary-action-foreground))] shadow-sm hover:bg-[hsl(var(--primary-hover))]",
+        default: "bg-[hsl(var(--primary-action))] text-[hsl(var(--primary-action-foreground))] shadow-xs hover:bg-[hsl(var(--primary-hover))] font-medium transition-all active:scale-[0.98]",
         destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-xs font-medium active:scale-[0.98]",
         outline:
-          "border border-input bg-background hover:bg-accent hover:text-accent-foreground shadow-sm",
+          "border border-input/90 bg-background/70 hover:bg-muted hover:text-foreground shadow-xs font-medium dark:bg-card/90 dark:border-border/90 dark:hover:bg-muted dark:hover:border-border transition-all active:scale-[0.98]",
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-sm",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80 border border-border/50 shadow-xs font-medium dark:bg-muted/90 dark:border-border/70 dark:text-foreground transition-all active:scale-[0.98]",
+        ghost: "hover:bg-muted hover:text-foreground transition-colors",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

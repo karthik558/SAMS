@@ -371,14 +371,14 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         </button>
       </div>
       {/* Center nav – wraps on smaller widths */}
-      <nav className="flex items-center justify-center gap-0.5 overflow-x-auto no-scrollbar py-1">
+      <nav className="flex items-center justify-center gap-0.5 overflow-x-auto no-scrollbar py-1 min-w-0 flex-1">
         {computedItems.map(item => (
           <NavLink
             key={item.href}
             to={item.href}
             title={item.label}
             className={({ isActive }) => cn(
-              'group flex items-center justify-center rounded-full px-4 py-2.5 text-xs font-medium transition-all duration-200',
+              'group flex items-center justify-center rounded-full px-4 py-2.5 text-xs font-medium transition-all duration-200 shrink-0',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
               isActive
                 ? 'bg-primary text-primary-foreground shadow-sm'
@@ -391,7 +391,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
         ))}
       </nav>
       {/* Right side actions */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 shrink-0">
         {/* Theme Toggle */}
         <Button
           variant="ghost"
@@ -418,11 +418,11 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
               aria-label="Open notifications"
               variant="ghost"
               size="sm"
-              className="relative flex h-8 w-8 items-center justify-center rounded-full p-0 transition-colors hover:bg-muted/60"
+              className="relative flex h-8 w-8 items-center justify-center rounded-full p-0 transition-colors hover:bg-muted/60 overflow-visible"
             >
               <Bell className="h-4 w-4 text-muted-foreground" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-3 min-w-[12px] items-center justify-center rounded-full bg-destructive px-0.5 text-[8px] leading-none text-destructive-foreground shadow-sm">
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground ring-2 ring-background shadow-sm">
                   {badgeLabel}
                 </span>
               )}
@@ -430,7 +430,8 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-80 overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl"
+            sideOffset={8}
+            className="w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-xl z-50"
           >
             <div className="flex items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-3">
               <div>
@@ -448,7 +449,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
                       try { sessionStorage.setItem('demo_notifs_cleared', '1'); } catch {}
                     }
                   }}
-                  className="text-xs font-semibold text-primary hover:text-primary/80"
+                  className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
                 >
                   Clear all
                 </button>
@@ -473,31 +474,34 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
                     >
                       <Link
                         to={to}
-                        className="flex w-full items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/70"
+                        className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/70"
                         onClick={() => setNotifOpen(false)}
                       >
                         <span
-                          className={`mt-1 inline-flex h-2 w-2 rounded-full ${isUnread ? 'bg-primary' : 'bg-muted-foreground/40'}`}
+                          className={cn(
+                            "mt-1.5 inline-flex h-2 w-2 shrink-0 rounded-full",
+                            isUnread ? "bg-primary" : "bg-muted-foreground/30"
+                          )}
                           aria-hidden="true"
                         />
-                        <div className="flex flex-1 flex-col gap-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="line-clamp-2 text-sm font-semibold text-foreground">
+                        <div className="flex flex-1 flex-col gap-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 min-w-0">
+                            <p className="truncate text-xs font-semibold text-foreground min-w-0 flex-1">
                               {n.title || typeLabel || 'Notification'}
                             </p>
-                            <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            <span className="shrink-0 text-[10px] text-muted-foreground whitespace-nowrap">
                               {formatDistanceToNow(parseISO(n.created_at), { addSuffix: true })}
                             </span>
                           </div>
                           {n.message && (
-                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground break-words">
                               {n.message}
                             </p>
                           )}
                           {typeLabel && (
                             <Badge
                               variant="outline"
-                              className="w-fit border-primary/40 bg-primary/10 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary"
+                              className="w-fit border-primary/30 bg-primary/10 text-[9px] font-semibold uppercase tracking-[0.08em] text-primary py-0 px-1.5"
                             >
                               {typeLabel}
                             </Badge>
