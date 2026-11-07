@@ -14,6 +14,9 @@ import { hasSupabaseEnv } from "@/lib/supabaseClient";
 import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
 import { isAuditActive } from "@/services/audit";
+import { listAssets } from "@/services/assets";
+import { listProperties } from "@/services/properties";
+import { listTickets } from "@/services/tickets";
 import type { LucideIcon } from "lucide-react";
 import {
   LayoutDashboard,
@@ -80,6 +83,26 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [auditActive, setAuditActive] = useState(false);
   const [hasAuditReports, setHasAuditReports] = useState(false);
+  const [records, setRecords] = useState<{ assets: Array<{ id: string; name?: string; status?: string }>; properties: Array<{ id: string; name?: string }>; tickets: Array<{ id: string; title?: string; status?: string }> }>({ assets: [], properties: [], tickets: [] });
+
+  useEffect(() => {
+    if (!open) return;
+    let cancel = false;
+    (async () => {
+      const [assets, properties, tickets] = await Promise.all([
+        listAssets().catch(() => []),
+        listProperties().catch(() => []),
+        listTickets().catch(() => []),
+      ]);
+      if (cancel) return;
+      setRecords({
+        assets: (assets || []).slice(0, 40).map((asset) => ({ id: asset.id, name: asset.name, status: asset.status })),
+        properties: (properties || []).slice(0, 40).map((property) => ({ id: property.id, name: property.name })),
+        tickets: (tickets || []).slice(0, 40).map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status })),
+      });
+    })();
+    return () => { cancel = true; };
+  }, [open]);
 
   useEffect(() => {
     (async () => {
@@ -255,6 +278,40 @@ export default function CommandPalette({ open, onOpenChange, role }: Props) {
               </CommandItem>
             );
           })}
+        </CommandGroup>
+        <CommandSeparator className="my-2 bg-border/60" />
+        <CommandGroup heading="Assets" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">
+          {records.assets.map((asset) => (
+            <CommandItem key={asset.id} value={`${asset.name || ""} ${asset.id}`} onSelect={() => go(applyPrefix(`/assets/${asset.id}`))} className="gap-3">
+              <Package className="h-4 w-4 text-primary/70" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{asset.name || asset.id}</p>
+                <p className="truncate text-xs text-muted-foreground">{asset.id}{asset.status ? ` · ${asset.status}` : ""}</p>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        <CommandGroup heading="Properties" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">
+          {records.properties.map((property) => (
+            <CommandItem key={property.id} value={`${property.name || ""} ${property.id}`} onSelect={() => go(applyPrefix("/properties"))} className="gap-3">
+              <Building2 className="h-4 w-4 text-primary/70" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{property.name || property.id}</p>
+                <p className="truncate text-xs text-muted-foreground">{property.id}</p>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        <CommandGroup heading="Tickets" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">
+          {records.tickets.map((ticket) => (
+            <CommandItem key={ticket.id} value={`${ticket.title || ""} ${ticket.id}`} onSelect={() => go(applyPrefix(`/tickets?focus=${encodeURIComponent(ticket.id)}`))} className="gap-3">
+              <Ticket className="h-4 w-4 text-primary/70" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{ticket.title || ticket.id}</p>
+                <p className="truncate text-xs text-muted-foreground">{ticket.id}{ticket.status ? ` · ${ticket.status}` : ""}</p>
+              </div>
+            </CommandItem>
+          ))}
         </CommandGroup>
         <CommandSeparator className="my-2 bg-border/60" />
         <CommandGroup heading="Actions" className="px-2 pb-2 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground/70">

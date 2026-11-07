@@ -29,9 +29,15 @@ interface AssetFormProps {
   initialData?: any;
   mode?: 'page' | 'modal';
   onCancel?: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
-export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: AssetFormProps) {
+function RequiredNote({ show }: { show: boolean }) {
+  if (!show) return null;
+  return <p className="text-xs text-destructive">This field is required.</p>;
+}
+
+export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel, onDirtyChange }: AssetFormProps) {
   const [formData, setFormData] = useState({
     itemName: initialData?.itemName || "",
     description: initialData?.description || "",
@@ -56,6 +62,9 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [licenseSnap, setLicenseSnap] = useState<LicenseSnapshot | null>(null);
   const [licenseLoading, setLicenseLoading] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     (async () => {
@@ -191,7 +200,7 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
   const locVal = (toSubmit as any).location?.toString().trim();
   const condVal = (toSubmit as any).condition?.toString().trim();
   if (!toSubmit.itemName || !toSubmit.quantity || (role === 'admin' && !toSubmit.itemType) || !toSubmit.property || !deptVal || !locVal || !condVal) {
-      toast.error("Please fill in all required fields");
+      setAttempted(true);
       return;
     }
 
@@ -235,10 +244,12 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
   };
 
   const handleInputChange = (field: string, value: any) => {
+    setDirty(true);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const handleToggleAmc = (enabled: boolean) => {
+    setDirty(true);
     setFormData((prev) => ({
       ...prev,
       amcEnabled: enabled,
@@ -249,6 +260,11 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
 
   const formContent = (
     <form onSubmit={handleSubmit} className="space-y-8">
+      {attempted && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+          Fill every field marked with * before saving.
+        </div>
+      )}
       <div className="space-y-6 rounded-2xl border border-border/60 bg-background/80 p-6">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <ClipboardList className="h-4 w-4 text-primary" />
@@ -263,7 +279,10 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
               onChange={(e) => handleInputChange("itemName", e.target.value)}
               placeholder="e.g., Dell Laptop, Office Chair"
               required
+              aria-invalid={attempted && !formData.itemName.trim()}
+              className={attempted && !formData.itemName.trim() ? "border-destructive" : undefined}
             />
+            <RequiredNote show={attempted && !formData.itemName.trim()} />
           </div>
 
           <div className="space-y-2">
@@ -283,7 +302,10 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
               placeholder="Enter quantity"
               min="1"
               required
+              aria-invalid={attempted && !String(formData.quantity).trim()}
+              className={attempted && !String(formData.quantity).trim() ? "border-destructive" : undefined}
             />
+            <RequiredNote show={attempted && !String(formData.quantity).trim()} />
             {licenseSnap && (
               <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                 {licenseSnap.propertyLimit && licenseSnap.propertyLimit > 0 && (
@@ -460,7 +482,10 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
               onChange={(e) => handleInputChange("location", e.target.value)}
               placeholder="e.g., Floor 2, Room 203"
               required
+              aria-invalid={attempted && !formData.location.trim()}
+              className={attempted && !formData.location.trim() ? "border-destructive" : undefined}
             />
+            <RequiredNote show={attempted && !formData.location.trim()} />
           </div>
 
           <div className="space-y-2">
@@ -578,9 +603,9 @@ export function AssetForm({ onSubmit, initialData, mode = 'page', onCancel }: As
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border/70 bg-background/95 py-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
-          Double-check quantity and location details before saving to keep reports accurate.
+          {dirty ? "Unsaved changes" : "Double-check quantity and location details before saving to keep reports accurate."}
         </p>
         <div className="flex justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => onCancel ? onCancel() : window.history.back()}>

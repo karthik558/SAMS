@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import { isDemoMode } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,6 +163,7 @@ const seedLocalUsersIfEmpty = () => {
 
 export default function Users() {
   const { toast } = useToast();
+  const confirm = useConfirm();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -765,7 +767,7 @@ export default function Users() {
   };
 
   const handleDeleteUser = async (userId: string, name: string) => {
-    const ok = window.confirm(`Are you sure you want to delete ${name}? This action cannot be undone.`);
+    const ok = await confirm({ title: `Delete ${name}?`, description: "This permanently removes the user. This action cannot be undone.", confirmLabel: "Delete user" });
     if (!ok) return;
     const verified = await requirePassword({
       title: "Confirm user deletion",
@@ -1769,7 +1771,7 @@ export default function Users() {
                               className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg"
                               onClick={async () => {
                                 if (isDemoMode()) { toast({ title: 'Blocked in demo', description: 'Deleting departments is disabled in demo.', variant: 'destructive' }); return; }
-                                const ok = window.confirm(`Delete department "${d.name}"? This cannot be undone.`);
+                                const ok = await confirm({ title: `Delete ${d.name}?`, description: "This permanently removes the department. This cannot be undone.", confirmLabel: "Delete department" });
                                 if (!ok) return;
                                 try {
                                   await deleteDepartment(d.id);

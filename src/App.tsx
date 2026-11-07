@@ -28,6 +28,7 @@ import Help from "./pages/Help";
 // SingleDeviceGuard removed per user request
 import { isDemoMode } from "@/lib/demo";
 import RequireView from "@/components/session/RequireView";
+import { ConfirmProvider } from "@/components/common/ConfirmDialog";
 import { ConnectionStatus } from "@/components/common/ConnectionStatus";
 import { ThemeInitializer } from "@/components/common/ThemeInitializer";
 
@@ -93,6 +94,7 @@ const App = () => (
       <ThemeInitializer />
   {/* SingleDeviceGuard removed */}
       <BrowserRouter>
+        <ConfirmProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           {/* Public minimal marketing website */}
@@ -121,6 +123,7 @@ const App = () => (
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </ConfirmProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

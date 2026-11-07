@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,9 @@ import { BrowserMultiFormatReader, BrowserQRCodeReader } from "@zxing/browser";
 import type { Result } from "@zxing/library";
 import { cn } from "@/lib/utils";
 import { downloadCsv } from "@/lib/tableExport";
+import { getAssetById } from "@/services/assets";
+import { isDemoMode } from "@/lib/demo";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { 
   Dialog, 
   DialogContent, 
@@ -38,6 +42,8 @@ type BatchItem = {
 
 export default function Scan() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
+  const [hit, setHit] = useState<null | { id: string; asset: Awaited<ReturnType<typeof getAssetById>> }>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [active, setActive] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -238,25 +244,34 @@ export default function Scan() {
       return;
     }
 
-    // Single mode: Stop camera and navigate
-    stop();
+    const showAsset = async (id: string) => {
+      stop();
+      let asset: Awaited<ReturnType<typeof getAssetById>> = null;
+      try { asset = await getAssetById(id); } catch { asset = null; }
+      setHit({ id, asset });
+    };
+
+    // Single mode: keep this page and show the match
     try {
       if (urlMatch && urlMatch[1]) {
         toast.success(`Asset detected: ${urlMatch[1]}`);
-        navigate(`/assets/${urlMatch[1]}`);
+        void showAsset(urlMatch[1]);
         return;
       }
 
       if (/^\//.test(text)) {
+        stop();
         navigate(text);
         return;
       }
 
       if (/^AST-?[0-9]+/i.test(text)) {
         toast.success(`Asset detected: ${text}`);
-        navigate(`/assets/${text}`);
+        void showAsset(text);
         return;
       }
+
+      stop();
 
       if (/^https?:\/\//i.test(text)) {
         try {
@@ -270,13 +285,8 @@ export default function Scan() {
         return;
       }
 
-      toast.success("Code Scanned");
-      setTimeout(() => {
-        if (confirm(`Scanned: ${text}\n\nCopy to clipboard?`)) {
-          navigator.clipboard.writeText(text);
-        }
-        start();
-      }, 100);
+      toast.success("Code scanned");
+      setHit({ id: text, asset: null });
     } catch (e) {
       console.error(e);
     }
@@ -588,8 +598,8 @@ export default function Scan() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => {
-                if (confirm("Clear all scanned assets from batch?")) {
+              onClick={async () => {
+                if (await confirm({ title: "Clear this batch?", description: "The codes scanned in this batch will be removed from the list.", confirmLabel: "Clear batch" })) {
                   setBatchItems([]);
                   setBatchDialogOpen(false);
                 }
@@ -601,6 +611,29 @@ export default function Scan() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Sheet open={Boolean(hit)} onOpenChange={(open) => { if (!open) { setHit(null); void start(); } }}>
+        <SheetContent side="right" className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>{hit?.asset?.name || hit?.id || "Scanned code"}</SheetTitle>
+            <SheetDescription>{hit?.asset ? "Matched from the catalogue." : "No catalogue record matched this code."}</SheetDescription>
+          </SheetHeader>
+          {hit ? (
+            <div className="mt-6 space-y-4 text-sm">
+              <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+                <p className="font-mono text-xs text-muted-foreground">{hit.id}</p>
+                <p className="mt-2">Location: {hit.asset?.location || "Not recorded"}</p>
+                <p>Status: {hit.asset?.status || "Unknown"}</p>
+                <p>Property: {hit.asset?.property || "Not recorded"}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => navigate(`${isDemoMode() ? "/demo" : ""}/assets/${hit.id}`)}>Open asset</Button>
+                <Button variant="outline" onClick={() => navigate(`${isDemoMode() ? "/demo" : ""}/tickets?asset=${encodeURIComponent(hit.id)}`)}>Raise ticket</Button>
+                <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(hit.id); toast.success("Copied"); }}>Copy code</Button>
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

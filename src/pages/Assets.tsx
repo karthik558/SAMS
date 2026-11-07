@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
 import { AssetCompareDialog } from "@/components/assets/AssetCompareDialog";
-import { EmptyState } from "@/components/common/EmptyState";
+import { EmptyState, ErrorState } from "@/components/common/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import { downloadCsv, downloadSimplePdf, printRows } from "@/lib/tableExport";
 import { BulkImportModal } from "@/components/assets/BulkImportModal";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
@@ -86,6 +88,17 @@ import { useTablePreferences } from "@/components/table/useTablePreferences";
 import ColumnChooser, { type ColumnDef } from "@/components/table/ColumnChooser";
 import { listUserDepartmentAccess } from "@/services/userDeptAccess";
 
+const CATALOGUE_VIEW_KEY = "sams_assets_catalogue_view";
+
+function readCatalogueView(): any {
+  try {
+    const raw = localStorage.getItem(CATALOGUE_VIEW_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 // Mock data fallback
 const mockAssets = [
   {
@@ -142,6 +155,7 @@ const mockAssets = [
 ];
 
 export default function Assets() {
+  const confirm = useConfirm();
   const isSupabase = hasSupabaseEnv;
   const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -151,9 +165,11 @@ export default function Assets() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [duplicateSeed, setDuplicateSeed] = useState<any>(null);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [filterProperty, setFilterProperty] = useState("all");
+  const [formDirty, setFormDirty] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState(() => String(readCatalogueView()?.searchTerm || ""));
+  const [filterType, setFilterType] = useState(() => String(readCatalogueView()?.filterType || "all"));
+  const [filterProperty, setFilterProperty] = useState(() => String(readCatalogueView()?.filterProperty || "all"));
   const [assets, setAssets] = useState<any[]>(mockAssets);
   const [typeOptions, setTypeOptions] = useState<string[]>([]);
   const [propertyOptions, setPropertyOptions] = useState<string[]>([]);
@@ -162,9 +178,9 @@ export default function Assets() {
   const navigate = useNavigate();
   const [propsById, setPropsById] = useState<Record<string, Property>>({});
   const [propsByName, setPropsByName] = useState<Record<string, Property>>({});
-  const [sortBy, setSortBy] = useState("newest");
-  const [deptFilter, setDeptFilter] = useState<string[]>([]);
-  const [deptAll, setDeptAll] = useState<boolean>(true);
+  const [sortBy, setSortBy] = useState(() => String(readCatalogueView()?.sortBy || "newest"));
+  const [deptFilter, setDeptFilter] = useState<string[]>(() => Array.isArray(readCatalogueView()?.deptFilter) ? readCatalogueView().deptFilter : []);
+  const [deptAll, setDeptAll] = useState<boolean>(() => readCatalogueView()?.deptAll !== false);
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
   const [role, setRole] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -180,7 +196,14 @@ export default function Assets() {
   const [requestEditOpen, setRequestEditOpen] = useState(false);
   const [requestEditAsset, setRequestEditAsset] = useState<any | null>(null);
   const [approverPropIds, setApproverPropIds] = useState<Set<string>>(new Set());
-  const [range, setRange] = useState<DateRange>();
+  const [range, setRange] = useState<DateRange | undefined>(() => {
+    const stored = readCatalogueView()?.range;
+    if (!stored?.from) return undefined;
+    const from = new Date(stored.from);
+    const to = stored.to ? new Date(stored.to) : undefined;
+    if (Number.isNaN(from.getTime())) return undefined;
+    return { from, to: to && !Number.isNaN(to.getTime()) ? to : undefined };
+  });
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   // Bulk action scoping: restrict property assignment options for managers
@@ -225,7 +248,21 @@ export default function Assets() {
     })();
   }, []);
   // Saved views & bulk actions
-  const [savedView, setSavedView] = useState<string>('all');
+  const [savedView, setSavedView] = useState<string>(() => String(readCatalogueView()?.savedView || "all"));
+  useEffect(() => {
+    try {
+      localStorage.setItem(CATALOGUE_VIEW_KEY, JSON.stringify({
+        searchTerm,
+        filterType,
+        filterProperty,
+        sortBy,
+        deptFilter,
+        deptAll,
+        savedView,
+        range: range?.from ? { from: range.from.toISOString(), to: range.to ? range.to.toISOString() : null } : null,
+      }));
+    } catch { /* ignore quota errors */ }
+  }, [searchTerm, filterType, filterProperty, sortBy, deptFilter, deptAll, savedView, range]);
   const [bulkProperty, setBulkProperty] = useState<string>('');
   const [bulkCondition, setBulkCondition] = useState<string>('');
   const prefs = useTablePreferences("assets");
@@ -362,10 +399,11 @@ export default function Assets() {
     try {
       const data = await listAssets();
       setAssets(data as any);
+      setLoadError(null);
       setLoadingUI(false);
     } catch (e: any) {
       console.error(e);
-      toast.error("Failed to load assets from Supabase; using local data");
+      setLoadError(e?.message || "The catalogue could not be loaded.");
       setLoadingUI(false);
     }
   }, [isSupabase]);
@@ -879,8 +917,8 @@ export default function Assets() {
 
   const handleDeleteAsset = async (assetId: string) => {
     if (role !== 'admin') return; // only admin can delete
-  const ok = window.confirm(`Are you sure you want to delete asset ${assetId}? This action cannot be undone.`);
-  if (!ok) return;
+    const ok = await confirm({ title: `Delete ${assetId}?`, description: "This permanently removes the asset. This action cannot be undone.", confirmLabel: "Delete asset" });
+    if (!ok) return;
     try {
       if (hasSupabaseEnv) {
         await sbDeleteAsset(assetId);
@@ -901,7 +939,7 @@ export default function Assets() {
   const handleDeleteGroup = async (assetsToDelete: any[]) => {
     if (role !== 'admin') return;
     const count = assetsToDelete.length;
-    const ok = window.confirm(`Are you sure you want to delete ${count} assets? This action cannot be undone.`);
+    const ok = await confirm({ title: `Delete ${count} assets?`, description: "This permanently removes the selected assets. This action cannot be undone.", confirmLabel: "Delete assets" });
     if (!ok) return;
 
     try {
@@ -1050,6 +1088,41 @@ export default function Assets() {
 
 
 
+  const clearCatalogueFilters = () => {
+    setSearchTerm("");
+    setFilterType("all");
+    setFilterProperty("all");
+    setDeptFilter([]);
+    setDeptAll(true);
+    setSavedView("all");
+    setSortBy("newest");
+    setRange(undefined);
+  };
+  const catalogueChips: FilterChip[] = [
+    searchTerm ? { id: "search", label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") } : null,
+    filterType !== "all" ? { id: "type", label: `Type: ${filterType}`, onRemove: () => setFilterType("all") } : null,
+    filterProperty !== "all" ? { id: "property", label: `Property: ${filterProperty}`, onRemove: () => setFilterProperty("all") } : null,
+    !deptAll ? { id: "dept", label: `Departments: ${deptFilter.length}`, onRemove: () => { setDeptFilter([]); setDeptAll(true); } } : null,
+    savedView !== "all" ? { id: "view", label: `View: ${savedView.replace(/-/g, " ")}`, onRemove: () => setSavedView("all") } : null,
+    sortBy !== "newest" ? { id: "sort", label: `Sort: ${sortBy}`, onRemove: () => setSortBy("newest") } : null,
+    range?.from ? { id: "range", label: "Date range", onRemove: () => setRange(undefined) } : null,
+  ].filter(Boolean) as FilterChip[];
+  const catalogueHasFilters = catalogueChips.length > 0;
+
+  const closeAssetForm = async () => {
+    if (formDirty) {
+      const ok = await confirm({
+        title: "Discard unsaved changes?",
+        description: "This asset form has details that have not been saved.",
+        confirmLabel: "Discard",
+      });
+      if (!ok) return;
+    }
+    setShowAddForm(false);
+    setDuplicateSeed(null);
+    setFormDirty(false);
+  };
+
   return (
     <div className="space-y-8 pb-10">
         <LicenseExceedModal
@@ -1143,7 +1216,7 @@ export default function Assets() {
                 <Printer className="h-4 w-4" /> Print
               </Button>
               <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Assets", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
-                <FileText className="h-4 w-4" /> PDF
+                <FileText className="h-4 w-4" /> Print / Save as PDF
               </Button>
               <ColumnChooser
                 columns={columnDefs}
@@ -1300,6 +1373,7 @@ export default function Assets() {
               </Button>
 
               <DateRangePicker className="w-full max-w-48" value={range} onChange={setRange} />
+              <FilterChips chips={catalogueChips} onClear={clearCatalogueFilters} />
               {/* Saved Views */}
               <Select value={savedView} onValueChange={setSavedView}>
                 <SelectTrigger className="w-full md:w-48">
@@ -1324,13 +1398,9 @@ export default function Assets() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  if (selectedIds.size !== 2) {
-                    toast.info("Select exactly two assets to compare");
-                    return;
-                  }
-                  setCompareOpen(true);
-                }}
+                disabled={selectedIds.size !== 2}
+                title={selectedIds.size === 2 ? "Compare the two selected assets" : "Select exactly two assets to compare"}
+                onClick={() => setCompareOpen(true)}
               >
                 Compare
               </Button>
@@ -1482,10 +1552,58 @@ export default function Assets() {
             </div>
           </CardHeader>
           <CardContent className="px-0 pb-0">
-            {groupedRows.length === 0 ? (
-              <EmptyState className="m-6" icon={Package} title="No assets in this view" description="Adjust the filters or add an asset to fill the catalogue." />
+            {loadError ? (
+              <ErrorState className="m-6" title="Catalogue unavailable" description={loadError} onRetry={() => { setLoadError(null); setLoadingUI(true); void fetchAssets(); }} />
+            ) : groupedRows.length === 0 ? (
+              <EmptyState
+                className="m-6"
+                icon={Package}
+                title={catalogueHasFilters || assets.length > 0 ? "No assets in this view" : "Add your first asset"}
+                description={catalogueHasFilters || assets.length > 0 ? "Adjust the filters or add an asset to fill the catalogue." : "Create an asset, then print a label so it can be scanned in the field."}
+                action={!catalogueHasFilters && assets.length === 0 ? <Button size="sm" onClick={() => setShowAddForm(true)}>Add asset</Button> : catalogueHasFilters ? <Button size="sm" variant="outline" onClick={clearCatalogueFilters}>Clear filters</Button> : undefined}
+              />
             ) : null}
-            <div className={cn("overflow-x-auto", groupedRows.length === 0 && "hidden")}>
+            <div className={cn("cq-narrow-only space-y-3 p-4", groupedRows.length === 0 && "hidden")}>
+              {groupedRows.map((group) => {
+                const { rep, members, totalQty, key } = group;
+                const allSelected = members.every((m) => selectedIds.has(m.id));
+                return (
+                  <div key={key} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        aria-label={`Select ${rep.name || rep.id}`}
+                        checked={allSelected}
+                        onCheckedChange={(checked) => {
+                          const next = new Set(selectedIds);
+                          if (checked) members.forEach((m) => next.add(m.id));
+                          else members.forEach((m) => next.delete(m.id));
+                          setSelectedIds(next);
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-foreground">{rep.name || rep.id}</p>
+                          {getStatusBadge(rep.status)}
+                        </div>
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">{members.length > 1 ? `${members[0]?.id} · ${members.length} items` : rep.id}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">{propertyDisplayName(String(rep.property))} · Qty {totalQty}</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleDuplicateAsset(members.length === 1 ? members[0] : rep)}>Duplicate</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleGenerateQR(rep)}>QR</Button>
+                      {(role === "admin" || approverPropIds.has(String(rep.property_id || rep.property || ""))) && (
+                        <Button size="sm" variant="outline" onClick={() => handleEditAsset(rep)}>Edit</Button>
+                      )}
+                      {role === "admin" && (
+                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => members.length > 1 ? handleDeleteGroup(members) : handleDeleteAsset(rep.id)}>Delete</Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className={cn("cq-wide-only overflow-x-auto", groupedRows.length === 0 && "hidden")}>
               <Table dense={prefs.dense} stickyHeader stickyFirstCol className="text-sm">
               <TableHeader className="bg-muted/50">
                 <TableRow className="hover:bg-transparent border-b border-border/60">
@@ -2142,7 +2260,7 @@ export default function Assets() {
               </div>
             </div>
           )}
-    <Dialog open={showAddForm} onOpenChange={(open) => { setShowAddForm(open); if (!open) setDuplicateSeed(null); }}>
+    <Dialog open={showAddForm} onOpenChange={(open) => { if (open) { setShowAddForm(true); setFormDirty(false); } else { void closeAssetForm(); } }}>
       <DialogContent className={cn(
         "overflow-y-auto transition-all duration-200",
         isExpanded 
@@ -2182,8 +2300,9 @@ export default function Assets() {
           key={selectedAsset?.id || (duplicateSeed ? "duplicate" : "new")}
           mode="modal"
           onSubmit={handleAddAsset}
+          onDirtyChange={setFormDirty}
           initialData={initialFormData}
-          onCancel={() => { setShowAddForm(false); setDuplicateSeed(null); }}
+          onCancel={() => { void closeAssetForm(); }}
         />
       </DialogContent>
     </Dialog>

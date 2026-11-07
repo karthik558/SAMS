@@ -4,6 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardCheck, CheckCheck, X } from "lucide-react";
+import { EmptyState } from "@/components/common/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { listDepartments, type Department } from "@/services/departments";
@@ -733,6 +735,14 @@ export default function Approvals() {
                   onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
                   className="w-48 max-w-full min-w-0"
                 />
+                <FilterChips
+                  chips={[
+                    statusFilter !== "pending" ? { id: "status", label: `Status: ${statusFilter}`, onRemove: () => onChangeStatus("pending") } : null,
+                    adminDeptFilter !== "ALL" ? { id: "dept", label: `Department: ${adminDeptFilter}`, onRemove: () => setAdminDeptFilter("ALL") } : null,
+                    dateFrom || dateTo ? { id: "range", label: "Date range", onRemove: () => { setDateFrom(undefined); setDateTo(undefined); } } : null,
+                  ].filter(Boolean) as FilterChip[]}
+                  onClear={() => { onChangeStatus("pending"); setAdminDeptFilter("ALL"); setDateFrom(undefined); setDateTo(undefined); }}
+                />
               </div>
             </div>
           </div>
@@ -744,8 +754,8 @@ export default function Approvals() {
             const requestedBy = a?.requestedBy || '-';
             const statusLabel = a?.status || '-';
             return (
-            <div key={a.id} className="border rounded p-3 bg-background">
-              <div className="flex items-start justify-between gap-3">
+            <div key={a.id} className="rounded-xl border border-border/70 bg-card p-4 shadow-sm">
+              <div className="cq-card-row">
                 <div>
                   <div className="font-medium">{actionLabel} • Asset {assetLabel}</div>
                   <div className="text-xs text-muted-foreground">Requested by {requestedBy} on {fmt(a?.requestedAt)}</div>
@@ -878,9 +888,7 @@ export default function Approvals() {
             </div>
           );
           }) : (
-            <div className="text-sm text-muted-foreground">
-              No approvals for the selected filters.
-            </div>
+            <EmptyState icon={ClipboardCheck} title="No approvals in this view" description="Adjust the status, department, or date range, or check back when a request is submitted." />
           )}
         </CardContent>
       </Card>

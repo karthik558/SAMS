@@ -1064,7 +1064,7 @@ export default function Audit() {
             <Printer className="h-4 w-4" /> Print
           </Button>
           <Button variant="outline" size="sm" onClick={() => { downloadSimplePdf("Audit rows", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
-            <FileText className="h-4 w-4" /> PDF
+            <FileText className="h-4 w-4" /> Print / Save as PDF
           </Button>
         </>
       )}

@@ -22,6 +22,9 @@ import {
 } from "lucide-react";
 // format no longer needed after centralizing date range picker
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import DateRangePicker from "@/components/ui/date-range-picker";
 import { toast } from "sonner";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
@@ -119,6 +122,8 @@ export default function Reports() {
   const role: string = (currentUser?.role || '').toLowerCase();
   const isAdminRole = (role || '').includes('admin');
   const myDept: string | null = currentUser?.department ?? null;
+  const confirm = useConfirm();
+  const [reportTab, setReportTab] = useState("generator");
   const [selectedReportType, setSelectedReportType] = useState("");
   const PRESET_KEY = "sams_report_presets";
   const [presetName, setPresetName] = useState("");
@@ -1123,7 +1128,13 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Quick Report Cards */}
+      <Tabs value={reportTab} onValueChange={setReportTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="generator">Generator</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="templates" className="mt-0">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {reportTypes.map((report) => (
             <Card
@@ -1153,6 +1164,7 @@ export default function Reports() {
                   className="h-8 w-full gap-2 text-xs font-medium sm:w-auto"
                   onClick={() => {
                     setSelectedReportType(report.id);
+                    setReportTab("generator");
                     const el = document.getElementById('custom-report-generator');
                     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }}
@@ -1163,6 +1175,18 @@ export default function Reports() {
             </Card>
           ))}
       </div>
+        </TabsContent>
+        <TabsContent value="generator" className="mt-0 space-y-6">
+        <FilterChips
+          chips={[
+            selectedReportType ? { id: "type", label: `Report: ${selectedReportType}`, onRemove: () => setSelectedReportType("") } : null,
+            selectedProperty !== "all" ? { id: "property", label: `Property: ${selectedProperty}`, onRemove: () => setSelectedProperty("all") } : null,
+            selectedAssetType !== "all" ? { id: "assetType", label: `Type: ${selectedAssetType}`, onRemove: () => setSelectedAssetType("all") } : null,
+            deptForReport !== "ALL" ? { id: "dept", label: `Department: ${deptForReport}`, onRemove: () => setDeptForReport("ALL") } : null,
+            dateFrom || dateTo ? { id: "range", label: "Date range", onRemove: () => { setDateFrom(undefined); setDateTo(undefined); } } : null,
+          ].filter(Boolean) as FilterChip[]}
+          onClear={() => { setSelectedReportType(""); setSelectedProperty("all"); setSelectedAssetType("all"); setDeptForReport("ALL"); setDateFrom(undefined); setDateTo(undefined); }}
+        />
 
         {/* Quick Generate — Audit Review Picker */}
         <Dialog open={auditQuickOpen} onOpenChange={setAuditQuickOpen}>
@@ -1392,7 +1416,7 @@ export default function Reports() {
                       <SelectValue placeholder="Select format" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pdf">PDF Document</SelectItem>
+                      <SelectItem value="pdf">Print / Save as PDF</SelectItem>
                       <SelectItem value="excel">Excel Spreadsheet</SelectItem>
                       <SelectItem value="csv">CSV File</SelectItem>
                       <SelectItem value="json">JSON Data</SelectItem>
@@ -1424,6 +1448,8 @@ export default function Reports() {
             </div>
           </CardContent>
         </Card>
+        </TabsContent>
+        <TabsContent value="history" className="mt-0 space-y-6">
 
         {/* Recent Reports */}
         <Card className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
@@ -1464,7 +1490,7 @@ export default function Reports() {
                     size="sm"
                     className="h-8 text-xs text-muted-foreground hover:text-destructive"
                     onClick={async () => {
-                      const ok = window.confirm('Clear all recent report logs? This cannot be undone.');
+                      const ok = await confirm({ title: "Clear report logs?", description: "Recent report logs on this view will be removed. This cannot be undone.", confirmLabel: "Clear logs" });
                       if (!ok) return;
                       try {
                         await clearReports();
@@ -1558,7 +1584,7 @@ export default function Reports() {
                             <Download className="mr-2 h-4 w-4" /> Download CSV
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => downloadReportPdf(report)}>
-                            <Download className="mr-2 h-4 w-4" /> Download PDF
+                            <Download className="mr-2 h-4 w-4" /> Print / Save as PDF
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -1738,6 +1764,8 @@ export default function Reports() {
             </CardContent>
           </Card>
         )}
+        </TabsContent>
+      </Tabs>
 
         {(!hasSupabaseEnv) && (
           <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 shadow-sm dark:border-amber-800 dark:from-amber-950/30 dark:to-amber-900/10">

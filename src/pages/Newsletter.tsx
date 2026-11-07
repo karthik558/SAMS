@@ -11,9 +11,11 @@ import { Megaphone, Filter, Pencil, Trash2, Search, FileText, CheckCircle, Edit3
 import { createNewsletterPost, deleteNewsletterPost, listAllNewsletterPosts, updateNewsletterPost, listNewsletterCategories, type NewsletterPost, type NewsletterCategory } from "@/services/newsletter";
 import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import MetricCard from "@/components/ui/metric-card";
 
 export default function Newsletter() {
+  const confirm = useConfirm();
   const [posts, setPosts] = useState<NewsletterPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -89,7 +91,7 @@ export default function Newsletter() {
   };
 
   const remove = async (id: string) => {
-    if (!window.confirm('Delete this post?')) return;
+    if (!await confirm({ title: "Delete this post?", description: "The newsletter post will be removed.", confirmLabel: "Delete post" })) return;
     try { await deleteNewsletterPost(id); setPosts(s => s.filter(p => p.id !== id)); toast.success('Deleted'); } catch { toast.error('Delete failed'); }
   };
 

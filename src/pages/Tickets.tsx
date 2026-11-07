@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Ticket as TicketIcon, Mail, ShieldCheck, Download, Printer, FileText } from "lucide-react";
 import { downloadCsv, downloadSimplePdf, printRows } from "@/lib/tableExport";
 import { EmptyState } from "@/components/common/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,6 +96,16 @@ export default function Tickets() {
   // Load license upgrade draft if present via query param
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    const assetFromScan = params.get('asset');
+    if (assetFromScan && !title) {
+      setTitle(`Issue with ${assetFromScan}`);
+      setDescription((current) => current || `Scanned asset ${assetFromScan} needs attention.`);
+    }
+    const focusId = params.get('focus');
+    if (focusId) {
+      const node = document.getElementById(`ticket-${focusId}`);
+      if (node) node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
     if (params.get('draft') === 'license-upgrade') {
       try {
         const raw = localStorage.getItem('ticket_draft_license_upgrade');
@@ -750,7 +761,7 @@ export default function Tickets() {
               <Printer className="h-4 w-4" /> Print
             </Button>
             <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status }))); toast.info("Choose Save as PDF in the print dialog"); }}>
-              <FileText className="h-4 w-4" /> PDF
+              <FileText className="h-4 w-4" /> Print / Save as PDF
             </Button>
           <Button asChild variant="outline" className="gap-2">
             <a href="mailto:karthik@samsproject.in">
@@ -1128,6 +1139,14 @@ export default function Tickets() {
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               <DateRangePicker value={range} onChange={setRange} />
+              <FilterChips
+                chips={[
+                  range?.from ? { id: "range", label: "Date range", onRemove: () => setRange(undefined) } : null,
+                  showClosedOnly ? { id: "closed", label: "Closed only", onRemove: () => setShowClosedOnly(false) } : null,
+                  viewMode !== "received" ? { id: "raised", label: "Raised by me", onRemove: () => setViewMode("received") } : null,
+                ].filter(Boolean) as FilterChip[]}
+                onClear={() => { setRange(undefined); setShowClosedOnly(false); setViewMode("received"); }}
+              />
               <Button
                 variant={showClosedOnly ? 'default' : 'outline'}
                 size="sm"
@@ -1156,7 +1175,7 @@ export default function Tickets() {
           ) : layout === 'list' ? (
             filteredItems.map(t => (
               <div key={t.id} id={`ticket-${t.id}`} className="group relative rounded-xl border border-border/60 bg-card p-4 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
-                <div className="flex items-start justify-between gap-4">
+                <div className="cq-card-row">
                   <div className="space-y-1.5 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded">{t.id}</span>

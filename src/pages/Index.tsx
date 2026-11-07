@@ -4,6 +4,7 @@ import { MyAudits } from "@/components/dashboard/MyAudits";
 import { AmcWatchlist, AmcAlertItem } from "@/components/dashboard/AmcWatchlist";
 import { FoodExpiryTracker, FoodExpiryItem } from "@/components/dashboard/FoodExpiryTracker";
 import MetricCard from "@/components/ui/metric-card";
+import { EmptyState } from "@/components/common/EmptyState";
 import {
   Package,
   Building2,
@@ -1075,6 +1076,20 @@ const Index = () => {
           ))}
         </div>
       </section>
+
+      {scopedAssets.length === 0 && scopedProperties.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title="Start with a property and an asset"
+          description="Add a property from the license page, register an asset, then print a label so the team can scan it."
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => navigate(isDemoMode() ? "/demo/license" : "/license")}>Open license</Button>
+              <Button size="sm" onClick={() => handleQuickAction("Add Asset")}>Add asset</Button>
+            </div>
+          }
+        />
+      ) : null}
 
       {/* Section: Operational Watchlists */}
       <section id="watchlists-section" className="cq-split grid w-full min-w-0 grid-cols-1 gap-6">

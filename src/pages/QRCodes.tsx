@@ -3,6 +3,8 @@ import QRCode from "qrcode";
 import { cn } from "@/lib/utils";
 import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels, printImagesOnA4Grid, LABEL_PRESETS } from "@/lib/qr";
 import { EmptyState } from "@/components/common/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
+import { useConfirm } from "@/components/common/ConfirmDialog";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
@@ -90,6 +92,7 @@ const mockQRCodes = [
 ];
 
 export default function QRCodes() {
+  const confirm = useConfirm();
   const [loadingUI, setLoadingUI] = useState(true);
   const [role, setRole] = useState<string>("");
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
@@ -352,7 +355,7 @@ export default function QRCodes() {
       toast.warning('Supabase connection is not configured, nothing to clear.');
       return;
     }
-    const ok = window.confirm("This will permanently delete every stored QR code. Continue?");
+    const ok = await confirm({ title: "Delete every QR code?", description: "This permanently removes every stored QR code. This cannot be undone.", confirmLabel: "Delete QR codes" });
     if (!ok) return;
     try {
       setPurging(true);
@@ -1091,6 +1094,16 @@ export default function QRCodes() {
               </Select>
 
               <DateRangePicker className="w-full" value={range} onChange={setRange} />
+              <FilterChips
+                chips={[
+                  searchTerm ? { id: "search", label: `Search: ${searchTerm}`, onRemove: () => setSearchTerm("") } : null,
+                  filterProperty !== "all" ? { id: "property", label: `Property: ${filterProperty}`, onRemove: () => setFilterProperty("all") } : null,
+                  filterStatus !== "all" ? { id: "status", label: `Status: ${filterStatus}`, onRemove: () => setFilterStatus("all") } : null,
+                  sortBy !== "date-newest" ? { id: "sort", label: `Sort: ${sortBy}`, onRemove: () => setSortBy("date-newest") } : null,
+                  range?.from ? { id: "range", label: "Date range", onRemove: () => setRange(undefined) } : null,
+                ].filter(Boolean) as FilterChip[]}
+                onClear={() => { setSearchTerm(""); setFilterProperty("all"); setFilterStatus("all"); setSortBy("date-newest"); setRange(undefined); }}
+              />
 
               <Button onClick={handleDownloadAll} variant="outline" className="gap-2 w-full">
                 <Download className="h-4 w-4" />

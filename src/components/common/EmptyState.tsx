@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 type EmptyStateProps = {
   icon?: LucideIcon;
@@ -22,5 +24,28 @@ export function EmptyState({ icon: Icon, title, description, action, className }
       {description ? <p className="max-w-sm text-sm text-muted-foreground">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}
     </div>
+  );
+}
+
+export function LoadingState({ label = "Loading" }: { label?: string }) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/70 bg-card p-4" role="status" aria-live="polite">
+      <div className="h-4 w-32 animate-pulse rounded-md bg-muted" />
+      <div className="h-20 animate-pulse rounded-lg bg-muted/80" />
+      <div className="h-20 animate-pulse rounded-lg bg-muted/60" />
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}
+
+export function ErrorState({ title, description, onRetry, className }: { title: string; description?: string; onRetry?: () => void; className?: string }) {
+  return (
+    <EmptyState
+      className={className}
+      icon={AlertTriangle}
+      title={title}
+      description={description}
+      action={onRetry ? <Button type="button" size="sm" variant="outline" onClick={onRetry}>Try again</Button> : undefined}
+    />
   );
 }

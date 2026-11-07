@@ -7,7 +7,12 @@ import { Building2, Package, MapPin, Edit, Trash2, AlertTriangle, Users } from "
 import { toast } from "sonner";
 import { useEffect, useMemo, useState } from "react";
 import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
+import { useConfirm } from "@/components/common/ConfirmDialog";
+import { EmptyState } from "@/components/common/EmptyState";
+import { FilterChips, type FilterChip } from "@/components/common/FilterChips";
+import { useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
+import { cn } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { 
@@ -91,6 +96,8 @@ const mockProperties = [
 ];
 
 export default function Properties() {
+  const confirm = useConfirm();
+  const navigate = useNavigate();
   const [properties, setProperties] = useState<any[]>(mockProperties);
   const isSupabase = hasSupabaseEnv;
   const [role, setRole] = useState<string>("");
@@ -254,7 +261,7 @@ export default function Properties() {
       toast.error("Only admins can delete properties");
       return;
     }
-    const ok = window.confirm(`Are you sure you want to delete property ${propertyId}? This action cannot be undone.`);
+    const ok = await confirm({ title: `Delete ${propertyId}?`, description: "This permanently removes the property. This action cannot be undone.", confirmLabel: "Delete property" });
     if (!ok) return;
     const verified = await requirePassword({
       title: "Confirm property deletion",
@@ -561,7 +568,23 @@ export default function Properties() {
         </div>
 
         {/* Properties Grid */}
-        <div className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <FilterChips
+          chips={[
+            search ? { id: "search", label: `Search: ${search}`, onRemove: () => setSearch("") } : null,
+            typeFilter !== "all" ? { id: "type", label: `Type: ${typeFilter}`, onRemove: () => setTypeFilter("all") } : null,
+            statusFilter !== "all" ? { id: "status", label: `Status: ${statusFilter}`, onRemove: () => setStatusFilter("all") } : null,
+          ].filter(Boolean) as FilterChip[]}
+          onClear={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); }}
+        />
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon={Building2}
+            title={properties.length === 0 ? "Add your first property" : "No properties match these filters"}
+            description={properties.length === 0 ? "Properties are created from the license page. Add one, then register assets against it." : "Clear the search or filters to see the rest of the portfolio."}
+            action={properties.length === 0 ? <Button size="sm" onClick={() => navigate(isDemoMode() ? "/demo/license" : "/license")}>Open license</Button> : <Button size="sm" variant="outline" onClick={() => { setSearch(""); setTypeFilter("all"); setStatusFilter("all"); }}>Clear filters</Button>}
+          />
+        ) : null}
+        <div className={cn("grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-3", filtered.length === 0 && "hidden")}>
           {filtered.map((property) => {
             const limit = (property as any).licenseLimit; // already effective (0 => unlimited)
             const effectiveLimited = limit > 0;
