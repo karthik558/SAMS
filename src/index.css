@@ -10,27 +10,26 @@
 /* Firefox */
 * {
   scrollbar-width: thin; /* Options: auto | thin | none */
-  scrollbar-color: hsl(var(--primary)) hsl(var(--muted) / 0.25);
+  scrollbar-color: hsl(var(--foreground) / 0.28) transparent;
 }
 
 /* WebKit (Chrome, Edge, Safari) */
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px; /* horizontal scrollbars */
+  width: 6px;
+  height: 6px; /* horizontal scrollbars */
 }
 
 *::-webkit-scrollbar-track {
-  background: hsl(var(--muted) / 0.18);
+  background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--primary));
+  background-color: hsl(var(--foreground) / 0.22);
   border-radius: 999px;
-  border: 2px solid hsl(var(--muted) / 0.18); /* creates a pill look */
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--primary-hover));
+  background-color: hsl(var(--foreground) / 0.38);
 }
 
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
@@ -39,14 +38,14 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 40 20% 97%;
-    --foreground: 220 20% 18%;
+    --background: 40 14% 98%;
+    --foreground: 222 18% 14%;
 
     --card: 0 0% 100%;
-    --card-foreground: 225 25% 15%;
+    --card-foreground: 222 18% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 225 25% 15%;
+    --popover-foreground: 222 18% 14%;
 
   /* Brand: #cc7c5e (hsl ~ 16.36 51.89% 58.43%) */
   --primary: 16.36 51.89% 58.43%;
@@ -55,11 +54,11 @@ All colors MUST be HSL.
   --primary-action: 16 48% 43%;
   --primary-action-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 15% 25%;
+    --secondary: 36 12% 95%;
+    --secondary-foreground: 222 14% 22%;
 
-    --muted: 35 16% 94%;
-    --muted-foreground: 220 10% 35%;
+    --muted: 36 10% 95%;
+    --muted-foreground: 220 8% 38%;
 
   /* Accent uses a light tint of the brand for subtle backgrounds */
   --accent: 16 52% 94%;
@@ -74,8 +73,8 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 30 14% 81%;
-    --input: 35 14% 83%;
+    --border: 32 10% 88%;
+    --input: 32 10% 86%;
   /* Focus ring aligns with brand */
   --ring: 16.36 51.89% 58.43%;
 
@@ -88,25 +87,25 @@ All colors MUST be HSL.
   --gradient-secondary: linear-gradient(135deg, hsl(210 40% 96%), hsl(210 40% 98%));
   --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
     
-  --shadow-soft: 0 2px 8px -3px hsl(220 20% 18% / 0.08);
-  --shadow-medium: 0 8px 28px -8px hsl(220 20% 18% / 0.12);
-  --shadow-strong: 0 16px 64px -16px hsl(16.36 51.89% 58.43% / 0.2);
+  --shadow-soft: 0 1px 1px hsl(222 18% 14% / 0.04), 0 8px 20px -14px hsl(222 18% 14% / 0.12);
+  --shadow-medium: 0 1px 2px hsl(222 18% 14% / 0.04), 0 16px 36px -18px hsl(222 18% 14% / 0.16);
+  --shadow-strong: 0 24px 60px -24px hsl(16 40% 28% / 0.28);
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 16 45% 94%;
+    --sidebar-background: 36 18% 96.5%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-foreground: 222 12% 24%;
 
     --sidebar-primary: 16.36 51.89% 58.43%;
 
     --sidebar-primary-foreground: 0 0% 100%;
 
   /* Light mode sidebar hover/active background and text */
-  --sidebar-accent: 16 52% 92%; /* slightly deeper tint for contrast */
-  --sidebar-accent-foreground: 240 5.9% 10%; /* strong readable text */
+  --sidebar-accent: 32 16% 92%;
+  --sidebar-accent-foreground: 222 18% 12%;
 
-    --sidebar-border: 20 24% 88%;
+    --sidebar-border: 32 12% 88%;
 
   --sidebar-ring: 16.36 51.89% 58.43%;
   }
@@ -144,8 +143,11 @@ All colors MUST be HSL.
     --destructive-foreground: 210 40% 98%;
 
   /* Stronger borders/inputs for clear separation & button visibility in dark mode */
-  --border: 60 3% 30%;
-  --input: 60 3% 32%;
+  --border: 60 3% 22%;
+  --input: 60 3% 24%;
+  --shadow-soft: 0 1px 1px hsl(0 0% 0% / 0.28);
+  --shadow-medium: 0 16px 40px -18px hsl(0 0% 0% / 0.55);
+  --shadow-strong: 0 28px 70px -24px hsl(0 0% 0% / 0.65);
   --ring: 16.36 51.89% 58.43%;
   --chart-created: 217 91% 70%;
   --chart-resolved: var(--success);
@@ -170,12 +172,26 @@ All colors MUST be HSL.
     @apply bg-background text-foreground antialiased;
     font-family: "Inter", "Avenir Next", "Segoe UI", sans-serif;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.011em;
+    background-image:
+      radial-gradient(900px 420px at 100% -8%, hsl(var(--primary) / 0.07), transparent 55%),
+      radial-gradient(720px 360px at -8% -4%, hsl(28 30% 70% / 0.08), transparent 50%);
+    background-attachment: fixed;
+  }
+
+  .dark body {
+    background-image:
+      radial-gradient(800px 380px at 100% -10%, hsl(var(--primary) / 0.1), transparent 55%);
+  }
+
+  h1, h2, h3 {
+    letter-spacing: -0.03em;
   }
 }
 
 @layer components {
   .surface-card {
-    @apply rounded-xl border border-border/60 bg-card;
+    @apply rounded-xl border border-border/70 bg-card shadow-soft;
   }
 
   .surface-card-soft {
@@ -219,7 +235,7 @@ All colors MUST be HSL.
   .compact-ui table th, .compact-ui table td { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
   .compact-ui .h-14 { height: 3.0rem !important; }
   .compact-ui .h-16 { height: 3.25rem !important; }
-  .compact-ui .rounded-2xl { border-radius: 0.75rem !important; }
+  .compact-ui .rounded-2xl { border-radius: 0.625rem !important; }
 
   /* Ultra density builds on compact */
   .ultra-ui .p-4 { padding: 0.5rem !important; }
@@ -228,22 +244,22 @@ All colors MUST be HSL.
   .ultra-ui table th, .ultra-ui table td { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
   .ultra-ui .h-14 { height: 2.75rem !important; }
   .ultra-ui .h-16 { height: 3rem !important; }
-  .ultra-ui .rounded-2xl { border-radius: 0.6rem !important; }
+  .ultra-ui .rounded-2xl { border-radius: 0.5rem !important; }
 
   /* Sticky header utility class */
-  .sticky-header .app-header, .sticky-header header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(8px); background-color: hsl(var(--background) / 0.85); }
+  .sticky-header .app-header, .sticky-header header { position: sticky; top: 0; z-index: 50; backdrop-filter: blur(16px); background-color: hsl(var(--background) / 0.78); }
 
 @layer base {
   html { scroll-behavior: smooth; }
   ::selection { background: hsl(var(--primary) / 0.18); }
-  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  :focus-visible { outline: 2px solid hsl(var(--ring) / 0.7); outline-offset: 2px; }
   button, input, select, textarea { font: inherit; }
   button, a { -webkit-tap-highlight-color: transparent; }
   section[id] { scroll-margin-top: 6rem; }
 }
 
 @layer components {
-  .page-intro { @apply relative overflow-hidden rounded-2xl border border-border/80 bg-card p-5 shadow-soft md:p-7; }
+  .page-intro { @apply relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-soft md:p-7; }
   .page-intro h1 + p { @apply mt-2 text-sm leading-6 text-muted-foreground; }
   .heading-xl { @apply text-2xl font-semibold tracking-tight md:text-3xl; }
   .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-primary; }

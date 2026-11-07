@@ -250,7 +250,7 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className={cn("transition-all duration-300 ease-in-out z-20", !headerVisible && "-mt-14 md:-mt-16")}>
+        <div className={cn("transition-all duration-300 ease-in-out z-20", !headerVisible && "-mt-14")}>
           {effectiveTopNavMode ? (
             <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
           ) : (
@@ -267,7 +267,7 @@ export function Layout({ children }: LayoutProps) {
         {/* Mobile bottom tab bar */}
         {isMobile && (
           <div className="fixed bottom-6 left-4 right-4 z-50 flex justify-center pointer-events-none">
-            <nav className="pointer-events-auto flex h-16 w-full max-w-md items-center justify-around rounded-full border border-border/40 bg-background/80 px-2 shadow-2xl backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+            <nav className="pointer-events-auto flex h-14 w-full max-w-md items-center justify-around rounded-full border border-border/60 bg-background/80 px-2 shadow-strong backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
               {mobileNavItems.map((item) => {
                 const active = pathname === item.path || (item.label !== "Home" && pathname.startsWith(item.path + "/"));
                 const Icon = item.icon;

@@ -1,24 +1,21 @@
-import { isDemoMode } from "@/lib/demo";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { toast } from "sonner";
 import { 
   QrCode, 
   Camera, 
   Image as ImageIcon, 
-  RotateCcw, 
-  ArrowLeft, 
-  X, 
   Zap, 
   ZapOff, 
   Layers, 
   Copy, 
   Download, 
   Trash2, 
-  ExternalLink, 
-  CheckCircle2 
+  ExternalLink,
+  Square,
 } from "lucide-react";
 import { BrowserMultiFormatReader, BrowserQRCodeReader } from "@zxing/browser";
 import type { Result } from "@zxing/library";
@@ -272,11 +269,6 @@ export default function Scan() {
     }
   };
 
-  const handleBack = () => {
-    stop();
-    navigate(-1);
-  };
-
   const exportBatchCSV = () => {
     if (batchItems.length === 0) return;
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -319,221 +311,175 @@ export default function Scan() {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-black text-white select-none">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 flex items-center justify-between p-4 bg-gradient-to-b from-black/85 via-black/50 to-transparent">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleBack}
-          className="h-10 w-10 rounded-full bg-black/30 text-white hover:bg-black/50 backdrop-blur-md border border-white/10"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-
-        {/* Mode Selector Pill */}
-        <div className="flex items-center rounded-full bg-white/10 p-1 border border-white/15 backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setScanMode("single")}
-            className={cn(
-              "rounded-full px-3.5 py-1 text-xs font-medium transition-all",
-              scanMode === "single" 
-                ? "bg-white text-black shadow-xs font-semibold" 
-                : "text-white/70 hover:text-white"
-            )}
-          >
-            Direct Look Up
-          </button>
-          <button
-            type="button"
-            onClick={() => setScanMode("batch")}
-            className={cn(
-              "rounded-full px-3.5 py-1 text-xs font-medium transition-all flex items-center gap-1.5",
-              scanMode === "batch" 
-                ? "bg-white text-black shadow-xs font-semibold" 
-                : "text-white/70 hover:text-white"
-            )}
-          >
-            <span>Batch Audit</span>
-            {batchItems.length > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-white">
-                {batchItems.length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        <div className="w-10" /> {/* Spacer for balance */}
+    <div className="space-y-6">
+      <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Scan QR" }]} />
+      <div className="page-intro">
+        <h1 className="heading-xl text-foreground">Scan QR</h1>
+        <p className="mt-2 text-muted-foreground">Scan an asset tag or upload a photo of the code.</p>
       </div>
 
-      {/* Main Camera / Ready Viewport */}
-      <div className="relative flex-1 flex items-center justify-center overflow-hidden bg-zinc-950">
-        {!active ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-6 max-w-sm mx-auto z-10 animate-in fade-in duration-300">
-            <div className="relative">
-              <div className="h-24 w-24 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl backdrop-blur-md">
-                <QrCode className="h-12 w-12 text-primary" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white shadow-md">
-                <Camera className="h-4 w-4" />
-              </div>
-            </div>
+      <div className="grid items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <Card className="overflow-hidden">
+          <CardHeader className="space-y-1 border-b border-border/60 bg-muted/30 px-6 py-5">
+            <CardTitle className="text-lg font-semibold">Scan mode</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 p-4">
+            <Button
+              variant={scanMode === "single" ? "default" : "outline"}
+              className="w-full justify-start"
+              onClick={() => setScanMode("single")}
+            >
+              Direct lookup
+            </Button>
+            <Button
+              variant={scanMode === "batch" ? "default" : "outline"}
+              className="w-full justify-start"
+              onClick={() => setScanMode("batch")}
+            >
+              Batch audit
+              {batchItems.length > 0 ? (
+                <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-primary-foreground/15 px-1.5 text-[11px]">
+                  {batchItems.length}
+                </span>
+              ) : null}
+            </Button>
 
-            <div className="space-y-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">QR Code Scanner</h2>
-              <p className="text-sm text-zinc-400 leading-relaxed">
-                {scanMode === "batch"
-                  ? "Scan multiple equipment tags sequentially for physical audits and inventory reconciliation."
-                  : "Scan any asset barcode or QR tag to instantly look up specifications and open records."}
-              </p>
-            </div>
-
-            {error && (
-              <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive-foreground max-w-xs">
-                {error}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 w-full pt-2">
-              <Button 
-                onClick={start} 
-                disabled={loading}
-                className="w-full h-12 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold shadow-lg gap-2 text-sm"
-              >
-                <Camera className="h-4 w-4" />
-                {loading ? "Initializing Camera..." : "Open Camera"}
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => fileRef.current?.click()}
-                className="w-full h-11 rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/20 hover:text-white backdrop-blur-md gap-2 text-xs font-medium"
-              >
-                <ImageIcon className="h-4 w-4" />
-                Upload from Gallery / Files
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <video 
-              ref={videoRef} 
-              className={cn(
-                "absolute inset-0 h-full w-full object-cover transition-opacity duration-500",
-                active ? "opacity-100" : "opacity-0"
-              )}
-              playsInline 
-              muted 
-              autoPlay
-            />
-            
-            {/* Scanning Overlay */}
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute inset-0 bg-black/50">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 sm:w-80 sm:h-80 bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] rounded-3xl border-2 border-white/20">
-                  {/* Corner markers */}
-                  <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl -mt-1 -ml-1" />
-                  <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl -mt-1 -mr-1" />
-                  <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl -mb-1 -ml-1" />
-                  <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl -mb-1 -mr-1" />
-                  
-                  {/* Scanning laser animation */}
-                  <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary shadow-[0_0_15px_rgba(var(--primary),0.8)] animate-scan-down opacity-75" />
+            {scanMode === "batch" && batchItems.length > 0 ? (
+              <div className="space-y-2 border-t border-border/70 pt-3">
+                <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                  {batchItems.map((item, idx) => (
+                    <div
+                      key={`${item.id}-${idx}`}
+                      className="flex items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-foreground">{item.id}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="View asset"
+                          onClick={() => {
+                            stop();
+                            navigate(`/assets/${item.id}`);
+                          }}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          title="Remove"
+                          onClick={() => setBatchItems((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={copyBatchIDs}>
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy IDs
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportBatchCSV}>
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setBatchDialogOpen(true)}>
+                    Review
+                  </Button>
                 </div>
               </div>
-              
-              <div className="absolute bottom-72 left-0 right-0 text-center">
-                <p className="text-xs font-medium text-white/90 bg-black/60 backdrop-blur-md inline-block px-4 py-2 rounded-full border border-white/10 shadow-lg">
-                  {scanMode === "batch" 
-                    ? "Continuous scanning active • Tags will be logged" 
-                    : "Align QR code within the frame to inspect"}
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="relative flex min-h-[420px] items-center justify-center overflow-hidden bg-zinc-950 sm:min-h-[480px]">
+            <video
+              ref={videoRef}
+              className={cn(
+                "absolute inset-0 h-full w-full object-cover transition-opacity duration-300",
+                active ? "opacity-100" : "opacity-0"
+              )}
+              playsInline
+              muted
+              autoPlay
+            />
+
+            {!active ? (
+              <div className="relative z-10 flex max-w-sm flex-col items-center px-6 text-center">
+                <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-primary">
+                  <QrCode className="h-7 w-7" />
+                </div>
+                <p className="text-sm font-medium text-white">Camera is off</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-400">
+                  Open the camera when you are ready, or upload an image of the code.
+                </p>
+                {error ? (
+                  <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/15 px-3 py-2 text-xs text-white">
+                    {error}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute left-1/2 top-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/25 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] sm:h-72 sm:w-72">
+                  <div className="absolute -left-px -top-px h-6 w-6 rounded-tl-lg border-l-2 border-t-2 border-primary" />
+                  <div className="absolute -right-px -top-px h-6 w-6 rounded-tr-lg border-r-2 border-t-2 border-primary" />
+                  <div className="absolute -bottom-px -left-px h-6 w-6 rounded-bl-lg border-b-2 border-l-2 border-primary" />
+                  <div className="absolute -bottom-px -right-px h-6 w-6 rounded-br-lg border-b-2 border-r-2 border-primary" />
+                  <div className="absolute inset-x-3 top-0 h-0.5 animate-scan-down bg-primary" />
+                </div>
+                <p className="absolute inset-x-0 bottom-4 text-center">
+                  <span className="inline-block rounded-lg border border-white/15 bg-black/55 px-3 py-1.5 text-xs text-white">
+                    {scanMode === "batch"
+                      ? "Keep scanning. Each new tag is added to the batch."
+                      : "Place the code inside the frame."}
+                  </span>
                 </p>
               </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Floating Batch Tray Trigger */}
-      {batchItems.length > 0 && (
-        <div className="absolute bottom-36 left-0 right-0 z-30 flex justify-center pointer-events-auto px-4">
-          <Button
-            onClick={() => setBatchDialogOpen(true)}
-            className="rounded-full bg-white text-black hover:bg-white/95 shadow-2xl px-5 h-10 gap-2.5 border border-black/10 font-semibold text-xs"
-          >
-            <Layers className="h-4 w-4 text-primary" />
-            <span>{batchItems.length} Scanned in Batch</span>
-            <span className="text-[11px] text-zinc-500 font-normal border-l border-zinc-200 pl-2">Review & Export</span>
-          </Button>
-        </div>
-      )}
-
-      {/* Bottom Controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-20 bg-gradient-to-t from-black/95 via-black/70 to-transparent pb-16 pt-10 px-6">
-        <div className="flex items-center justify-center gap-8 max-w-md mx-auto">
-          {/* Gallery Button */}
-          <div className="flex flex-col items-center gap-1.5">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-12 w-12 rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/40 backdrop-blur-md transition-all"
-              onClick={() => fileRef.current?.click()}
-            >
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            <span className="text-[10px] font-medium text-white/60 uppercase tracking-wider">File</span>
+            )}
           </div>
 
-          {/* Shutter / Stop / Start Button */}
-          <div className="relative -mt-3">
-            <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl animate-pulse" />
-            <Button
-              size="icon"
-              className={cn(
-                "h-16 w-16 rounded-full border-4 border-white/20 text-black hover:scale-105 transition-all shadow-2xl",
-                active ? "bg-white text-black" : "bg-primary text-primary-foreground hover:bg-primary/90"
-              )}
-              onClick={active ? stop : start}
-              title={active ? "Stop Camera" : "Start Camera"}
-            >
-              {active ? (
-                <div className="h-6 w-6 rounded-sm bg-black" />
-              ) : (
-                <Camera className="h-7 w-7" />
-              )}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border/70 p-4">
+            <Button onClick={active ? stop : start} disabled={loading}>
+              {active ? <Square className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+              {loading ? "Starting camera…" : active ? "Stop camera" : "Open camera"}
             </Button>
-          </div>
-
-          {/* Flashlight Button */}
-          <div className="flex flex-col items-center gap-1.5">
+            <Button variant="outline" onClick={() => fileRef.current?.click()}>
+              <ImageIcon className="h-4 w-4" />
+              Upload image
+            </Button>
             <Button
-              variant="outline"
-              size="icon"
-              className={cn(
-                "h-12 w-12 rounded-full border-white/20 bg-white/10 text-white hover:bg-white/20 hover:border-white/40 backdrop-blur-md transition-all",
-                torch && "bg-amber-500/20 border-amber-500/50 text-amber-400"
-              )}
+              variant={torch ? "secondary" : "outline"}
               onClick={toggleTorch}
-              disabled={!active}
+              disabled={!active || !hasTorch}
             >
-              {torch ? <ZapOff className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
+              {torch ? <ZapOff className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+              {torch ? "Flash on" : "Flash"}
             </Button>
-            <span className="text-[10px] font-medium text-white/60 uppercase tracking-wider">Flash</span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => { onPickImage(e.target.files?.[0] || undefined); if (e.target) (e.target as HTMLInputElement).value = ""; }}
+            />
           </div>
-        </div>
-        
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => { onPickImage(e.target.files?.[0] || undefined); if (e.target) (e.target as HTMLInputElement).value = ""; }}
-        />
+        </Card>
       </div>
 
-      {/* Batch Review Modal */}
       <Dialog open={batchDialogOpen} onOpenChange={setBatchDialogOpen}>
-        <DialogContent className="max-w-lg rounded-2xl border border-border/60 bg-card text-card-foreground shadow-2xl">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <div className="flex items-center gap-2 text-primary mb-1">
               <Layers className="h-5 w-5" />

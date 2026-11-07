@@ -25,7 +25,7 @@ export function MetricCard({
   contentClassName,
 }: MetricCardProps) {
   return (
-    <Card className={cn("relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-soft", className)}>
+    <Card className={cn("relative overflow-hidden", className)}>
       <CardContent className={cn("p-6", contentClassName)}>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -35,7 +35,7 @@ export function MetricCard({
             </div>
             {caption && <p className="text-xs text-muted-foreground">{caption}</p>}
           </div>
-          <div className="rounded-xl bg-primary/5 p-2.5 ring-1 ring-inset ring-primary/10">
+          <div className="rounded-lg bg-primary/10 p-2 ring-1 ring-inset ring-primary/15">
             <Icon className={cn("h-5 w-5 text-primary", iconClassName)} />
           </div>
         </div>

@@ -14,7 +14,7 @@ export default function PageHeader({ icon: Icon, title, description, actions, cl
     <div className={cn("flex flex-col gap-4 md:flex-row md:items-center md:justify-between", className)}>
       <div className="min-w-0">
         <h1 className="heading-xl flex items-center gap-2">
-          {Icon ? <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/5 text-primary"><Icon className="h-5 w-5" /></span> : null}
+          {Icon ? <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/10 text-primary"><Icon className="h-4 w-4" /></span> : null}
           {title}
         </h1>
         {description ? (
