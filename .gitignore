@@ -1,35 +1,26 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Dependencies and build output
+node_modules/
+dist/
+dist-ssr/
 
-node_modules
-dist
-dist-ssr
+# Local credentials and deployment/CLI caches
+.env
+.env.*
+!.env.example
 *.local
+.vercel/
+supabase/.temp/
+supabase/.branches/
 
-# Editor directories and files
+# Logs and editor metadata
+logs/
+*.log
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-
-# Ignore all SQL files
-*.sql
-# Reviewed user-account security migration and regression proof
-!migrations/2026-11-07_secure_app_users.sql
-!tests/security/*.sql
-
-!scripts/check-auth-accounts.sql
-!scripts/inspect-auth-id-conflict.sql
-!migrations/2026-11-07_reconcile_admin_identity.sql
-!migrations/2026-11-07_secure_account_access.sql

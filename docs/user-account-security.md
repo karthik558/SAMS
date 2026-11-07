@@ -1,34 +1,43 @@
-# SAMS user account security
+# Account setup and security
 
-Passwords are owned by Supabase Auth. The application never downloads password hashes, stores local credential copies, or authenticates from localStorage. The account-security function requires a verified user JWT and a current, active database administrator role for account administration. Supabase gateway JWT verification remains enabled; this project's signed legacy anon JWT permits only the function's login action before sign-in.
+## Fresh database
 
-## Migration order
+Run the root `schema.sql` once in a fresh Supabase project's SQL editor as `postgres`. It creates the complete SAMS application schema and preserves the current secured database definitions. Supabase must already provide its managed Auth schema and API roles. No production accounts, passwords, or business records are included. The script is transactional and refuses an existing application schema; it is not an upgrade migration or a production reset script.
 
-1. Create a private database snapshot/backup. `node --env-file=.env.local scripts/backup-user-security.mjs` saves public-table data and security metadata to a mode-0600 JSONL file outside the repository. This is a migration recovery snapshot, not a replacement for full Supabase backups. It contains sensitive legacy account data; keep it private and manage its retention.
-2. Inspect `scripts/check-auth-accounts.sql`. For the reviewed administrator conflict only, apply `migrations/2026-11-07_reconcile_admin_identity.sql`. It preserves the existing verified Auth account/password/preferences and migrates the old app ID and known references in one transaction. Unexpected FK structure and collisions abort. Never delete/recreate existing Auth users or rewrite arbitrary IDs based on email alone.
-3. Run `node --env-file=.env.local scripts/prepare-auth-users.mjs --dry-run`, then `--apply`. Missing identities are created with their existing app IDs, unverified, with undisclosed random passwords. No email is sent and existing accounts/passwords are unchanged. Conflicts abort before any creation; retries skip successful previous creations.
-4. Configure Auth with `node --env-file=.env.local` wrapping `supabase config push`. The committed config disables public signup, requires email confirmation, sets new passwords to at least 12 characters, expires recovery codes in 10 minutes, preserves TOTP availability, and uses the existing Resend SMTP secret from the local/server environment. Never commit the SMTP secret. Native recovery accepts both the numeric code and the secure email link.
-5. Deploy `account-security` using `supabase functions deploy account-security --use-api` with gateway JWT verification enabled. Publish the matching frontend and API routes, then apply `migrations/2026-11-07_secure_app_users.sql` and `migrations/2026-11-07_secure_account_access.sql` together in the coordinated rollout. Old clients depend on the removed hashes/RPCs and must refresh. Do not roll back only the frontend after dropping legacy credential fields.
-6. A verified active administrator with an Auth password is required before credential removal. Non-admin identities may remain pending owner verification/reset; their native Auth credentials are inaccessible until onboarding. Owners must complete recovery themselves. Legacy SHA-256/Base64 password strings are not imported as Supabase passwords. Existing working Auth passwords remain unchanged.
+Create your own verified administrator account through Supabase Auth first. Then run this as the database administrator, replacing the example email and display name:
 
-Use `node --env-file=.env.local scripts/run-supabase-sql.mjs path.sql` for read-only checks; `--write` explicitly enables mutations. The runner checks the linked/configured project, passes the password through the environment, and never prints it. It uses the normal linked PostgreSQL connection, not extracted CLI credentials. It is specific to the reviewed SAMS project.
+```sql
+INSERT INTO public.app_users (id, name, email, role, status)
+SELECT id, 'Administrator', email, 'admin', 'Active'
+FROM auth.users
+WHERE lower(email) = lower('you@example.com')
+  AND email_confirmed_at IS NOT NULL
+  AND coalesce(encrypted_password, '') <> ''
+ON CONFLICT (id) DO NOTHING;
+```
 
-## Access and compatibility
+The Auth ID is reused exactly. Confirm one profile was created before signing in. Do not manually write password hashes, recreate existing Auth identities, or automatically make the first anonymous signup an administrator.
 
-`app_users` exposes explicit profile columns only. Ordinary users can read their profile and update limited nonprivileged fields. Active admins/managers retain directory reads; administrative mutations use the server function. Settings/preferences use the authenticated ID for ownership. Permission/property/department mappings permit owner/admin-manager reads and administrator-only writes. Legacy password/reset and unchecked account-access RPCs are revoked, including overloads. Failed production operations never silently become successful local changes.
+## Required backend files
 
-Anonymous roles lose access to public database tables and functions. Active-account restrictive policies supplement existing authenticated business policies. This intentionally requires sign-in for organization data, including real asset/QR lookups. Demo data remains separate. This does not redefine every business-role policy or audit every security-definer routine, bucket, dependency, or infrastructure control.
+The `supabase/` directory is runtime/deployment source, not a temporary folder. It contains:
 
-The administrator's reviewed old app ID was `2770d961-ac8c-4c84-8fd8-5d1d3c598c1b`; its retained verified Auth ID is `de75fd22-93eb-4c6f-9ae4-43829322a2e3`. The original ownership snapshot had 58 assets, 112 activity rows, seven permission rows, a settings row, notification and old reset record under the old ID, and an existing preference row under the Auth ID. The reconciliation preserves these records; the obsolete recovery record is invalidated by the final migration. After commit, reversing IDs requires another dependency/conflict review because new writes can use the reconciled ID.
+- `functions/account-security/`: server-side account administration and username login.
+- `functions/send-email/`: authenticated notification delivery.
+- `config.toml` and `templates/recovery.html`: Auth settings and native recovery email.
 
-Email changes require native Auth's verified email-change flow; the Auth trigger synchronizes the profile. Password changes synchronize password metadata through an Auth trigger. `must_change_password` remains metadata, not a mandatory password-change authorization boundary. MFA enrollment is available in Auth configuration; this patch does not add a mandatory MFA UI or CAPTCHA. No patch guarantees 100% security.
+For a new project, set its own site/redirect URLs and verified SMTP sender in the configuration, then link the project and deploy with the Supabase CLI. Deploy both functions with gateway JWT verification enabled. The current gateway configuration uses a legacy signed anon JWT. Keep the SMTP credential in the server/operator environment; `config.toml` references `env(RESEND_API_KEY)` rather than storing a value. Publish the matching frontend and API routes with the project environment configured.
 
-## Credentials and recovery
+`.temp`, `.branches`, `.vercel`, and `dist` are generated and ignored. The CLI recreates local link metadata when needed. Old migration SQL, seed/demo SQL, one-time reconciliation scripts, and disposable SQL test fixtures have been consolidated or removed. Previously tracked versions remain in Git history; a private local cleanup archive preserves the removed migration-era files.
 
-Keep `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the frontend environment; the anon key is designed to be public and relies on RLS. `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`, and `RESEND_API_KEY` are server/operator secrets and must never use `VITE_` prefixes, appear in chat, or be committed. `.env.local` is ignored. No user needs to recreate an Auth ID or copy keys into chat.
+## Existing deployments
 
-After deployment, sign out/refresh existing clients and sign in with the existing native Auth password. If that password is unknown, use Forgot password. Only the mailbox owner should redeem the code/link and choose the replacement password. Pending accounts need this onboarding before they can log in. No operator script confirms mailbox ownership or exposes generated temporary passwords.
+Directory cleanup does not alter a live database. Existing users retain their Auth IDs and passwords. Use native Forgot password if the Auth password is unknown; mailbox owners must redeem their own recovery code/link. Pending identities must complete verification before they can sign in. Do not rerun `schema.sql` on the existing production database.
 
-## Validation
+Passwords belong to Supabase Auth. `app_users` exposes profile fields only. Account administration requires an active database administrator role; settings and access mappings enforce owner/admin rules with RLS. Anonymous database access and legacy credential/access RPCs are revoked. Asset/QR data requires sign-in. Existing authenticated business policies and function compatibility are preserved in the consolidated definition.
 
-Run `npm run build`, `npx tsc --noEmit -p tsconfig.app.json`, `node --test tests/security/prepare-auth-users.test.mjs`, and `deno test --no-lock --allow-env tests/security/account-security.test.ts`. SQL regression fixtures in `tests/security` belong exclusively in disposable local databases. Do not run them in Supabase. Production migration rehearsal is performed inside a transaction that ends with ROLLBACK before the final coordinated commit.
+`.env.example` lists the required variables. The anon key is designed to be public and relies on RLS; service-role, database, and SMTP credentials are private and must never use `VITE_` prefixes. Keep `.env.local` private and out of Git. No keys need to be pasted into chat.
+
+## Verification
+
+`npm test` runs the API boundary checks. `deno test --no-lock --allow-env tests/security/account-security.test.ts` verifies account authorization and failed-create cleanup with mocked requests. These two regression files protect the security boundaries; they do not create live users or send email. The consolidated schema is verified in a disposable PostgreSQL 17 database with Supabase platform primitives, including fresh installation, account/settings creation, role isolation, Auth synchronization, realtime membership, and safe rejection of reruns.

@@ -90,51 +90,49 @@ SAMS streamlines how enterprises catalogue, monitor, audit, and label fixed asse
 - **State & Data:** React Query, context providers, local caching fallbacks
 - **Backend Services:** Supabase (Auth, Database, Storage) with demo/local mock layers
 - **Utilities:** date-fns, ExcelJS, ZXing, JSZip, Zod schema validation
-- **Tooling:** ESLint, TypeScript, Prettier (via editor integration), pnpm/npm scripts
+- **Tooling:** ESLint, TypeScript, Prettier (via editor integration), npm scripts
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+
-- pnpm (recommended) or npm
-- Supabase project (optional for local demo & auth features)
+
+- Node.js 18+ and npm (the repository uses `package-lock.json`).
+- A Supabase project for real accounts and data. The isolated demo is available at `/demo/login`.
 
 ### Installation
 
 ```bash
-# install dependencies
-pnpm install
-
-# start the development server
-pnpm dev
+npm ci
+cp .env.example .env.local
+npm run dev
 ```
 
-Visit `http://localhost:5173` in your browser.
+Visit `http://localhost:8000`. Populate `.env.local` with your project's values; never commit it or paste its secrets into chat.
 
-### Environment Configuration
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are the browser configuration. Use the project's legacy signed anon key with the current Edge Function gateway configuration. `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_PASSWORD`, and `RESEND_API_KEY` are server/operator secrets and must never have `VITE_` prefixes.
 
-Copy `.env.example` to `.env.local` and populate the following when integrating with Supabase:
+### Database setup
 
-```bash
-VITE_SUPABASE_URL=
-VITE_SUPABASE_SERVICE_KEY=
-VITE_SUPABASE_ANON_KEY=
-```
+[`schema.sql`](schema.sql) is the single application database definition. Run the whole file once in the SQL editor of a **fresh Supabase project**, as `postgres`. It creates all 31 SAMS tables, the view, functions, constraints, indexes, RLS policies/grants, the custom Auth trigger, and realtime membership. It includes no production data or user accounts.
 
-When the environment variables are absent, SAMS gracefully falls back to seeded demo data, allowing evaluation without backend services.
+The file requires Supabase's managed Auth schema and API roles; it does not install the Supabase platform on a plain PostgreSQL server. It rejects an existing application schema before changing anything. **Do not run it against the existing SAMS production database as an upgrade.**
 
-## Everyday Development
+Create your own verified account in Supabase Auth, then provision its initial administrator profile using the exact Auth ID, as described in [account setup](docs/user-account-security.md). Deploy the required Edge Functions and Auth configuration from `supabase/`; SQL cannot configure SMTP or deploy HTTP functions.
 
-- `pnpm dev` &mdash; run locally with hot module replacement.
-- `pnpm lint` &mdash; enforce TypeScript and accessibility rules via ESLint.
-- `pnpm build` &mdash; create a production bundle through Vite.
-- `pnpm preview` &mdash; serve the production build locally.
+### Everyday development
+
+- `npm run dev` — start the development server.
+- `npm run build` — create the production bundle.
+- `npm run preview` — serve the production build locally.
+- `npm run lint` — run ESLint.
+- `npm test` — run the focused API security regression checks without using a live database or sending email.
+- `npx tsc --noEmit -p tsconfig.app.json` — check application types.
 
 We recommend enabling the workspace ESLint and Tailwind extensions in VS Code for instant feedback.
 
 ## Quality & Observability
 
-- **Testing:** component level tests are being introduced alongside critical modules; snapshot and regression suites are planned for future milestones.
+- **Testing:** `tests/security` keeps only the focused API and account-backend regression checks. One-time migration fixtures and operator scripts have been removed. Backend checks can be run with `deno test --no-lock --allow-env tests/security/account-security.test.ts`; requests are mocked.
 - **Accessibility:** UI patterns follow Shadcn/Radix best practices (keyboard navigable, ARIA annotations).
 - **Logging:** application events are surfaced through toast notifications and audit trails; Supabase provides server-side logs when enabled.
 
