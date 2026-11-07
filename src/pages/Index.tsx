@@ -1,4 +1,5 @@
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
+import { WhatsNewPanel } from "@/components/common/WhatsNewPanel";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { MyAudits } from "@/components/dashboard/MyAudits";
 import { AmcWatchlist, AmcAlertItem } from "@/components/dashboard/AmcWatchlist";
@@ -1075,6 +1076,8 @@ const Index = () => {
           ))}
         </div>
       </section>
+
+      <WhatsNewPanel />
 
       {/* Section: Operational Watchlists */}
       <section id="watchlists-section" className="cq-split grid w-full min-w-0 grid-cols-1 gap-6">

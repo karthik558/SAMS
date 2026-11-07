@@ -731,7 +731,7 @@ export default function Approvals() {
                 <DateRangePicker
                   value={{ from: dateFrom, to: dateTo }}
                   onChange={(r) => { setDateFrom(r.from); setDateTo(r.to); }}
-                  className="min-w-[16rem] h-8"
+                  className="w-48 max-w-full min-w-0"
                 />
               </div>
             </div>

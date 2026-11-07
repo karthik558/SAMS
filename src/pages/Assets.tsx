@@ -4,6 +4,9 @@ import { isDemoMode } from "@/lib/demo";
 import { cn } from "@/lib/utils";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { AssetForm } from "@/components/assets/AssetForm";
+import { AssetCompareDialog } from "@/components/assets/AssetCompareDialog";
+import { EmptyState } from "@/components/common/EmptyState";
+import { downloadCsv, downloadSimplePdf, printRows } from "@/lib/tableExport";
 import { BulkImportModal } from "@/components/assets/BulkImportModal";
 import { QRCodeGenerator } from "@/components/qr/QRCodeGenerator";
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,10 @@ import {
   ChevronDown,
   Maximize2,
   Minimize2,
+  Copy,
+  Download,
+  Printer,
+  FileText,
 } from "lucide-react";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
@@ -142,6 +149,8 @@ export default function Assets() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQRGenerator, setShowQRGenerator] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  const [duplicateSeed, setDuplicateSeed] = useState<any>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterProperty, setFilterProperty] = useState("all");
@@ -812,29 +821,53 @@ export default function Assets() {
     }
   };
 
-  const initialFormData = useMemo(() => selectedAsset
-    ? {
-        itemName: selectedAsset.name ?? "",
-        itemType: selectedAsset.type ?? "",
-        property: selectedAsset.property ?? "",
-        department: selectedAsset.department ?? "",
-        quantity: selectedAsset.quantity ?? 1,
-        purchaseDate: selectedAsset.purchaseDate ? new Date(selectedAsset.purchaseDate) : undefined,
-        expiryDate: selectedAsset.expiryDate ? new Date(selectedAsset.expiryDate) : undefined,
-        poNumber: selectedAsset.poNumber ?? "",
-        condition: selectedAsset.condition ?? "",
-        location: selectedAsset.location ?? "",
-        description: selectedAsset.description ?? "",
-        serialNumber: selectedAsset.serialNumber ?? "",
-        amcEnabled: Boolean(selectedAsset.amcEnabled),
-        amcStartDate: selectedAsset.amcStartDate ? new Date(selectedAsset.amcStartDate) : undefined,
-        amcEndDate: selectedAsset.amcEndDate ? new Date(selectedAsset.amcEndDate) : undefined,
-      }
-    : undefined, [selectedAsset]);
+  const mapAssetToForm = (asset: any, asCopy = false) => ({
+    itemName: asCopy ? `${asset.name || "Asset"} copy` : (asset.name ?? ""),
+    itemType: asset.type ?? "",
+    property: asset.property ?? "",
+    department: asset.department ?? "",
+    quantity: asset.quantity ?? 1,
+    purchaseDate: asset.purchaseDate ? new Date(asset.purchaseDate) : undefined,
+    expiryDate: asset.expiryDate ? new Date(asset.expiryDate) : undefined,
+    poNumber: asset.poNumber ?? "",
+    condition: asset.condition ?? "",
+    location: asset.location ?? "",
+    description: asset.description ?? "",
+    serialNumber: asCopy ? "" : (asset.serialNumber ?? ""),
+    amcEnabled: Boolean(asset.amcEnabled),
+    amcStartDate: asset.amcStartDate ? new Date(asset.amcStartDate) : undefined,
+    amcEndDate: asset.amcEndDate ? new Date(asset.amcEndDate) : undefined,
+  });
+
+  const initialFormData = useMemo(() => {
+    if (selectedAsset) return mapAssetToForm(selectedAsset);
+    if (duplicateSeed) return duplicateSeed;
+    return undefined;
+  }, [selectedAsset, duplicateSeed]);
+
+  const visibleExportRows = () => sortedAssets.map((a) => ({
+    id: a.id,
+    name: a.name || "",
+    type: a.type || "",
+    property: propsById[a.property]?.name || a.property || "",
+    department: a.department || "",
+    quantity: a.quantity ?? "",
+    status: a.status || "",
+    location: a.location || "",
+    serialNumber: a.serialNumber || "",
+    purchaseDate: a.purchaseDate || "",
+    expiryDate: a.expiryDate || "",
+  }));
 
   if (loadingUI && isSupabase && !isDemoMode()) {
     return <PageSkeleton />;
   }
+
+  const handleDuplicateAsset = (asset: any) => {
+    setSelectedAsset(null);
+    setDuplicateSeed(mapAssetToForm(asset, true));
+    setShowAddForm(true);
+  };
 
   const handleEditAsset = (asset: any) => {
     const pid = getAssetPropertyId(asset);
@@ -1102,7 +1135,16 @@ export default function Assets() {
                 Track and manage all your organization's assets
               </p>
             </div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadCsv(`assets-${new Date().toISOString().slice(0,10)}`, rows); }}>
+                <Download className="h-4 w-4" /> CSV
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to print"); return; } printRows("Assets", rows); }}>
+                <Printer className="h-4 w-4" /> Print
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Assets", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
+                <FileText className="h-4 w-4" /> PDF
+              </Button>
               <ColumnChooser
                 columns={columnDefs}
                 visible={prefs.visibleCols}
@@ -1257,7 +1299,7 @@ export default function Assets() {
                 {sortBy === 'id-asc' ? <ArrowUp className="h-4 w-4" /> : sortBy === 'id-desc' ? <ArrowDown className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4" />}
               </Button>
 
-              <DateRangePicker className="w-full sm:w-auto min-w-[16rem] shrink-0" value={range} onChange={setRange} />
+              <DateRangePicker className="w-full max-w-48" value={range} onChange={setRange} />
               {/* Saved Views */}
               <Select value={savedView} onValueChange={setSavedView}>
                 <SelectTrigger className="w-full md:w-48">
@@ -1279,6 +1321,19 @@ export default function Assets() {
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 shadow-sm backdrop-blur-sm">
             <div className="text-sm font-medium text-primary">{selectedIds.size} selected</div>
             <div className="flex gap-2 flex-wrap items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedIds.size !== 2) {
+                    toast.info("Select exactly two assets to compare");
+                    return;
+                  }
+                  setCompareOpen(true);
+                }}
+              >
+                Compare
+              </Button>
               {/* Bulk assign property */}
               {(role === 'admin' || role === 'manager') && (
                 <div className="flex items-center gap-2">
@@ -1427,7 +1482,10 @@ export default function Assets() {
             </div>
           </CardHeader>
           <CardContent className="px-0 pb-0">
-            <div className="overflow-x-auto">
+            {groupedRows.length === 0 ? (
+              <EmptyState className="m-6" icon={Package} title="No assets in this view" description="Adjust the filters or add an asset to fill the catalogue." />
+            ) : null}
+            <div className={cn("overflow-x-auto", groupedRows.length === 0 && "hidden")}>
               <Table dense={prefs.dense} stickyHeader stickyFirstCol className="text-sm">
               <TableHeader className="bg-muted/50">
                 <TableRow className="hover:bg-transparent border-b border-border/60">
@@ -1650,7 +1708,16 @@ export default function Assets() {
                                 <Edit className="h-4 w-4" />
                               </Button>
                             )}
-                            {/* Keep quick QR on the representative item; for bulk/grouped use the Export QR Sheet */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDuplicateAsset(members.length === 1 ? members[0] : rep)}
+                              className="h-8 w-8 p-0"
+                              aria-label={`Duplicate ${rep.id}`}
+                              title="Duplicate"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1814,6 +1881,16 @@ export default function Assets() {
                                         <Edit className="h-4 w-4" />
                                       </Button>
                                     )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleDuplicateAsset(asset)}
+                                      className="h-8 w-8 p-0"
+                                      aria-label={`Duplicate ${asset.id}`}
+                                      title="Duplicate"
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="outline"
@@ -2065,7 +2142,7 @@ export default function Assets() {
               </div>
             </div>
           )}
-    <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+    <Dialog open={showAddForm} onOpenChange={(open) => { setShowAddForm(open); if (!open) setDuplicateSeed(null); }}>
       <DialogContent className={cn(
         "overflow-y-auto transition-all duration-200",
         isExpanded 
@@ -2074,9 +2151,9 @@ export default function Assets() {
       )}>
         <DialogHeader className="flex flex-row items-start justify-between space-y-0 pr-8 text-left">
           <div className="space-y-1.5">
-            <DialogTitle>{selectedAsset ? "Edit Asset" : "Add New Asset"}</DialogTitle>
+            <DialogTitle>{selectedAsset ? "Edit Asset" : duplicateSeed ? "Duplicate Asset" : "Add New Asset"}</DialogTitle>
             <DialogDescription>
-              {selectedAsset ? "Update the details of this asset." : "Fill in the details to create a new asset."}
+              {selectedAsset ? "Update the details of this asset." : duplicateSeed ? "Review the copied details, then save it as a new asset." : "Fill in the details to create a new asset."}
             </DialogDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -2102,13 +2179,21 @@ export default function Assets() {
           </div>
         </DialogHeader>
         <AssetForm
+          key={selectedAsset?.id || (duplicateSeed ? "duplicate" : "new")}
           mode="modal"
           onSubmit={handleAddAsset}
           initialData={initialFormData}
-          onCancel={() => setShowAddForm(false)}
+          onCancel={() => { setShowAddForm(false); setDuplicateSeed(null); }}
         />
       </DialogContent>
     </Dialog>
+    <AssetCompareDialog
+      open={compareOpen}
+      onOpenChange={setCompareOpen}
+      left={sortedAssets.find((asset) => asset.id === Array.from(selectedIds)[0])}
+      right={sortedAssets.find((asset) => asset.id === Array.from(selectedIds)[1])}
+      propertyName={(id) => propsById[id]?.name || id}
+    />
     <BulkImportModal 
       open={showBulkImport} 
       onOpenChange={setShowBulkImport} 

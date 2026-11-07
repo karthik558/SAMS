@@ -14,7 +14,9 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Ticket as TicketIcon, Mail, ShieldCheck } from "lucide-react";
+import { Ticket as TicketIcon, Mail, ShieldCheck, Download, Printer, FileText } from "lucide-react";
+import { downloadCsv, downloadSimplePdf, printRows } from "@/lib/tableExport";
+import { EmptyState } from "@/components/common/EmptyState";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -740,12 +742,23 @@ export default function Tickets() {
               Monitor, triage, and resolve maintenance issues across your properties
             </p>
           </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadCsv(`tickets-${new Date().toISOString().slice(0,10)}`, filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, property: ticket.propertyId || "", assignee: ticket.assignee || "", createdAt: ticket.createdAt }))); }}>
+              <Download className="h-4 w-4" /> CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to print"); return; } printRows("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, assignee: ticket.assignee || "" }))); }}>
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status }))); toast.info("Choose Save as PDF in the print dialog"); }}>
+              <FileText className="h-4 w-4" /> PDF
+            </Button>
           <Button asChild variant="outline" className="gap-2">
             <a href="mailto:karthik@samsproject.in">
               <Mail className="h-4 w-4" />
               Email Support
             </a>
           </Button>
+          </div>
         </div>
       </div>
       <section className="space-y-4">
@@ -1324,9 +1337,7 @@ export default function Tickets() {
                       </Card>
                     ))}
                     {grouped[col.key].length === 0 && (
-                      <div className="h-24 flex items-center justify-center text-xs text-muted-foreground border-2 border-dashed border-border/40 rounded-lg">
-                        No tickets
-                      </div>
+                      <EmptyState className="py-6" icon={TicketIcon} title="No tickets" description={`Nothing is ${col.label.toLowerCase()} in this view.`} />
                     )}
                   </div>
                 </div>

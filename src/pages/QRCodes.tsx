@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { cn } from "@/lib/utils";
-import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels, printImagesOnA4Grid } from "@/lib/qr";
+import { composeQrWithLabel, generateQrPng, downloadDataUrl, printImagesAsLabels, printImagesOnA4Grid, LABEL_PRESETS } from "@/lib/qr";
+import { EmptyState } from "@/components/common/EmptyState";
 import JSZip from "jszip";
 import { PageSkeleton } from "@/components/ui/page-skeletons";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,10 @@ export default function QRCodes() {
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showGenerator, setShowGenerator] = useState(false);
   const [bulkPrintOpen, setBulkPrintOpen] = useState(false);
-  const [bulkPrintOptions, setBulkPrintOptions] = useState({ showName: false, showCode: false });
+  const [bulkPrintOptions, setBulkPrintOptions] = useState({ showName: true, showCode: true, showProperty: false });
+  const [labelPresetId, setLabelPresetId] = useState(LABEL_PRESETS[2]?.id || LABEL_PRESETS[0].id);
+  const [labelCopies, setLabelCopies] = useState(1);
+  const [labelPreview, setLabelPreview] = useState<string | null>(null);
   const [isPrinting, setIsPrinting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProperty, setFilterProperty] = useState("all");
@@ -146,6 +150,27 @@ export default function QRCodes() {
     if (!list.length) return new Set<string>();
     return new Set(list.filter(p => (p.status || '').toLowerCase() !== 'disabled').map(p => p.id));
   }, [propsById]);
+
+  useEffect(() => {
+    if (!bulkPrintOpen) return;
+    const sample = (codes.find((qr) => !qr.printed) || codes[0]) as any;
+    if (!sample?.asset_id) { setLabelPreview(null); return; }
+    let cancelled = false;
+    const base = ((import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || "https://samsproject.in").replace(/\/$/, "");
+    QRCode.toDataURL(`${base}/assets/${sample.asset_id}`, { width: 512, margin: 1, errorCorrectionLevel: "H" }).then(async (raw) => {
+      const lines = [
+        bulkPrintOptions.showName ? sample.asset_name : "",
+        bulkPrintOptions.showProperty ? (sample.property || "") : "",
+      ].filter(Boolean).join(" · ");
+      const image = await composeQrWithLabel(raw, {
+        assetId: bulkPrintOptions.showCode ? sample.asset_id : "",
+        topText: lines || "SAMS",
+        hideBottomText: !bulkPrintOptions.showCode,
+      });
+      if (!cancelled) setLabelPreview(image);
+    }).catch(() => { if (!cancelled) setLabelPreview(null); });
+    return () => { cancelled = true; };
+  }, [bulkPrintOpen, bulkPrintOptions, codes]);
 
   // Load QR codes and properties
   useEffect(() => {
@@ -285,22 +310,20 @@ export default function QRCodes() {
             errorCorrectionLevel: 'H'
         });
 
-        if (bulkPrintOptions.showName || bulkPrintOptions.showCode) {
-             let text = "";
-             if (bulkPrintOptions.showName) text += code.asset_name;
-             if (bulkPrintOptions.showCode) text += (text ? " - " : "") + code.asset_id;
-             
-             return await composeQrWithLabel(rawQrDataUrl, {
-                 assetId: code.asset_id,
-                 topText: text,
-                 hideBottomText: !bulkPrintOptions.showCode
-             });
-        } else {
-            return rawQrDataUrl;
-        }
+        const lines = [
+          bulkPrintOptions.showName ? code.asset_name : "",
+          bulkPrintOptions.showProperty ? (code.property || "") : "",
+        ].filter(Boolean).join(" · ");
+        return await composeQrWithLabel(rawQrDataUrl, {
+          assetId: bulkPrintOptions.showCode ? code.asset_id : "",
+          topText: lines || "SAMS",
+          hideBottomText: !bulkPrintOptions.showCode,
+        });
       }));
-      
-      await printImagesOnA4Grid(images);
+      const copies = Math.min(20, Math.max(1, Number(labelCopies) || 1));
+      const repeated = images.flatMap((image) => Array.from({ length: copies }, () => image));
+      const preset = LABEL_PRESETS.find((item) => item.id === labelPresetId) || LABEL_PRESETS[0];
+      await printImagesAsLabels(repeated, { widthIn: preset.widthIn, heightIn: preset.heightIn, orientation: "portrait", fit: "contain" });
       
        let actor: string | null = null;
        try {
@@ -743,30 +766,65 @@ export default function QRCodes() {
   return (
     <div className="space-y-6">
         {/* Asset Picker Dialog */}
-        <Dialog open={bulkPrintOpen} onOpenChange={setBulkPrintOpen}>
-          <DialogContent className="sm:max-w-md">
+        <Dialog open={bulkPrintOpen} onOpenChange={(open) => {
+          setBulkPrintOpen(open);
+          if (open) {
+            const sample = (codes.find((qr) => !qr.printed) || codes[0]) as any;
+            if (!sample) { setLabelPreview(null); return; }
+            const base = ((import.meta as any)?.env?.VITE_PUBLIC_BASE_URL || "https://samsproject.in").replace(/\/$/, "");
+            QRCode.toDataURL(`${base}/assets/${sample.asset_id}`, { width: 512, margin: 1, errorCorrectionLevel: "H" }).then(async (raw) => {
+              const lines = [
+                bulkPrintOptions.showName ? sample.asset_name : "",
+                bulkPrintOptions.showProperty ? (sample.property || "") : "",
+              ].filter(Boolean).join(" · ");
+              const image = await composeQrWithLabel(raw, {
+                assetId: bulkPrintOptions.showCode ? sample.asset_id : "",
+                topText: lines || "SAMS",
+                hideBottomText: !bulkPrintOptions.showCode,
+              });
+              setLabelPreview(image);
+            }).catch(() => setLabelPreview(null));
+          }
+        }}>
+          <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Bulk Print Options</DialogTitle>
+              <DialogTitle>Label preview</DialogTitle>
               <DialogDescription>
-                Choose what information to include on the printed labels.
+                Choose the size, copies, and the fields printed with the code. Printing stays in the browser.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="showName" 
-                  checked={bulkPrintOptions.showName}
-                  onCheckedChange={(checked) => setBulkPrintOptions(prev => ({ ...prev, showName: !!checked }))}
-                />
-                <Label htmlFor="showName">Show Asset Name</Label>
+            <div className="grid gap-4 sm:grid-cols-[1fr_160px]">
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Label size</Label>
+                  <Select value={labelPresetId} onValueChange={setLabelPresetId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {LABEL_PRESETS.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>{preset.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="label-copies">Copies of each</Label>
+                  <Input id="label-copies" type="number" min={1} max={20} value={labelCopies} onChange={(event) => setLabelCopies(Number(event.target.value))} />
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showName" checked={bulkPrintOptions.showName} onCheckedChange={(checked) => setBulkPrintOptions((prev) => ({ ...prev, showName: !!checked }))} />
+                  <Label htmlFor="showName">Asset name</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showCode" checked={bulkPrintOptions.showCode} onCheckedChange={(checked) => setBulkPrintOptions((prev) => ({ ...prev, showCode: !!checked }))} />
+                  <Label htmlFor="showCode">Asset code</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox id="showProperty" checked={bulkPrintOptions.showProperty} onCheckedChange={(checked) => setBulkPrintOptions((prev) => ({ ...prev, showProperty: !!checked }))} />
+                  <Label htmlFor="showProperty">Property</Label>
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="showCode" 
-                  checked={bulkPrintOptions.showCode}
-                  onCheckedChange={(checked) => setBulkPrintOptions(prev => ({ ...prev, showCode: !!checked }))}
-                />
-                <Label htmlFor="showCode">Show Asset Code</Label>
+              <div className="flex items-center justify-center rounded-lg border border-border/70 bg-muted/30 p-3">
+                {labelPreview ? <img src={labelPreview} alt="Label preview" className="max-h-40 w-full object-contain" /> : <p className="text-xs text-muted-foreground">No label yet</p>}
               </div>
             </div>
             <div className="flex justify-end gap-2">
@@ -795,7 +853,7 @@ export default function QRCodes() {
               <ScrollArea className="h-72 border rounded-md">
                 <div className="p-2 space-y-2">
                   {availableAssets.length === 0 && (
-                    <div className="text-sm text-muted-foreground px-1 py-4 text-center">No assets available</div>
+                    <EmptyState className="border-0 bg-transparent" icon={Package} title="No assets available" description="Every asset in this view already has a QR code." />
                   )}
                   {availableAssets.map((a) => (
                     <div key={a.id} className="flex items-center justify-between gap-3 p-2 rounded-md border bg-background">

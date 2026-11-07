@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
-import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert, Building2, User, CalendarClock, StopCircle, PlayCircle, Play } from "lucide-react";
+import { ClipboardCheck, QrCode, Camera, CheckCircle2, TriangleAlert, Building2, User, CalendarClock, StopCircle, PlayCircle, Play, Download, Printer, FileText } from "lucide-react";
+import { downloadCsv, downloadSimplePdf, printRows } from "@/lib/tableExport";
+import { EmptyState } from "@/components/common/EmptyState";
 import { listDepartmentAssets, getActiveSession, getAssignment, getReviewsFor, saveReviewsFor, submitAssignment, isAuditActive, startAuditSession, endAuditSession, getProgress, getDepartmentReviewSummary, listReviewsForSession, createAuditReport, listAuditReports, listRecentAuditReports, listSessions, getAuditReport, getSessionById, formatAuditSessionName, type AuditReport, type AuditSession, type AuditReview } from "@/services/audit";
 import { listAssets, getAssetById, type Asset } from "@/services/assets";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, Legend } from "recharts";
@@ -1053,6 +1055,19 @@ export default function Audit() {
 
   const headerActions = (
     <div className="flex flex-wrap items-center gap-2">
+      {rows.length > 0 && (
+        <>
+          <Button variant="outline" size="sm" onClick={() => downloadCsv(`audit-rows-${new Date().toISOString().slice(0,10)}`, rows)}>
+            <Download className="h-4 w-4" /> CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => printRows("Audit rows", rows)}>
+            <Printer className="h-4 w-4" /> Print
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => { downloadSimplePdf("Audit rows", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
+            <FileText className="h-4 w-4" /> PDF
+          </Button>
+        </>
+      )}
       {sessionId && (
         <Button variant="outline" size="sm" onClick={handleExportCsv}>
           Export CSV
@@ -1406,10 +1421,7 @@ export default function Audit() {
                   </div>
                 </div>
               ) : rows.length === 0 ? (
-                <div className="flex h-40 flex-col items-center justify-center gap-2 text-muted-foreground">
-                  <ClipboardCheck className="h-8 w-8 opacity-20" />
-                  <p className="text-sm">No assets found for this department.</p>
-                </div>
+                <EmptyState className="m-6" icon={ClipboardCheck} title="No assets in this department" description="Choose another department or start a session that includes these assets." />
               ) : (
                 <div className="overflow-auto">
                   <Table>
@@ -1822,8 +1834,8 @@ export default function Audit() {
                             })}
                             {(selectedSessionId ? sessionReports : recentReports).length === 0 && (
                               <TableRow>
-                                <TableCell colSpan={5} className="h-32 text-center text-sm text-muted-foreground">
-                                  No reports available.
+                                <TableCell colSpan={5} className="p-4">
+                                  <EmptyState icon={FileText} title="No reports yet" description="Generate a session report and it will show up here." />
                                 </TableCell>
                               </TableRow>
                             )}

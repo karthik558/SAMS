@@ -123,7 +123,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       return null;
     }
   }, []);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem("sams_sidebar_collapsed") === "1"; } catch { return false; }
+  });
   const [isDark, setIsDark] = useState(false);
 
   const toggleTheme = () => {
@@ -817,6 +819,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             onClick={() => {
               const newState = !collapsed;
               setCollapsed(newState);
+              try { localStorage.setItem("sams_sidebar_collapsed", newState ? "1" : "0"); } catch {}
               const uid = getCurrentUserId();
               if (uid) {
                 upsertUserPreferences(uid, { sidebar_collapsed: newState });

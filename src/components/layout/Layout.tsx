@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
 import { Home, Package, QrCode, ScanLine, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpGuideProvider } from "@/components/help/HelpGuideProvider";
@@ -221,6 +221,27 @@ export function Layout({ children }: LayoutProps) {
       // ignore if document unavailable (e.g., server rendering)
     }
   }, [pathname]);
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname.startsWith("/demo/login")) return;
+    try { localStorage.setItem("sams_last_path", pathname); } catch {}
+  }, [pathname]);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("sams_boot")) return;
+      sessionStorage.setItem("sams_boot", "1");
+      const last = localStorage.getItem("sams_last_path") || "";
+      const cached = peekCachedUserPreferences(localStorage.getItem("current_user_id"));
+      const landing = cached?.default_landing_page || "";
+      if (landing && landing !== "/" && landing !== "/demo") return;
+      const atHome = pathname === "/" || pathname === "/demo";
+      const sameApp = pathname.startsWith("/demo") ? last.startsWith("/demo") : last.startsWith("/") && !last.startsWith("/demo");
+      if (atHome && last && last !== pathname && sameApp && last !== "/login") {
+        navigate(last, { replace: true });
+      }
+    } catch {}
+  }, [navigate, pathname]);
 
   return (
     <HelpGuideProvider>

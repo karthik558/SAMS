@@ -25,66 +25,56 @@ const defaultPresets = [
   { label: "Last 30 days", range: () => ({ from: startOfDay(subDays(new Date(),29)), to: endOfDay(new Date()) }) },
 ];
 
-export function DateRangePicker({ value, onChange, placeholder = "Pick a date range", className, align = "start", presets = defaultPresets }: DateRangePickerProps) {
+export function DateRangePicker({ value, onChange, placeholder = "Pick a date range", className, align = "end", presets = defaultPresets }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
   const from = value?.from;
   const to = value?.to;
-  const label = from && to ? `${format(from, "PP")} – ${format(to, "PP")}` : (from ? `${format(from, "PP")} – …` : placeholder);
+  const short = (d: Date) => format(d, "MMM d, yyyy");
+  const label = from && to ? `${short(from)} – ${short(to)}` : (from ? `${short(from)} – …` : placeholder);
 
   return (
-    <div className={cn("flex items-center gap-2 w-full", className)}>
+    <div className={cn("flex w-48 max-w-full min-w-0 items-center gap-1.5", className)}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             className={cn(
-              "flex-1 justify-start items-center gap-2 font-normal text-left",
+              "h-10 w-full min-w-0 justify-start gap-2 overflow-hidden px-3 font-normal",
               (!from && !to) && "text-muted-foreground"
             )}
           >
             <CalendarIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{label}</span>
+            <span className="min-w-0 flex-1 truncate text-left">{label}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent 
-          className="w-auto p-0" 
+        <PopoverContent
+          className="w-[17.5rem] max-w-[calc(100vw-1.5rem)] overflow-hidden p-0"
           align={align}
+          collisionPadding={12}
           onOpenAutoFocus={(e) => e.preventDefault()}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <div className="flex">
-            <div className="flex flex-col gap-2 p-3 border-r border-border/50">
+          <div className="flex min-w-0 max-w-full flex-col">
+            <div className="flex min-w-0 gap-1 overflow-x-auto border-b border-border/50 p-2">
               {presets.map(p => (
-                <Button key={p.label} variant="ghost" size="sm" className="justify-start font-normal" onClick={() => onChange?.(p.range())}>{p.label}</Button>
+                <Button key={p.label} variant="ghost" size="sm" className="h-7 px-2 text-xs font-normal" onClick={() => onChange?.(p.range())}>{p.label}</Button>
               ))}
-              <Button variant="outline" size="sm" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
+              <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => onChange?.({ from: undefined, to: undefined })}>Clear</Button>
             </div>
-            <div>
-              <Calendar
-                mode="range"
-                selected={{ from: from, to: to } as any}
-                onSelect={(r: any) => {
-                  const next: DateRange = { from: r?.from, to: r?.to };
-                  onChange?.(next);
-                }}
-                numberOfMonths={2}
-                defaultMonth={from || new Date()}
-              />
-            </div>
+            <Calendar
+              mode="range"
+              selected={{ from: from, to: to } as any}
+              onSelect={(r: any) => {
+                const next: DateRange = { from: r?.from, to: r?.to };
+                onChange?.(next);
+              }}
+              numberOfMonths={1}
+              defaultMonth={from || new Date()}
+              className="p-2"
+            />
           </div>
         </PopoverContent>
       </Popover>
-      {(from || to) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-muted-foreground"
-          onClick={() => onChange?.({ from: undefined, to: undefined })}
-          aria-label="Clear date range"
-        >
-          Clear
-        </Button>
-      )}
     </div>
   );
 }

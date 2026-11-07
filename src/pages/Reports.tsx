@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -119,6 +120,11 @@ export default function Reports() {
   const isAdminRole = (role || '').includes('admin');
   const myDept: string | null = currentUser?.department ?? null;
   const [selectedReportType, setSelectedReportType] = useState("");
+  const PRESET_KEY = "sams_report_presets";
+  const [presetName, setPresetName] = useState("");
+  const [savedPresets, setSavedPresets] = useState<Array<{ id: string; name: string; reportType: string; property: string; assetType: string; department: string }>>(() => {
+    try { return JSON.parse(localStorage.getItem(PRESET_KEY) || "[]"); } catch { return []; }
+  });
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const [selectedProperty, setSelectedProperty] = useState("all");
@@ -1215,6 +1221,54 @@ export default function Reports() {
           </DialogContent>
         </Dialog>
 
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Saved presets</CardTitle>
+            <CardDescription>Stored on this device. They fill the generator below.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => {
+                const from = new Date();
+                const to = new Date();
+                to.setDate(to.getDate() + 30);
+                setSelectedReportType("expiry-tracking");
+                setDateFrom(from);
+                setDateTo(to);
+                toast.success("Applied “Expiring in 30 days”");
+              }}>Expiring in 30 days</Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                const id = selectedProperty !== "all" ? selectedProperty : properties[0]?.id;
+                if (!id) { toast.info("No property is available yet"); return; }
+                setSelectedProperty(id);
+                setSelectedReportType("property-wise");
+                toast.success("Applied “This property only”");
+              }}>This property only</Button>
+              {savedPresets.map((preset) => (
+                <Button key={preset.id} variant="secondary" size="sm" onClick={() => {
+                  setSelectedReportType(preset.reportType);
+                  setSelectedProperty(preset.property || "all");
+                  setSelectedAssetType(preset.assetType || "all");
+                  setDeptForReport(preset.department || "ALL");
+                  toast.success(`Applied “${preset.name}”`);
+                }}>{preset.name}</Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Input value={presetName} onChange={(event) => setPresetName(event.target.value)} placeholder="Name this filter set" className="max-w-xs" />
+              <Button size="sm" variant="outline" onClick={() => {
+                const name = presetName.trim();
+                if (!name) return;
+                const next = [...savedPresets, { id: `${Date.now()}`, name, reportType: selectedReportType, property: selectedProperty, assetType: selectedAssetType, department: deptForReport }];
+                setSavedPresets(next);
+                try { localStorage.setItem(PRESET_KEY, JSON.stringify(next)); } catch {}
+                setPresetName("");
+                toast.success("Preset saved on this device");
+              }}>Save current</Button>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Custom Report Generator */}
         <Card id="custom-report-generator" className="overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm">
           <CardHeader className="border-b border-border/40 bg-muted/20 pb-4">
@@ -1397,7 +1451,7 @@ export default function Reports() {
                   </Select>
                 </div>
                 {rrRange === 'custom' && (
-                  <div className="min-w-[240px]">
+                  <div className="w-48 max-w-full">
                     <DateRangePicker
                       value={{ from: rrFrom, to: rrTo }}
                       onChange={(r) => { setRrFrom(r.from); setRrTo(r.to); }}

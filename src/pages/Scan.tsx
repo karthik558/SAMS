@@ -20,6 +20,7 @@ import {
 import { BrowserMultiFormatReader, BrowserQRCodeReader } from "@zxing/browser";
 import type { Result } from "@zxing/library";
 import { cn } from "@/lib/utils";
+import { downloadCsv } from "@/lib/tableExport";
 import { 
   Dialog, 
   DialogContent, 
@@ -52,6 +53,18 @@ export default function Scan() {
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
   const lastScannedRef = useRef<{ code: string; time: number } | null>(null);
+  const SCAN_HISTORY_KEY = "sams_scan_history";
+  const [scanHistory, setScanHistory] = useState<Array<{ id: string; raw: string; at: string }>>(() => {
+    try { return JSON.parse(sessionStorage.getItem(SCAN_HISTORY_KEY) || "[]"); } catch { return []; }
+  });
+
+  const rememberScan = (id: string, raw: string) => {
+    setScanHistory((prev) => {
+      const next = [{ id, raw, at: new Date().toISOString() }, ...prev.filter((item) => item.raw !== raw)].slice(0, 25);
+      try { sessionStorage.setItem(SCAN_HISTORY_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     // Only cleanup on unmount - do NOT auto-start camera on mount to prevent desktop camera popups
@@ -198,7 +211,6 @@ export default function Scan() {
     }
     lastScannedRef.current = { code: text, time: now };
 
-    // Extract asset ID
     let assetId = text;
     const urlMatch = text.match(/\/assets\/([A-Za-z0-9_-]+)/i);
     if (urlMatch && urlMatch[1]) {
@@ -206,6 +218,7 @@ export default function Scan() {
     } else if (/^AST-?[0-9]+/i.test(text)) {
       assetId = text;
     }
+    rememberScan(assetId, text);
 
     if (scanMode === "batch") {
       playBeep();
@@ -396,6 +409,26 @@ export default function Scan() {
                   <Button variant="outline" size="sm" onClick={() => setBatchDialogOpen(true)}>
                     Review
                   </Button>
+                </div>
+              </div>
+            ) : null}
+            {scanHistory.length > 0 ? (
+              <div className="space-y-2 border-t border-border/70 pt-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">This session</p>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => { navigator.clipboard.writeText(scanHistory.map((item) => item.id).join("\n")); toast.success("Copied scan history"); }}>
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => downloadCsv("scan-history", scanHistory.map((item) => ({ id: item.id, code: item.raw, scannedAt: item.at })))}>
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="max-h-40 space-y-1 overflow-y-auto">
+                  {scanHistory.slice(0, 8).map((item) => (
+                    <div key={`${item.at}-${item.raw}`} className="truncate text-xs text-foreground">{item.id}</div>
+                  ))}
                 </div>
               </div>
             ) : null}
