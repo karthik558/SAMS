@@ -10,7 +10,8 @@ enable_signup = false
 enable_anonymous_sign_ins = false
 minimum_password_length = 12
 [auth.email]
-enable_signup = false
+# Keep email/password login enabled; [auth].enable_signup disables public registration.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 secure_password_change = false

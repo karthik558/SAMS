@@ -1,6 +1,6 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,8 @@ const AUTH_USER_KEY = "auth_user";
 export default function Login() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = (location.state as { from?: string } | null)?.from;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -88,6 +90,10 @@ export default function Login() {
       setAttempts(0);
       setPassword("");
       setEmail(user.email);
+      if (returnTo?.startsWith("/") && !returnTo.startsWith("//") && returnTo !== "/login") {
+        navigate(returnTo, { replace: true });
+        return;
+      }
       try {
         const prefs = await getUserPreferences(user.id);
         const target = prefs?.default_landing_page || "/";
@@ -105,7 +111,7 @@ export default function Login() {
         navigate("/", { replace: true });
       }
     },
-    [navigate]
+    [navigate, returnTo]
   );
 
   useEffect(() => {

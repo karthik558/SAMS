@@ -71,7 +71,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     if (location.pathname === "/") {
       return <Navigate to="/site" replace />;
     }
-    return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} replace />;
+    return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} state={{ from: location.pathname + location.search }} replace />;
   }
   return <>{children}</>;
 }
@@ -128,8 +128,8 @@ const App = () => (
           {/* Demo isolated routes */}
           <Route path="/demo/login" element={<DemoLogin />} />
           <Route path="/demo/*" element={<DemoAppRouter />} />
-          {/* Public QR scan view: render asset details without auth or layout */}
-          <Route path="/assets/:id" element={<AssetDetails />} />
+          {/* Real asset data requires an authenticated session, including QR links. */}
+          <Route path="/assets/:id" element={<RequireAuth><AssetDetails /></RequireAuth>} />
           <Route element={<AppShell />}>
             <Route path="/" element={<Index />} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
