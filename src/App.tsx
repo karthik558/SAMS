@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { getAuthenticatedUser } from "@/services/auth";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -34,13 +37,36 @@ import { ThemeInitializer } from "@/components/common/ThemeInitializer";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  let authed = false;
-  try {
-    authed = isDemoMode()
-      ? Boolean(sessionStorage.getItem("demo_current_user_id"))
-      : Boolean(localStorage.getItem("current_user_id"));
-  } catch {}
-  
+  const demo = isDemoMode();
+  const [authed, setAuthed] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      if (demo) {
+        setAuthed(Boolean(sessionStorage.getItem("demo_current_user_id")));
+        return;
+      }
+      try {
+        const user = await getAuthenticatedUser();
+        if (cancelled) return;
+        if (user) {
+          localStorage.setItem("current_user_id", user.id);
+          localStorage.setItem("auth_user", JSON.stringify(user));
+        } else {
+          localStorage.removeItem("current_user_id");
+          localStorage.removeItem("auth_user");
+        }
+        setAuthed(Boolean(user));
+      } catch { if (!cancelled) setAuthed(false); }
+    };
+    void refresh();
+    const subscription = !demo && hasSupabaseEnv
+      ? supabase.auth.onAuthStateChange(() => { void Promise.resolve().then(refresh); }).data.subscription
+      : null;
+    return () => { cancelled = true; subscription?.unsubscribe(); };
+  }, [demo, location.pathname]);
+  if (authed === null) return null;
+
   if (!authed) {
     if (location.pathname === "/") {
       return <Navigate to="/site" replace />;

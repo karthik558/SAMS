@@ -1,3 +1,4 @@
+import { logout } from "@/services/auth";
 import { Bell, Search, Menu, Settings as SettingsIcon, Users as UsersIcon, LogOut, ShieldCheck } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { isDemoMode } from "@/lib/demo";
@@ -50,8 +51,9 @@ export function Header({ onMenuClick }: HeaderProps) {
     .toUpperCase();
   const firstName = (authUser?.name || "").split(" ").filter(Boolean)[0] || null;
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
+      if (!isDemoMode()) await logout();
       localStorage.removeItem('current_user_id');
       localStorage.removeItem('auth_user');
       if (isDemoMode()) {

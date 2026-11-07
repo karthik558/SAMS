@@ -1,0 +1,33 @@
+project_id = "SAMS"
+[auth]
+enabled = true
+site_url = "https://sams.karthiklal.in/login"
+additional_redirect_urls = ["https://sams.karthiklal.in/login", "https://samsproject.in/login", "https://www.samsproject.in/login", "http://localhost:8000/login", "http://127.0.0.1:8000/login"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = false
+enable_anonymous_sign_ins = false
+minimum_password_length = 12
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = false
+max_frequency = "1m"
+otp_length = 6
+otp_expiry = 600
+[auth.email.smtp]
+enabled = true
+host = "smtp.resend.com"
+port = 465
+user = "resend"
+pass = "env(RESEND_API_KEY)"
+admin_email = "noreply@samsproject.in"
+sender_name = "SAMS"
+[auth.email.template.recovery]
+subject = "Reset your SAMS password"
+content_path = "./supabase/templates/recovery.html"
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true

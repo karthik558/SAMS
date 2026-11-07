@@ -11,6 +11,7 @@
 
 /// <reference lib="deno.ns" />
 
+import { createClient } from "npm:@supabase/supabase-js@2.56.0";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 interface EmailRequest {
@@ -36,7 +37,18 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   try {
+    const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
+    if (!token) return new Response("Authentication required", { status: 401, headers: corsHeaders });
+    const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: identity, error: authError } = await db.auth.getUser(token);
+    if (authError || !identity.user) return new Response("Authentication required", { status: 401, headers: corsHeaders });
+    const { data: profile, error: profileError } = await db.from("app_users").select("status").eq("id", identity.user.id).single();
+    if (profileError || profile?.status?.toLowerCase() !== "active") return new Response("Active account required", { status: 403, headers: corsHeaders });
     const body: EmailRequest = await req.json();
 
     // Validate required fields

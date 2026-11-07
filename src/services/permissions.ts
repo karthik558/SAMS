@@ -43,28 +43,10 @@ export async function listUserPermissions(userId: string): Promise<Record<PageKe
     const map = readLocal();
     return (map[userId] || {}) as any;
   }
-  try {
-    const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId);
-    if (error) throw error;
-    // Build from remote
-    const remote: Record<PageKey, { v: boolean; e: boolean }> = {} as any;
-    (data || []).forEach((row: any) => {
-      const page = row.page as PageKey;
-      remote[page] = { v: !!row.can_view, e: !!row.can_edit };
-    });
-    // Merge in local entries for pages missing remotely (helps when RLS blocked or RPC not yet created)
-    const localAll = readLocal();
-    const local = (localAll[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-    const merged: Record<PageKey, { v: boolean; e: boolean }> = { ...remote } as any;
-    (Object.keys(local) as PageKey[]).forEach((p) => {
-      if (!(p in merged)) merged[p] = local[p];
-    });
-    return merged;
-  } catch {
-    // Fallback to local when table missing or any error
-    const map = readLocal();
-    return (map[userId] || {}) as any;
-  }
+  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId);
+  if (error) throw error;
+  return Object.fromEntries((data || []).map(row => [row.page, { v: !!row.can_view, e: !!row.can_edit }])) as Record<PageKey, { v: boolean; e: boolean }>;
+
 }
 
 export async function setUserPermissions(userId: string, perms: Record<PageKey, { v?: boolean; e?: boolean }>): Promise<void> {
@@ -87,62 +69,10 @@ export async function setUserPermissions(userId: string, perms: Record<PageKey, 
     v: !!perms[page].v,
     e: !!perms[page].e,
   }));
-  // 1) Try SECURITY DEFINER RPC (JSON variant) to bypass RLS and avoid composite type issues
-  try {
-    const { error: rpcJsonErr } = await supabase.rpc('set_user_permissions_json_v1', {
-      p_user_id: userId,
-      p_perms: rows, // JSON array [{page, v, e}]
-    } as any);
-    if (!rpcJsonErr) {
-      // Mirror to local
-      const map = readLocal();
-      const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-      rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
-      map[userId] = cur;
-      writeLocal(map);
-      return;
-    }
-    console.warn('RPC set_user_permissions_json_v1 failed, trying typed RPC next...', rpcJsonErr);
-  } catch (e) {
-    console.warn('RPC set_user_permissions_json_v1 not available, trying typed RPC...', e);
-  }
-  // 1b) Try typed composite RPC if available
-  try {
-    const { error: rpcErr } = await supabase.rpc('set_user_permissions_v1', {
-      p_user_id: userId,
-      p_perms: rows as any,
-    } as any);
-    if (!rpcErr) {
-      const map = readLocal();
-      const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-      rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
-      map[userId] = cur;
-      writeLocal(map);
-      return;
-    }
-    console.warn('RPC set_user_permissions_v1 failed, attempting direct upsert...', rpcErr);
-  } catch (e) {
-    console.warn('RPC set_user_permissions_v1 not available, attempting direct upsert...', e);
-  }
-  // 2) Direct upsert (may be blocked by RLS without admin policy)
-  try {
-    const upsertRows: UserPermission[] = rows.map((r) => ({ user_id: userId, page: r.page, can_view: r.v, can_edit: r.e }));
-    const { error } = await supabase.from(TABLE).upsert(upsertRows as any, { onConflict: 'user_id,page' });
-    if (error) throw error;
-    // Mirror to local
-    const map = readLocal();
-    const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-    rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
-    map[userId] = cur;
-    writeLocal(map);
-  } catch {
-    // Fallback to local on error
-    const map = readLocal();
-    const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-    rows.forEach((r) => { cur[r.page] = { v: r.v, e: r.e }; });
-    map[userId] = cur;
-    writeLocal(map);
-  }
+  const upsertRows = rows.map(r => ({ user_id: userId, page: r.page, can_view: r.v, can_edit: r.e }));
+  const { error } = await supabase.from(TABLE).upsert(upsertRows, { onConflict: 'user_id,page' });
+  if (error) throw error;
+
 }
 
 export async function canUserView(userId: string, page: PageKey): Promise<boolean | null> {

@@ -1,3 +1,4 @@
+import { logout } from "@/services/auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -588,8 +589,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       }
     })();
   }, [location.pathname]);
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
+      if (!isDemoMode()) await logout();
       localStorage.removeItem('current_user_id');
       localStorage.removeItem('auth_user');
       if (isDemoMode()) {

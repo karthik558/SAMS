@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { QrCode, Eye, EyeOff, Check } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { loginWithPassword, loginWithUsernameOrEmail, updateLastLogin, type MinimalUser } from "@/services/auth";
+import { getAuthenticatedUser, loginWithPassword, loginWithUsernameOrEmail, updateLastLogin, type MinimalUser } from "@/services/auth";
 import { getUserPreferences } from "@/services/userPreferences";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,7 +16,6 @@ import {
   verifyPasswordResetCode,
   completePasswordReset,
   maskEmailAddress,
-  PASSWORD_RESET_MAX_ATTEMPTS,
   PASSWORD_RESET_CODE_TTL_MINUTES,
 } from "@/services/passwordReset";
 
@@ -37,25 +37,13 @@ export default function Login() {
   const [requestingCode, setRequestingCode] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [resetToken, setResetToken] = useState<string | null>(null);
-  const [attemptsRemaining, setAttemptsRemaining] = useState(PASSWORD_RESET_MAX_ATTEMPTS);
   const [otpLoading, setOtpLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [newPasswordValue, setNewPasswordValue] = useState("");
   const [confirmPasswordValue, setConfirmPasswordValue] = useState("");
   const [cooldown, setCooldown] = useState(0);
   const RESEND_COOLDOWN_SECONDS = 45;
-
-  const isAuthed = useMemo(() => {
-    try {
-      return Boolean(localStorage.getItem(CURRENT_USER_KEY));
-    } catch {
-      return false;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAuthed) navigate("/", { replace: true });
-  }, [isAuthed, navigate]);
+  const recoverySession = useRef(new URLSearchParams(window.location.hash.slice(1)).get("type") === "recovery");
 
   useEffect(() => {
     if (!cooldown) return;
@@ -72,7 +60,6 @@ export default function Login() {
     setRequestingCode(false);
     setOtpCode("");
     setResetToken(null);
-    setAttemptsRemaining(PASSWORD_RESET_MAX_ATTEMPTS);
     setOtpLoading(false);
     setPasswordLoading(false);
     setNewPasswordValue("");
@@ -120,6 +107,39 @@ export default function Login() {
     },
     [navigate]
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    localStorage.removeItem("app_users_fallback");
+    localStorage.removeItem("password_reset_requests_local");
+    const subscription = hasSupabaseEnv ? supabase.auth.onAuthStateChange((event, session) => {
+      if (event !== "PASSWORD_RECOVERY" || !session || cancelled) return;
+      recoverySession.current = true;
+      setResetEmail(session.user.email || "");
+      setResetToken(session.access_token);
+      setResetStep("password");
+      setForgotOpen(true);
+    }).data.subscription : null;
+    if (hasSupabaseEnv && recoverySession.current) {
+      void supabase.auth.getSession().then(({ data }) => {
+        const session = data.session;
+        if (cancelled || !session) return;
+        setResetEmail(session.user.email || "");
+        setResetToken(session.access_token);
+        setResetStep("password");
+        setForgotOpen(true);
+      });
+    }
+    void getAuthenticatedUser().then(async (user) => {
+      if (cancelled || recoverySession.current) return;
+      if (user) await finishLogin(user);
+      else {
+        localStorage.removeItem(CURRENT_USER_KEY);
+        localStorage.removeItem(AUTH_USER_KEY);
+      }
+    });
+    return () => { cancelled = true; subscription?.unsubscribe(); };
+  }, [finishLogin]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,19 +192,6 @@ export default function Login() {
       setRequestingCode(true);
       try {
         const result = await requestPasswordReset(normalized);
-        if (!result.userFound) {
-          toast({
-            title: "Account not found",
-            description: "We couldn't find a SAMS account with that email address.",
-            variant: "destructive",
-          });
-          setResetStep("email");
-          setAttemptsRemaining(PASSWORD_RESET_MAX_ATTEMPTS);
-          setOtpCode("");
-          setResetToken(null);
-          setCooldown(0);
-          return false;
-        }
         if (!result.delivered) {
           toast({
             title: "Unable to send code",
@@ -197,14 +204,13 @@ export default function Login() {
         setResetEmail(normalized);
         setMaskedEmail(masked);
         setResetStep("code");
-        setAttemptsRemaining(PASSWORD_RESET_MAX_ATTEMPTS);
         setOtpCode("");
         setResetToken(null);
         setCooldown(RESEND_COOLDOWN_SECONDS);
         if (!opts?.quiet) {
           toast({
             title: "Verification code sent",
-            description: `Check ${masked} for your one-time access code.`,
+            description: `If an account exists, a recovery code was sent to ${masked}.`,
           });
         }
         return true;
@@ -252,30 +258,7 @@ export default function Login() {
         setResetStep("password");
         setOtpCode("");
         setCooldown(0);
-        setAttemptsRemaining(PASSWORD_RESET_MAX_ATTEMPTS);
         toast({ title: "Code verified", description: "Enter a new password to finish resetting your account." });
-      } else if (result.status === "mismatch") {
-        const remaining =
-          typeof result.attemptsRemaining === "number"
-            ? result.attemptsRemaining
-            : Math.max(0, attemptsRemaining - 1);
-        setAttemptsRemaining(remaining);
-        setOtpCode("");
-        toast({
-          title: "Incorrect code",
-          description: `You have ${remaining} attempt${remaining === 1 ? "" : "s"} remaining before a new code is sent.`,
-          variant: "destructive",
-        });
-      } else {
-        setAttemptsRemaining(PASSWORD_RESET_MAX_ATTEMPTS);
-        setOtpCode("");
-        const resent = await sendResetCode({ quiet: true });
-        if (resent) {
-          toast({
-            title: "New code sent",
-            description: "We emailed you a new verification code after too many incorrect attempts.",
-          });
-        }
       }
     } catch (err: any) {
       toast({
@@ -294,12 +277,12 @@ export default function Login() {
       toast({ title: "Missing verification", description: "Verify the latest code before updating your password.", variant: "destructive" });
       return;
     }
-    const trimmedPassword = newPasswordValue.trim();
-    if (trimmedPassword.length < 6) {
-      toast({ title: "Password too short", description: "Use at least 6 characters for your new password.", variant: "destructive" });
+    const trimmedPassword = newPasswordValue;
+    if (trimmedPassword.length < 12 || trimmedPassword.length > 128) {
+      toast({ title: "Password too short", description: "Use 12–128 characters for your new password.", variant: "destructive" });
       return;
     }
-    if (trimmedPassword !== confirmPasswordValue.trim()) {
+    if (trimmedPassword !== confirmPasswordValue) {
       toast({ title: "Passwords do not match", description: "Enter the same password in both fields.", variant: "destructive" });
       return;
     }
@@ -521,7 +504,7 @@ export default function Login() {
                   <Input
                     id="reset-code"
                     inputMode="numeric"
-                    maxLength={6}
+                    maxLength={8}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
                     placeholder="••••••"
@@ -531,7 +514,7 @@ export default function Login() {
                 </div>
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="rounded-full border border-dashed border-border/60 px-3 py-1">
-                    Attempts remaining: <span className="font-semibold text-foreground">{attemptsRemaining}</span>
+                    Recovery attempts are limited by the server
                   </span>
                   <button
                     type="button"

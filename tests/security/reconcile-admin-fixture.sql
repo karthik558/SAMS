@@ -1,0 +1,27 @@
+-- DISPOSABLE TEST DATABASE ONLY. Never run this fixture in Supabase.
+CREATE SCHEMA auth;
+CREATE TABLE auth.users(id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz,encrypted_password text);
+CREATE TABLE public.app_users(id uuid PRIMARY KEY,email text,role text,status text);
+INSERT INTO auth.users VALUES('de75fd22-93eb-4c6f-9ae4-43829322a2e3','dev@karthiklal.in',now(),'unchanged-auth-password');
+INSERT INTO app_users VALUES('2770d961-ac8c-4c84-8fd8-5d1d3c598c1b','dev@karthiklal.in','admin','active');
+CREATE TABLE assets(id integer PRIMARY KEY,created_by text);
+CREATE TABLE audit_incharge(user_id text);
+CREATE TABLE audit_scans(scanned_by uuid);
+CREATE TABLE final_approvers(created_by uuid,user_id uuid REFERENCES auth.users(id));
+CREATE TABLE notifications(user_id text);
+CREATE TABLE password_reset_requests(user_id uuid REFERENCES app_users(id) ON DELETE CASCADE);
+CREATE TABLE recent_activity(user_id uuid REFERENCES app_users(id) ON DELETE SET NULL);
+CREATE TABLE reports(created_by text,created_by_id text);
+CREATE TABLE tickets(created_by text);
+CREATE TABLE user_department_access(user_id uuid);
+CREATE TABLE user_permissions(user_id uuid,page text, UNIQUE(user_id,page));
+CREATE TABLE user_preferences(user_id uuid PRIMARY KEY REFERENCES auth.users(id),compact_mode boolean);
+CREATE TABLE user_property_access(user_id uuid REFERENCES app_users(id) ON DELETE CASCADE);
+CREATE TABLE user_settings(user_id uuid UNIQUE REFERENCES app_users(id) ON DELETE CASCADE,email_notifications boolean);
+INSERT INTO assets SELECT n,'2770d961-ac8c-4c84-8fd8-5d1d3c598c1b' FROM generate_series(1,58) n;
+INSERT INTO recent_activity SELECT '2770d961-ac8c-4c84-8fd8-5d1d3c598c1b' FROM generate_series(1,112);
+INSERT INTO user_permissions SELECT '2770d961-ac8c-4c84-8fd8-5d1d3c598c1b','page-' || n FROM generate_series(1,7) n;
+INSERT INTO notifications VALUES('2770d961-ac8c-4c84-8fd8-5d1d3c598c1b');
+INSERT INTO password_reset_requests VALUES('2770d961-ac8c-4c84-8fd8-5d1d3c598c1b');
+INSERT INTO user_settings VALUES('2770d961-ac8c-4c84-8fd8-5d1d3c598c1b',true);
+INSERT INTO user_preferences VALUES('de75fd22-93eb-4c6f-9ae4-43829322a2e3',true);

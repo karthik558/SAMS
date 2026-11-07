@@ -1,3 +1,4 @@
+import { logout } from "@/services/auth";
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, Package, Building2, FileBarChart, ClipboardCheck, QrCode, Settings, Users, Ticket, ShieldCheck, ScanLine, Menu, Box, LifeBuoy, Megaphone, LogOut, Search, Bell, Sun, Moon } from 'lucide-react';
@@ -221,8 +222,9 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
     return parts[0] || userName;
   }, [userName]);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     try {
+      if (!isDemoMode()) await logout();
       localStorage.removeItem('current_user_id');
       localStorage.removeItem('auth_user');
       if (isDemoMode()) {

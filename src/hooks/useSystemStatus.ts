@@ -100,7 +100,6 @@ export function useSystemStatus() {
     // 9. Check Build (Simulated based on Repo)
     let buildStatus: ServiceStatus = 'operational';
     let buildLatency = Math.floor(Math.random() * 100) + 50;
-    if (gitStatus === 'degraded') buildStatus = 'degraded';
 
     setServices(prev => prev.map(s => {
       if (s.id === 'db') return { ...s, status: dbStatus, latency: dbLatency };

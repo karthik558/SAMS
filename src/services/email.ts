@@ -45,7 +45,7 @@ export function getEmailConfig(): EmailConfig | null {
 
 // Get dashboard URL for email links
 function getDashboardUrl(): string {
-  return import.meta.env.VITE_DASHBOARD_URL || 'https://samsproject.in';
+  return typeof window !== 'undefined' ? window.location.origin : (import.meta.env.VITE_DASHBOARD_URL || 'https://www.samsproject.in');
 }
 
 /**
@@ -62,10 +62,12 @@ export async function sendEmail(params: SendEmailParams): Promise<boolean> {
 
   try {
     // Resolve API endpoint (supports local dev without vercel dev via fallback)
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) return false;
     const primaryUrl = (import.meta.env as any).VITE_EMAIL_API_URL || "/api/send-email";
     const doPost = async (url: string) => fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${sessionData.session.access_token}` },
       body: JSON.stringify({
         to: Array.isArray(params.to) ? params.to : [params.to],
         cc: params.cc ? (Array.isArray(params.cc) ? params.cc : [params.cc]) : undefined,

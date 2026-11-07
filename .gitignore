@@ -25,3 +25,11 @@ dist-ssr
 
 # Ignore all SQL files
 *.sql
+# Reviewed user-account security migration and regression proof
+!migrations/2026-11-07_secure_app_users.sql
+!tests/security/*.sql
+
+!scripts/check-auth-accounts.sql
+!scripts/inspect-auth-id-conflict.sql
+!migrations/2026-11-07_reconcile_admin_identity.sql
+!migrations/2026-11-07_secure_account_access.sql

@@ -4,14 +4,9 @@
 function isAllowedTarget(url: string): boolean {
   try {
     const u = new URL(url);
-    const allowedHostSuffixes = [
-      ".supabase.co",
-      ".supabase.in",
-    ];
-    return (
-      (u.protocol === "https:") &&
-      allowedHostSuffixes.some((sfx) => u.hostname.endsWith(sfx))
-    );
+    const configured = new URL(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "");
+    return u.protocol === "https:" && u.origin === configured.origin && !u.username && !u.password
+      && /^\/(auth|rest|storage|realtime|functions)\/v1(?:\/|$)/.test(u.pathname);
   } catch {
     return false;
   }
@@ -78,6 +73,8 @@ export default async function handler(req: any, res: any) {
       method,
       headers: outgoingHeaders,
       body,
+      redirect: "manual",
+      signal: AbortSignal.timeout(30_000),
     });
 
     // Mirror status and content headers
@@ -85,11 +82,9 @@ export default async function handler(req: any, res: any) {
     const contentType = resp.headers.get("content-type") || "application/octet-stream";
     res.status(resp.status);
     res.setHeader("Content-Type", contentType);
-    // Optionally forward cache headers
-    const cacheControl = resp.headers.get("cache-control");
-    if (cacheControl) res.setHeader("Cache-Control", cacheControl);
+    res.setHeader("Cache-Control", "no-store");
     return res.send(respBuffer);
   } catch (err: any) {
-    return res.status(502).json({ error: "Upstream fetch failed", detail: String(err?.message || err) });
+    return res.status(502).json({ error: "Upstream fetch failed" });
   }
 }

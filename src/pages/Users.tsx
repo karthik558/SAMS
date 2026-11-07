@@ -62,7 +62,7 @@ import {
 import { AppUser, createUser, deleteUser, listUsers, updateUser } from "@/services/users";
 import { listDepartments, createDepartment, updateDepartment, deleteDepartment, type Department } from "@/services/departments";
 import { hasSupabaseEnv } from "@/lib/supabaseClient";
-import { createPasswordHash, adminSetUserPassword } from "@/services/auth";
+import { adminSetUserPassword } from "@/services/auth";
 import { listProperties, type Property } from "@/services/properties";
 import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/audit";
 import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinalApproverPropsForUser, setFinalApproverPropsForEmail } from "@/services/finalApprover";
@@ -75,7 +75,6 @@ import { cn } from "@/lib/utils";
 import MetricCard from "@/components/ui/metric-card";
 
 // Local fallback key
-const LS_KEY = "app_users_fallback";
 
 function getInitials(name?: string): string {
   if (!name) return "U";
@@ -90,76 +89,6 @@ function getInitials(name?: string): string {
   const init = (first + last).toUpperCase().replace(/[^A-Z0-9]/g, "");
   return init || "U";
 }
-
-function readLocalUsers(): AppUser[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw) as AppUser[];
-    return Array.isArray(arr) ? arr : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeLocalUsers(users: AppUser[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(users));
-  } catch {}
-}
-
-const seedLocalUsersIfEmpty = () => {
-  const existing = readLocalUsers();
-  if (existing.length) return existing;
-  const seeded: AppUser[] = [
-    {
-      id: crypto?.randomUUID?.() || String(Date.now()),
-      name: "John Doe",
-      email: "john.doe@company.com",
-      role: "Admin",
-      department: "IT",
-      phone: "+1 (555) 123-4567",
-      last_login: "2024-01-15",
-      status: "Active",
-  avatar_url: null,
-    },
-    {
-      id: crypto?.randomUUID?.() || String(Date.now() + 1),
-      name: "Jane Smith",
-      email: "jane.smith@company.com",
-      role: "User",
-      department: "HR",
-      phone: "+1 (555) 234-5678",
-      last_login: "2024-01-14",
-      status: "Active",
-  avatar_url: null,
-    },
-    {
-      id: crypto?.randomUUID?.() || String(Date.now() + 2),
-      name: "Mike Johnson",
-      email: "mike.johnson@company.com",
-      role: "User",
-      department: "Finance",
-      phone: "+1 (555) 345-6789",
-      last_login: "2024-01-10",
-      status: "Inactive",
-  avatar_url: null,
-    },
-    {
-      id: crypto?.randomUUID?.() || String(Date.now() + 3),
-      name: "Sarah Wilson",
-      email: "sarah.wilson@company.com",
-      role: "Manager",
-      department: "Operations",
-      phone: "+1 (555) 456-7890",
-      last_login: "2024-01-15",
-      status: "Active",
-  avatar_url: null,
-    },
-  ];
-  writeLocalUsers(seeded);
-  return seeded;
-};
 
 export default function Users() {
   const { toast } = useToast();
@@ -245,11 +174,12 @@ export default function Users() {
       setLoading(true);
       try {
   const data = await listUsers();
-  if (!cancelled) setUsers((data && data.length) ? data : seedLocalUsersIfEmpty());
+        if (!cancelled) setUsers(data);
       } catch (e: any) {
-        // Fallback to localStorage when Supabase isn't configured
-        const seeded = seedLocalUsersIfEmpty();
-        if (!cancelled) setUsers(seeded);
+        if (!cancelled) {
+          setUsers([]);
+          toast({ title: "Unable to load users", description: "Please try again.", variant: "destructive" });
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -454,6 +384,10 @@ export default function Users() {
       toast({ title: "Missing info", description: "Name and email are required.", variant: "destructive" });
       return;
     }
+    if (password.length < 12 || password.length > 128) {
+      toast({ title: "Password required", description: "Use 12–128 characters.", variant: "destructive" });
+      return;
+    }
     const payload = {
       name,
       email: email.trim(),
@@ -465,22 +399,12 @@ export default function Users() {
   avatar_url: null,
       must_change_password: mustChangePassword,
       password_changed_at: null,
-      // password is used only for local fallback or future auth integration
+      // Handled only by Supabase Auth through the server function
       password: password || undefined,
     } as Omit<AppUser, "id"> & { password?: string };
 
     try {
       const created = await createUser(payload);
-      // If Supabase is configured and a password is provided, set via admin RPC (prompts for admin password)
-      if (hasSupabaseEnv && password) {
-        try {
-          const adminRaw = localStorage.getItem("auth_user");
-          const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
-          if (adminEmail) {
-            await adminSetUserPassword(adminEmail, "", created.id, password);
-          }
-        } catch (e) { console.error(e); }
-      }
       // Persist property access mapping
       if (selectedPropertyIds.length) {
         try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
@@ -528,50 +452,8 @@ export default function Users() {
       }));
       toast({ title: "User added", description: `${created.name} has been added.` });
     } catch (e: any) {
-      // Fallback: persist to localStorage
-      const hash = password ? await createPasswordHash(password) ?? undefined : undefined;
-      const passwordChangedAt = hash ? new Date().toISOString() : payload.password_changed_at;
-  type LocalAppUser = AppUser & { password_hash?: string };
-  const local: LocalAppUser = {
-        id: crypto?.randomUUID?.() || String(Date.now()),
-        name: payload.name,
-        email: payload.email,
-        role: payload.role,
-  department: payload.department,
-        phone: payload.phone,
-        last_login: payload.last_login,
-        status: payload.status,
-        avatar_url: payload.avatar_url,
-        must_change_password: payload.must_change_password,
-        password_changed_at: passwordChangedAt,
-    // local-only field for demo mode; not part of AppUser API in backend
-    password_hash: hash,
-  } as LocalAppUser;
-      const next = [local, ...users];
-      setUsers(next);
-      writeLocalUsers(next);
-      // Local mapping fallback
-      if (selectedPropertyIds.length) {
-        try { await setUserPropertyAccess(local.id, selectedPropertyIds); } catch {}
-      }
-  try { await setUserDepartmentAccess(local.id, selectedDepartments); } catch {}
-      // Local per-page permissions fallback
-      try {
-        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
-        await setUserPermissions(local.id, payloadPerms);
-      } catch {}
-      // Local Auditor Incharge fallback
-      try {
-        if (inchargePropertyIds.length) {
-          await setAuditInchargeForUser(local.id, local.name || null, inchargePropertyIds);
-        }
-      } catch {}
-  // Final Approver assignments are Supabase-only. No local fallback.
-      toast({ title: "User added (local)", description: `${local.name} stored locally.` });
-      setUserPropertyMap((prev) => ({
-        ...prev,
-        [local.id]: Array.from(new Set(selectedPropertyIds.map((id) => String(id)))),
-      }));
+      toast({ title: "User creation failed", description: e?.message || "Unable to create user.", variant: "destructive" });
+      return;
     }
     setIsAddUserOpen(false);
     setIsAddDialogMaximized(false);
@@ -679,40 +561,9 @@ export default function Users() {
       must_change_password: eMustChange,
     };
     try {
-      let updated: AppUser | null = null;
-      try {
-        updated = await updateUser(editingUser.id, patch);
-      } catch (e) {
-        // Local fallback
-        updated = { ...editingUser, ...patch } as AppUser;
-        const next = users.map(u => (u.id === editingUser!.id ? updated! : u));
-        setUsers(next);
-        writeLocalUsers(next);
-      }
-      // If admin set a new password, apply via Supabase RPC or local fallback
-      if (ePassword.trim()) {
-        if (hasSupabaseEnv) {
-          try {
-            const adminRaw = localStorage.getItem("auth_user");
-            const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
-            if (adminEmail) {
-              await adminSetUserPassword(adminEmail, "", editingUser.id, ePassword.trim());
-            }
-          } catch (e) { console.error(e); }
-        } else {
-          const rawUsers = localStorage.getItem(LS_KEY);
-          const list = rawUsers ? JSON.parse(rawUsers) as any[] : [];
-          const idx = list.findIndex(u => u.id === editingUser.id);
-          if (idx !== -1) {
-            const nextHash = await createPasswordHash(ePassword.trim());
-            if (nextHash) {
-              list[idx].password_hash = nextHash;
-              list[idx].password_changed_at = new Date().toISOString();
-              list[idx].must_change_password = false;
-            }
-            localStorage.setItem(LS_KEY, JSON.stringify(list));
-          }
-        }
+      const updated = await updateUser(editingUser.id, patch);
+      if (ePassword) {
+        await adminSetUserPassword("", "", editingUser.id, ePassword);
       }
       if (updated) {
         setUsers(prev => prev.map(u => (u.id === updated!.id ? updated! : u)));
@@ -780,11 +631,7 @@ export default function Users() {
       setUsers((prev) => prev.filter((u) => u.id !== userId));
       toast({ title: "User deleted", description: `${name} has been removed.`, variant: "destructive" });
     } catch (e: any) {
-      // Fallback delete locally
-      const next = users.filter((u) => u.id !== userId);
-      setUsers(next);
-      writeLocalUsers(next);
-      toast({ title: "User deleted (local)", description: `${name} removed locally.`, variant: "destructive" });
+      toast({ title: "Delete failed", description: e?.message || "Unable to delete user.", variant: "destructive" });
     }
   };
 
@@ -811,49 +658,13 @@ export default function Users() {
 
   const handleConfirmResetPassword = async () => {
     if (!resetTargetUser) return;
-    const newPw = resetNewPassword.trim();
+    const newPw = resetNewPassword;
     if (!newPw) {
       toast({ title: "Password required", description: "Please enter a new password.", variant: "destructive" });
       return;
     }
     try {
-      if (hasSupabaseEnv) {
-        try {
-          const adminRaw = localStorage.getItem("auth_user");
-          const adminEmail = adminRaw ? (JSON.parse(adminRaw).email || null) : null;
-          if (!adminEmail) throw new Error("Admin email not found in session.");
-          await adminSetUserPassword(adminEmail, "", resetTargetUser.id, newPw);
-        } catch (e: any) {
-          // If Supabase call fails, attempt local fallback below
-          console.warn("Supabase reset failed, falling back to local.", e?.message || e);
-          const rawUsers = localStorage.getItem(LS_KEY);
-          const list = rawUsers ? (JSON.parse(rawUsers) as any[]) : [];
-          const idx = list.findIndex((u) => u.id === resetTargetUser.id);
-          if (idx !== -1) {
-            const hash = await createPasswordHash(newPw);
-            if (hash) {
-              list[idx].password_hash = hash;
-              list[idx].password_changed_at = new Date().toISOString();
-              list[idx].must_change_password = false;
-              localStorage.setItem(LS_KEY, JSON.stringify(list));
-            }
-          }
-        }
-      } else {
-        // Local-only fallback
-        const rawUsers = localStorage.getItem(LS_KEY);
-        const list = rawUsers ? (JSON.parse(rawUsers) as any[]) : [];
-        const idx = list.findIndex((u) => u.id === resetTargetUser.id);
-        if (idx !== -1) {
-          const hash = await createPasswordHash(newPw);
-          if (hash) {
-            list[idx].password_hash = hash;
-            list[idx].password_changed_at = new Date().toISOString();
-            list[idx].must_change_password = false;
-            localStorage.setItem(LS_KEY, JSON.stringify(list));
-          }
-        }
-      }
+      await adminSetUserPassword("", "", resetTargetUser.id, newPw);
       toast({ title: "Password updated", description: `Password reset for ${resetTargetUser.name}.` });
       setIsResetPwOpen(false);
       setResetTargetUser(null);
