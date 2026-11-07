@@ -1,3 +1,6 @@
+import { requirePermission } from "@/services/permissions";
+import { escapeHtml } from "@/lib/utils";
+import { toast } from "sonner";
 export type ExportRow = Record<string, string | number | boolean | null | undefined>;
 
 function columnsOf(rows: ExportRow[]) {
@@ -15,7 +18,8 @@ function escapeCell(value: unknown) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
-export function downloadCsv(filename: string, rows: ExportRow[]) {
+export async function downloadCsv(filename: string, rows: ExportRow[], resource: string) {
+  if (!await mayExport(resource)) return;
   const keys = columnsOf(rows);
   const lines = [
     keys.join(","),
@@ -34,18 +38,18 @@ export function downloadCsv(filename: string, rows: ExportRow[]) {
 
 function tableHtml(title: string, rows: ExportRow[]) {
   const keys = columnsOf(rows);
-  const head = keys.map((key) => `<th>${key}</th>`).join("");
+  const head = keys.map((key) => `<th>${escapeHtml(key)}</th>`).join("");
   const body = rows
-    .map((row) => `<tr>${keys.map((key) => `<td>${row[key] == null ? "" : String(row[key])}</td>`).join("")}</tr>`)
+    .map((row) => `<tr>${keys.map((key) => `<td>${escapeHtml(row[key])}</td>`).join("")}</tr>`)
     .join("");
-  return `<!doctype html><html><head><meta charset="utf-8"/><title>${title}</title>
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtml(title)}</title>
     <style>
       body{font-family:Inter,system-ui,sans-serif;color:#111;margin:24px}
       h1{font-size:18px;margin:0 0 12px}
       table{border-collapse:collapse;width:100%;font-size:12px}
       th,td{border-bottom:1px solid #e5e7eb;text-align:left;padding:8px;vertical-align:top}
       th{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#6b7280}
-    </style></head><body><h1>${title}</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+    </style></head><body><h1>${escapeHtml(title)}</h1><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
 function openPrintFrame(title: string, rows: ExportRow[]) {
@@ -68,12 +72,19 @@ function openPrintFrame(title: string, rows: ExportRow[]) {
   }, 200);
 }
 
-export function printRows(title: string, rows: ExportRow[]) {
+export async function printRows(title: string, rows: ExportRow[], resource: string) {
+  if (!await mayExport(resource)) return;
   if (!rows.length) return;
   openPrintFrame(title, rows);
 }
 
-export function downloadSimplePdf(title: string, rows: ExportRow[]) {
+export async function downloadSimplePdf(title: string, rows: ExportRow[], resource: string) {
+  if (!await mayExport(resource)) return;
   if (!rows.length) return;
   openPrintFrame(title, rows);
+}
+
+async function mayExport(resource: string): Promise<boolean> {
+  try { await requirePermission(resource, "export"); return true; }
+  catch (error) { toast.error(error instanceof Error ? error.message : "Export not permitted"); return false; }
 }

@@ -95,9 +95,11 @@ export async function handleAccountRequest(req: Request): Promise<Response> {
         email: String(profile.email), password, email_confirm: true,
       });
       if (error || !created.user) return reply(400, { error: "Unable to create account. Check the email and password requirements." });
-      const { data: user, error: insertError } = await admin.from("app_users").upsert({
-        ...profile, id: created.user.id, role: profile.role || "user", status: profile.status || "Active",
-      }).select(columns).single();
+      const access = raw.access || {};
+      const { data: user, error: insertError } = await admin.rpc("app_create_profile_with_access", {
+        p_id: created.user.id, p_profile: { ...profile, role: profile.role || "user", status: profile.status || "Active" },
+        p_permissions: access.permissions || {}, p_property_ids: access.propertyIds || [], p_departments: access.departments || [],
+      });
       if (insertError) {
         // Never leave a usable Auth account when profile/settings creation fails.
         const { error: cleanupError } = await admin.auth.admin.deleteUser(created.user.id);

@@ -1,3 +1,5 @@
+import { usePermissions } from "@/hooks/use-permissions";
+import { requirePermission } from "@/services/permissions";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,7 +39,7 @@ export default function Audit() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string>("");
-  const [canAuditAdmin, setCanAuditAdmin] = useState<boolean>(false);
+  const access = usePermissions();
   const [auditOn, setAuditOn] = useState<boolean>(false);
   const [auditFreq, setAuditFreq] = useState<1 | 3 | 6>(1);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -222,6 +224,7 @@ export default function Audit() {
 
   // Build and print a PDF with all department submissions for a session
   async function exportAuditSessionPdf(sessionId: string) {
+    try { await requirePermission("audit", "export"); } catch { toast.error("Audit export permission required"); return; }
     try {
       if (!sessionId) return;
       const reviews = await listReviewsForSession(sessionId).catch(() => [] as AuditReview[]);
@@ -303,14 +306,6 @@ export default function Audit() {
         setRole(roleName);
         const isAdminUser = roleName === 'admin';
         let allowedProps: Set<string> | null = null;
-        try {
-          let uid = getCurrentUserId();
-          if (!uid) {
-            try { const rawU = localStorage.getItem('auth_user'); const au = rawU ? JSON.parse(rawU) : null; uid = au?.id ? String(au.id) : ''; } catch {}
-          }
-          const allowed = uid ? await canUserEdit(uid, 'audit') : null;
-          setCanAuditAdmin(Boolean(allowed));
-        } catch { setCanAuditAdmin(false); }
         if (!isAdminUser) {
           try {
             const allowedRaw = await getAccessiblePropertyIdsForCurrentUser();
@@ -348,7 +343,7 @@ export default function Audit() {
               if (uid) {
                 const mine = await listAuditInchargeForUser(uid, (user?.email || undefined));
                 // if user has any incharge properties, allow admin controls implicitly
-                try { setCanAuditAdmin((prev) => prev || (mine && mine.length > 0)); } catch {}
+
                 filtered = (props as Property[]).filter(p => {
                   const idStr = String(p.id);
                   const matchesIncharge = mine.includes(idStr) || mine.includes(idStr.toLowerCase());
@@ -714,9 +709,9 @@ export default function Audit() {
 
   const isAdmin = role === "admin";
   const selectedDept = isAdmin ? adminDept : department;
-  const canEditRows = !(assignmentStatus === "submitted" && !isAdmin);
+  const canEditRows = access.can("audit", "edit") && !(assignmentStatus === "submitted" && !isAdmin);
   const canScanAssets = auditOn && canEditRows;
-  const canManageSession = Boolean(isAdmin || canAuditAdmin || (inchargeUserId && myId && String(myId) === String(inchargeUserId)));
+  const canManageSession = access.can("audit", "edit") || access.can("audit", "create");
 
   const selectedProperty = useMemo(() => {
     if (!selectedPropertyId) return null;
@@ -815,6 +810,7 @@ export default function Audit() {
 
   const handleStartAudit = async () => {
     try {
+      await requirePermission("audit", "create");
       if (!selectedPropertyId) {
         toast.error("Please select a property for this audit");
         return;
@@ -847,6 +843,7 @@ export default function Audit() {
     }
     const sid = sessionId;
     try {
+      await requirePermission("audit", "edit");
       await endAuditSession();
       setAuditOn(false);
       setSessionId("");
@@ -1057,13 +1054,13 @@ export default function Audit() {
     <div className="flex flex-wrap items-center gap-2">
       {rows.length > 0 && (
         <>
-          <Button variant="outline" size="sm" onClick={() => downloadCsv(`audit-rows-${new Date().toISOString().slice(0,10)}`, rows)}>
+          <Button variant="outline" size="sm" onClick={() => downloadCsv(`audit-rows-${new Date().toISOString().slice(0,10)}`, rows, "audit")}>
             <Download className="h-4 w-4" /> CSV
           </Button>
-          <Button variant="outline" size="sm" onClick={() => printRows("Audit rows", rows)}>
+          <Button variant="outline" size="sm" onClick={() => printRows("Audit rows", rows, "audit")}>
             <Printer className="h-4 w-4" /> Print
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { downloadSimplePdf("Audit rows", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
+          <Button variant="outline" size="sm" onClick={() => { downloadSimplePdf("Audit rows", rows, "audit"); toast.info("Choose Save as PDF in the print dialog"); }}>
             <FileText className="h-4 w-4" /> Print / Save as PDF
           </Button>
         </>
@@ -1197,7 +1194,7 @@ export default function Audit() {
               {canManageSession && (
                 <div className="flex flex-col gap-2 pt-2">
                   {auditOn ? (
-                    <Button variant="destructive" size="lg" className="w-full gap-2 shadow-sm" onClick={handleStopAudit}>
+                    <Button variant="destructive" size="lg" className="w-full gap-2 shadow-sm" onClick={handleStopAudit} disabled={!access.can("audit", "edit")}>
                       <StopCircle className="h-4 w-4" />
                       Stop Audit Session
                     </Button>
@@ -1207,7 +1204,7 @@ export default function Audit() {
                         <PlayCircle className="h-4 w-4" />
                         Resume
                       </Button>
-                      <Button size="lg" className="gap-2 shadow-sm" onClick={handleStartAudit}>
+                      <Button size="lg" className="gap-2 shadow-sm" onClick={handleStartAudit} disabled={!access.can("audit", "create")}>
                         <Play className="h-4 w-4" />
                         Start New
                       </Button>

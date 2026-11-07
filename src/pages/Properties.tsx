@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -98,7 +99,7 @@ const mockProperties = [
 export default function Properties() {
   const confirm = useConfirm();
   const navigate = useNavigate();
-  const [properties, setProperties] = useState<any[]>(mockProperties);
+  const [properties, setProperties] = useState<any[]>(isDemoMode() ? mockProperties : []);
   const isSupabase = hasSupabaseEnv;
   const [role, setRole] = useState<string>("");
   const [accessibleProps, setAccessibleProps] = useState<Set<string>>(new Set());
@@ -116,21 +117,12 @@ export default function Properties() {
     status: "Active",
     manager: "",
   });
-  const [canEditPage, setCanEditPage] = useState<boolean>(false);
+  const access = usePermissions();
+  const canEditPage = access.can("properties", "edit");
   const { confirm: requirePassword, dialog: passwordDialog } = usePasswordConfirmation({
     title: "Verify password",
     description: "Enter your password to continue.",
   });
-  useEffect(() => {
-    (async () => {
-      try {
-        const uid = getCurrentUserId();
-  const allowed = uid ? await canUserEdit(uid, 'properties') : null;
-  const baseline = role === 'admin';
-  setCanEditPage(allowed === null ? baseline : allowed);
-      } catch { setCanEditPage(role === 'admin'); }
-    })();
-  }, [role]);
 
   useEffect(() => {
     if (!isSupabase) return;
@@ -237,8 +229,8 @@ export default function Properties() {
   // Add Property action removed; properties are added via License page
 
   const handleEditProperty = (propertyId: string) => {
-    if ((role || '').toLowerCase() !== 'admin') {
-      toast.error("Only admins can edit properties");
+    if (!access.can("properties", "edit")) {
+      toast.error("You do not have property edit permission");
       return;
     }
     setEditingId(propertyId);
@@ -257,8 +249,8 @@ export default function Properties() {
   };
 
   const handleDeleteProperty = async (propertyId: string) => {
-    if ((role || '').toLowerCase() !== 'admin') {
-      toast.error("Only admins can delete properties");
+    if (!access.can("properties", "delete")) {
+      toast.error("You do not have property delete permission");
       return;
     }
     const ok = await confirm({ title: `Delete ${propertyId}?`, description: "This permanently removes the property. This action cannot be undone.", confirmLabel: "Delete property" });
@@ -666,12 +658,12 @@ export default function Properties() {
                     </div>
                   ) : null}
 
-                  {role === 'admin' && (
+                  {(access.can("properties", "edit") || access.can("properties", "delete")) && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleEditProperty(property.id)}
+                        disabled={!access.can("properties", "edit")} onClick={() => handleEditProperty(property.id)}
                         className="h-8 gap-2 rounded-lg border-border/60"
                       >
                         <Edit className="h-4 w-4" /> Edit
@@ -679,7 +671,7 @@ export default function Properties() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleDeleteProperty(property.id)}
+                        disabled={!access.can("properties", "delete")} onClick={() => handleDeleteProperty(property.id)}
                         className="h-8 gap-2 rounded-lg border-border/60 text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" /> Delete

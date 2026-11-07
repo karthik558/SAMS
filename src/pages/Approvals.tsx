@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listApprovals, decideApprovalFinal, forwardApprovalToAdmin, listApprovalEvents, adminOverrideApprove, addApprovalComment, type ApprovalRequest, type ApprovalEvent } from "@/services/approvals";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,6 +37,7 @@ import {
 } from "recharts";
 
 export default function Approvals() {
+  const access = usePermissions();
   const [items, setItems] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -55,7 +57,8 @@ export default function Approvals() {
   const auth = useMemo(() => {
     try { const raw = localStorage.getItem('auth_user'); return raw ? JSON.parse(raw) : {}; } catch { return {}; }
   }, []);
-  const role = (auth?.role || '').toLowerCase();
+  const profileRole = (auth?.role || '').toLowerCase();
+  const role = profileRole === 'admin' || (access.can('approvals','edit') && access.can('approval_review','edit')) ? 'admin' : access.can('approvals','edit') ? 'manager' : profileRole;
   const myDept = auth?.department || '';
   const myIdentity = (auth?.email || auth?.id || '').toLowerCase();
   const myEmail = typeof auth?.email === "string" ? String(auth.email).toLowerCase() : "";

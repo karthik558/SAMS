@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { getCachedValue, invalidateCacheByPrefix } from "@/lib/data-cache";
@@ -68,6 +69,7 @@ export async function listQRCodes(options?: { force?: boolean }): Promise<QRCode
 }
 
 export async function createQRCode(qr: QRCode): Promise<QRCode> {
+  await requirePermission("qrcodes", "create");
   if (isDemoMode()) {
     try {
       const raw = localStorage.getItem("demo_qr_codes");
@@ -91,6 +93,7 @@ export async function createQRCode(qr: QRCode): Promise<QRCode> {
 }
 
 export async function updateQRCode(id: string, patch: Partial<QRCode>): Promise<QRCode> {
+  await requirePermission("qrcodes", "edit");
   if (isDemoMode()) {
     try {
       const raw = localStorage.getItem("demo_qr_codes");

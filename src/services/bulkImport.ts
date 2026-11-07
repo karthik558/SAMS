@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import ExcelJS from "exceljs";
 import type { Asset } from "./assets";
 import { createAsset, listAssets } from "./assets";
@@ -194,6 +195,8 @@ export type ImportResult = {
 };
 
 export async function importAssetsFromFile(file: File): Promise<ImportResult> {
+  await requirePermission("assets", "create");
+  await requirePermission("asset_import", "view");
   const buf = await file.arrayBuffer();
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);

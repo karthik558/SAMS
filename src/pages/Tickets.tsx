@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import type React from "react";
@@ -53,6 +54,7 @@ import {
 } from "recharts";
 
 export default function Tickets() {
+  const access = usePermissions();
   const location = useLocation();
   const [items, setItems] = useState<Ticket[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -409,7 +411,7 @@ export default function Tickets() {
   const currentActorId = (currentUser?.id || '') as string;
   const currentActorEmail = (currentUser?.email || '') as string;
   const currentRole = String(currentUser?.role || '').toLowerCase();
-  const canAssign = currentRole === 'admin' || currentRole === 'manager';
+  const canAssign = access.can("tickets", "edit");
 
   const filteredItems = useMemo(() => {
     // Date filter
@@ -439,6 +441,7 @@ export default function Tickets() {
 
   // Helpers
   const canChangeStatus = (t: Ticket) => {
+    if (!access.can("tickets", "edit")) return false;
     if (!t.assignee) return false;
     return [currentActorId, currentActorEmail].filter(Boolean).some(v => String(t.assignee) === String(v));
   };
@@ -754,13 +757,13 @@ export default function Tickets() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadCsv(`tickets-${new Date().toISOString().slice(0,10)}`, filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, property: ticket.propertyId || "", assignee: ticket.assignee || "", createdAt: ticket.createdAt }))); }}>
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadCsv(`tickets-${new Date().toISOString().slice(0,10)}`, filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, property: ticket.propertyId || "", assignee: ticket.assignee || "", createdAt: ticket.createdAt })), "tickets"); }}>
               <Download className="h-4 w-4" /> CSV
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to print"); return; } printRows("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, assignee: ticket.assignee || "" }))); }}>
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to print"); return; } printRows("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status, assignee: ticket.assignee || "" })), "tickets"); }}>
               <Printer className="h-4 w-4" /> Print
             </Button>
-            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status }))); toast.info("Choose Save as PDF in the print dialog"); }}>
+            <Button variant="outline" size="sm" onClick={() => { if (!filteredItems.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Tickets", filteredItems.map((ticket) => ({ id: ticket.id, title: ticket.title, status: ticket.status })), "tickets"); toast.info("Choose Save as PDF in the print dialog"); }}>
               <FileText className="h-4 w-4" /> Print / Save as PDF
             </Button>
           <Button asChild variant="outline" className="gap-2">

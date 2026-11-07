@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { clearCache } from "@/lib/data-cache";
+import { Fragment, useEffect, useState } from "react";
 import { getAuthenticatedUser } from "@/services/auth";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -39,6 +40,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const demo = isDemoMode();
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [principal, setPrincipal] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
@@ -49,6 +51,8 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       try {
         const user = await getAuthenticatedUser();
         if (cancelled) return;
+        if (localStorage.getItem("current_user_id") !== (user?.id || null)) { clearCache(); queryClient.clear(); }
+        setPrincipal(user?.id || null);
         if (user) {
           localStorage.setItem("current_user_id", user.id);
           localStorage.setItem("auth_user", JSON.stringify(user));
@@ -73,7 +77,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     }
     return <Navigate to={isDemoMode() ? "/demo/login" : "/login"} state={{ from: location.pathname + location.search }} replace />;
   }
-  return <>{children}</>;
+  return <Fragment key={principal}>{children}</Fragment>;
 }
 
 function RoleGate({ roles, children }: { roles: string[]; children: React.ReactNode }) {
@@ -129,22 +133,22 @@ const App = () => (
           <Route path="/demo/login" element={<DemoLogin />} />
           <Route path="/demo/*" element={<DemoAppRouter />} />
           {/* Real asset data requires an authenticated session, including QR links. */}
-          <Route path="/assets/:id" element={<RequireAuth><AssetDetails /></RequireAuth>} />
+          <Route path="/assets/:id" element={<RequireAuth><RequireView page="assets"><AssetDetails /></RequireView></RequireAuth>} />
           <Route element={<AppShell />}>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<RequireView page="dashboard"><Index /></RequireView>} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
             <Route path="/properties" element={<RequireView page="properties"><Properties /></RequireView>} />
             <Route path="/qr-codes" element={<RequireView page="qrcodes"><QRCodes /></RequireView>} />
-            <Route path="/scan" element={<Scan />} />
-            <Route path="/approvals" element={<RoleGate roles={["admin","manager"]}><Approvals /></RoleGate>} />
-            <Route path="/tickets" element={<Tickets />} />
-            <Route path="/newsletter" element={<Newsletter />} />
-            <Route path="/help" element={<Help />} />
+            <Route path="/scan" element={<RequireView page="scan"><Scan /></RequireView>} />
+            <Route path="/approvals" element={<RequireView page="approvals"><Approvals /></RequireView>} />
+            <Route path="/tickets" element={<RequireView page="tickets"><Tickets /></RequireView>} />
+            <Route path="/newsletter" element={<RequireView page="newsletter"><Newsletter /></RequireView>} />
+            <Route path="/help" element={<RequireView page="help"><Help /></RequireView>} />
             <Route path="/reports" element={<RequireView page="reports"><Reports /></RequireView>} />
-            <Route path="/audit" element={<RoleGate roles={["manager","admin"]}><Audit /></RoleGate>} />
+            <Route path="/audit" element={<RequireView page="audit"><Audit /></RequireView>} />
             <Route path="/users" element={<RequireView page="users"><Users /></RequireView>} />
             <Route path="/settings" element={<RequireView page="settings"><Settings /></RequireView>} />
-            <Route path="/status" element={<Status />} />
+            <Route path="/status" element={<RequireView page="status"><Status /></RequireView>} />
             <Route path="/license" element={<RoleGate roles={['admin']}><LicensePage /></RoleGate>} />
           </Route>
           <Route path="*" element={<NotFound />} />

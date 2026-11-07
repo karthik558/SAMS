@@ -430,7 +430,7 @@ export default function Scan() {
                     <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => { navigator.clipboard.writeText(scanHistory.map((item) => item.id).join("\n")); toast.success("Copied scan history"); }}>
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => downloadCsv("scan-history", scanHistory.map((item) => ({ id: item.id, code: item.raw, scannedAt: item.at })))}>
+                    <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => downloadCsv("scan-history", scanHistory.map((item) => ({ id: item.id, code: item.raw, scannedAt: item.at })), "scan")}>
                       <Download className="h-3.5 w-3.5" />
                     </Button>
                   </div>

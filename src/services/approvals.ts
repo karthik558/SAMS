@@ -107,8 +107,8 @@ export async function resyncApprovalDepartments(): Promise<{ updated: number; to
         }
       }
       return { updated, total: (approvals || []).length, errors };
-    } catch {
-      // fall through to local
+    } catch (error) {
+      throw error;
     }
   }
   // Local fallback
@@ -170,7 +170,7 @@ export async function listApprovals(
         { ttlMs: APPROVAL_CACHE_TTL, force: options?.force }
       );
     } catch (e) {
-      console.warn("approvals table unavailable, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -245,7 +245,7 @@ export async function submitApproval(input: Omit<ApprovalRequest, "id" | "status
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return created;
     } catch (e) {
-      console.warn("approvals insert failed, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -321,7 +321,7 @@ export async function forwardApprovalToAdmin(id: string, manager: string, notes?
       
       return updated;
     } catch (e) {
-      console.warn("approvals update failed, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -405,7 +405,7 @@ export async function decideApprovalFinal(id: string, decision: Exclude<Approval
       
       return updated;
     } catch (e) {
-      console.warn("approvals final decision failed, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -449,7 +449,7 @@ export async function updateApprovalPatch(id: string, manager: string, patchData
       invalidateCacheByPrefix(APPROVAL_CACHE_PREFIX);
       return updated;
     } catch (e) {
-      console.warn('updateApprovalPatch failed, using localStorage', e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -482,11 +482,9 @@ export async function listApprovalEvents(approvalId: string): Promise<ApprovalEv
         author: ev.author ?? null,
         createdAt: ev.created_at,
       }));
-      // Merge with any local fallback events (e.g., when inserts were blocked by RLS)
-      const local = loadLocalEvents().filter(ev => ev.approvalId === approvalId);
-      return [...remote, ...local].sort((a,b) => (a.createdAt > b.createdAt ? 1 : -1));
+      return remote;
     } catch (e) {
-      console.warn('approval_events query failed', e);
+      throw e;
     }
   }
   // Local fallback
@@ -517,7 +515,7 @@ export async function addApprovalComment(approvalId: string, author: string, fie
       if (!error) return;
       throw error;
     } catch (e) {
-      console.warn('addApprovalComment remote insert failed, falling back to local', e);
+      throw e;
     }
   }
   // Local fallback: persist event so UI can show the comment

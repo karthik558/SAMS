@@ -88,7 +88,7 @@ export async function listDepartmentAssets(department: string, propertyId?: stri
       const apid = norm(String(a.property_id || ''));
       const aprop = norm(String(a.property || ''));
       // Match by exact property_id, or by property code/name equality, or by containing code within name
-      return apid === pid || aprop === pid || (pid && aprop.includes(pid));
+      return apid === pid;
     });
 }
 
@@ -205,15 +205,9 @@ export async function getAuditIncharge(propertyId: string): Promise<AuditIncharg
     const { data, error } = await supabase.from('audit_incharge').select('*').eq('property_id', propertyId).maybeSingle();
     if (error) throw error;
     if (data) return { property_id: data.property_id, user_id: data.user_id, user_name: data.user_name };
-    // No remote row: check local fallback
-    const map = readLocalAI();
-    const v = map[propertyId];
-    return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
+    return null;
   } catch (e) {
-    // Fallback to local if remote read blocked by RLS or table missing
-    const map = readLocalAI();
-    const v = map[propertyId];
-    return v ? { property_id: propertyId, user_id: v.user_id, user_name: v.user_name ?? null } : null;
+    throw e;
   }
 }
 
@@ -293,14 +287,9 @@ export async function listAuditInchargeForUser(userId: string, userEmail?: strin
         remote = (data || []).map((r: any) => String(r.property_id));
       }
     }
-    // Merge with local fallback in case some writes were saved locally
-    const map = readLocalAI();
-    const local = Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
-    return Array.from(new Set([...remote, ...local]));
+    return Array.from(new Set(remote));
   } catch (e) {
-    // Fallback to local on error
-    const map = readLocalAI();
-    return Object.entries(map).filter(([, v]) => String(v.user_id) === String(userId)).map(([pid]) => String(pid));
+    throw e;
   }
 }
 

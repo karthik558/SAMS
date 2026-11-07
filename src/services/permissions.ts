@@ -1,136 +1,53 @@
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
-
-export type PageKey = 'assets' | 'properties' | 'qrcodes' | 'users' | 'reports' | 'settings' | 'audit' | 'all_properties' | 'all_departments';
-
-export type UserPermission = {
-  id?: string;
-  user_id: string;
-  page: PageKey;
-  can_view: boolean;
-  can_edit: boolean;
-};
-
-const TABLE = 'user_permissions';
-const LS_KEY = 'user_permissions'; // { [userId]: { [page]: { v: boolean, e: boolean } } }
-const CURRENT_USER_KEY = 'current_user_id';
-
-type LocalPermMap = Record<string, Record<PageKey, { v: boolean; e: boolean }>>;
-
-function readLocal(): LocalPermMap {
-  try {
-    const key = isDemoMode() ? 'demo_user_permissions' : LS_KEY;
-    return JSON.parse(localStorage.getItem(key) || '{}');
-  } catch { return {}; }
-}
-function writeLocal(data: LocalPermMap) {
-  try {
-    const key = isDemoMode() ? 'demo_user_permissions' : LS_KEY;
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch {}
-}
-
+import { emptyGrant, validPermissionKey, type PermissionAction, type PermissionGrant, type PermissionOverrides, type PageKey } from "@/lib/permission-model";
+export { roleDefaults, mergeDefaultsWithOverrides, PERMISSION_RESOURCES } from "@/lib/permission-model";
+export type { PageKey, PermissionGrant, PermissionAction } from "@/lib/permission-model";
+export type UserPermission = { id?: string; user_id: string; page: PageKey; can_view: boolean; can_edit: boolean; can_create?: boolean; can_delete?: boolean; can_export?: boolean };
 export function getCurrentUserId(): string | null {
-  try {
-    const key = isDemoMode() ? 'demo_current_user_id' : CURRENT_USER_KEY;
-    return localStorage.getItem(key);
-  } catch { return null; }
+  return localStorage.getItem(isDemoMode() ? "demo_current_user_id" : "current_user_id");
 }
-
-export async function listUserPermissions(userId: string): Promise<Record<PageKey, { v: boolean; e: boolean }>> {
-  if (!userId) return {} as any;
-  if (!hasSupabaseEnv) {
-    const map = readLocal();
-    return (map[userId] || {}) as any;
-  }
-  const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId);
+export async function listUserPermissions(userId: string): Promise<Record<string, PermissionGrant>> {
+  if (isDemoMode()) return JSON.parse(localStorage.getItem("demo_user_permissions") || "{}")[userId] || {};
+  if (!hasSupabaseEnv) throw new Error("Authentication required");
+  const { data, error } = await supabase.from("user_permissions").select("page,can_view,can_create,can_edit,can_delete,can_export").eq("user_id", userId);
   if (error) throw error;
-  return Object.fromEntries((data || []).map(row => [row.page, { v: !!row.can_view, e: !!row.can_edit }])) as Record<PageKey, { v: boolean; e: boolean }>;
-
+  return Object.fromEntries((data || []).map(row => [row.page, { v: !!row.can_view, c: !!row.can_create, e: !!row.can_edit, d: !!row.can_delete, x: !!row.can_export }]));
 }
-
-export async function setUserPermissions(userId: string, perms: Record<PageKey, { v?: boolean; e?: boolean }>): Promise<void> {
-  if (!userId) return;
-  if (!hasSupabaseEnv) {
-    const map = readLocal();
-    const cur = (map[userId] || {}) as Record<PageKey, { v: boolean; e: boolean }>;
-    (Object.keys(perms) as PageKey[]).forEach((p) => {
-      const existing = cur[p] || { v: false, e: false };
-      const next = { v: perms[p].v ?? existing.v, e: perms[p].e ?? existing.e };
-      cur[p] = next;
-    });
-    map[userId] = cur;
-    writeLocal(map);
-    return;
-  }
-  // Build rows for RPC/upsert
-  const rows: Array<{ page: PageKey; v: boolean; e: boolean }> = (Object.keys(perms) as PageKey[]).map((page) => ({
-    page,
-    v: !!perms[page].v,
-    e: !!perms[page].e,
-  }));
-  const upsertRows = rows.map(r => ({ user_id: userId, page: r.page, can_view: r.v, can_edit: r.e }));
-  const { error } = await supabase.from(TABLE).upsert(upsertRows, { onConflict: 'user_id,page' });
-  if (error) throw error;
-
-}
-
-export async function canUserView(userId: string, page: PageKey): Promise<boolean | null> {
-  const perms = await listUserPermissions(userId);
-  if (!(page in perms)) return null;
-  return !!perms[page]?.v;
-}
-
-export async function canUserEdit(userId: string, page: PageKey): Promise<boolean | null> {
-  const perms = await listUserPermissions(userId);
-  if (!(page in perms)) return null;
-  return !!perms[page]?.e;
-}
-
-// Role-based defaults. Dashboard and Scan QR are always visible and not part of PageKey.
-export function roleDefaults(roleRaw?: string): Record<PageKey, { v: boolean; e: boolean }> {
-  const role = (roleRaw || '').toLowerCase();
-  const base: Record<PageKey, { v: boolean; e: boolean }> = {
-    assets: { v: false, e: false },
-    properties: { v: false, e: false },
-    qrcodes: { v: false, e: false },
-    users: { v: false, e: false },
-    reports: { v: false, e: false },
-    settings: { v: false, e: false },
-    audit: { v: false, e: false },
-    all_properties: { v: false, e: false },
-    all_departments: { v: false, e: false },
-  };
-  if (role === 'admin') {
-    (Object.keys(base) as Array<keyof typeof base>).forEach((k) => {
-      base[k] = { v: true, e: true };
-    });
-  } else if (role === 'manager') {
-  base.assets = { v: true, e: true };
-  base.properties = { v: true, e: true };
-  base.qrcodes = { v: true, e: true };
-  base.reports = { v: true, e: false };
-  base.settings = { v: true, e: false };
-  // Audit visibility for managers is handled by runtime conditions (active session/reports),
-  // not by defaults. Admins can grant explicit audit perms via overrides.
-    // users remains false by default, but can be elevated via overrides
-  } else {
-    // user
-  base.assets = { v: true, e: true };
-  base.qrcodes = { v: true, e: true };
-  base.settings = { v: true, e: false };
-  }
-  return base;
-}
-
-export function mergeDefaultsWithOverrides(roleRaw: string | undefined, overrides: Record<PageKey, { v: boolean; e: boolean }>): Record<PageKey, { v: boolean; e: boolean }>{
-  const d = roleDefaults(roleRaw);
-  const out: Record<PageKey, { v: boolean; e: boolean }> = { ...d };
-  (Object.keys(overrides) as PageKey[]).forEach((k) => {
-    out[k] = {
-      v: overrides[k].v ?? d[k].v,
-      e: overrides[k].e ?? d[k].e,
-    };
+export async function setUserPermissions(userId: string, permissions: PermissionOverrides): Promise<void> {
+  if (!Object.keys(permissions).every(validPermissionKey)) throw new Error("Invalid permission key");
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
+  if (!hasSupabaseEnv) throw new Error("Authentication required");
+  const previous = await listUserPermissions(userId);
+  const rows = Object.entries(permissions).map(([page, patch]) => {
+    const value = { ...emptyGrant(), ...previous[page], ...patch };
+    return { user_id: userId, page, can_view: value.v, can_create: value.c, can_edit: value.e, can_delete: value.d, can_export: value.x };
   });
-  return out;
+  if (!rows.length) return;
+  const { error } = await supabase.from("user_permissions").upsert(rows, { onConflict: "user_id,page" });
+  if (error) throw error;
+}
+export async function requirePermission(resource: PageKey, action: PermissionAction): Promise<void> {
+  if (isDemoMode()) return;
+  if (!hasSupabaseEnv) throw new Error("Authentication required");
+  const { data, error } = await supabase.rpc("app_user_can", { p_resource: resource, p_action: action });
+  if (error) throw error;
+  if (data !== true) throw new Error(`You do not have ${action} permission for ${resource.replace(/_/g, " ")}.`);
+}
+export async function canUserView(userId: string, page: PageKey): Promise<boolean | null> {
+  const permissions = await listUserPermissions(userId);
+  return page in permissions ? permissions[page].v : null;
+}
+export async function canUserEdit(userId: string, page: PageKey): Promise<boolean | null> {
+  const permissions = await listUserPermissions(userId);
+  return page in permissions ? permissions[page].v && permissions[page].e : null;
+}
+
+export type UserAccessDraft = { permissions: PermissionOverrides; propertyIds: string[]; departments: string[] };
+export async function saveUserAccess(userId: string, access: UserAccessDraft): Promise<void> {
+  if (isDemoMode()) throw new Error("DEMO_READONLY");
+  const { error } = await supabase.rpc("app_save_user_access", {
+    p_user_id: userId, p_permissions: access.permissions, p_property_ids: access.propertyIds, p_departments: access.departments,
+  });
+  if (error) throw error;
 }

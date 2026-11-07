@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test tests/security/api-boundaries.test.mjs"
+    "test": "node --test tests/security/*.test.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

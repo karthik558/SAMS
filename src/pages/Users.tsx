@@ -1,3 +1,5 @@
+import { PermissionMatrix } from "@/components/users/PermissionMatrix";
+import { PERMISSION_RESOURCES, emptyGrant, type PermissionGrant } from "@/lib/permission-model";
 import { useEffect, useMemo, useState } from "react";
 import { usePasswordConfirmation } from "@/hooks/use-password-confirmation";
 import { useConfirm } from "@/components/common/ConfirmDialog";
@@ -68,7 +70,7 @@ import { listAuditInchargeForUser, setAuditInchargeForUser } from "@/services/au
 import { listFinalApproverPropsForUser, listFinalApproverPropsForEmail, setFinalApproverPropsForUser, setFinalApproverPropsForEmail } from "@/services/finalApprover";
 import { listUserPropertyAccess, setUserPropertyAccess } from "@/services/userAccess";
 import { listUserDepartmentAccess, setUserDepartmentAccess } from "@/services/userDeptAccess";
-import { listUserPermissions, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
+import { listUserPermissions, saveUserAccess, setUserPermissions, type PageKey, roleDefaults, mergeDefaultsWithOverrides } from "@/services/permissions";
 import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { PageSkeleton, TableSkeleton } from "@/components/ui/page-skeletons";
 import { cn } from "@/lib/utils";
@@ -135,11 +137,15 @@ export default function Users() {
   const [newDeptName, setNewDeptName] = useState("");
   const [newDeptCode, setNewDeptCode] = useState("");
   // Per-page permissions
-  const allPages: PageKey[] = ['assets','properties','qrcodes','users','reports','settings','audit', 'all_properties', 'all_departments'];
   const [permView, setPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false, all_properties:false, all_departments:false });
   const [permEdit, setPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false, all_properties:false, all_departments:false });
   const [ePermView, setEPermView] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false, all_properties:false, all_departments:false });
   const [ePermEdit, setEPermEdit] = useState<Record<PageKey, boolean>>({ assets:false, properties:false, qrcodes:false, users:false, reports:false, settings:false, audit:false, all_properties:false, all_departments:false });
+
+  const [permActions, setPermActions] = useState<Record<string, Pick<PermissionGrant, "c" | "d" | "x">>>({});
+  const [ePermActions, setEPermActions] = useState<Record<string, Pick<PermissionGrant, "c" | "d" | "x">>>({});
+  const allPages = [...new Set([...PERMISSION_RESOURCES, ...Object.keys(permView), ...Object.keys(ePermView)])];
+  const permissionValues = (view: Record<string, boolean>, edit: Record<string, boolean>, actions: typeof permActions) => Object.fromEntries(allPages.map(page => [page, { ...emptyGrant(), ...actions[page], v: !!view[page], e: !!edit[page] }]));
 
   // Edit form fields
   const [eFirstName, setEFirstName] = useState("");
@@ -361,10 +367,18 @@ export default function Users() {
   // Pre-tick permission checkboxes for Add dialog based on selected role's defaults
   useEffect(() => {
     const defaults = roleDefaults(role);
-    setPermView(Object.fromEntries(allPages.map(p => [p, defaults[p].v])) as any);
-    setPermEdit(Object.fromEntries(allPages.map(p => [p, defaults[p].e])) as any);
+    setPermView(Object.fromEntries(allPages.map(p => [p, defaults[p]?.v ?? false])) as any);
+    setPermEdit(Object.fromEntries(allPages.map(p => [p, defaults[p]?.e ?? false])) as any);
+    setPermActions(defaults);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
+
+  useEffect(() => {
+    const defaults = roleDefaults(eRole);
+    setEPermView(Object.fromEntries(Object.entries(defaults).map(([key,value]) => [key,value.v])));
+    setEPermEdit(Object.fromEntries(Object.entries(defaults).map(([key,value]) => [key,value.e])));
+    setEPermActions(defaults);
+  }, [eRole]);
 
   const toTitle = (v?: string) => (v ? v.charAt(0).toUpperCase() + v.slice(1) : "");
   const mapRole = (v?: string) => (v ? toTitle(v) : "User");
@@ -404,31 +418,14 @@ export default function Users() {
     } as Omit<AppUser, "id"> & { password?: string };
 
     try {
-      const created = await createUser(payload);
-      // Persist property access mapping
-      if (selectedPropertyIds.length) {
-        try { await setUserPropertyAccess(created.id, selectedPropertyIds); } catch {}
-      }
-  // Persist department access mapping
-  try {
-        const res = await setUserDepartmentAccess(created.id, selectedDepartments);
-        if (!res?.savedRemotely) {
-          console.warn("Department access saved locally only (not remote)");
-        }
-      } catch {}
-      // Persist per-page permissions
-      try {
-        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!permView[p], e: !!permEdit[p] }])) as any;
-        await setUserPermissions(created.id, payloadPerms);
-      } catch {}
+      const created = await createUser({ ...payload, access: {
+        permissions: permissionValues(permView, permEdit, permActions), propertyIds: selectedPropertyIds, departments: selectedDepartments,
+      } });
       // Persist Auditor Incharge assignments
       try {
         if (inchargePropertyIds.length) {
           await setAuditInchargeForUser(created.id, created.name || null, inchargePropertyIds);
-          try {
-            // Auto-grant Audit page view permission when user becomes incharge
-            await setUserPermissions(created.id, ({ audit: { v: true, e: true } } as unknown) as Partial<Record<PageKey, { v?: boolean; e?: boolean }>> as any);
-          } catch {}
+
         }
       } catch {}
       // Persist Final Approver assignments (if any)
@@ -479,7 +476,7 @@ export default function Users() {
   }, [editApproverPropertyIds]);
 
   const deptAccessSummary = useMemo(() => {
-    if (editSelectedDepartments.length === 0) return "No departments";
+    if (editSelectedDepartments.length === 0) return "All departments within assigned properties";
     return `${editSelectedDepartments.length} selected`;
   }, [editSelectedDepartments]);
 
@@ -503,44 +500,29 @@ export default function Users() {
         setIsAdmin((au.role || "").toLowerCase() === "admin");
       }
     } catch {}
+    setEPassword("");
     try {
-      const ids = await listUserPropertyAccess(user.id);
+      const [ids, pids, approverIds, depts, perms] = await Promise.all([
+        listUserPropertyAccess(user.id),
+        listAuditInchargeForUser(user.id, user.email || undefined),
+        user.email ? listFinalApproverPropsForEmail(user.email) : listFinalApproverPropsForUser(user.id),
+        listUserDepartmentAccess(user.id),
+        listUserPermissions(user.id),
+      ]);
       setEditSelectedPropertyIds(ids);
-    } catch {
-      setEditSelectedPropertyIds([]);
-    }
-    // Load properties where this user is Auditor Incharge
-    try {
-      const pids = await listAuditInchargeForUser(user.id, user.email || undefined);
-      // Normalize returned IDs to match existing property IDs (case-insensitive mapping)
       const byLower = new Map<string, string>(properties.map(p => [String(p.id).toLowerCase(), String(p.id)]));
-      const normalized = Array.from(new Set(pids.map(pid => byLower.get(String(pid).toLowerCase()) || String(pid))));
-      setEditInchargePropertyIds(normalized);
-    } catch {
-      setEditInchargePropertyIds([]);
-    }
-    // Load properties where this user is Final Approver
-    try {
-  const pids2 = user?.email ? await listFinalApproverPropsForEmail(user.email) : await listFinalApproverPropsForUser(user.id);
-      setEditApproverPropertyIds(pids2);
-    } catch {
-      setEditApproverPropertyIds([]);
-    }
-    try {
-      const depts = await listUserDepartmentAccess(user.id);
+      setEditInchargePropertyIds(Array.from(new Set(pids.map(pid => byLower.get(String(pid).toLowerCase()) || String(pid)))));
+      setEditApproverPropertyIds(approverIds);
       setEditSelectedDepartments(depts);
-    } catch {
-      setEditSelectedDepartments([]);
+      const merged = mergeDefaultsWithOverrides(user.role, perms);
+      const keys = [...new Set([...allPages, ...Object.keys(merged)])];
+      setEPermActions(merged);
+      setEPermView(Object.fromEntries(keys.map(p => [p, merged[p]?.v || false])));
+      setEPermEdit(Object.fromEntries(keys.map(p => [p, merged[p]?.e || false])));
+    } catch (error) {
+      toast({ title: "Could not load user access", description: error instanceof Error ? error.message : "Retry before editing this user.", variant: "destructive" });
+      return;
     }
-    // Load per-page permissions for this user and merge with role defaults for display
-    try {
-      const perms = await listUserPermissions(user.id);
-      const merged = mergeDefaultsWithOverrides((user.role || '').toString(), perms as any);
-      const v: any = Object.fromEntries(allPages.map(p => [p, merged[p]?.v || false]));
-      const e: any = Object.fromEntries(allPages.map(p => [p, merged[p]?.e || false]));
-      setEPermView(v);
-      setEPermEdit(e);
-    } catch {}
     setIsEditUserOpen(true);
   };
 
@@ -568,33 +550,14 @@ export default function Users() {
       if (updated) {
         setUsers(prev => prev.map(u => (u.id === updated!.id ? updated! : u)));
       }
-      // Persist property access mapping
-      try { await setUserPropertyAccess(editingUser.id, editSelectedPropertyIds); } catch {}
-      setUserPropertyMap((prev) => ({
-        ...prev,
-        [editingUser.id]: Array.from(new Set(editSelectedPropertyIds.map((id) => String(id)))),
-      }));
-  // Persist department access mapping
-  try {
-        const res = await setUserDepartmentAccess(editingUser.id, editSelectedDepartments);
-        if (!res?.savedRemotely) {
-          console.warn("Department access saved locally only (not remote)");
-        }
-      } catch {}
-      // Persist per-page permissions
-      try {
-        const payloadPerms = Object.fromEntries(allPages.map((p) => [p, { v: !!ePermView[p], e: !!ePermEdit[p] }])) as any;
-        await setUserPermissions(editingUser.id, payloadPerms);
-      } catch {}
+      await saveUserAccess(editingUser.id, {
+        permissions: permissionValues(ePermView, ePermEdit, ePermActions), propertyIds: editSelectedPropertyIds, departments: editSelectedDepartments,
+      });
+      setUserPropertyMap(prev => ({ ...prev, [editingUser.id]: editSelectedPropertyIds }));
       // Persist Auditor Incharge assignments (admin only UI but safe to call)
       try {
         await setAuditInchargeForUser(editingUser.id, updated?.name || null, editInchargePropertyIds);
-        try {
-          // If user has any incharge properties, ensure Audit page permission is granted
-          if (editInchargePropertyIds && editInchargePropertyIds.length > 0) {
-            await setUserPermissions(editingUser.id, ({ audit: { v: true, e: true } } as unknown) as Partial<Record<PageKey, { v?: boolean; e?: boolean }>> as any);
-          }
-        } catch {}
+
       } catch {}
       // Persist Final Approver assignments
       try {
@@ -886,33 +849,12 @@ export default function Users() {
                       </div>
 
                       <div className="space-y-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions Matrix</Label>
-                            <span className="text-[11px] text-muted-foreground">Role provides baseline; toggle module overrides</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
-                              .filter((p) => !(p === 'audit' && (role || '').toLowerCase() === 'user'))
-                              .map((p) => (
-                              <div key={p} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs hover:border-primary/40 transition-all">
-                                <div className="text-sm font-semibold capitalize text-foreground">{p === 'qrcodes' ? 'QR Codes' : p}</div>
-                                <div className="flex items-center gap-3">
-                                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                                    <Checkbox checked={!!permView[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
-                                    View
-                                  </label>
-                                  <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                                    <Checkbox checked={!!permEdit[p]} disabled={authRole !== 'admin'} onCheckedChange={(v: any) => setPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
-                                    Edit
-                                  </label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="grid gap-5 sm:grid-cols-2 pt-2">
+                        <PermissionMatrix values={permissionValues(permView, permEdit, permActions)} disabled={authRole !== 'admin' || role === 'admin'} onChange={next => {
+                          setPermView(Object.fromEntries(Object.entries(next).map(([key,value]) => [key,value.v])));
+                          setPermEdit(Object.fromEntries(Object.entries(next).map(([key,value]) => [key,value.e])));
+                          setPermActions(next);
+                        }} />
+                  <div className="grid gap-5 sm:grid-cols-2 pt-2">
                           {/* Property Access */}
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
@@ -1004,7 +946,7 @@ export default function Users() {
                                   }} 
                                   className="h-3.5 w-3.5" 
                                 />
-                                All Departments (Auto-assign)
+                                All departments within assigned properties
                               </label>
                             </div>
                             <DropdownMenu>
@@ -1015,7 +957,7 @@ export default function Users() {
                                       ? "All departments selected"
                                       : (selectedDepartments.length > 0
                                         ? `${selectedDepartments.length} departments selected`
-                                        : "Select departments")}
+                                        : "All departments within assigned properties")}
                                   </span>
                                   <MoreHorizontal className="h-4 w-4 opacity-60" />
                                 </Button>
@@ -1793,32 +1735,11 @@ export default function Users() {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Page Permissions Matrix</Label>
-                      <span className="text-[11px] text-muted-foreground">Role provides baseline; toggle module overrides</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {(['assets','properties','qrcodes','users','reports','settings','audit'] as PageKey[])
-                        .filter((p) => !(p === 'audit' && (eRole || '').toLowerCase() === 'user'))
-                        .map((p) => (
-                        <div key={p} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card p-3 shadow-xs hover:border-primary/40 transition-all">
-                          <div className="text-sm font-semibold capitalize text-foreground">{p === 'qrcodes' ? 'QR Codes' : p}</div>
-                          <div className="flex items-center gap-3">
-                            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                              <Checkbox checked={!!ePermView[p]} onCheckedChange={(v: any) => setEPermView((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
-                              View
-                            </label>
-                            <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground transition-colors">
-                              <Checkbox checked={!!ePermEdit[p]} onCheckedChange={(v: any) => setEPermEdit((s) => ({ ...s, [p]: Boolean(v) }))} className="h-3.5 w-3.5 rounded" />
-                              Edit
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
+                  <PermissionMatrix values={permissionValues(ePermView, ePermEdit, ePermActions)} disabled={authRole !== 'admin' || eRole === 'admin'} onChange={next => {
+                          setEPermView(Object.fromEntries(Object.entries(next).map(([key,value]) => [key,value.v])));
+                          setEPermEdit(Object.fromEntries(Object.entries(next).map(([key,value]) => [key,value.e])));
+                          setEPermActions(next);
+                        }} />
                   <div className="grid gap-5 sm:grid-cols-2 pt-2">
                     {/* Property Access */}
                     <div className="space-y-2">
@@ -1911,7 +1832,7 @@ export default function Users() {
                             }} 
                             className="h-3.5 w-3.5" 
                           />
-                          All Departments (Auto-assign)
+                          All departments within assigned properties
                         </label>
                       </div>
                       <DropdownMenu>
@@ -1922,7 +1843,7 @@ export default function Users() {
                                 ? "All departments selected"
                                 : (editSelectedDepartments.length > 0
                                   ? `${editSelectedDepartments.length} departments selected`
-                                  : "Select departments")}
+                                  : "All departments within assigned properties")}
                             </span>
                             <MoreHorizontal className="h-4 w-4 opacity-60" />
                           </Button>

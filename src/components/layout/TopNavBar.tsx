@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { logout } from "@/services/auth";
 import { NavLink, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
@@ -39,6 +40,7 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   const [role, setRole] = useState('');
   const [userName, setUserName] = useState('');
   const navigate = useNavigate();
+  const permissionState = usePermissions();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [auditActive, setAuditActive] = useState(false);
   const [hasAuditReports, setHasAuditReports] = useState(false);
@@ -255,20 +257,20 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
 
   const demo = isDemoMode();
   const labelToKey: Record<string, PageKey | null> = {
-    Dashboard: null,
+    Dashboard: "dashboard",
     Properties: 'properties',
     Assets: 'assets',
-    Approvals: null,
+    Approvals: "approvals",
     'QR Codes': 'qrcodes',
-    Scan: null,
+    Scan: "scan",
     Reports: 'reports',
     Audit: 'audit',
-    Tickets: null,
-    'Help Center': null,
+    Tickets: "tickets",
+    'Help Center': 'help',
     Users: 'users',
     Settings: 'settings',
-    License: null,
-    Newsletter: null,
+    License: "license",
+    Newsletter: "newsletter",
   };
 
   const roleLower = role?.toLowerCase() || '';
@@ -288,28 +290,14 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
       if (idx >= 0) working.splice(idx, 1);
     }
 
-    const filtered = working
-      .filter((item) => !item.roles || item.roles.includes(roleLower))
-      .filter((item) => {
-        if (demo && (item.label === 'Audit' || item.label === 'License')) return false;
-        if (item.label === 'Dashboard' || item.label === 'Scan' || item.label === 'Tickets') return true;
-        if (item.label === 'Newsletter') return showNewsletter;
-        if (item.label === 'Help Center') return showHelpCenter;
-        if (item.label === 'Approvals') return roleForPerm === 'admin' || roleForPerm === 'manager';
-        if (item.label === 'License') return roleForPerm === 'admin';
-        if (item.label === 'Audit') {
-          const rule = (effectivePerm as any)['audit'];
-          return (
-            roleForPerm === 'admin' ||
-            ((auditActive || hasAuditReports) && roleForPerm === 'manager') ||
-            !!rule?.v
-          );
-        }
-        const key = labelToKey[item.label];
-        if (!key) return true;
-        const rule = (effectivePerm as any)[key];
-        return !!rule?.v;
-      });
+    const filtered = working.filter(item => {
+      if (demo && ["Audit", "License"].includes(item.label)) return false;
+      if (item.label === "Newsletter" && !showNewsletter) return false;
+      if (item.label === "Help Center" && !showHelpCenter) return false;
+      if (item.label === "License" && roleForPerm !== "admin") return false;
+      const key = labelToKey[item.label];
+      return !!key && permissionState.can(key);
+    });
 
     return filtered;
   })();

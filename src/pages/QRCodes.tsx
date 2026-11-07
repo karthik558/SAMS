@@ -1,3 +1,5 @@
+import { requirePermission } from "@/services/permissions";
+import { usePermissions } from "@/hooks/use-permissions";
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
 import { cn } from "@/lib/utils";
@@ -92,6 +94,7 @@ const mockQRCodes = [
 ];
 
 export default function QRCodes() {
+  const access = usePermissions();
   const confirm = useConfirm();
   const [loadingUI, setLoadingUI] = useState(true);
   const [role, setRole] = useState<string>("");
@@ -131,7 +134,7 @@ export default function QRCodes() {
     printed?: boolean;
     generatedDate?: string;
   } | null>(null);
-  const [canEditPage, setCanEditPage] = useState<boolean>(true);
+
   // Download selection state
   const [dlSingleOpen, setDlSingleOpen] = useState(false);
   const [dlSingleTarget, setDlSingleTarget] = useState<any | null>(null);
@@ -182,14 +185,6 @@ export default function QRCodes() {
       const r = raw ? (JSON.parse(raw).role || "") : "";
       setRole((r || "").toLowerCase());
     } catch {}
-    (async () => {
-      try {
-  const uid = getCurrentUserId();
-  const allowed = uid ? await canUserEdit(uid, 'qrcodes') : null;
-  const baseline = true; // all roles can generate by default per prior logic
-  setCanEditPage(allowed === null ? baseline : allowed);
-      } catch { setCanEditPage(true); }
-    })();
     (async () => {
       try {
         // Determine role and allowed properties
@@ -273,10 +268,12 @@ export default function QRCodes() {
   // (moved below filteredQRCodes)
 
   const handleGenerateNew = () => {
+  if (!access.can("qrcodes", "create")) return;
   setAssetPickerOpen(true);
   };
 
   const handleGenerateForAsset = (item: any) => {
+    if (!access.can("qrcodes", "create")) return;
     // Normalize: if a QR record is passed (has assetId), convert to an Asset-like object
     const assetLike = item && typeof item === 'object' && 'assetId' in item
       ? { id: item.assetId, name: item.assetName || item.assetId, property: item.property }
@@ -286,10 +283,12 @@ export default function QRCodes() {
   };
 
   const handleBulkPrint = () => {
+    if (!access.can("qrcodes", "export")) return;
     setBulkPrintOpen(true);
   };
 
   const executeBulkPrint = async () => {
+    try { await requirePermission("qrcodes", "export"); } catch { toast.error("QR export permission required"); return; }
     setIsPrinting(true);
     try {
       const unprintedCodes = codes.filter(qr => !qr.printed);
@@ -373,16 +372,17 @@ export default function QRCodes() {
     }
   };
 
-  const handleDownloadAll = () => setDlAllOpen(true);
+  const handleDownloadAll = () => { if (access.can("qrcodes", "export")) setDlAllOpen(true); };
 
   const confirmSingleDownload = async () => {
+    try { await requirePermission("qrcodes", "export"); } catch { toast.error("QR export permission required"); return; }
     if (!dlSingleTarget) return;
     try {
       let dataUrl = dlSingleTarget.imageUrl;
       if (!dataUrl) dataUrl = await generateQrPng(dlSingleTarget);
       if (!dataUrl) throw new Error('No image');
       if (dlSingleFmt === 'png') {
-        downloadDataUrl(dataUrl, `qr-${dlSingleTarget.assetId}.png`);
+        await downloadDataUrl(dataUrl, `qr-${dlSingleTarget.assetId}.png`);
         toast.success(`Downloaded QR for ${dlSingleTarget.assetName}`);
         await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`);
   await logActivity('qr_download', `Downloaded QR (PNG) for ${dlSingleTarget.assetName} (${dlSingleTarget.assetId})`, actor);
@@ -404,6 +404,7 @@ export default function QRCodes() {
   };
 
   const confirmDownloadAll = async () => {
+    try { await requirePermission("qrcodes", "export"); } catch { toast.error("QR export permission required"); return; }
     try {
       const images: string[] = [];
       for (const qr of sortedQRCodes) {
@@ -884,11 +885,11 @@ export default function QRCodes() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+          <Button onClick={handleGenerateNew} className="gap-2 w-full sm:w-auto" disabled={!access.can("qrcodes", "create")}>
             <QrCode className="h-4 w-4" />
             Generate New QR Code
           </Button>
-          <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!canEditPage}>
+          <Button onClick={handleBulkPrint} variant="outline" className="gap-2 w-full sm:w-auto" disabled={!access.can("qrcodes", "export")}>
             <Printer className="h-4 w-4" />
             Bulk Print
           </Button>
@@ -1105,7 +1106,7 @@ export default function QRCodes() {
                 onClear={() => { setSearchTerm(""); setFilterProperty("all"); setFilterStatus("all"); setSortBy("date-newest"); setRange(undefined); }}
               />
 
-              <Button onClick={handleDownloadAll} variant="outline" className="gap-2 w-full">
+              <Button disabled={!access.can("qrcodes", "export")} onClick={handleDownloadAll} variant="outline" className="gap-2 w-full">
                 <Download className="h-4 w-4" />
                 Download All
               </Button>

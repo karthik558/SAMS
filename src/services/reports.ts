@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 
@@ -80,56 +81,33 @@ export async function createReport(payload: Omit<Report, "id" | "created_at">): 
     return report;
   }
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
-  // Attempt insert with all fields; if columns are missing in DB, retry without filter_* fields
-  let result = await supabase.from(table).insert(payload).select().single();
-  if (result.error) {
-    const msg = (result.error.message || '').toString();
-    const code = (result.error as any).code || '';
-    const looksLikeMissingColumn = /column .* does not exist/i.test(msg) || /(filter_(session_id|department|property|asset_type)|created_by(_id)?)/i.test(msg) || code === '42703';
-    if (looksLikeMissingColumn) {
-      const cleaned: any = { ...payload };
-      delete cleaned.filter_session_id;
-      delete cleaned.filter_department;
-      delete cleaned.filter_property;
-      delete cleaned.filter_asset_type;
-      delete cleaned.created_by;
-      delete cleaned.created_by_id;
-      const retry = await supabase.from(table).insert(cleaned).select().single();
-      if (retry.error) throw retry.error;
-      const rpt = retry.data as Report;
-      // persist creator meta locally so UI can show names
-      try {
-        const raw = localStorage.getItem('report_meta');
-        const meta = raw ? JSON.parse(raw) : {};
-        if (rpt?.id && (payload as any).created_by) {
-          meta[rpt.id] = {
-            created_by: (payload as any).created_by ?? null,
-            created_by_id: (payload as any).created_by_id ?? null,
-          };
-          localStorage.setItem('report_meta', JSON.stringify(meta));
-        }
-      } catch {}
-      return rpt;
+  await requirePermission("reports", "create");
+  const row = { ...payload };
+  if (!row.filter_property || row.filter_property === "all") {
+    const { data: allProperties, error: permissionError } = await supabase.rpc("app_user_can", { p_resource: "all_properties", p_action: "view" });
+    if (permissionError) throw permissionError;
+    if (!allProperties) {
+      if (row.filter_session_id) {
+        const { data, error } = await supabase.from("audit_sessions").select("property_id").eq("id", row.filter_session_id).single();
+        if (error) throw error;
+        row.filter_property = data.property_id;
+      } else {
+        const { data: identity } = await supabase.auth.getUser();
+        const { data, error } = await supabase.from("user_property_access").select("property_id").eq("user_id", identity.user?.id);
+        if (error) throw error;
+        if (data?.length !== 1) throw new Error("Choose a property for this report");
+        row.filter_property = data[0].property_id;
+      }
     }
-    throw result.error;
   }
-  const rpt = result.data as Report;
-  // persist creator meta locally so UI can show names even if DB lacks columns
-  try {
-    const raw = localStorage.getItem('report_meta');
-    const meta = raw ? JSON.parse(raw) : {};
-    if (rpt?.id && (payload as any).created_by) {
-      meta[rpt.id] = {
-        created_by: (payload as any).created_by ?? null,
-        created_by_id: (payload as any).created_by_id ?? null,
-      };
-      localStorage.setItem('report_meta', JSON.stringify(meta));
-    }
-  } catch {}
-  return rpt;
+  const { data, error } = await supabase.from(table).insert(row).select().single();
+  if (error) throw error;
+  return data as Report;
+
 }
 
 export async function clearReports(): Promise<void> {
+  await requirePermission("reports", "delete");
   if (isDemoMode()) {
     try { localStorage.setItem('demo_reports', JSON.stringify([])); } catch {}
     return;

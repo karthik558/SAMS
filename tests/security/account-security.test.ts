@@ -57,13 +57,13 @@ Deno.test("admin creation sends credentials only to Auth, strips arbitrary profi
           authDeleted = true;
           return json({});
         }
-        if (url.pathname === "/rest/v1/app_users" && init?.method === "POST") {
+        if (url.pathname === "/rest/v1/rpc/app_create_profile_with_access" && init?.method === "POST") {
           const body = JSON.parse(String(init.body));
-          assert(!("password" in body) && !("password_hash" in body), "profile must never contain credentials");
-          assert(body.id === targetId && body.role === "user", "Auth owns identity and profile role is normalized");
-          assert(url.searchParams.get("select")?.includes("password_hash") === false, "profile response must not select hashes");
+          assert(!("password" in body.p_profile) && !("password_hash" in body.p_profile), "profile must never contain credentials");
+          assert(body.p_id === targetId && body.p_profile.role === "user", "Auth owns identity and profile role is normalized");
+          assert(Array.isArray(body.p_property_ids) && typeof body.p_permissions === "object", "scope and permissions must be saved in the profile transaction");
           profileWritten = true;
-          return failProfile ? json({ message: "db failure", code: "23514" }, 400) : json(body);
+          return failProfile ? json({ message: "db failure", code: "23514" }, 400) : json({ ...body.p_profile, id: body.p_id });
         }
         if (url.pathname === "/rest/v1/app_users") return json({ id: adminId, role: "admin", status: "Active" });
         throw new Error(`Unexpected request ${url.pathname}`);

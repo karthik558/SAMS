@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import QRCode from 'qrcode';
 export async function composeQrWithLabel(qrDataUrl: string, opts: {
   assetId: string;
@@ -110,7 +111,8 @@ export async function generateQrPng(opts: {
 }
 
 // Download a data URL as a file
-export function downloadDataUrl(dataUrl: string, filename: string) {
+export async function downloadDataUrl(dataUrl: string, filename: string) {
+  await requirePermission("qrcodes", "export");
   const a = document.createElement('a');
   a.href = dataUrl;
   a.download = filename;
@@ -257,6 +259,7 @@ export async function printImagesAsLabels(images: string[], opts: {
   orientation?: 'portrait' | 'landscape';
   fit?: 'contain' | 'cover';
 }) {
+  await requirePermission("qrcodes", "export");
   const { widthIn, heightIn, orientation = 'portrait', fit = 'contain' } = opts;
   if (!images.length) return;
   const pageCss = `@page { size: ${widthIn}in ${heightIn}in ${orientation}; margin: 0; }`;

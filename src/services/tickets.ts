@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode } from "@/lib/demo";
 import { addNotification, addRoleNotification } from "@/services/notifications";
@@ -176,7 +177,7 @@ export async function listTickets(
       );
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'select_failed'); } catch {}
-      console.warn("tickets table unavailable, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -239,6 +240,7 @@ export async function listAssigneesForProperty(propertyId: string): Promise<Arra
 }
 
 export async function createTicket(input: NewTicketInput): Promise<Ticket> {
+  await requirePermission("tickets", "create");
   // Derive default assignee when not provided: pick an active user with that role
   async function pickDefaultAssignee(opts: { propertyId: string; role?: 'admin' | 'manager' }): Promise<{ assignee: string | null; targetRole: 'admin' | 'manager' }> {
     try {
@@ -329,7 +331,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
       return created;
     } catch (e) {
       try { localStorage.setItem('tickets_fallback_reason', 'insert_failed'); } catch {}
-      console.warn("tickets insert failed, using localStorage", e);
+      throw e;
     }
   }
   const list = loadLocal();
@@ -345,6 +347,7 @@ export async function createTicket(input: NewTicketInput): Promise<Ticket> {
 }
 
 export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { message?: string }): Promise<Ticket | null> {
+  await requirePermission("tickets", "edit");
   const toUpdate = { ...patch, updatedAt: new Date().toISOString() } as Partial<Ticket>;
   const getActorInfo = () => {
     try {
@@ -440,7 +443,7 @@ export async function updateTicket(id: string, patch: Partial<Ticket>, opts?: { 
       invalidateCacheByPrefix(TICKET_CACHE_PREFIX);
       return updated;
     } catch (e) {
-      console.warn("tickets update failed, using localStorage", e);
+      throw e;
     }
   }
   if (isDemoMode()) {
@@ -494,7 +497,7 @@ export async function listTicketEvents(ticketId: string): Promise<TicketEvent[]>
       if (error) throw error;
       return (data || []).map((r: any) => ({ id: r.id, ticketId: r.ticket_id, eventType: r.event_type, author: r.author, message: r.message, createdAt: r.created_at }));
     } catch (e) {
-      console.warn('ticket_events unavailable, using localStorage', e);
+      throw e;
     }
   }
   if (isDemoMode()) {

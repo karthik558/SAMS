@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoAssets } from "@/lib/demo";
 import { getCachedValue, invalidateCache } from "@/lib/data-cache";
@@ -142,6 +143,7 @@ export async function listAssets(options?: { force?: boolean }): Promise<Asset[]
 }
 
 export async function createAsset(asset: Asset): Promise<Asset> {
+  await requirePermission("assets", "create");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   let includeAmc = supportsAmcFields !== false;
@@ -187,6 +189,7 @@ export async function createAsset(asset: Asset): Promise<Asset> {
 }
 
 export async function updateAsset(id: string, patch: Partial<Asset>): Promise<Asset> {
+  await requirePermission("assets", "edit");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   let includeAmc = supportsAmcFields !== false;
@@ -217,6 +220,7 @@ export async function updateAsset(id: string, patch: Partial<Asset>): Promise<As
 }
 
 export async function deleteAsset(id: string): Promise<void> {
+  await requirePermission("assets", "delete");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { error } = await supabase.from(table).delete().eq("id", id);

@@ -43,6 +43,13 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
+-- Name: app_private; Type: SCHEMA; Schema: -; Owner: -
+--
+
+CREATE SCHEMA app_private;
+
+
+--
 -- Name: public; Type: SCHEMA; Schema: -; Owner: -
 --
 
@@ -68,12 +75,199 @@ CREATE TYPE public.user_permission_row AS (
 
 
 --
+-- Name: asset_scope(text); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.asset_scope(p_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT EXISTS(SELECT 1 FROM public.assets WHERE id=p_id AND app_private.property_scope(property_id) AND app_private.department_scope(department));
+$$;
+
+
+--
+-- Name: department_scope(text); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.department_scope(p_department text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT public.app_user_is_active() AND (public.app_user_is_admin(auth.uid()) OR public.app_user_can('all_departments','view')
+ OR NOT EXISTS(SELECT 1 FROM public.user_department_access WHERE user_id=auth.uid())
+ OR EXISTS(SELECT 1 FROM public.user_department_access a LEFT JOIN public.departments d ON lower(a.department) IN (lower(d.name),lower(d.code))
+ WHERE a.user_id=auth.uid() AND lower(coalesce(p_department,'')) IN (lower(a.department),lower(d.name),lower(d.code))));
+$$;
+
+
+--
+-- Name: guard_approval_transition(); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.guard_approval_transition() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+BEGIN
+ IF auth.uid() IS NULL OR auth.role()='service_role' THEN RETURN NEW; END IF;
+ IF TG_OP='INSERT' THEN
+  IF NOT public.app_user_is_admin(auth.uid()) AND NEW.status<>'pending_manager' THEN RAISE EXCEPTION 'New requests must start pending review' USING ERRCODE='42501'; END IF;
+  IF NOT public.app_user_is_admin(auth.uid()) THEN NEW.reviewed_by:=NULL; NEW.reviewed_at:=NULL; END IF;
+  RETURN NEW;
+ END IF;
+ IF NEW.requested_by IS DISTINCT FROM OLD.requested_by AND NOT public.app_user_is_admin(auth.uid()) THEN RAISE EXCEPTION 'Cannot change the request author' USING ERRCODE='42501'; END IF;
+ IF NEW.status IS DISTINCT FROM OLD.status THEN
+  IF NEW.status='approved' AND NOT public.app_user_can('approval_review','edit') THEN RAISE EXCEPTION 'Final approval permission required' USING ERRCODE='42501'; END IF;
+  NEW.reviewed_by:=(SELECT email FROM public.app_users WHERE id=auth.uid());
+  NEW.reviewed_at:=now();
+ END IF;
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: guard_direct_property_delete(); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.guard_direct_property_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+BEGIN
+ IF EXISTS(SELECT 1 FROM public.assets WHERE property_id=OLD.id) OR EXISTS(SELECT 1 FROM public.audit_sessions WHERE property_id=OLD.id) THEN
+  RAISE EXCEPTION 'Use the atomic property deletion action for a property with assets or audits' USING ERRCODE='42501';
+ END IF;
+ RETURN OLD;
+END $$;
+
+
+--
+-- Name: guard_profile_edit(); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.guard_profile_edit() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+BEGIN
+ IF auth.uid() IS NULL OR auth.role()='service_role' OR public.app_user_is_admin(auth.uid()) THEN RETURN NEW; END IF;
+ IF (NEW.name,NEW.phone,NEW.avatar_url) IS DISTINCT FROM (OLD.name,OLD.phone,OLD.avatar_url) AND NOT public.app_user_can('settings','edit') THEN RAISE EXCEPTION 'Profile edit permission required' USING ERRCODE='42501'; END IF;
+ RETURN NEW;
+END $$;
+
+
+--
+-- Name: is_self(text); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.is_self(p_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT p_id=auth.uid()::text OR lower(p_id)=(SELECT lower(email) FROM public.app_users WHERE id=auth.uid());
+$$;
+
+
+--
+-- Name: property_scope(text); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.property_scope(p_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT public.app_user_is_active() AND (public.app_user_is_admin(auth.uid()) OR (p_id IS NOT NULL AND p_id<>'' AND
+ (public.app_user_can('all_properties','view') OR EXISTS(SELECT 1 FROM public.user_property_access WHERE user_id=auth.uid() AND property_id=p_id))));
+$$;
+
+
+--
+-- Name: row_scope(text, jsonb); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.row_scope(p_table text, p_row jsonb) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE parent jsonb; prop text; patch_prop text;
+BEGIN
+ IF public.app_user_is_admin(auth.uid()) THEN RETURN true; END IF;
+ CASE p_table
+ WHEN 'properties' THEN RETURN app_private.property_scope(p_row->>'id');
+ WHEN 'assets' THEN RETURN app_private.property_scope(p_row->>'property_id') AND app_private.department_scope(p_row->>'department');
+ WHEN 'qr_codes' THEN RETURN app_private.asset_scope(p_row->>'asset_id');
+ WHEN 'tickets' THEN RETURN app_private.property_scope(p_row->>'property_id');
+ WHEN 'audit_sessions' THEN RETURN app_private.property_scope(p_row->>'property_id');
+ WHEN 'audit_assignments' THEN RETURN app_private.session_scope(p_row->>'session_id') AND app_private.department_scope(p_row->>'department');
+ WHEN 'audit_reviews' THEN RETURN app_private.session_scope(p_row->>'session_id') AND app_private.asset_scope(p_row->>'asset_id') AND app_private.department_scope(p_row->>'department');
+ WHEN 'audit_scans' THEN RETURN app_private.session_scope(p_row->>'session_id') AND app_private.asset_scope(p_row->>'asset_id') AND app_private.department_scope(p_row->>'department') AND app_private.property_scope(p_row->>'property_id');
+ WHEN 'audit_reports' THEN RETURN app_private.session_scope(p_row->>'session_id') AND (app_private.is_self(p_row->>'generated_by') OR public.app_user_can('all_departments','view') OR NOT EXISTS(SELECT 1 FROM public.user_department_access WHERE user_id=auth.uid()));
+ WHEN 'approvals' THEN
+  patch_prop:=coalesce(p_row->'patch'->>'property_id',p_row->'patch'->>'propertyId');
+  IF patch_prop IS NOT NULL AND NOT app_private.property_scope(patch_prop) THEN RETURN false; END IF;
+  IF EXISTS(SELECT 1 FROM public.assets WHERE id=p_row->>'asset_id') THEN RETURN app_private.asset_scope(p_row->>'asset_id'); END IF;
+  RETURN p_row->>'action'='create' AND app_private.property_scope(patch_prop) AND app_private.department_scope(p_row->'patch'->>'department');
+ WHEN 'approval_events' THEN
+  SELECT to_jsonb(a) INTO parent FROM public.approvals a WHERE id=p_row->>'approval_id';
+  RETURN parent IS NOT NULL AND app_private.row_scope('approvals',parent);
+ WHEN 'ticket_events' THEN
+  SELECT to_jsonb(t) INTO parent FROM public.tickets t WHERE id=p_row->>'ticket_id';
+  RETURN parent IS NOT NULL AND app_private.row_scope('tickets',parent);
+ WHEN 'reports' THEN
+  prop:=nullif(p_row->>'filter_property','');
+  IF (prop IS NULL OR lower(prop)='all') AND p_row->>'filter_session_id' IS NOT NULL THEN SELECT property_id INTO prop FROM public.audit_sessions WHERE id=p_row->>'filter_session_id'; END IF;
+  IF prop IS NULL OR lower(prop) IN ('all','all properties') THEN RETURN public.app_user_can('all_properties','view') AND (public.app_user_can('all_departments','view') OR NOT EXISTS(SELECT 1 FROM public.user_department_access WHERE user_id=auth.uid())); END IF;
+  IF NOT EXISTS(SELECT 1 FROM public.properties WHERE id=prop) THEN
+   SELECT min(id) INTO prop FROM public.properties WHERE lower(name)=lower(prop) HAVING count(*)=1;
+  END IF;
+  RETURN app_private.property_scope(prop) AND app_private.department_scope(p_row->>'filter_department');
+ WHEN 'property_license' THEN RETURN app_private.property_scope(p_row->>'property_id');
+ WHEN 'audit_incharge' THEN RETURN app_private.property_scope(p_row->>'property_id');
+ WHEN 'final_approvers' THEN RETURN app_private.property_scope(p_row->>'property_id');
+ WHEN 'notifications' THEN RETURN app_private.is_self(p_row->>'user_id');
+ WHEN 'recent_activity' THEN RETURN app_private.is_self(p_row->>'user_id');
+ WHEN 'user_property_access' THEN RETURN p_row->>'user_id'=auth.uid()::text;
+ WHEN 'user_department_access' THEN RETURN p_row->>'user_id'=auth.uid()::text;
+ WHEN 'user_permissions' THEN RETURN p_row->>'user_id'=auth.uid()::text;
+ WHEN 'user_settings' THEN RETURN p_row->>'user_id'=auth.uid()::text;
+ WHEN 'user_preferences' THEN RETURN p_row->>'user_id'=auth.uid()::text;
+ ELSE RETURN true;
+ END CASE;
+END $$;
+
+
+--
+-- Name: session_scope(text); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.session_scope(p_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT EXISTS(SELECT 1 FROM public.audit_sessions WHERE id=p_id AND app_private.property_scope(property_id));
+$$;
+
+
+--
+-- Name: shared_user(uuid); Type: FUNCTION; Schema: app_private; Owner: -
+--
+
+CREATE FUNCTION app_private.shared_user(p_id uuid) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ SELECT EXISTS(SELECT 1 FROM public.user_property_access WHERE user_id=p_id AND app_private.property_scope(property_id));
+$$;
+
+
+--
 -- Name: add_approval_event_v1(text, text, text, text, text); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.add_approval_event_v1(p_approval_id text, p_event_type text, p_author text, p_message text, p_comments text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   -- Ensure the approval row exists (best-effort defaults)
@@ -158,25 +352,107 @@ $$;
 
 
 --
+-- Name: app_create_profile_with_access(uuid, jsonb, jsonb, text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_create_profile_with_access(p_id uuid, p_profile jsonb, p_permissions jsonb, p_property_ids text[], p_departments text[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE result jsonb;
+BEGIN
+ IF auth.role() IS DISTINCT FROM 'service_role' THEN RAISE EXCEPTION 'Server-only operation' USING ERRCODE='42501'; END IF;
+ INSERT INTO public.app_users(id,name,email,role,status,department,phone,avatar_url,must_change_password)
+ VALUES(p_id,p_profile->>'name',p_profile->>'email',coalesce(p_profile->>'role','user'),coalesce(p_profile->>'status','Active'),p_profile->>'department',p_profile->>'phone',p_profile->>'avatar_url',coalesce((p_profile->>'must_change_password')::boolean,false));
+ PERFORM public.app_save_user_access(p_id,p_permissions,p_property_ids,p_departments);
+ SELECT to_jsonb(u) INTO result FROM public.app_users u WHERE id=p_id;
+ RETURN result;
+END $$;
+
+
+--
+-- Name: app_current_permissions(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_current_permissions() RETURNS jsonb
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE r text; result jsonb; item record;
+BEGIN
+ SELECT lower(role) INTO r FROM public.app_users WHERE id=auth.uid() AND lower(status)='active';
+ IF r IS NULL THEN RETURN '{}'::jsonb; END IF;
+ result:=public.app_permission_defaults(r);
+ FOR item IN SELECT * FROM public.user_permissions WHERE user_id=auth.uid() LOOP
+  result:=result||jsonb_build_object(item.page,CASE WHEN r='admin' THEN '{"v":true,"c":true,"e":true,"d":true,"x":true}'::jsonb ELSE jsonb_build_object('v',item.can_view,'c',item.can_create,'e',item.can_edit,'d',item.can_delete,'x',item.can_export) END);
+ END LOOP;
+ RETURN result;
+END $$;
+
+
+--
 -- Name: app_is_admin_v1(); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.app_is_admin_v1() RETURNS boolean
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$SELECT public.app_user_is_admin(auth.uid())$$;
+
+
+--
+-- Name: app_permission_defaults(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_permission_defaults(p_role text) RETURNS jsonb
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$ SELECT CASE lower(p_role) WHEN 'admin' THEN '{"dashboard":{"v":true,"c":true,"e":true,"d":true,"x":true},"assets":{"v":true,"c":true,"e":true,"d":true,"x":true},"properties":{"v":true,"c":true,"e":true,"d":true,"x":true},"qrcodes":{"v":true,"c":true,"e":true,"d":true,"x":true},"scan":{"v":true,"c":true,"e":true,"d":true,"x":true},"approvals":{"v":true,"c":true,"e":true,"d":true,"x":true},"tickets":{"v":true,"c":true,"e":true,"d":true,"x":true},"reports":{"v":true,"c":true,"e":true,"d":true,"x":true},"audit":{"v":true,"c":true,"e":true,"d":true,"x":true},"newsletter":{"v":true,"c":true,"e":true,"d":true,"x":true},"help":{"v":true,"c":true,"e":true,"d":true,"x":true},"users":{"v":true,"c":true,"e":true,"d":true,"x":true},"settings":{"v":true,"c":true,"e":true,"d":true,"x":true},"status":{"v":true,"c":true,"e":true,"d":true,"x":true},"license":{"v":true,"c":true,"e":true,"d":true,"x":true},"asset_import":{"v":true,"c":true,"e":true,"d":true,"x":true},"asset_compare":{"v":true,"c":true,"e":true,"d":true,"x":true},"amc_tracker":{"v":true,"c":true,"e":true,"d":true,"x":true},"food_expiry_tracker":{"v":true,"c":true,"e":true,"d":true,"x":true},"approval_review":{"v":true,"c":true,"e":true,"d":true,"x":true},"asset_types":{"v":true,"c":true,"e":true,"d":true,"x":true},"departments":{"v":true,"c":true,"e":true,"d":true,"x":true},"all_properties":{"v":true,"c":true,"e":true,"d":true,"x":true},"all_departments":{"v":true,"c":true,"e":true,"d":true,"x":true}}'::jsonb WHEN 'manager' THEN '{"dashboard":{"v":true,"c":false,"e":false,"d":false,"x":false},"assets":{"v":true,"c":true,"e":true,"d":false,"x":false},"properties":{"v":true,"c":true,"e":true,"d":false,"x":false},"qrcodes":{"v":true,"c":true,"e":true,"d":false,"x":false},"scan":{"v":true,"c":false,"e":false,"d":false,"x":false},"approvals":{"v":true,"c":false,"e":true,"d":false,"x":false},"tickets":{"v":true,"c":true,"e":true,"d":false,"x":false},"reports":{"v":true,"c":false,"e":false,"d":false,"x":false},"audit":{"v":false,"c":false,"e":false,"d":false,"x":false},"newsletter":{"v":true,"c":false,"e":false,"d":false,"x":false},"help":{"v":true,"c":false,"e":false,"d":false,"x":false},"users":{"v":false,"c":false,"e":false,"d":false,"x":false},"settings":{"v":true,"c":false,"e":false,"d":false,"x":false},"status":{"v":true,"c":false,"e":false,"d":false,"x":false},"license":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_import":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_compare":{"v":false,"c":false,"e":false,"d":false,"x":false},"amc_tracker":{"v":false,"c":false,"e":false,"d":false,"x":false},"food_expiry_tracker":{"v":false,"c":false,"e":false,"d":false,"x":false},"approval_review":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_types":{"v":false,"c":false,"e":false,"d":false,"x":false},"departments":{"v":false,"c":false,"e":false,"d":false,"x":false},"all_properties":{"v":false,"c":false,"e":false,"d":false,"x":false},"all_departments":{"v":false,"c":false,"e":false,"d":false,"x":false}}'::jsonb ELSE '{"dashboard":{"v":true,"c":false,"e":false,"d":false,"x":false},"assets":{"v":true,"c":true,"e":true,"d":false,"x":false},"properties":{"v":true,"c":false,"e":false,"d":false,"x":false},"qrcodes":{"v":true,"c":true,"e":true,"d":false,"x":false},"scan":{"v":true,"c":false,"e":false,"d":false,"x":false},"approvals":{"v":false,"c":false,"e":false,"d":false,"x":false},"tickets":{"v":true,"c":true,"e":false,"d":false,"x":false},"reports":{"v":false,"c":false,"e":false,"d":false,"x":false},"audit":{"v":false,"c":false,"e":false,"d":false,"x":false},"newsletter":{"v":true,"c":false,"e":false,"d":false,"x":false},"help":{"v":true,"c":false,"e":false,"d":false,"x":false},"users":{"v":false,"c":false,"e":false,"d":false,"x":false},"settings":{"v":true,"c":false,"e":false,"d":false,"x":false},"status":{"v":true,"c":false,"e":false,"d":false,"x":false},"license":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_import":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_compare":{"v":false,"c":false,"e":false,"d":false,"x":false},"amc_tracker":{"v":false,"c":false,"e":false,"d":false,"x":false},"food_expiry_tracker":{"v":false,"c":false,"e":false,"d":false,"x":false},"approval_review":{"v":false,"c":false,"e":false,"d":false,"x":false},"asset_types":{"v":false,"c":false,"e":false,"d":false,"x":false},"departments":{"v":false,"c":false,"e":false,"d":false,"x":false},"all_properties":{"v":false,"c":false,"e":false,"d":false,"x":false},"all_departments":{"v":false,"c":false,"e":false,"d":false,"x":false}}'::jsonb END $$;
+
+
+--
+-- Name: app_record_allowed(text, text, jsonb); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_record_allowed(p_table text, p_action text, p_row jsonb) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
     AS $$
-  select
-    exists (
-      select 1 from public.app_users u
-      where (
-        u.id = auth.uid()
-        or lower(u.email) = lower(coalesce((auth.jwt() ->> 'email'), ''))
-      )
-      and lower(u.role) in ('admin','superadmin')
-    )
-    or lower(coalesce(auth.jwt() ->> 'role', '')) in ('admin','superadmin')
-    or lower(coalesce(auth.jwt() ->> 'app_role', '')) in ('admin','superadmin');
-$$;
+DECLARE resource text; own boolean;
+BEGIN
+ IF NOT public.app_user_is_active() THEN RETURN false; END IF;
+ IF public.app_user_is_admin(auth.uid()) THEN RETURN true; END IF;
+ IF p_table='app_users' THEN
+  own:=p_row->>'id'=auth.uid()::text;
+  RETURN (p_action='view' AND (own OR (public.app_user_can('users','view') AND app_private.shared_user((p_row->>'id')::uuid)))) OR (p_action='edit' AND own);
+ END IF;
+ IF p_table IN ('user_permissions','user_property_access','user_department_access','audit_incharge','final_approvers') THEN
+  RETURN p_action='view' AND app_private.row_scope(p_table,p_row) AND (p_table LIKE 'user_%' OR public.app_user_can('audit','view') OR public.app_user_can('approvals','view'));
+ END IF;
+ IF p_table='password_reset_requests' THEN RETURN false; END IF;
+ IF p_table IN ('user_settings','user_preferences') THEN RETURN app_private.row_scope(p_table,p_row) AND p_action IN ('view','create','edit'); END IF;
+ IF p_table='system_settings' THEN RETURN p_action='view' AND public.app_user_can('settings','view'); END IF;
+ IF p_table='license_meta' THEN RETURN p_action='view' AND (public.app_user_can('license','view') OR public.app_user_can('assets','create'));
+ END IF;
+ IF p_table='property_license' THEN RETURN p_action='view' AND app_private.row_scope(p_table,p_row) AND (public.app_user_can('properties','view') OR public.app_user_can('assets','view')); END IF;
+ IF p_table='recent_activity' THEN RETURN app_private.row_scope(p_table,p_row) AND p_action IN ('view','create'); END IF;
+ IF p_table='notifications' THEN RETURN app_private.row_scope(p_table,p_row) AND p_action IN ('view','create','edit','delete'); END IF;
+ IF p_table IN ('asset_types','departments') THEN RETURN CASE WHEN p_action='view' THEN public.app_user_can('assets','view') OR public.app_user_can('properties','view') OR public.app_user_can('users','view') ELSE public.app_user_can(p_table,p_action) END; END IF;
+ IF NOT app_private.row_scope(p_table,p_row) THEN RETURN false; END IF;
+ resource:=CASE
+ WHEN p_table IN ('audit_sessions','audit_assignments','audit_reviews','audit_scans','audit_reports') THEN 'audit'
+ WHEN p_table IN ('approvals','approval_events') THEN 'approvals'
+ WHEN p_table IN ('tickets','ticket_events') THEN 'tickets'
+ WHEN p_table IN ('newsletter_posts','newsletter_categories') THEN 'newsletter'
+ WHEN p_table='qr_codes' THEN 'qrcodes'
+ WHEN p_table IN ('departments','asset_types') THEN 'assets'
+ ELSE p_table END;
+ IF p_table='approvals' AND p_action='create' THEN RETURN app_private.is_self(p_row->>'requested_by') AND public.app_user_can('assets',CASE WHEN p_row->>'action'='decommission' THEN 'delete' ELSE p_row->>'action' END); END IF;
+ IF p_table='approvals' AND p_action='view' AND app_private.is_self(p_row->>'requested_by') AND public.app_user_can('assets','view') THEN RETURN true; END IF;
+ IF p_table='audit_reports' AND p_action IN ('view','create') THEN RETURN public.app_user_can('audit','export') AND public.app_user_can('audit',CASE WHEN p_action='create' THEN 'create' ELSE 'view' END); END IF;
+ IF p_table='audit_scans' AND p_action='create' AND p_row->>'scanned_by'<>auth.uid()::text THEN RETURN false; END IF;
+ RETURN public.app_user_can(resource,p_action);
+END $$;
 
 
 --
@@ -189,6 +465,38 @@ CREATE FUNCTION public.app_request_role() RETURNS text
     AS $$
   SELECT COALESCE((auth.jwt() ->> 'role')::text, '');
 $$;
+
+
+--
+-- Name: app_save_user_access(uuid, jsonb, text[], text[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_save_user_access(p_user_id uuid, p_permissions jsonb, p_property_ids text[], p_departments text[]) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $_$
+DECLARE entry record; flag text;
+BEGIN
+ IF auth.role() IS DISTINCT FROM 'service_role' AND NOT public.app_user_is_admin(auth.uid()) THEN RAISE EXCEPTION 'Administrator access required' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM public.app_users WHERE id=p_user_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'User not found' USING ERRCODE='22023'; END IF;
+ IF jsonb_typeof(p_permissions) IS DISTINCT FROM 'object' THEN RAISE EXCEPTION 'Invalid permissions' USING ERRCODE='22023'; END IF;
+ FOR entry IN SELECT * FROM jsonb_each(p_permissions) LOOP
+  IF entry.key !~ '^[a-z][a-z0-9_.-]{0,63}$' OR jsonb_typeof(entry.value) IS DISTINCT FROM 'object' THEN RAISE EXCEPTION 'Invalid permission key or grant' USING ERRCODE='22023'; END IF;
+  FOREACH flag IN ARRAY ARRAY['v','c','e','d','x'] LOOP
+   IF entry.value ? flag AND jsonb_typeof(entry.value->flag) IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'Permission flags must be booleans' USING ERRCODE='22023'; END IF;
+  END LOOP;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM unnest(coalesce(p_property_ids,ARRAY[]::text[])) AS requested(property_id) WHERE NOT EXISTS(SELECT 1 FROM public.properties WHERE public.properties.id=requested.property_id)) THEN RAISE EXCEPTION 'Unknown property assignment' USING ERRCODE='22023'; END IF;
+ IF EXISTS(SELECT 1 FROM unnest(coalesce(p_departments,ARRAY[]::text[])) value WHERE NOT EXISTS(SELECT 1 FROM public.departments WHERE name=value OR code=value)) THEN RAISE EXCEPTION 'Unknown department assignment' USING ERRCODE='22023'; END IF;
+ DELETE FROM public.user_permissions WHERE user_id=p_user_id;
+ INSERT INTO public.user_permissions(user_id,page,can_view,can_create,can_edit,can_delete,can_export)
+ SELECT p_user_id,key,coalesce((value->>'v')::boolean,false),coalesce((value->>'c')::boolean,false),coalesce((value->>'e')::boolean,false),coalesce((value->>'d')::boolean,false),coalesce((value->>'x')::boolean,false) FROM jsonb_each(p_permissions);
+ DELETE FROM public.user_property_access WHERE user_id=p_user_id;
+ INSERT INTO public.user_property_access(user_id,property_id) SELECT p_user_id,id FROM (SELECT DISTINCT unnest(coalesce(p_property_ids,ARRAY[]::text[])) id) ids;
+ DELETE FROM public.user_department_access WHERE user_id=p_user_id;
+ INSERT INTO public.user_department_access(user_id,department) SELECT p_user_id,value FROM (SELECT DISTINCT unnest(coalesce(p_departments,ARRAY[]::text[])) value) assigned;
+END $_$;
 
 
 --
@@ -238,6 +546,27 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+
+--
+-- Name: app_user_can(text, text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.app_user_can(p_resource text, p_action text DEFAULT 'view'::text) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $_$
+DECLARE r text; g jsonb; k text;
+BEGIN
+ IF p_resource !~ '^[a-z][a-z0-9_.-]{0,63}$' OR p_action NOT IN ('view','create','edit','delete','export') THEN RETURN false; END IF;
+ SELECT lower(role) INTO r FROM public.app_users WHERE id=auth.uid() AND lower(status)='active';
+ IF r IS NULL THEN RETURN false; END IF;
+ IF r='admin' THEN RETURN true; END IF;
+ SELECT jsonb_build_object('v',can_view,'c',can_create,'e',can_edit,'d',can_delete,'x',can_export) INTO g FROM public.user_permissions WHERE user_id=auth.uid() AND page=p_resource;
+ IF g IS NULL THEN g:=public.app_permission_defaults(r)->p_resource; END IF;
+ k:=CASE p_action WHEN 'view' THEN 'v' WHEN 'create' THEN 'c' WHEN 'edit' THEN 'e' WHEN 'delete' THEN 'd' ELSE 'x' END;
+ RETURN coalesce((g->>'v')::boolean,false) AND coalesce((g->>k)::boolean,false);
+END $_$;
 
 
 --
@@ -481,8 +810,8 @@ ALTER TABLE ONLY public.audit_reports FORCE ROW LEVEL SECURITY;
 --
 
 CREATE FUNCTION public.create_audit_report_v1(p_session_id text, p_generated_by text) RETURNS public.audit_reports
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   report public.audit_reports;
@@ -600,7 +929,8 @@ $$;
 --
 
 CREATE FUNCTION public.delete_all_reports() RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   delete from public.reports where true;
@@ -609,12 +939,34 @@ $$;
 
 
 --
+-- Name: delete_property_with_access(text); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.delete_property_with_access(p_property_id text) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+BEGIN
+ IF NOT public.app_user_can('properties','delete') OR NOT app_private.property_scope(p_property_id) THEN RAISE EXCEPTION 'Property deletion is not permitted' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM public.properties WHERE id=p_property_id FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Property not found or not accessible' USING ERRCODE='42501'; END IF;
+ IF EXISTS(SELECT 1 FROM public.assets WHERE property_id=p_property_id) AND NOT public.app_user_can('assets','delete') THEN RAISE EXCEPTION 'Deleting a property with assets requires asset delete permission' USING ERRCODE='42501'; END IF;
+ IF EXISTS(SELECT 1 FROM public.audit_sessions WHERE property_id=p_property_id) AND NOT public.app_user_can('audit','delete') THEN RAISE EXCEPTION 'Deleting a property with audits requires audit delete permission' USING ERRCODE='42501'; END IF;
+ IF EXISTS(SELECT 1 FROM public.assets WHERE property_id=p_property_id AND NOT app_private.department_scope(department)) THEN RAISE EXCEPTION 'Cannot delete a property containing departments outside your access' USING ERRCODE='42501'; END IF;
+ DELETE FROM public.audit_incharge WHERE property_id=p_property_id;
+ DELETE FROM public.audit_sessions WHERE property_id=p_property_id;
+ DELETE FROM public.assets WHERE property_id=p_property_id;
+ DELETE FROM public.properties WHERE id=p_property_id;
+END $$;
+
+
+--
 -- Name: end_audit_session_v1(text); Type: FUNCTION; Schema: public; Owner: -
 --
 
 CREATE FUNCTION public.end_audit_session_v1(p_session_id text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   update public.audit_sessions set is_active = false where id = p_session_id;
@@ -643,8 +995,8 @@ ALTER TABLE ONLY public.audit_assignments FORCE ROW LEVEL SECURITY;
 --
 
 CREATE FUNCTION public.ensure_audit_assignment_v1(p_session_id text, p_department text) RETURNS public.audit_assignments
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_row public.audit_assignments;
@@ -668,8 +1020,8 @@ $$;
 --
 
 CREATE FUNCTION public.get_audit_incharge_for_user_v1(p_user_id text, p_user_email text DEFAULT NULL::text) RETURNS TABLE(property_id text)
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select ai.property_id::text as property_id
   from public.audit_incharge ai
@@ -693,8 +1045,8 @@ $$;
 --
 
 CREATE FUNCTION public.get_audit_reviews_for_session_v1(p_session_id text) RETURNS TABLE(session_id text, asset_id text, department text, status text, comment text, updated_at timestamp with time zone)
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   with sess as (
     select s.id, s.property_id
@@ -745,8 +1097,8 @@ $$;
 --
 
 CREATE FUNCTION public.get_audit_reviews_for_session_v2(p_session_id text) RETURNS TABLE(session_id text, asset_id text, department text, status text, comment text, updated_at timestamp with time zone)
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select r.session_id, r.asset_id, r.department, r.status, r.comment, r.updated_at
   from public.audit_reviews r
@@ -760,16 +1112,9 @@ $$;
 --
 
 CREATE FUNCTION public.get_auth_uid_by_email_v1(p_email text) RETURNS uuid
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
-    AS $$
-declare
-  uid uuid;
-begin
-  select u.id into uid from auth.users u where lower(u.email) = lower(p_email) limit 1;
-  return uid;
-end;
-$$;
+    LANGUAGE sql STABLE
+    SET search_path TO ''
+    AS $$SELECT id FROM public.app_users WHERE lower(email)=lower(p_email) LIMIT 1$$;
 
 
 --
@@ -794,8 +1139,8 @@ END $$;
 --
 
 CREATE FUNCTION public.list_final_approver_props_for_email_v1(p_email text) RETURNS text[]
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   uid uuid;
@@ -1018,8 +1363,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_audit_incharge_for_user_v1(p_user_id text, p_user_name text DEFAULT NULL::text, p_property_ids text[] DEFAULT NULL::text[]) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
 	pid text;
@@ -1073,8 +1418,8 @@ ALTER TABLE ONLY public.audit_incharge FORCE ROW LEVEL SECURITY;
 --
 
 CREATE FUNCTION public.set_audit_incharge_v1(p_property_id text, p_user_id text, p_user_name text DEFAULT NULL::text) RETURNS public.audit_incharge
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
 	v_row public.audit_incharge;
@@ -1096,8 +1441,8 @@ end $$;
 --
 
 CREATE FUNCTION public.set_final_approver(p_property_id text, p_user_id uuid, p_user_name text DEFAULT NULL::text) RETURNS void
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select public.set_final_approver_v1(p_property_id, p_user_id, p_user_name);
 $$;
@@ -1108,8 +1453,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_final_approver_by_email_v1(p_property_id text, p_email text, p_user_name text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   uid uuid;
@@ -1139,8 +1484,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_final_approver_for_user(p_user_id uuid, p_user_name text, p_property_ids text[]) RETURNS void
-    LANGUAGE sql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE sql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
   select public.set_final_approver_for_user_v1(p_user_id, p_user_name, p_property_ids);
 $$;
@@ -1151,8 +1496,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_final_approver_for_user_by_email_v1(p_email text, p_user_name text, p_property_ids text[]) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   uid uuid;
@@ -1199,8 +1544,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_final_approver_for_user_v1(p_user_id uuid, p_user_name text, p_property_ids text[]) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   pid text;
@@ -1244,8 +1589,8 @@ $$;
 --
 
 CREATE FUNCTION public.set_final_approver_v1(p_property_id text, p_user_id uuid, p_user_name text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_name text;
@@ -1510,8 +1855,8 @@ ALTER TABLE ONLY public.audit_sessions FORCE ROW LEVEL SECURITY;
 --
 
 CREATE FUNCTION public.start_audit_session_v1(p_frequency_months integer, p_initiated_by text) RETURNS public.audit_sessions
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare s public.audit_sessions;
 begin
@@ -1527,7 +1872,8 @@ end; $$;
 --
 
 CREATE FUNCTION public.start_audit_session_v2(p_frequency_months integer, p_initiated_by text, p_property_id text) RETURNS public.audit_sessions
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   new_session public.audit_sessions;
@@ -1557,8 +1903,8 @@ $$;
 --
 
 CREATE FUNCTION public.submit_audit_assignment_v1(p_session_id text, p_department text, p_submitted_by text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   insert into public.audit_assignments(session_id, department, status, submitted_at, submitted_by)
@@ -1638,8 +1984,8 @@ $$;
 --
 
 CREATE FUNCTION public.upsert_audit_reviews_v1(p_session_id text, p_department text, p_rows_json jsonb) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public'
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 begin
   insert into public.audit_reviews(session_id, asset_id, department, status, comment)
@@ -1654,7 +2000,8 @@ end; $$;
 --
 
 CREATE FUNCTION public.verify_asset_via_scan_v1(p_session_id text, p_asset_id text, p_status text, p_scanned_by uuid, p_comment text DEFAULT NULL::text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
     AS $$
 declare
   v_dept text;
@@ -1843,6 +2190,8 @@ CREATE TABLE public.approval_events (
     CONSTRAINT approval_events_event_type_check CHECK ((event_type = ANY (ARRAY['submitted'::text, 'forwarded'::text, 'approved'::text, 'rejected'::text, 'applied'::text, 'manager_updated'::text, 'admin_override_approved'::text, 'comment'::text])))
 );
 
+ALTER TABLE ONLY public.approval_events FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: approval_events_id_seq; Type: SEQUENCE; Schema: public; Owner: -
@@ -1883,6 +2232,8 @@ CREATE TABLE public.approvals (
     CONSTRAINT approvals_status_check CHECK ((status = ANY (ARRAY['pending_manager'::text, 'pending_admin'::text, 'approved'::text, 'rejected'::text])))
 );
 
+ALTER TABLE ONLY public.approvals FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: asset_types; Type: TABLE; Schema: public; Owner: -
@@ -1892,6 +2243,8 @@ CREATE TABLE public.asset_types (
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.asset_types FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -1922,6 +2275,8 @@ CREATE TABLE public.assets (
     created_by_name text,
     created_by_email text
 );
+
+ALTER TABLE ONLY public.assets FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -1959,6 +2314,8 @@ CREATE TABLE public.audit_scans (
     CONSTRAINT audit_scans_status_check CHECK ((status = ANY (ARRAY['verified'::text, 'damaged'::text])))
 );
 
+ALTER TABLE ONLY public.audit_scans FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: departments; Type: TABLE; Schema: public; Owner: -
@@ -1971,6 +2328,8 @@ CREATE TABLE public.departments (
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.departments FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -1985,6 +2344,8 @@ CREATE TABLE public.final_approvers (
     created_by uuid DEFAULT auth.uid(),
     user_email text
 );
+
+ALTER TABLE ONLY public.final_approvers FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2042,6 +2403,8 @@ CREATE TABLE public.properties (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.properties FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2112,6 +2475,8 @@ CREATE TABLE public.newsletter_categories (
     hue text DEFAULT 'blue'::text NOT NULL
 );
 
+ALTER TABLE ONLY public.newsletter_categories FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: newsletter_posts; Type: TABLE; Schema: public; Owner: -
@@ -2128,6 +2493,8 @@ CREATE TABLE public.newsletter_posts (
     category text DEFAULT 'update'::text NOT NULL
 );
 
+ALTER TABLE ONLY public.newsletter_posts FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: notifications; Type: TABLE; Schema: public; Owner: -
@@ -2143,6 +2510,8 @@ CREATE TABLE public.notifications (
     user_id text,
     user_name text
 );
+
+ALTER TABLE ONLY public.notifications FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2165,6 +2534,8 @@ CREATE TABLE public.password_reset_requests (
     code_salt text
 );
 
+ALTER TABLE ONLY public.password_reset_requests FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: qr_codes; Type: TABLE; Schema: public; Owner: -
@@ -2182,6 +2553,8 @@ CREATE TABLE public.qr_codes (
     updated_at timestamp with time zone
 );
 
+ALTER TABLE ONLY public.qr_codes FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: recent_activity; Type: TABLE; Schema: public; Owner: -
@@ -2195,6 +2568,8 @@ CREATE TABLE public.recent_activity (
     user_name text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.recent_activity FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2236,8 +2611,11 @@ CREATE TABLE public.reports (
     created_by text,
     created_by_id text,
     user_name text,
-    user_email text
+    user_email text,
+    filter_session_id text
 );
+
+ALTER TABLE ONLY public.reports FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2255,6 +2633,8 @@ CREATE TABLE public.system_settings (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.system_settings FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: ticket_events; Type: TABLE; Schema: public; Owner: -
@@ -2269,6 +2649,8 @@ CREATE TABLE public.ticket_events (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT ticket_events_event_type_check CHECK ((event_type = ANY (ARRAY['created'::text, 'comment'::text, 'status_change'::text, 'closed'::text])))
 );
+
+ALTER TABLE ONLY public.ticket_events FORCE ROW LEVEL SECURITY;
 
 
 --
@@ -2313,6 +2695,8 @@ CREATE TABLE public.tickets (
     CONSTRAINT tickets_target_role_check CHECK ((target_role = ANY (ARRAY['admin'::text, 'manager'::text])))
 );
 
+ALTER TABLE ONLY public.tickets FORCE ROW LEVEL SECURITY;
+
 
 --
 -- Name: user_department_access; Type: TABLE; Schema: public; Owner: -
@@ -2341,7 +2725,10 @@ CREATE TABLE public.user_permissions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     user_name text,
     user_email text,
-    CONSTRAINT user_permissions_page_check CHECK ((page = ANY (ARRAY['assets'::text, 'properties'::text, 'qrcodes'::text, 'users'::text, 'reports'::text, 'settings'::text, 'audit'::text])))
+    can_create boolean DEFAULT false NOT NULL,
+    can_delete boolean DEFAULT false NOT NULL,
+    can_export boolean DEFAULT false NOT NULL,
+    CONSTRAINT user_permissions_page_check CHECK ((page ~ '^[a-z][a-z0-9_.-]{0,63}$'::text))
 );
 
 ALTER TABLE ONLY public.user_permissions FORCE ROW LEVEL SECURITY;
@@ -3148,10 +3535,31 @@ CREATE TRIGGER qr_codes_set_updated_at BEFORE UPDATE ON public.qr_codes FOR EACH
 
 
 --
+-- Name: approvals sams_approval_transition; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sams_approval_transition BEFORE INSERT OR UPDATE ON public.approvals FOR EACH ROW EXECUTE FUNCTION app_private.guard_approval_transition();
+
+
+--
+-- Name: properties sams_atomic_property_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sams_atomic_property_delete BEFORE DELETE ON public.properties FOR EACH ROW EXECUTE FUNCTION app_private.guard_direct_property_delete();
+
+
+--
 -- Name: app_users sams_initialize_user_settings; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER sams_initialize_user_settings AFTER INSERT ON public.app_users FOR EACH ROW EXECUTE FUNCTION public.initialize_app_user_settings();
+
+
+--
+-- Name: app_users sams_profile_edit_permission; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER sams_profile_edit_permission BEFORE UPDATE ON public.app_users FOR EACH ROW EXECUTE FUNCTION app_private.guard_profile_edit();
 
 
 --
@@ -3449,143 +3857,10 @@ ALTER TABLE ONLY public.user_settings
 
 
 --
--- Name: user_department_access account_access_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_admin ON public.user_department_access TO authenticated USING (public.app_user_is_admin(auth.uid())) WITH CHECK (public.app_user_is_admin(auth.uid()));
-
-
---
--- Name: user_permissions account_access_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_admin ON public.user_permissions TO authenticated USING (public.app_user_is_admin(auth.uid())) WITH CHECK (public.app_user_is_admin(auth.uid()));
-
-
---
--- Name: user_property_access account_access_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_admin ON public.user_property_access TO authenticated USING (public.app_user_is_admin(auth.uid())) WITH CHECK (public.app_user_is_admin(auth.uid()));
-
-
---
--- Name: user_department_access account_access_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_read ON public.user_department_access FOR SELECT TO authenticated USING ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin_or_manager(auth.uid()))));
-
-
---
--- Name: user_permissions account_access_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_read ON public.user_permissions FOR SELECT TO authenticated USING ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin_or_manager(auth.uid()))));
-
-
---
--- Name: user_property_access account_access_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_access_read ON public.user_property_access FOR SELECT TO authenticated USING ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin_or_manager(auth.uid()))));
-
-
---
--- Name: user_preferences account_settings_owner; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_settings_owner ON public.user_preferences TO authenticated USING ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin(auth.uid())))) WITH CHECK ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin(auth.uid()))));
-
-
---
--- Name: user_settings account_settings_owner; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY account_settings_owner ON public.user_settings TO authenticated USING ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin(auth.uid())))) WITH CHECK ((public.app_user_is_active() AND ((user_id = auth.uid()) OR public.app_user_is_admin(auth.uid()))));
-
-
---
--- Name: recent_activity activity_delete_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY activity_delete_all ON public.recent_activity FOR DELETE USING (true);
-
-
---
--- Name: recent_activity activity_insert_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY activity_insert_all ON public.recent_activity FOR INSERT WITH CHECK (true);
-
-
---
--- Name: recent_activity activity_select_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY activity_select_all ON public.recent_activity FOR SELECT USING (true);
-
-
---
--- Name: recent_activity activity_update_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY activity_update_all ON public.recent_activity FOR UPDATE USING (true) WITH CHECK (true);
-
-
---
--- Name: reports admins can delete reports; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "admins can delete reports" ON public.reports FOR DELETE USING (((auth.jwt() ->> 'role'::text) = 'admin'::text));
-
-
---
--- Name: audit_incharge ai_delete_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ai_delete_admin ON public.audit_incharge FOR DELETE TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text));
-
-
---
--- Name: audit_incharge ai_insert_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ai_insert_admin ON public.audit_incharge FOR INSERT TO authenticated WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
-
-
---
--- Name: audit_incharge ai_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ai_select ON public.audit_incharge FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: audit_incharge ai_update_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ai_update_admin ON public.audit_incharge FOR UPDATE TO authenticated USING (((auth.jwt() ->> 'role'::text) = 'admin'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'admin'::text));
-
-
---
 -- Name: app_users; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
-
---
--- Name: app_users app_users_read; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY app_users_read ON public.app_users FOR SELECT TO authenticated USING ((public.app_user_is_active() AND ((id = auth.uid()) OR public.app_user_is_admin_or_manager(auth.uid()))));
-
-
---
--- Name: app_users app_users_update_self; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY app_users_update_self ON public.app_users FOR UPDATE TO authenticated USING (((id = auth.uid()) AND public.app_user_is_active())) WITH CHECK (((id = auth.uid()) AND public.app_user_is_active()));
-
 
 --
 -- Name: approval_events; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3594,117 +3869,10 @@ CREATE POLICY app_users_update_self ON public.app_users FOR UPDATE TO authentica
 ALTER TABLE public.approval_events ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: approval_events approval_events_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_insert ON public.approval_events FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: approval_events approval_events_insert_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_insert_anon ON public.approval_events FOR INSERT TO anon WITH CHECK (true);
-
-
---
--- Name: approval_events approval_events_insert_auth; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_insert_auth ON public.approval_events FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
-   FROM public.approvals a
-  WHERE (a.id = approval_events.approval_id))));
-
-
---
--- Name: approval_events approval_events_read_auth; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_read_auth ON public.approval_events FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: approval_events approval_events_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_select ON public.approval_events FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: approval_events approval_events_select_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approval_events_select_anon ON public.approval_events FOR SELECT TO anon USING (true);
-
-
---
 -- Name: approvals; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.approvals ENABLE ROW LEVEL SECURITY;
-
---
--- Name: approvals approvals_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_insert ON public.approvals FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: approvals approvals_insert_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_insert_anon ON public.approvals FOR INSERT TO anon WITH CHECK (true);
-
-
---
--- Name: approvals approvals_insert_auth; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_insert_auth ON public.approvals FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: approvals approvals_read_auth; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_read_auth ON public.approvals FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: approvals approvals_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_select ON public.approvals FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: approvals approvals_select_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_select_anon ON public.approvals FOR SELECT TO anon USING (true);
-
-
---
--- Name: approvals approvals_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_update ON public.approvals FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-
-
---
--- Name: approvals approvals_update_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_update_anon ON public.approvals FOR UPDATE TO anon USING (true) WITH CHECK (true);
-
-
---
--- Name: approvals approvals_update_auth; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY approvals_update_auth ON public.approvals FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-
 
 --
 -- Name: asset_types; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3713,66 +3881,10 @@ CREATE POLICY approvals_update_auth ON public.approvals FOR UPDATE TO authentica
 ALTER TABLE public.asset_types ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: asset_types asset_types_delete_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY asset_types_delete_all ON public.asset_types FOR DELETE USING (true);
-
-
---
--- Name: asset_types asset_types_insert_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY asset_types_insert_all ON public.asset_types FOR INSERT WITH CHECK (true);
-
-
---
--- Name: asset_types asset_types_select_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY asset_types_select_all ON public.asset_types FOR SELECT USING (true);
-
-
---
--- Name: asset_types asset_types_update_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY asset_types_update_all ON public.asset_types FOR UPDATE USING (true) WITH CHECK (true);
-
-
---
 -- Name: assets; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
-
---
--- Name: assets assets_delete_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY assets_delete_all ON public.assets FOR DELETE USING (true);
-
-
---
--- Name: assets assets_insert_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY assets_insert_all ON public.assets FOR INSERT WITH CHECK (true);
-
-
---
--- Name: assets assets_select_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY assets_select_all ON public.assets FOR SELECT USING (true);
-
-
---
--- Name: assets assets_update_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY assets_update_all ON public.assets FOR UPDATE USING (true) WITH CHECK (true);
-
 
 --
 -- Name: audit_assignments; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3781,66 +3893,10 @@ CREATE POLICY assets_update_all ON public.assets FOR UPDATE USING (true) WITH CH
 ALTER TABLE public.audit_assignments ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: audit_assignments audit_assignments_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_assignments_select ON public.audit_assignments FOR SELECT USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text)));
-
-
---
--- Name: audit_assignments audit_assignments_update_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_assignments_update_admin ON public.audit_assignments FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid()))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
 -- Name: audit_incharge; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.audit_incharge ENABLE ROW LEVEL SECURITY;
-
---
--- Name: audit_incharge audit_incharge_delete_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_delete_admin ON public.audit_incharge FOR DELETE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: audit_incharge audit_incharge_insert_via_rpc; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_insert_via_rpc ON public.audit_incharge FOR INSERT WITH CHECK ((COALESCE(current_setting('app.bypass_sensitive_guard'::text, true), 'off'::text) = 'on'::text));
-
-
---
--- Name: audit_incharge audit_incharge_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_select ON public.audit_incharge FOR SELECT USING (true);
-
-
---
--- Name: audit_incharge audit_incharge_update_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_update_admin ON public.audit_incharge FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid()))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: audit_incharge audit_incharge_update_via_rpc; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_update_via_rpc ON public.audit_incharge FOR UPDATE USING ((COALESCE(current_setting('app.bypass_sensitive_guard'::text, true), 'off'::text) = 'on'::text)) WITH CHECK ((COALESCE(current_setting('app.bypass_sensitive_guard'::text, true), 'off'::text) = 'on'::text));
-
-
---
--- Name: audit_incharge audit_incharge_upsert_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_incharge_upsert_admin ON public.audit_incharge FOR INSERT WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
 
 --
 -- Name: audit_reports; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3849,51 +3905,10 @@ CREATE POLICY audit_incharge_upsert_admin ON public.audit_incharge FOR INSERT WI
 ALTER TABLE public.audit_reports ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: audit_reports audit_reports_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_reports_select ON public.audit_reports FOR SELECT USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text)));
-
-
---
 -- Name: audit_reviews; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.audit_reviews ENABLE ROW LEVEL SECURITY;
-
---
--- Name: audit_reviews audit_reviews_insert_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_reviews_insert_admin ON public.audit_reviews FOR INSERT WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: audit_reviews audit_reviews_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_reviews_select ON public.audit_reviews FOR SELECT USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text)));
-
-
---
--- Name: audit_reviews audit_reviews_select_scoped; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_reviews_select_scoped ON public.audit_reviews FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
-   FROM public.audit_sessions s
-  WHERE ((s.id = audit_reviews.session_id) AND ((s.property_id IS NULL) OR (EXISTS ( SELECT 1
-           FROM public.user_property_access upa
-          WHERE (((upa.user_id)::text = (auth.uid())::text) AND (upa.property_id = s.property_id)))) OR (EXISTS ( SELECT 1
-           FROM public.audit_incharge ai
-          WHERE ((ai.user_id = (auth.uid())::text) AND (ai.property_id = s.property_id)))))))));
-
-
---
--- Name: audit_reviews audit_reviews_update_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_reviews_update_admin ON public.audit_reviews FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid()))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
 
 --
 -- Name: audit_scans; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3902,72 +3917,10 @@ CREATE POLICY audit_reviews_update_admin ON public.audit_reviews FOR UPDATE USIN
 ALTER TABLE public.audit_scans ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: audit_scans audit_scans_insert_own; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_scans_insert_own ON public.audit_scans FOR INSERT TO authenticated WITH CHECK (((scanned_by = auth.uid()) AND (EXISTS ( SELECT 1
-   FROM public.user_department_access uda
-  WHERE (((uda.user_id)::text = (auth.uid())::text) AND (uda.department = audit_scans.department)))) AND ((property_id IS NULL) OR (EXISTS ( SELECT 1
-   FROM public.user_property_access upa
-  WHERE (((upa.user_id)::text = (auth.uid())::text) AND (upa.property_id = audit_scans.property_id)))))));
-
-
---
--- Name: audit_scans audit_scans_select_incharge; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_scans_select_incharge ON public.audit_scans FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
-   FROM public.audit_incharge ai
-  WHERE ((ai.property_id = audit_scans.property_id) AND (ai.user_id = (auth.uid())::text)))));
-
-
---
--- Name: audit_scans audit_scans_select_own; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_scans_select_own ON public.audit_scans FOR SELECT TO authenticated USING ((scanned_by = auth.uid()));
-
-
---
 -- Name: audit_sessions; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.audit_sessions ENABLE ROW LEVEL SECURITY;
-
---
--- Name: audit_sessions audit_sessions_delete_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_sessions_delete_admin ON public.audit_sessions FOR DELETE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: audit_sessions audit_sessions_insert_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_sessions_insert_admin ON public.audit_sessions FOR INSERT WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: audit_sessions audit_sessions_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_sessions_select ON public.audit_sessions FOR SELECT USING (true);
-
-
---
--- Name: audit_sessions audit_sessions_update_admin; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY audit_sessions_update_admin ON public.audit_sessions FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid()))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: notifications delete_all_dev; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY delete_all_dev ON public.notifications FOR DELETE USING (true);
-
 
 --
 -- Name: departments; Type: ROW SECURITY; Schema: public; Owner: -
@@ -3976,105 +3929,10 @@ CREATE POLICY delete_all_dev ON public.notifications FOR DELETE USING (true);
 ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: departments departments_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_delete ON public.departments FOR DELETE TO authenticated USING (true);
-
-
---
--- Name: departments departments_delete_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_delete_anon ON public.departments FOR DELETE TO anon USING (true);
-
-
---
--- Name: departments departments_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_insert ON public.departments FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: departments departments_insert_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_insert_anon ON public.departments FOR INSERT TO anon WITH CHECK (true);
-
-
---
--- Name: departments departments_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_select ON public.departments FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: departments departments_select_all_access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_select_all_access ON public.departments FOR SELECT TO authenticated USING (((EXISTS ( SELECT 1
-   FROM public.user_permissions up
-  WHERE ((up.user_id = auth.uid()) AND (up.page = 'all_departments'::text) AND ((up.can_view = true) OR (up.can_edit = true))))) OR (EXISTS ( SELECT 1
-   FROM public.app_users u
-  WHERE ((u.id = auth.uid()) AND (lower(u.role) = 'admin'::text))))));
-
-
---
--- Name: departments departments_select_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_select_anon ON public.departments FOR SELECT TO anon USING (true);
-
-
---
--- Name: departments departments_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_update ON public.departments FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-
-
---
--- Name: departments departments_update_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY departments_update_anon ON public.departments FOR UPDATE TO anon USING (true) WITH CHECK (true);
-
-
---
 -- Name: final_approvers; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.final_approvers ENABLE ROW LEVEL SECURITY;
-
---
--- Name: final_approvers final_approvers_delete_admin_only; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY final_approvers_delete_admin_only ON public.final_approvers FOR DELETE TO authenticated USING (public.app_is_admin_v1());
-
-
---
--- Name: final_approvers final_approvers_insert_admin_only; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY final_approvers_insert_admin_only ON public.final_approvers FOR INSERT TO authenticated WITH CHECK (public.app_is_admin_v1());
-
-
---
--- Name: final_approvers final_approvers_select_authenticated; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY final_approvers_select_authenticated ON public.final_approvers FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: final_approvers final_approvers_update_admin_only; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY final_approvers_update_admin_only ON public.final_approvers FOR UPDATE TO authenticated USING (public.app_is_admin_v1()) WITH CHECK (public.app_is_admin_v1());
-
 
 --
 -- Name: license_meta; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4083,73 +3941,10 @@ CREATE POLICY final_approvers_update_admin_only ON public.final_approvers FOR UP
 ALTER TABLE public.license_meta ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: license_meta license_meta_admin_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY license_meta_admin_select ON public.license_meta FOR SELECT USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid())));
-
-
---
--- Name: license_meta license_meta_admin_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY license_meta_admin_update ON public.license_meta FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid()))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: license_meta license_meta_admin_upsert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY license_meta_admin_upsert ON public.license_meta FOR INSERT WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: license_meta license_meta_modify_admin_only; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY license_meta_modify_admin_only ON public.license_meta TO authenticated USING (public.app_is_admin_v1()) WITH CHECK (public.app_is_admin_v1());
-
-
---
--- Name: license_meta license_meta_select_authenticated; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY license_meta_select_authenticated ON public.license_meta FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: newsletter_categories; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.newsletter_categories ENABLE ROW LEVEL SECURITY;
-
---
--- Name: newsletter_categories newsletter_categories_select_any; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_categories_select_any ON public.newsletter_categories FOR SELECT USING (true);
-
-
---
--- Name: newsletter_categories newsletter_categories_write_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_categories_write_public ON public.newsletter_categories USING (true) WITH CHECK (true);
-
-
---
--- Name: newsletter_posts newsletter_delete_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_delete_public ON public.newsletter_posts FOR DELETE USING (true);
-
-
---
--- Name: newsletter_posts newsletter_insert_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_insert_public ON public.newsletter_posts FOR INSERT WITH CHECK (true);
-
 
 --
 -- Name: newsletter_posts; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4158,31 +3953,10 @@ CREATE POLICY newsletter_insert_public ON public.newsletter_posts FOR INSERT WIT
 ALTER TABLE public.newsletter_posts ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: newsletter_posts newsletter_select_published_any; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_select_published_any ON public.newsletter_posts FOR SELECT USING ((published = true));
-
-
---
--- Name: newsletter_posts newsletter_update_public; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY newsletter_update_public ON public.newsletter_posts FOR UPDATE USING (true) WITH CHECK (true);
-
-
---
 -- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-
---
--- Name: notifications notifications_self_access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY notifications_self_access ON public.notifications USING ((user_id = (auth.uid())::text)) WITH CHECK ((user_id = (auth.uid())::text));
-
 
 --
 -- Name: password_reset_requests; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4197,91 +3971,10 @@ ALTER TABLE public.password_reset_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.properties ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: properties properties_select_all_access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY properties_select_all_access ON public.properties FOR SELECT TO authenticated USING (((EXISTS ( SELECT 1
-   FROM public.user_permissions up
-  WHERE ((up.user_id = auth.uid()) AND (up.page = 'all_properties'::text) AND ((up.can_view = true) OR (up.can_edit = true))))) OR (EXISTS ( SELECT 1
-   FROM public.app_users u
-  WHERE ((u.id = auth.uid()) AND (lower(u.role) = 'admin'::text))))));
-
-
---
 -- Name: property_license; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.property_license ENABLE ROW LEVEL SECURITY;
-
---
--- Name: property_license property_license_admin_delete; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_admin_delete ON public.property_license FOR DELETE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin(auth.uid())));
-
-
---
--- Name: property_license property_license_admin_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_admin_select ON public.property_license FOR SELECT USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text) OR (public.app_request_role() = 'anon'::text) OR (public.app_request_role() = ''::text)));
-
-
---
--- Name: property_license property_license_admin_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_admin_update ON public.property_license FOR UPDATE USING (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text) OR (public.app_request_role() = 'anon'::text) OR (public.app_request_role() = ''::text))) WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text) OR (public.app_request_role() = 'anon'::text) OR (public.app_request_role() = ''::text)));
-
-
---
--- Name: property_license property_license_admin_upsert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_admin_upsert ON public.property_license FOR INSERT WITH CHECK (((public.app_request_role() = 'service_role'::text) OR public.app_user_is_admin_or_manager(auth.uid()) OR (public.app_request_role() = 'authenticated'::text) OR (public.app_request_role() = 'anon'::text) OR (public.app_request_role() = ''::text)));
-
-
---
--- Name: property_license property_license_modify_admin_only; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_modify_admin_only ON public.property_license TO authenticated USING (public.app_is_admin_v1()) WITH CHECK (public.app_is_admin_v1());
-
-
---
--- Name: property_license property_license_select_authenticated; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY property_license_select_authenticated ON public.property_license FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: properties props_delete_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY props_delete_all ON public.properties FOR DELETE USING (true);
-
-
---
--- Name: properties props_insert_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY props_insert_all ON public.properties FOR INSERT WITH CHECK (true);
-
-
---
--- Name: properties props_select_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY props_select_all ON public.properties FOR SELECT USING (true);
-
-
---
--- Name: properties props_update_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY props_update_all ON public.properties FOR UPDATE USING (true) WITH CHECK (true);
-
 
 --
 -- Name: qr_codes; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4290,80 +3983,10 @@ CREATE POLICY props_update_all ON public.properties FOR UPDATE USING (true) WITH
 ALTER TABLE public.qr_codes ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: qr_codes qr_delete_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY qr_delete_all ON public.qr_codes FOR DELETE USING (true);
-
-
---
--- Name: qr_codes qr_insert_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY qr_insert_all ON public.qr_codes FOR INSERT WITH CHECK (true);
-
-
---
--- Name: qr_codes qr_select_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY qr_select_all ON public.qr_codes FOR SELECT USING (true);
-
-
---
--- Name: qr_codes qr_update_all; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY qr_update_all ON public.qr_codes FOR UPDATE USING (true) WITH CHECK (true);
-
-
---
--- Name: notifications read_all_dev; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY read_all_dev ON public.notifications FOR SELECT USING (true);
-
-
---
--- Name: audit_assignments read_assignments; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY read_assignments ON public.audit_assignments FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: audit_reports read_reports; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY read_reports ON public.audit_reports FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: audit_reviews read_reviews; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY read_reviews ON public.audit_reviews FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: audit_sessions read_sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY read_sessions ON public.audit_sessions FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: recent_activity; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.recent_activity ENABLE ROW LEVEL SECURITY;
-
---
--- Name: recent_activity recent_activity_self_access; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY recent_activity_self_access ON public.recent_activity USING (((user_id)::text = (auth.uid())::text)) WITH CHECK (((user_id)::text = (auth.uid())::text));
-
 
 --
 -- Name: reports; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4372,255 +3995,871 @@ CREATE POLICY recent_activity_self_access ON public.recent_activity USING (((use
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: reports reports_delete_all; Type: POLICY; Schema: public; Owner: -
+-- Name: app_users rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reports_delete_all ON public.reports FOR DELETE USING (true);
+CREATE POLICY rights_create ON public.app_users FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('app_users'::text, 'create'::text, to_jsonb(app_users.*)));
 
 
 --
--- Name: reports reports_insert_all; Type: POLICY; Schema: public; Owner: -
+-- Name: approval_events rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reports_insert_all ON public.reports FOR INSERT WITH CHECK (true);
+CREATE POLICY rights_create ON public.approval_events FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('approval_events'::text, 'create'::text, to_jsonb(approval_events.*)));
 
 
 --
--- Name: reports reports_select_all; Type: POLICY; Schema: public; Owner: -
+-- Name: approvals rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reports_select_all ON public.reports FOR SELECT USING (true);
+CREATE POLICY rights_create ON public.approvals FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('approvals'::text, 'create'::text, to_jsonb(approvals.*)));
 
 
 --
--- Name: reports reports_update_all; Type: POLICY; Schema: public; Owner: -
+-- Name: asset_types rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY reports_update_all ON public.reports FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY rights_create ON public.asset_types FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('asset_types'::text, 'create'::text, to_jsonb(asset_types.*)));
 
 
 --
--- Name: app_users sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: assets rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.app_users AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.assets FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('assets'::text, 'create'::text, to_jsonb(assets.*)));
 
 
 --
--- Name: approval_events sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_assignments rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.approval_events AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_assignments FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_assignments'::text, 'create'::text, to_jsonb(audit_assignments.*)));
 
 
 --
--- Name: approvals sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_incharge rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.approvals AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_incharge FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_incharge'::text, 'create'::text, to_jsonb(audit_incharge.*)));
 
 
 --
--- Name: asset_types sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_reports rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.asset_types AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_reports FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_reports'::text, 'create'::text, to_jsonb(audit_reports.*)));
 
 
 --
--- Name: assets sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_reviews rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.assets AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_reviews FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_reviews'::text, 'create'::text, to_jsonb(audit_reviews.*)));
 
 
 --
--- Name: audit_assignments sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_scans rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_assignments AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_scans FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_scans'::text, 'create'::text, to_jsonb(audit_scans.*)));
 
 
 --
--- Name: audit_incharge sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: audit_sessions rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_incharge AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.audit_sessions FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('audit_sessions'::text, 'create'::text, to_jsonb(audit_sessions.*)));
 
 
 --
--- Name: audit_reports sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: departments rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_reports AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.departments FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('departments'::text, 'create'::text, to_jsonb(departments.*)));
 
 
 --
--- Name: audit_reviews sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: final_approvers rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_reviews AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.final_approvers FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('final_approvers'::text, 'create'::text, to_jsonb(final_approvers.*)));
 
 
 --
--- Name: audit_scans sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: license_meta rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_scans AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.license_meta FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('license_meta'::text, 'create'::text, to_jsonb(license_meta.*)));
 
 
 --
--- Name: audit_sessions sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: newsletter_categories rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.audit_sessions AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.newsletter_categories FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('newsletter_categories'::text, 'create'::text, to_jsonb(newsletter_categories.*)));
 
 
 --
--- Name: departments sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: newsletter_posts rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.departments AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.newsletter_posts FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('newsletter_posts'::text, 'create'::text, to_jsonb(newsletter_posts.*)));
 
 
 --
--- Name: final_approvers sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: notifications rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.final_approvers AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.notifications FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('notifications'::text, 'create'::text, to_jsonb(notifications.*)));
 
 
 --
--- Name: license_meta sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: password_reset_requests rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.license_meta AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.password_reset_requests FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('password_reset_requests'::text, 'create'::text, to_jsonb(password_reset_requests.*)));
 
 
 --
--- Name: newsletter_categories sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: properties rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.newsletter_categories AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.properties FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('properties'::text, 'create'::text, to_jsonb(properties.*)));
 
 
 --
--- Name: newsletter_posts sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: property_license rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.newsletter_posts AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.property_license FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('property_license'::text, 'create'::text, to_jsonb(property_license.*)));
 
 
 --
--- Name: notifications sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: qr_codes rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.notifications AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.qr_codes FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('qr_codes'::text, 'create'::text, to_jsonb(qr_codes.*)));
 
 
 --
--- Name: password_reset_requests sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: recent_activity rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.password_reset_requests AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.recent_activity FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('recent_activity'::text, 'create'::text, to_jsonb(recent_activity.*)));
 
 
 --
--- Name: properties sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: reports rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.properties AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.reports FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('reports'::text, 'create'::text, to_jsonb(reports.*)));
 
 
 --
--- Name: property_license sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: system_settings rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.property_license AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.system_settings FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('system_settings'::text, 'create'::text, to_jsonb(system_settings.*)));
 
 
 --
--- Name: qr_codes sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: ticket_events rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.qr_codes AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.ticket_events FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('ticket_events'::text, 'create'::text, to_jsonb(ticket_events.*)));
 
 
 --
--- Name: recent_activity sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: tickets rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.recent_activity AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.tickets FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('tickets'::text, 'create'::text, to_jsonb(tickets.*)));
 
 
 --
--- Name: reports sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: user_department_access rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.reports AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.user_department_access FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('user_department_access'::text, 'create'::text, to_jsonb(user_department_access.*)));
 
 
 --
--- Name: system_settings sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: user_permissions rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.system_settings AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.user_permissions FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('user_permissions'::text, 'create'::text, to_jsonb(user_permissions.*)));
 
 
 --
--- Name: ticket_events sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: user_preferences rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.ticket_events AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.user_preferences FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('user_preferences'::text, 'create'::text, to_jsonb(user_preferences.*)));
 
 
 --
--- Name: tickets sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: user_property_access rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.tickets AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.user_property_access FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('user_property_access'::text, 'create'::text, to_jsonb(user_property_access.*)));
 
 
 --
--- Name: user_preferences sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: user_settings rights_create; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.user_preferences AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_create ON public.user_settings FOR INSERT TO authenticated WITH CHECK (public.app_record_allowed('user_settings'::text, 'create'::text, to_jsonb(user_settings.*)));
 
 
 --
--- Name: user_settings sams_active_account; Type: POLICY; Schema: public; Owner: -
+-- Name: app_users rights_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sams_active_account ON public.user_settings AS RESTRICTIVE TO authenticated USING (public.app_user_is_active()) WITH CHECK (public.app_user_is_active());
+CREATE POLICY rights_delete ON public.app_users FOR DELETE TO authenticated USING (public.app_record_allowed('app_users'::text, 'delete'::text, to_jsonb(app_users.*)));
 
 
 --
--- Name: system_settings sys_settings_delete_all; Type: POLICY; Schema: public; Owner: -
+-- Name: approval_events rights_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sys_settings_delete_all ON public.system_settings FOR DELETE USING (true);
+CREATE POLICY rights_delete ON public.approval_events FOR DELETE TO authenticated USING (public.app_record_allowed('approval_events'::text, 'delete'::text, to_jsonb(approval_events.*)));
 
 
 --
--- Name: system_settings sys_settings_select_all; Type: POLICY; Schema: public; Owner: -
+-- Name: approvals rights_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sys_settings_select_all ON public.system_settings FOR SELECT USING (true);
+CREATE POLICY rights_delete ON public.approvals FOR DELETE TO authenticated USING (public.app_record_allowed('approvals'::text, 'delete'::text, to_jsonb(approvals.*)));
 
 
 --
--- Name: system_settings sys_settings_update_all; Type: POLICY; Schema: public; Owner: -
+-- Name: asset_types rights_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sys_settings_update_all ON public.system_settings FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY rights_delete ON public.asset_types FOR DELETE TO authenticated USING (public.app_record_allowed('asset_types'::text, 'delete'::text, to_jsonb(asset_types.*)));
 
 
 --
--- Name: system_settings sys_settings_upsert_all; Type: POLICY; Schema: public; Owner: -
+-- Name: assets rights_delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY sys_settings_upsert_all ON public.system_settings FOR INSERT WITH CHECK (true);
+CREATE POLICY rights_delete ON public.assets FOR DELETE TO authenticated USING (public.app_record_allowed('assets'::text, 'delete'::text, to_jsonb(assets.*)));
+
+
+--
+-- Name: audit_assignments rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_assignments FOR DELETE TO authenticated USING (public.app_record_allowed('audit_assignments'::text, 'delete'::text, to_jsonb(audit_assignments.*)));
+
+
+--
+-- Name: audit_incharge rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_incharge FOR DELETE TO authenticated USING (public.app_record_allowed('audit_incharge'::text, 'delete'::text, to_jsonb(audit_incharge.*)));
+
+
+--
+-- Name: audit_reports rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_reports FOR DELETE TO authenticated USING (public.app_record_allowed('audit_reports'::text, 'delete'::text, to_jsonb(audit_reports.*)));
+
+
+--
+-- Name: audit_reviews rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_reviews FOR DELETE TO authenticated USING (public.app_record_allowed('audit_reviews'::text, 'delete'::text, to_jsonb(audit_reviews.*)));
+
+
+--
+-- Name: audit_scans rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_scans FOR DELETE TO authenticated USING (public.app_record_allowed('audit_scans'::text, 'delete'::text, to_jsonb(audit_scans.*)));
+
+
+--
+-- Name: audit_sessions rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.audit_sessions FOR DELETE TO authenticated USING (public.app_record_allowed('audit_sessions'::text, 'delete'::text, to_jsonb(audit_sessions.*)));
+
+
+--
+-- Name: departments rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.departments FOR DELETE TO authenticated USING (public.app_record_allowed('departments'::text, 'delete'::text, to_jsonb(departments.*)));
+
+
+--
+-- Name: final_approvers rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.final_approvers FOR DELETE TO authenticated USING (public.app_record_allowed('final_approvers'::text, 'delete'::text, to_jsonb(final_approvers.*)));
+
+
+--
+-- Name: license_meta rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.license_meta FOR DELETE TO authenticated USING (public.app_record_allowed('license_meta'::text, 'delete'::text, to_jsonb(license_meta.*)));
+
+
+--
+-- Name: newsletter_categories rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.newsletter_categories FOR DELETE TO authenticated USING (public.app_record_allowed('newsletter_categories'::text, 'delete'::text, to_jsonb(newsletter_categories.*)));
+
+
+--
+-- Name: newsletter_posts rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.newsletter_posts FOR DELETE TO authenticated USING (public.app_record_allowed('newsletter_posts'::text, 'delete'::text, to_jsonb(newsletter_posts.*)));
+
+
+--
+-- Name: notifications rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.notifications FOR DELETE TO authenticated USING (public.app_record_allowed('notifications'::text, 'delete'::text, to_jsonb(notifications.*)));
+
+
+--
+-- Name: password_reset_requests rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.password_reset_requests FOR DELETE TO authenticated USING (public.app_record_allowed('password_reset_requests'::text, 'delete'::text, to_jsonb(password_reset_requests.*)));
+
+
+--
+-- Name: properties rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.properties FOR DELETE TO authenticated USING (public.app_record_allowed('properties'::text, 'delete'::text, to_jsonb(properties.*)));
+
+
+--
+-- Name: property_license rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.property_license FOR DELETE TO authenticated USING (public.app_record_allowed('property_license'::text, 'delete'::text, to_jsonb(property_license.*)));
+
+
+--
+-- Name: qr_codes rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.qr_codes FOR DELETE TO authenticated USING (public.app_record_allowed('qr_codes'::text, 'delete'::text, to_jsonb(qr_codes.*)));
+
+
+--
+-- Name: recent_activity rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.recent_activity FOR DELETE TO authenticated USING (public.app_record_allowed('recent_activity'::text, 'delete'::text, to_jsonb(recent_activity.*)));
+
+
+--
+-- Name: reports rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.reports FOR DELETE TO authenticated USING (public.app_record_allowed('reports'::text, 'delete'::text, to_jsonb(reports.*)));
+
+
+--
+-- Name: system_settings rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.system_settings FOR DELETE TO authenticated USING (public.app_record_allowed('system_settings'::text, 'delete'::text, to_jsonb(system_settings.*)));
+
+
+--
+-- Name: ticket_events rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.ticket_events FOR DELETE TO authenticated USING (public.app_record_allowed('ticket_events'::text, 'delete'::text, to_jsonb(ticket_events.*)));
+
+
+--
+-- Name: tickets rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.tickets FOR DELETE TO authenticated USING (public.app_record_allowed('tickets'::text, 'delete'::text, to_jsonb(tickets.*)));
+
+
+--
+-- Name: user_department_access rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.user_department_access FOR DELETE TO authenticated USING (public.app_record_allowed('user_department_access'::text, 'delete'::text, to_jsonb(user_department_access.*)));
+
+
+--
+-- Name: user_permissions rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.user_permissions FOR DELETE TO authenticated USING (public.app_record_allowed('user_permissions'::text, 'delete'::text, to_jsonb(user_permissions.*)));
+
+
+--
+-- Name: user_preferences rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.user_preferences FOR DELETE TO authenticated USING (public.app_record_allowed('user_preferences'::text, 'delete'::text, to_jsonb(user_preferences.*)));
+
+
+--
+-- Name: user_property_access rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.user_property_access FOR DELETE TO authenticated USING (public.app_record_allowed('user_property_access'::text, 'delete'::text, to_jsonb(user_property_access.*)));
+
+
+--
+-- Name: user_settings rights_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_delete ON public.user_settings FOR DELETE TO authenticated USING (public.app_record_allowed('user_settings'::text, 'delete'::text, to_jsonb(user_settings.*)));
+
+
+--
+-- Name: app_users rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.app_users FOR UPDATE TO authenticated USING (public.app_record_allowed('app_users'::text, 'edit'::text, to_jsonb(app_users.*))) WITH CHECK (public.app_record_allowed('app_users'::text, 'edit'::text, to_jsonb(app_users.*)));
+
+
+--
+-- Name: approval_events rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.approval_events FOR UPDATE TO authenticated USING (public.app_record_allowed('approval_events'::text, 'edit'::text, to_jsonb(approval_events.*))) WITH CHECK (public.app_record_allowed('approval_events'::text, 'edit'::text, to_jsonb(approval_events.*)));
+
+
+--
+-- Name: approvals rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.approvals FOR UPDATE TO authenticated USING (public.app_record_allowed('approvals'::text, 'edit'::text, to_jsonb(approvals.*))) WITH CHECK (public.app_record_allowed('approvals'::text, 'edit'::text, to_jsonb(approvals.*)));
+
+
+--
+-- Name: asset_types rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.asset_types FOR UPDATE TO authenticated USING (public.app_record_allowed('asset_types'::text, 'edit'::text, to_jsonb(asset_types.*))) WITH CHECK (public.app_record_allowed('asset_types'::text, 'edit'::text, to_jsonb(asset_types.*)));
+
+
+--
+-- Name: assets rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.assets FOR UPDATE TO authenticated USING (public.app_record_allowed('assets'::text, 'edit'::text, to_jsonb(assets.*))) WITH CHECK (public.app_record_allowed('assets'::text, 'edit'::text, to_jsonb(assets.*)));
+
+
+--
+-- Name: audit_assignments rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_assignments FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_assignments'::text, 'edit'::text, to_jsonb(audit_assignments.*))) WITH CHECK (public.app_record_allowed('audit_assignments'::text, 'edit'::text, to_jsonb(audit_assignments.*)));
+
+
+--
+-- Name: audit_incharge rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_incharge FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_incharge'::text, 'edit'::text, to_jsonb(audit_incharge.*))) WITH CHECK (public.app_record_allowed('audit_incharge'::text, 'edit'::text, to_jsonb(audit_incharge.*)));
+
+
+--
+-- Name: audit_reports rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_reports FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_reports'::text, 'edit'::text, to_jsonb(audit_reports.*))) WITH CHECK (public.app_record_allowed('audit_reports'::text, 'edit'::text, to_jsonb(audit_reports.*)));
+
+
+--
+-- Name: audit_reviews rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_reviews FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_reviews'::text, 'edit'::text, to_jsonb(audit_reviews.*))) WITH CHECK (public.app_record_allowed('audit_reviews'::text, 'edit'::text, to_jsonb(audit_reviews.*)));
+
+
+--
+-- Name: audit_scans rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_scans FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_scans'::text, 'edit'::text, to_jsonb(audit_scans.*))) WITH CHECK (public.app_record_allowed('audit_scans'::text, 'edit'::text, to_jsonb(audit_scans.*)));
+
+
+--
+-- Name: audit_sessions rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.audit_sessions FOR UPDATE TO authenticated USING (public.app_record_allowed('audit_sessions'::text, 'edit'::text, to_jsonb(audit_sessions.*))) WITH CHECK (public.app_record_allowed('audit_sessions'::text, 'edit'::text, to_jsonb(audit_sessions.*)));
+
+
+--
+-- Name: departments rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.departments FOR UPDATE TO authenticated USING (public.app_record_allowed('departments'::text, 'edit'::text, to_jsonb(departments.*))) WITH CHECK (public.app_record_allowed('departments'::text, 'edit'::text, to_jsonb(departments.*)));
+
+
+--
+-- Name: final_approvers rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.final_approvers FOR UPDATE TO authenticated USING (public.app_record_allowed('final_approvers'::text, 'edit'::text, to_jsonb(final_approvers.*))) WITH CHECK (public.app_record_allowed('final_approvers'::text, 'edit'::text, to_jsonb(final_approvers.*)));
+
+
+--
+-- Name: license_meta rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.license_meta FOR UPDATE TO authenticated USING (public.app_record_allowed('license_meta'::text, 'edit'::text, to_jsonb(license_meta.*))) WITH CHECK (public.app_record_allowed('license_meta'::text, 'edit'::text, to_jsonb(license_meta.*)));
+
+
+--
+-- Name: newsletter_categories rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.newsletter_categories FOR UPDATE TO authenticated USING (public.app_record_allowed('newsletter_categories'::text, 'edit'::text, to_jsonb(newsletter_categories.*))) WITH CHECK (public.app_record_allowed('newsletter_categories'::text, 'edit'::text, to_jsonb(newsletter_categories.*)));
+
+
+--
+-- Name: newsletter_posts rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.newsletter_posts FOR UPDATE TO authenticated USING (public.app_record_allowed('newsletter_posts'::text, 'edit'::text, to_jsonb(newsletter_posts.*))) WITH CHECK (public.app_record_allowed('newsletter_posts'::text, 'edit'::text, to_jsonb(newsletter_posts.*)));
+
+
+--
+-- Name: notifications rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.notifications FOR UPDATE TO authenticated USING (public.app_record_allowed('notifications'::text, 'edit'::text, to_jsonb(notifications.*))) WITH CHECK (public.app_record_allowed('notifications'::text, 'edit'::text, to_jsonb(notifications.*)));
+
+
+--
+-- Name: password_reset_requests rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.password_reset_requests FOR UPDATE TO authenticated USING (public.app_record_allowed('password_reset_requests'::text, 'edit'::text, to_jsonb(password_reset_requests.*))) WITH CHECK (public.app_record_allowed('password_reset_requests'::text, 'edit'::text, to_jsonb(password_reset_requests.*)));
+
+
+--
+-- Name: properties rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.properties FOR UPDATE TO authenticated USING (public.app_record_allowed('properties'::text, 'edit'::text, to_jsonb(properties.*))) WITH CHECK (public.app_record_allowed('properties'::text, 'edit'::text, to_jsonb(properties.*)));
+
+
+--
+-- Name: property_license rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.property_license FOR UPDATE TO authenticated USING (public.app_record_allowed('property_license'::text, 'edit'::text, to_jsonb(property_license.*))) WITH CHECK (public.app_record_allowed('property_license'::text, 'edit'::text, to_jsonb(property_license.*)));
+
+
+--
+-- Name: qr_codes rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.qr_codes FOR UPDATE TO authenticated USING (public.app_record_allowed('qr_codes'::text, 'edit'::text, to_jsonb(qr_codes.*))) WITH CHECK (public.app_record_allowed('qr_codes'::text, 'edit'::text, to_jsonb(qr_codes.*)));
+
+
+--
+-- Name: recent_activity rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.recent_activity FOR UPDATE TO authenticated USING (public.app_record_allowed('recent_activity'::text, 'edit'::text, to_jsonb(recent_activity.*))) WITH CHECK (public.app_record_allowed('recent_activity'::text, 'edit'::text, to_jsonb(recent_activity.*)));
+
+
+--
+-- Name: reports rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.reports FOR UPDATE TO authenticated USING (public.app_record_allowed('reports'::text, 'edit'::text, to_jsonb(reports.*))) WITH CHECK (public.app_record_allowed('reports'::text, 'edit'::text, to_jsonb(reports.*)));
+
+
+--
+-- Name: system_settings rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.system_settings FOR UPDATE TO authenticated USING (public.app_record_allowed('system_settings'::text, 'edit'::text, to_jsonb(system_settings.*))) WITH CHECK (public.app_record_allowed('system_settings'::text, 'edit'::text, to_jsonb(system_settings.*)));
+
+
+--
+-- Name: ticket_events rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.ticket_events FOR UPDATE TO authenticated USING (public.app_record_allowed('ticket_events'::text, 'edit'::text, to_jsonb(ticket_events.*))) WITH CHECK (public.app_record_allowed('ticket_events'::text, 'edit'::text, to_jsonb(ticket_events.*)));
+
+
+--
+-- Name: tickets rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.tickets FOR UPDATE TO authenticated USING (public.app_record_allowed('tickets'::text, 'edit'::text, to_jsonb(tickets.*))) WITH CHECK (public.app_record_allowed('tickets'::text, 'edit'::text, to_jsonb(tickets.*)));
+
+
+--
+-- Name: user_department_access rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.user_department_access FOR UPDATE TO authenticated USING (public.app_record_allowed('user_department_access'::text, 'edit'::text, to_jsonb(user_department_access.*))) WITH CHECK (public.app_record_allowed('user_department_access'::text, 'edit'::text, to_jsonb(user_department_access.*)));
+
+
+--
+-- Name: user_permissions rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.user_permissions FOR UPDATE TO authenticated USING (public.app_record_allowed('user_permissions'::text, 'edit'::text, to_jsonb(user_permissions.*))) WITH CHECK (public.app_record_allowed('user_permissions'::text, 'edit'::text, to_jsonb(user_permissions.*)));
+
+
+--
+-- Name: user_preferences rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.user_preferences FOR UPDATE TO authenticated USING (public.app_record_allowed('user_preferences'::text, 'edit'::text, to_jsonb(user_preferences.*))) WITH CHECK (public.app_record_allowed('user_preferences'::text, 'edit'::text, to_jsonb(user_preferences.*)));
+
+
+--
+-- Name: user_property_access rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.user_property_access FOR UPDATE TO authenticated USING (public.app_record_allowed('user_property_access'::text, 'edit'::text, to_jsonb(user_property_access.*))) WITH CHECK (public.app_record_allowed('user_property_access'::text, 'edit'::text, to_jsonb(user_property_access.*)));
+
+
+--
+-- Name: user_settings rights_edit; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_edit ON public.user_settings FOR UPDATE TO authenticated USING (public.app_record_allowed('user_settings'::text, 'edit'::text, to_jsonb(user_settings.*))) WITH CHECK (public.app_record_allowed('user_settings'::text, 'edit'::text, to_jsonb(user_settings.*)));
+
+
+--
+-- Name: app_users rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.app_users FOR SELECT TO authenticated USING (public.app_record_allowed('app_users'::text, 'view'::text, to_jsonb(app_users.*)));
+
+
+--
+-- Name: approval_events rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.approval_events FOR SELECT TO authenticated USING (public.app_record_allowed('approval_events'::text, 'view'::text, to_jsonb(approval_events.*)));
+
+
+--
+-- Name: approvals rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.approvals FOR SELECT TO authenticated USING (public.app_record_allowed('approvals'::text, 'view'::text, to_jsonb(approvals.*)));
+
+
+--
+-- Name: asset_types rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.asset_types FOR SELECT TO authenticated USING (public.app_record_allowed('asset_types'::text, 'view'::text, to_jsonb(asset_types.*)));
+
+
+--
+-- Name: assets rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.assets FOR SELECT TO authenticated USING (public.app_record_allowed('assets'::text, 'view'::text, to_jsonb(assets.*)));
+
+
+--
+-- Name: audit_assignments rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_assignments FOR SELECT TO authenticated USING (public.app_record_allowed('audit_assignments'::text, 'view'::text, to_jsonb(audit_assignments.*)));
+
+
+--
+-- Name: audit_incharge rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_incharge FOR SELECT TO authenticated USING (public.app_record_allowed('audit_incharge'::text, 'view'::text, to_jsonb(audit_incharge.*)));
+
+
+--
+-- Name: audit_reports rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_reports FOR SELECT TO authenticated USING (public.app_record_allowed('audit_reports'::text, 'view'::text, to_jsonb(audit_reports.*)));
+
+
+--
+-- Name: audit_reviews rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_reviews FOR SELECT TO authenticated USING (public.app_record_allowed('audit_reviews'::text, 'view'::text, to_jsonb(audit_reviews.*)));
+
+
+--
+-- Name: audit_scans rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_scans FOR SELECT TO authenticated USING (public.app_record_allowed('audit_scans'::text, 'view'::text, to_jsonb(audit_scans.*)));
+
+
+--
+-- Name: audit_sessions rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.audit_sessions FOR SELECT TO authenticated USING (public.app_record_allowed('audit_sessions'::text, 'view'::text, to_jsonb(audit_sessions.*)));
+
+
+--
+-- Name: departments rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.departments FOR SELECT TO authenticated USING (public.app_record_allowed('departments'::text, 'view'::text, to_jsonb(departments.*)));
+
+
+--
+-- Name: final_approvers rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.final_approvers FOR SELECT TO authenticated USING (public.app_record_allowed('final_approvers'::text, 'view'::text, to_jsonb(final_approvers.*)));
+
+
+--
+-- Name: license_meta rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.license_meta FOR SELECT TO authenticated USING (public.app_record_allowed('license_meta'::text, 'view'::text, to_jsonb(license_meta.*)));
+
+
+--
+-- Name: newsletter_categories rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.newsletter_categories FOR SELECT TO authenticated USING (public.app_record_allowed('newsletter_categories'::text, 'view'::text, to_jsonb(newsletter_categories.*)));
+
+
+--
+-- Name: newsletter_posts rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.newsletter_posts FOR SELECT TO authenticated USING (public.app_record_allowed('newsletter_posts'::text, 'view'::text, to_jsonb(newsletter_posts.*)));
+
+
+--
+-- Name: notifications rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.notifications FOR SELECT TO authenticated USING (public.app_record_allowed('notifications'::text, 'view'::text, to_jsonb(notifications.*)));
+
+
+--
+-- Name: password_reset_requests rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.password_reset_requests FOR SELECT TO authenticated USING (public.app_record_allowed('password_reset_requests'::text, 'view'::text, to_jsonb(password_reset_requests.*)));
+
+
+--
+-- Name: properties rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.properties FOR SELECT TO authenticated USING (public.app_record_allowed('properties'::text, 'view'::text, to_jsonb(properties.*)));
+
+
+--
+-- Name: property_license rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.property_license FOR SELECT TO authenticated USING (public.app_record_allowed('property_license'::text, 'view'::text, to_jsonb(property_license.*)));
+
+
+--
+-- Name: qr_codes rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.qr_codes FOR SELECT TO authenticated USING (public.app_record_allowed('qr_codes'::text, 'view'::text, to_jsonb(qr_codes.*)));
+
+
+--
+-- Name: recent_activity rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.recent_activity FOR SELECT TO authenticated USING (public.app_record_allowed('recent_activity'::text, 'view'::text, to_jsonb(recent_activity.*)));
+
+
+--
+-- Name: reports rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.reports FOR SELECT TO authenticated USING (public.app_record_allowed('reports'::text, 'view'::text, to_jsonb(reports.*)));
+
+
+--
+-- Name: system_settings rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.system_settings FOR SELECT TO authenticated USING (public.app_record_allowed('system_settings'::text, 'view'::text, to_jsonb(system_settings.*)));
+
+
+--
+-- Name: ticket_events rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.ticket_events FOR SELECT TO authenticated USING (public.app_record_allowed('ticket_events'::text, 'view'::text, to_jsonb(ticket_events.*)));
+
+
+--
+-- Name: tickets rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.tickets FOR SELECT TO authenticated USING (public.app_record_allowed('tickets'::text, 'view'::text, to_jsonb(tickets.*)));
+
+
+--
+-- Name: user_department_access rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.user_department_access FOR SELECT TO authenticated USING (public.app_record_allowed('user_department_access'::text, 'view'::text, to_jsonb(user_department_access.*)));
+
+
+--
+-- Name: user_permissions rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.user_permissions FOR SELECT TO authenticated USING (public.app_record_allowed('user_permissions'::text, 'view'::text, to_jsonb(user_permissions.*)));
+
+
+--
+-- Name: user_preferences rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.user_preferences FOR SELECT TO authenticated USING (public.app_record_allowed('user_preferences'::text, 'view'::text, to_jsonb(user_preferences.*)));
+
+
+--
+-- Name: user_property_access rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.user_property_access FOR SELECT TO authenticated USING (public.app_record_allowed('user_property_access'::text, 'view'::text, to_jsonb(user_property_access.*)));
+
+
+--
+-- Name: user_settings rights_view; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY rights_view ON public.user_settings FOR SELECT TO authenticated USING (public.app_record_allowed('user_settings'::text, 'view'::text, to_jsonb(user_settings.*)));
 
 
 --
@@ -4636,87 +4875,10 @@ ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ticket_events ENABLE ROW LEVEL SECURITY;
 
 --
--- Name: ticket_events ticket_events_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ticket_events_insert ON public.ticket_events FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: ticket_events ticket_events_insert_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ticket_events_insert_anon ON public.ticket_events FOR INSERT TO anon WITH CHECK (true);
-
-
---
--- Name: ticket_events ticket_events_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ticket_events_select ON public.ticket_events FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: ticket_events ticket_events_select_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY ticket_events_select_anon ON public.ticket_events FOR SELECT TO anon USING (true);
-
-
---
 -- Name: tickets; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
 ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
-
---
--- Name: tickets tickets_insert; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_insert ON public.tickets FOR INSERT TO authenticated WITH CHECK (true);
-
-
---
--- Name: tickets tickets_insert_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_insert_anon ON public.tickets FOR INSERT TO anon WITH CHECK (true);
-
-
---
--- Name: tickets tickets_select; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_select ON public.tickets FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: tickets tickets_select_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_select_anon ON public.tickets FOR SELECT TO anon USING (true);
-
-
---
--- Name: tickets tickets_update; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_update ON public.tickets FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-
-
---
--- Name: tickets tickets_update_anon; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY tickets_update_anon ON public.tickets FOR UPDATE TO anon USING (true) WITH CHECK (true);
-
-
---
--- Name: notifications update_all_dev; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY update_all_dev ON public.notifications FOR UPDATE USING (true);
-
 
 --
 -- Name: user_department_access; Type: ROW SECURITY; Schema: public; Owner: -
@@ -4748,19 +4910,12 @@ ALTER TABLE public.user_property_access ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 
---
--- Name: notifications write_all_dev; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY write_all_dev ON public.notifications FOR INSERT WITH CHECK (true);
-
-
--- Supabase projects may already grant anon/authenticated/service_role default
--- privileges on newly created objects. Clear those inherited object grants before
--- replaying the exported ACLs, without changing platform default privileges.
+-- Clear inherited Supabase default grants before replaying the exact object ACLs.
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA public FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON SCHEMA app_private FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_private FROM PUBLIC, anon, authenticated, service_role;
 
 --
 -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: -
@@ -4770,6 +4925,76 @@ GRANT USAGE ON SCHEMA public TO postgres;
 GRANT USAGE ON SCHEMA public TO anon;
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT USAGE ON SCHEMA public TO service_role;
+
+
+--
+-- Name: FUNCTION asset_scope(p_id text); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.asset_scope(p_id text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION department_scope(p_department text); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.department_scope(p_department text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION guard_approval_transition(); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.guard_approval_transition() FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION guard_direct_property_delete(); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.guard_direct_property_delete() FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION guard_profile_edit(); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.guard_profile_edit() FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION is_self(p_id text); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.is_self(p_id text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION property_scope(p_id text); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.property_scope(p_id text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION row_scope(p_table text, p_row jsonb); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.row_scope(p_table text, p_row jsonb) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION session_scope(p_id text); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.session_scope(p_id text) FROM PUBLIC;
+
+
+--
+-- Name: FUNCTION shared_user(p_id uuid); Type: ACL; Schema: app_private; Owner: -
+--
+
+REVOKE ALL ON FUNCTION app_private.shared_user(p_id uuid) FROM PUBLIC;
 
 
 --
@@ -4798,6 +5023,23 @@ GRANT ALL ON FUNCTION public.admin_set_user_password_v1(p_admin_email text, p_ad
 
 
 --
+-- Name: FUNCTION app_create_profile_with_access(p_id uuid, p_profile jsonb, p_permissions jsonb, p_property_ids text[], p_departments text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_create_profile_with_access(p_id uuid, p_profile jsonb, p_permissions jsonb, p_property_ids text[], p_departments text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_create_profile_with_access(p_id uuid, p_profile jsonb, p_permissions jsonb, p_property_ids text[], p_departments text[]) TO service_role;
+
+
+--
+-- Name: FUNCTION app_current_permissions(); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_current_permissions() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_current_permissions() TO authenticated;
+GRANT ALL ON FUNCTION public.app_current_permissions() TO service_role;
+
+
+--
 -- Name: FUNCTION app_is_admin_v1(); Type: ACL; Schema: public; Owner: -
 --
 
@@ -4807,12 +5049,39 @@ GRANT ALL ON FUNCTION public.app_is_admin_v1() TO service_role;
 
 
 --
+-- Name: FUNCTION app_permission_defaults(p_role text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_permission_defaults(p_role text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_permission_defaults(p_role text) TO authenticated;
+GRANT ALL ON FUNCTION public.app_permission_defaults(p_role text) TO service_role;
+
+
+--
+-- Name: FUNCTION app_record_allowed(p_table text, p_action text, p_row jsonb); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_record_allowed(p_table text, p_action text, p_row jsonb) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_record_allowed(p_table text, p_action text, p_row jsonb) TO authenticated;
+GRANT ALL ON FUNCTION public.app_record_allowed(p_table text, p_action text, p_row jsonb) TO service_role;
+
+
+--
 -- Name: FUNCTION app_request_role(); Type: ACL; Schema: public; Owner: -
 --
 
 REVOKE ALL ON FUNCTION public.app_request_role() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.app_request_role() TO authenticated;
 GRANT ALL ON FUNCTION public.app_request_role() TO service_role;
+
+
+--
+-- Name: FUNCTION app_save_user_access(p_user_id uuid, p_permissions jsonb, p_property_ids text[], p_departments text[]); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_save_user_access(p_user_id uuid, p_permissions jsonb, p_property_ids text[], p_departments text[]) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_save_user_access(p_user_id uuid, p_permissions jsonb, p_property_ids text[], p_departments text[]) TO authenticated;
+GRANT ALL ON FUNCTION public.app_save_user_access(p_user_id uuid, p_permissions jsonb, p_property_ids text[], p_departments text[]) TO service_role;
 
 
 --
@@ -4831,6 +5100,15 @@ GRANT ALL ON FUNCTION public.app_trg_set_user_email_only() TO service_role;
 REVOKE ALL ON FUNCTION public.app_trg_set_user_identity() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.app_trg_set_user_identity() TO authenticated;
 GRANT ALL ON FUNCTION public.app_trg_set_user_identity() TO service_role;
+
+
+--
+-- Name: FUNCTION app_user_can(p_resource text, p_action text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.app_user_can(p_resource text, p_action text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.app_user_can(p_resource text, p_action text) TO authenticated;
+GRANT ALL ON FUNCTION public.app_user_can(p_resource text, p_action text) TO service_role;
 
 
 --
@@ -4936,6 +5214,15 @@ GRANT ALL ON FUNCTION public.create_user_settings_on_signup() TO service_role;
 REVOKE ALL ON FUNCTION public.delete_all_reports() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.delete_all_reports() TO service_role;
 GRANT ALL ON FUNCTION public.delete_all_reports() TO authenticated;
+
+
+--
+-- Name: FUNCTION delete_property_with_access(p_property_id text); Type: ACL; Schema: public; Owner: -
+--
+
+REVOKE ALL ON FUNCTION public.delete_property_with_access(p_property_id text) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.delete_property_with_access(p_property_id text) TO authenticated;
+GRANT ALL ON FUNCTION public.delete_property_with_access(p_property_id text) TO service_role;
 
 
 --
@@ -5649,8 +5936,13 @@ GRANT ALL ON TABLE public.user_settings TO service_role;
 GRANT SELECT,INSERT,UPDATE ON TABLE public.user_settings TO authenticated;
 
 
+--
+-- PostgreSQL database dump complete
+--
 
--- pg_dump --schema=public does not include triggers on the managed Auth table.
+
+
+-- pg_dump application schemas do not include triggers on the managed Auth table.
 CREATE TRIGGER sams_sync_auth_profile
   AFTER UPDATE OF email, encrypted_password ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.sync_auth_account_profile();

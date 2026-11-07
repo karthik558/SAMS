@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoProperties } from "@/lib/demo";
 import { getCachedValue, invalidateCache } from "@/lib/data-cache";
@@ -46,41 +47,26 @@ export async function listProperties(options?: { force?: boolean }): Promise<Pro
   return getCachedValue(
     PROPERTY_CACHE_KEY,
     async () => {
-      try {
-        const { data, error } = await supabase
-          .from(table)
-          .select("id,name,address,type,status,manager,created_at,updated_at")
-          .order("id");
-        if (error) throw error;
-        return (data ?? []).map(toCamel);
-      } catch {
-        return getDemoProperties();
-      }
+      const { data, error } = await supabase.from(table).select("id,name,address,type,status,manager,created_at,updated_at").order("id");
+      if (error) throw error;
+      return (data ?? []).map(toCamel);
     },
     { ttlMs: PROPERTY_CACHE_TTL, force: options?.force },
   );
 }
 
 export async function deleteProperty(id: string): Promise<void> {
+  await requirePermission("properties", "delete");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
 
-  // Delete related records first to avoid FK constraints
-  // 1. Audit Incharge
-  await supabase.from("audit_incharge").delete().eq("property_id", id);
-  
-  // 2. Audit Sessions (and their cascaded children like scans/reviews)
-  await supabase.from("audit_sessions").delete().eq("property_id", id);
-
-  // 3. Assets in this property
-  await supabase.from("assets").delete().eq("property_id", id);
-
-  const { error } = await supabase.from(table).delete().eq("id", id);
+  const { error } = await supabase.rpc("delete_property_with_access", { p_property_id: id });
   if (error) throw error;
   invalidateCache(PROPERTY_CACHE_KEY);
 }
 
 export async function createProperty(p: Property): Promise<Property> {
+  await requirePermission("properties", "create");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).insert(toSnake(p)).select().single();
@@ -90,6 +76,7 @@ export async function createProperty(p: Property): Promise<Property> {
 }
 
 export async function updateProperty(id: string, patch: Partial<Property>): Promise<Property> {
+  await requirePermission("properties", "edit");
   if (isDemoMode()) throw new Error("DEMO_READONLY");
   if (!hasSupabaseEnv) throw new Error("NO_SUPABASE");
   const { data, error } = await supabase.from(table).update(toSnake(patch)).eq("id", id).select().single();

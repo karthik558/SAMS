@@ -37,11 +37,11 @@ export async function getCachedValue<T>(
 
   const pending = fetcher()
     .then((result) => {
-      store.set(key, { value: result, expiry: now() + ttl });
+      if (store.get(key)?.promise === pending) store.set(key, { value: result, expiry: now() + ttl });
       return result;
     })
     .catch((error) => {
-      store.delete(key);
+      if (store.get(key)?.promise === pending) store.delete(key);
       throw error;
     });
 

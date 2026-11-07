@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { MyAudits } from "@/components/dashboard/MyAudits";
@@ -181,6 +182,7 @@ const describeMonthlyChange = (current: number, previous: number) => {
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 const Index = () => {
+  const access = usePermissions();
   const navigate = useNavigate();
   const initialSnapshot = useMemo<DashboardSnapshot | null>(() => {
     if (typeof window === "undefined") return null;
@@ -970,6 +972,9 @@ const Index = () => {
   }, []);
 
   const handleQuickAction = (action: string) => {
+    const required: Record<string, [string, "view" | "create" | "export"]> = { "Add Asset": ["assets", "create"], "Bulk Import": ["asset_import", "view"], "Generate QR Codes": ["qrcodes", "create"], "Property Report": ["reports", "view"], "User Management": ["users", "view"] };
+    const rule = required[action];
+    if (rule && !access.can(rule[0], rule[1])) return;
     switch (action) {
       case "Add Asset":
   navigate(isDemoMode() ? "/demo/assets?new=1" : "/assets?new=1");
@@ -1093,18 +1098,18 @@ const Index = () => {
 
       {/* Section: Operational Watchlists */}
       <section id="watchlists-section" className="cq-split grid w-full min-w-0 grid-cols-1 gap-6">
-        <AmcWatchlist 
+        {access.can("amc_tracker") && <AmcWatchlist
           items={amcWatchList} 
           trackedCount={trackedAmc} 
           overdueCount={overdueAmc} 
           hasSupabase={hasSupabaseEnv || isDemoMode() || scopedAssets.length > 0} 
-        />
-        <FoodExpiryTracker 
+        />}
+        {access.can("food_expiry_tracker") && <FoodExpiryTracker
           items={foodExpiryList} 
           trackedCount={foodExpiryTracked} 
           overdueCount={foodExpiryOverdue} 
           hasSupabase={hasSupabaseEnv || isDemoMode() || scopedAssets.length > 0} 
-        />
+        />}
       </section>
 
       <section className="cq-charts grid min-w-0 grid-cols-1 gap-4">

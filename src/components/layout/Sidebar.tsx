@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { logout } from "@/services/auth";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -46,7 +47,7 @@ import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } 
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
-import { useSystemStatus } from "@/hooks/useSystemStatus";
+import { useSystemStatus, statusLabels } from "@/hooks/useSystemStatus";
 
 // Use a non-const assertion for dynamic injection (e.g., Newsletter)
 type NavItem = { name: string; href: string; icon: any };
@@ -91,21 +92,21 @@ const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> 
 ];
 
 const pageNameToKey: Record<string, PageKey | null> = {
-  Dashboard: null,
+  Dashboard: "dashboard",
   Assets: "assets",
   Properties: "properties",
   "QR Codes": "qrcodes",
-  Approvals: null,
-  "Scan QR": null,
-  Tickets: null,
+  Approvals: "approvals",
+  "Scan QR": "scan",
+  Tickets: "tickets",
   Reports: "reports",
   Audit: "audit",
   Users: "users",
-  "System Status": null,
+  "System Status": "status",
   Settings: "settings",
-  License: null,
-  Newsletter: null,
-  "Help Center": null,
+  License: "license",
+  Newsletter: "newsletter",
+  "Help Center": "help",
 } as const;
 
 interface SidebarProps {
@@ -116,6 +117,7 @@ interface SidebarProps {
 
 export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const navigate = useNavigate();
+  const permissionState = usePermissions();
   const cachedPrefs = useMemo(() => {
     try {
       const uid = getCurrentUserId();
@@ -273,25 +275,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
       if (idx >= 0) working.splice(idx, 1);
     }
 
-    const filtered = working.filter((item) => {
-      // Demo mode hides certain routes
-      if (demo && (item.name === "Audit" || item.name === "License")) return false;
-      if (item.name === "Dashboard" || item.name === "Scan QR" || item.name === "Tickets") return true;
-      if (item.name === "Newsletter") return showNewsletter;
-      if (item.name === "Approvals") return roleForPerm === "admin" || roleForPerm === "manager";
-      if (item.name === "License") return roleForPerm === "admin";
-      if (item.name === "Audit") {
-        const rule = (effective as any)["audit"];
-        return (
-          roleForPerm === "admin" ||
-          ((auditActive || hasAuditReports) && roleForPerm === "manager") ||
-          !!rule?.v
-        );
-      }
+    const filtered = working.filter(item => {
+      if (demo && ["Audit", "License"].includes(item.name)) return false;
+      if (item.name === "Newsletter" && !showNewsletter) return false;
+      if (item.name === "Help Center" && !showHelpCenter) return false;
+      if (item.name === "License" && roleForPerm !== "admin") return false;
       const key = pageNameToKey[item.name];
-      if (!key) return true;
-      const rule = (effective as any)[key as PageKey];
-      return !!rule?.v;
+      return !!key && permissionState.can(key);
     });
 
     return filtered.map<SidebarEntry>((item) => {
@@ -320,7 +310,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
 
       return { ...item, href, isActive, badges };
     });
-  }, [
+  }, [permissionState.data,
     role,
     perm,
     showNewsletter,
@@ -705,9 +695,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 <div className={cn("h-2 w-2 rounded-full animate-pulse", 
                   overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
                   overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
-                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                  overallStatus === 'outage' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-slate-400"
                 )} />
-                <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+                <span>System {statusLabels[overallStatus]}</span>
               </div>
               <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
             </Link>
@@ -929,7 +919,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                 <div className={cn("h-2.5 w-2.5 rounded-full animate-pulse", 
                   overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
                   overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
-                  "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                  overallStatus === 'outage' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-slate-400"
                 )} />
               </Link>
 
@@ -986,9 +976,9 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     <div className={cn("h-2 w-2 rounded-full animate-pulse", 
                       overallStatus === 'operational' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : 
                       overallStatus === 'degraded' ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]" : 
-                      "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"
+                      overallStatus === 'outage' ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" : "bg-slate-400"
                     )} />
-                    <span>System {overallStatus === 'operational' ? 'Normal' : overallStatus === 'degraded' ? 'Degraded' : 'Outage'}</span>
+                    <span>System {statusLabels[overallStatus]}</span>
                   </div>
                   <ChevronRight className="h-3.5 w-3.5 text-sidebar-foreground/40" />
                 </Link>

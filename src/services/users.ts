@@ -1,3 +1,4 @@
+import type { UserAccessDraft } from "@/services/permissions";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { isDemoMode, getDemoUsers } from "@/lib/demo";
 import { accountAction, USER_PROFILE_COLUMNS } from "@/services/auth";
@@ -39,7 +40,7 @@ export async function listUsers(options?: { force?: boolean }): Promise<AppUser[
 }
 
 // Credentials go exclusively to the authenticated server function and Supabase Auth.
-export async function createUser(payload: Omit<AppUser, "id"> & { password?: string }): Promise<AppUser> {
+export async function createUser(payload: Omit<AppUser, "id"> & { password?: string; access?: UserAccessDraft }): Promise<AppUser> {
   const { user } = await accountAction({ action: "create", profile: payload });
   invalidateCacheByPrefix(USERS_CACHE_KEY);
   return user as AppUser;

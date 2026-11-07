@@ -1,3 +1,4 @@
+import { usePermissions } from "@/hooks/use-permissions";
 import { useEffect, useMemo, useState, useCallback, Fragment } from "react";
 import { useNavigate } from 'react-router-dom';
 import { isDemoMode } from "@/lib/demo";
@@ -377,20 +378,8 @@ export default function Assets() {
     })();
   }, []);
 
-  const [canEditPage, setCanEditPage] = useState<boolean>(true);
-  useEffect(() => {
-    (async () => {
-      try {
-        const uid = getCurrentUserId();
-        if (!uid) { setCanEditPage(role === 'admin' || role === 'manager' || role === 'user'); return; }
-  const allowed = await canUserEdit(uid, 'assets');
-  // Baseline: role can create/edit; if override exists (true/false), respect it; if null, keep baseline
-  const baseline = role === 'admin' || role === 'manager' || role === 'user';
-  setCanEditPage(allowed === null ? baseline : allowed);
-      } catch { setCanEditPage(true); }
-    })();
-  }, [role]);
-
+  const access = usePermissions();
+  const canEditPage = access.can("assets", "edit");
   // Simple UI loading flag
   const [loadingUI, setLoadingUI] = useState(true);
 
@@ -736,7 +725,7 @@ export default function Assets() {
   };
 
   const handleAddAsset = async (assetData: any): Promise<boolean> => {
-  const canCreate = canEditPage;
+  const canCreate = access.can("assets", selectedAsset ? "edit" : "create");
     if (!canCreate) {
       toast.error("You don't have permission to create assets");
       return false;
@@ -902,6 +891,7 @@ export default function Assets() {
   }
 
   const handleDuplicateAsset = (asset: any) => {
+    if (!access.can("assets", "create")) return;
     setSelectedAsset(null);
     setDuplicateSeed(mapAssetToForm(asset, true));
     setShowAddForm(true);
@@ -909,14 +899,13 @@ export default function Assets() {
 
   const handleEditAsset = (asset: any) => {
     const pid = getAssetPropertyId(asset);
-    const canApproverEdit = approverPropIds.has(pid);
-    if (!(role === 'admin' || canApproverEdit)) return;
+    if (!canEditPage) return;
     setSelectedAsset(asset);
     setShowAddForm(true);
   };
 
   const handleDeleteAsset = async (assetId: string) => {
-    if (role !== 'admin') return; // only admin can delete
+    if (!access.can("assets", "delete")) return;
     const ok = await confirm({ title: `Delete ${assetId}?`, description: "This permanently removes the asset. This action cannot be undone.", confirmLabel: "Delete asset" });
     if (!ok) return;
     try {
@@ -937,7 +926,7 @@ export default function Assets() {
   };
 
   const handleDeleteGroup = async (assetsToDelete: any[]) => {
-    if (role !== 'admin') return;
+    if (!access.can("assets", "delete")) return;
     const count = assetsToDelete.length;
     const ok = await confirm({ title: `Delete ${count} assets?`, description: "This permanently removes the selected assets. This action cannot be undone.", confirmLabel: "Delete assets" });
     if (!ok) return;
@@ -962,6 +951,7 @@ export default function Assets() {
   };
 
   const handleGenerateQR = (asset: any) => {
+    if (!access.can("qrcodes", "create")) { toast.error("QR create permission required"); return; }
     // Always generate a QR for the selected asset without splitting its quantity into multiple asset records
     const qty = Number(asset.quantity) || 1;
     if (qty > 1) {
@@ -1209,13 +1199,13 @@ export default function Assets() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
-              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadCsv(`assets-${new Date().toISOString().slice(0,10)}`, rows); }}>
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadCsv(`assets-${new Date().toISOString().slice(0,10)}`, rows, "assets"); }}>
                 <Download className="h-4 w-4" /> CSV
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to print"); return; } printRows("Assets", rows); }}>
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to print"); return; } printRows("Assets", rows, "assets"); }}>
                 <Printer className="h-4 w-4" /> Print
               </Button>
-              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Assets", rows); toast.info("Choose Save as PDF in the print dialog"); }}>
+              <Button variant="outline" size="sm" onClick={() => { const rows = visibleExportRows(); if (!rows.length) { toast.info("Nothing to export"); return; } downloadSimplePdf("Assets", rows, "assets"); toast.info("Choose Save as PDF in the print dialog"); }}>
                 <FileText className="h-4 w-4" /> Print / Save as PDF
               </Button>
               <ColumnChooser
@@ -1223,7 +1213,7 @@ export default function Assets() {
                 visible={prefs.visibleCols}
                 onChange={prefs.setVisibleCols}
               />
-              <Button size="reveal" aria-label="Add Asset" onClick={() => setShowAddForm(true)} disabled={role !== 'admin' && role !== 'manager' && role !== 'user'}>
+              <Button size="reveal" aria-label="Add Asset" onClick={() => setShowAddForm(true)} disabled={!access.can("assets", "create")}>
                 <Plus />
                 <span className="button-reveal-label">Add Asset</span>
               </Button>
@@ -1398,14 +1388,14 @@ export default function Assets() {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={selectedIds.size !== 2}
+                disabled={selectedIds.size !== 2 || !access.can("asset_compare")}
                 title={selectedIds.size === 2 ? "Compare the two selected assets" : "Select exactly two assets to compare"}
                 onClick={() => setCompareOpen(true)}
               >
                 Compare
               </Button>
               {/* Bulk assign property */}
-              {(role === 'admin' || role === 'manager') && (
+              {access.can("assets", "edit") && (
                 <div className="flex items-center gap-2">
                   <Select value={bulkProperty} onValueChange={setBulkProperty}>
                     <SelectTrigger className="w-48"><SelectValue placeholder="Assign property" /></SelectTrigger>
@@ -1501,6 +1491,7 @@ export default function Assets() {
                     const v = (r[c as keyof typeof r] ?? '').toString().replace(/"/g,'""');
                     return /[",\n]/.test(v) ? `"${v}"` : v;
                   }).join(','));
+                  if (!access.can('assets','export')) { toast.error('Export permission required'); return; }
                   const csv = [header, ...lines].join('\n');
                   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                   const url = URL.createObjectURL(blob);
@@ -1513,11 +1504,11 @@ export default function Assets() {
               <Button
                 variant="outline"
                 size="sm"
-    onClick={() => setExportOpen(true)}
+    disabled={!access.can("assets", "export")} onClick={() => setExportOpen(true)}
               >
     Generate & Download QR Sheet
               </Button>
-              {role === 'admin' && selectedIds.size > 0 && (
+              {access.can("assets", "delete") && selectedIds.size > 0 && (
                 <Button
                   variant="destructive"
                   size="sm"
@@ -1844,7 +1835,7 @@ export default function Assets() {
                             >
                               <QrCode className="h-4 w-4" />
                             </Button>
-                            {role === 'admin' && (
+                            {access.can("assets", "delete") && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2017,7 +2008,7 @@ export default function Assets() {
                                     >
                                       <QrCode className="h-4 w-4" />
                                     </Button>
-                                    {role === 'admin' && (
+                                    {access.can("assets", "delete") && (
                                       <Button
                                         size="sm"
                                         variant="outline"

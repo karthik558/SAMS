@@ -1,3 +1,4 @@
+import { requirePermission } from "@/services/permissions";
 import { useState, useRef } from "react";
 import QRCode from "qrcode";
 import { composeQrWithLabel, downloadDataUrl, printImagesOnA4Grid } from "@/lib/qr";
@@ -60,10 +61,12 @@ export function QRCodeGenerator({
     }
   };
 
-  const downloadQRCode = () => {
+  const downloadQRCode = async () => {
     if (!qrCodeUrl) return;
-    downloadDataUrl(qrCodeUrl, `qr-code-${assetId}.png`);
-    toast.success("QR code downloaded!");
+    try {
+      await downloadDataUrl(qrCodeUrl, `qr-code-${assetId}.png`);
+      toast.success("QR code downloaded!");
+    } catch { toast.error("QR export permission required"); }
   };
 
   const printQRCode = async () => {
@@ -81,6 +84,7 @@ export function QRCodeGenerator({
     if (!qrCodeUrl) return;
 
     try {
+      await requirePermission("qrcodes", "export");
       // Convert data URL to blob
       const response = await fetch(qrCodeUrl);
       const blob = await response.blob();

@@ -1,50 +1,8 @@
-import { useEffect, useState } from "react";
 import NotFound from "@/pages/NotFound";
-import { isDemoMode } from "@/lib/demo";
-import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, roleDefaults, type PageKey } from "@/services/permissions";
-
-type Props = {
-  page: PageKey;
-  children: React.ReactNode;
-};
-
-export function RequireView({ page, children }: Props) {
-  const [allowed, setAllowed] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-  if (isDemoMode()) { if (!cancelled) setAllowed(true); return; }
-        let role = "";
-        try {
-          const raw = localStorage.getItem("auth_user");
-          role = raw ? (JSON.parse(raw).role || "") : "";
-        } catch {}
-        const r = role.toLowerCase();
-        const uid = getCurrentUserId();
-        let perms: Record<PageKey, { v: boolean; e: boolean }> = {} as any;
-        if (uid) {
-          try {
-            perms = await listUserPermissions(uid);
-          } catch {}
-        }
-        const effective = Object.keys(perms || {}).length
-          ? mergeDefaultsWithOverrides(r, perms)
-          : roleDefaults(r);
-        const ok = !!effective[page]?.v;
-        if (!cancelled) setAllowed(ok);
-      } catch {
-        // Fallback to deny if anything goes wrong
-        if (!cancelled) setAllowed(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [page]);
-
-  if (allowed === null) return null;
-  if (!allowed) return <NotFound />;
-  return <>{children}</>;
+import { usePermissions } from "@/hooks/use-permissions";
+export function RequireView({ page, children }: { page: string; children: React.ReactNode }) {
+  const permissions = usePermissions();
+  if (permissions.isPending) return null;
+  return permissions.can(page) ? <>{children}</> : <NotFound />;
 }
-
 export default RequireView;
