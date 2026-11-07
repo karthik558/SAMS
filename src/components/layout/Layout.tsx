@@ -249,7 +249,7 @@ export function Layout({ children }: LayoutProps) {
         </Sheet>
       )}
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className={cn("transition-all duration-300 ease-in-out z-20", !headerVisible && "-mt-14")}>
           {effectiveTopNavMode ? (
             <TopNavBar onMenuToggle={() => setSidebarOpen(true)} />
@@ -258,7 +258,7 @@ export function Layout({ children }: LayoutProps) {
           )}
         </div>
         <main id="app-main" tabIndex={-1} ref={mainRef} className={cn(
-          "app-content flex-1 overflow-auto overscroll-contain w-full",
+          "app-content min-w-0 flex-1 overflow-auto overscroll-contain w-full",
           "p-4 md:p-6 lg:p-8",
           isMobile && "pb-32"
         )}>

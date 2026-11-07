@@ -851,7 +851,7 @@ export default function QRCodes() {
         </div>
       </div>
     </div>
-        <div className="grid gap-3 sm:gap-4 md:grid-cols-4">
+        <div className="cq-stats grid grid-cols-1 gap-3 sm:gap-4">
           {qrHighlights.map((item) => (
             <MetricCard
               key={item.key}

@@ -546,7 +546,7 @@ export default function Properties() {
           </CardContent>
         </Card>
 
-        <div className="grid gap-3 sm:gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="cq-stats grid grid-cols-1 gap-3 sm:gap-4">
           {propertyHighlights.map((item) => (
             <MetricCard
               key={item.key}

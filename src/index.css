@@ -263,7 +263,12 @@ All colors MUST be HSL.
   .page-intro h1 + p { @apply mt-2 text-sm leading-6 text-muted-foreground; }
   .heading-xl { @apply text-2xl font-semibold tracking-tight md:text-3xl; }
   .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-primary; }
-  .app-content { background-color: hsl(var(--background)); width: 100%; }
+  .app-content {
+    background-color: hsl(var(--background));
+    width: 100%;
+    container-type: inline-size;
+    container-name: app;
+  }
   .app-content > * { width: 100%; max-width: 100%; }
   .site-container { @apply mx-auto w-full max-w-7xl 2xl:max-w-[1536px] px-5 sm:px-8 lg:px-12; }
   .site-heading { @apply text-3xl font-semibold tracking-tight sm:text-4xl lg:text-5xl; text-wrap: balance; }
@@ -294,4 +299,29 @@ All colors MUST be HSL.
     margin-left: 0.5rem;
     opacity: 1;
   }
+}
+
+.cq-caption { display: none; }
+.cq-hero-title { font-size: 1.875rem; line-height: 2.25rem; }
+
+@container app (min-width: 560px) {
+  .cq-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container app (min-width: 860px) {
+  .cq-hero { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+@container app (min-width: 960px) {
+  .cq-split { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container app (min-width: 1100px) {
+  .cq-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cq-hero-title { font-size: 3rem; line-height: 1; }
+  .cq-metric-value { font-size: 1.875rem; line-height: 2.25rem; }
+}
+@container app (min-width: 1200px) {
+  .cq-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cq-span-2 { grid-column: span 2 / span 2; }
+}
+@container app (min-width: 1280px) {
+  .cq-caption { display: block; }
 }

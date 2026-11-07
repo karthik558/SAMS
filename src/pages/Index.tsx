@@ -1005,38 +1005,42 @@ const Index = () => {
   };
 
   return (
-    <div className="space-y-6 md:space-y-8">
+    <div className="min-w-0 space-y-6 md:space-y-8">
       {/* Hero Welcome Banner */}
       <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-background p-6 md:p-10 shadow-sm border border-primary/10">
-        <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-2">
+        <div className="cq-hero relative z-10 flex flex-col gap-6">
+          <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-               <Calendar className="h-4 w-4" />
-               {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+               <Calendar className="h-4 w-4 shrink-0" />
+               <span className="truncate">{new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-5xl">
+            <h1 className="cq-hero-title font-bold tracking-tight text-foreground">
               {greeting}
             </h1>
             <p className="text-sm leading-6 text-muted-foreground max-w-2xl">
               Here's what's happening with your assets today.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2">
             <Button 
               variant="outline"
+              size="icon"
+              aria-label="Scan QR"
+              title="Scan QR"
               onClick={() => navigate(isDemoMode() ? "/demo/scan" : "/scan")}
-              className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background"
+              className="bg-background/80 shadow-soft backdrop-blur hover:bg-background"
             >
               <ScanLine className="h-4 w-4 text-muted-foreground" />
-              Scan QR
             </Button>
             <Button 
               variant="outline"
+              size="icon"
+              aria-label="Bulk Import"
+              title="Bulk Import"
               onClick={() => handleQuickAction("Bulk Import")}
-              className="gap-2 shadow-sm bg-background/80 backdrop-blur font-medium hover:bg-background hidden sm:inline-flex"
+              className="hidden bg-background/80 shadow-soft backdrop-blur hover:bg-background sm:inline-flex"
             >
               <Upload className="h-4 w-4 text-muted-foreground" />
-              Bulk Import
             </Button>
             <Button 
               onClick={() => handleQuickAction("Add Asset")} 
@@ -1052,7 +1056,7 @@ const Index = () => {
           </div>
         </div>
         
-        <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="cq-stats mt-7 grid grid-cols-1 gap-3">
           {heroHighlights.map((item) => (
             <div
               key={item.key}
@@ -1073,7 +1077,7 @@ const Index = () => {
       </section>
 
       {/* Section: Operational Watchlists */}
-      <section id="watchlists-section" className="grid gap-6 lg:grid-cols-2 w-full min-w-0">
+      <section id="watchlists-section" className="cq-split grid w-full min-w-0 grid-cols-1 gap-6">
         <AmcWatchlist 
           items={amcWatchList} 
           trackedCount={trackedAmc} 
@@ -1088,8 +1092,8 @@ const Index = () => {
         />
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-3 min-w-0">
-        <div className="space-y-4 xl:col-span-2 min-w-0">
+      <section className="cq-charts grid min-w-0 grid-cols-1 gap-4">
+        <div className="cq-span-2 min-w-0 space-y-4">
           <DashboardCharts />
         </div>
         <div className="space-y-4 min-w-0">
@@ -1163,7 +1167,7 @@ const Index = () => {
             {backlogLabel}
           </Badge>
         </div>
-        <div className={`grid gap-3 ${isAdmin ? "sm:grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2"}`}>
+        <div className={`grid grid-cols-1 gap-3 ${isAdmin ? "cq-stats" : "cq-split"}`}>
           {ticketCardData.map((item) => (
             <MetricCard
               key={item.key}
@@ -1176,7 +1180,7 @@ const Index = () => {
           ))}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="cq-split grid grid-cols-1 gap-4">
           <Card className="rounded-2xl border border-border/70 bg-card shadow-sm">
             <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-2">
               <div>
@@ -1354,7 +1358,7 @@ const Index = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="cq-stats grid grid-cols-1 gap-3">
             <Button
               variant="outline"
               className="h-auto w-full items-start justify-start gap-3.5 rounded-xl border-border/70 bg-background/60 p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:bg-muted/40 hover:shadow-md group"
