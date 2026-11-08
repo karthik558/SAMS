@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" width="100%" height="100%" style="background:#1b1b19; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Brand gradients & cards -->
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#282825"/>
+      <stop offset="100%" stop-color="#21211f"/>
+    </linearGradient>
+    <linearGradient id="brand-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a2a24"/>
+      <stop offset="100%" stop-color="#261e1b"/>
+    </linearGradient>
+
+    <!-- Markers -->
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#78716c"/>
+    </marker>
+    <marker id="arrow-brand" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#cc7c5e"/>
+    </marker>
+    <marker id="arrow-success" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#22c55e"/>
+    </marker>
+  </defs>
+
+  <!-- Container Outline -->
+  <rect x="2" y="2" width="956" height="616" rx="14" fill="#1c1c1a" stroke="#333330" stroke-width="1.5"/>
+
+  <!-- Title & Subtitle with brand accent -->
+  <circle cx="280" cy="40" r="5" fill="#cc7c5e"/>
+  <text x="480" y="45" text-anchor="middle" fill="#f5f5f4" font-size="19" font-weight="600" letter-spacing="0.4">SAMS System Architecture</text>
+  <circle cx="680" cy="40" r="5" fill="#cc7c5e"/>
+  <text x="480" y="66" text-anchor="middle" fill="#a8a29e" font-size="12">Component Interaction, Client Boundaries, and Supabase Security Model</text>
+
+  <!-- SECTION 1: Client & Presentation Layer -->
+  <rect x="40" y="85" width="880" height="130" rx="10" fill="#22221f" stroke="#383834" stroke-width="1.2" />
+  <rect x="52" y="96" width="160" height="22" rx="4" fill="#2e2521" stroke="#5c3f34" stroke-width="1" />
+  <text x="132" y="111" text-anchor="middle" fill="#cc7c5e" font-size="11" font-weight="700" letter-spacing="0.5">CLIENT LAYER</text>
+
+  <!-- Client Layer Cards -->
+  <g transform="translate(60, 130)">
+    <rect width="190" height="66" rx="8" fill="url(#card-grad)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="95" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">Web &amp; Mobile UI</text>
+    <text x="95" y="47" text-anchor="middle" fill="#a8a29e" font-size="11">React 18, Vite, Tailwind CSS</text>
+  </g>
+
+  <g transform="translate(285, 130)">
+    <rect width="190" height="66" rx="8" fill="url(#card-grad)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="95" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">App Router &amp; Guard</text>
+    <text x="95" y="47" text-anchor="middle" fill="#a8a29e" font-size="11">Role-Based Access Gates</text>
+  </g>
+
+  <g transform="translate(510, 130)">
+    <rect width="190" height="66" rx="8" fill="url(#card-grad)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="95" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">State &amp; Cache Layer</text>
+    <text x="95" y="47" text-anchor="middle" fill="#a8a29e" font-size="11">React Query &amp; Store</text>
+  </g>
+
+  <g transform="translate(735, 130)">
+    <rect width="165" height="66" rx="8" fill="url(#brand-grad)" stroke="#cc7c5e" stroke-width="1.2" />
+    <text x="82" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">Service Layer</text>
+    <text x="82" y="47" text-anchor="middle" fill="#e8a892" font-size="11">assets, tickets, users</text>
+  </g>
+
+  <!-- Horizontal connections inside Client Layer -->
+  <line x1="250" y1="163" x2="283" y2="163" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+  <line x1="475" y1="163" x2="508" y2="163" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+  <line x1="700" y1="163" x2="733" y2="163" stroke="#cc7c5e" stroke-width="1.5" marker-end="url(#arrow-brand)" />
+
+  <!-- SECTION 2: Security & Edge Layer -->
+  <rect x="40" y="235" width="880" height="115" rx="10" fill="#22221f" stroke="#383834" stroke-width="1.2" />
+  <rect x="52" y="246" width="180" height="22" rx="4" fill="#2e2521" stroke="#5c3f34" stroke-width="1" />
+  <text x="142" y="261" text-anchor="middle" fill="#cc7c5e" font-size="11" font-weight="700" letter-spacing="0.5">SECURITY &amp; EDGE LAYER</text>
+
+  <!-- Security Cards -->
+  <g transform="translate(80, 275)">
+    <rect width="240" height="58" rx="8" fill="url(#card-grad)" stroke="#4a423d" stroke-width="1.2" />
+    <text x="120" y="26" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">Reverse Proxy &amp; Gateway</text>
+    <text x="120" y="44" text-anchor="middle" fill="#a8a29e" font-size="11">CSP &amp; Request Sanitization</text>
+  </g>
+
+  <g transform="translate(365, 275)">
+    <rect width="240" height="58" rx="8" fill="url(#card-grad)" stroke="#4a423d" stroke-width="1.2" />
+    <text x="120" y="26" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">account-security</text>
+    <text x="120" y="44" text-anchor="middle" fill="#a8a29e" font-size="11">Supabase Edge Function</text>
+  </g>
+
+  <g transform="translate(650, 275)">
+    <rect width="240" height="58" rx="8" fill="url(#card-grad)" stroke="#4a423d" stroke-width="1.2" />
+    <text x="120" y="26" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">send-email</text>
+    <text x="120" y="44" text-anchor="middle" fill="#a8a29e" font-size="11">Notification Edge Function</text>
+  </g>
+
+  <!-- Connectors between Client Layer and Security/Backend Layer -->
+  <path d="M 817 196 L 817 222 L 200 222 L 200 273" fill="none" stroke="#cc7c5e" stroke-width="1.5" marker-end="url(#arrow-brand)" />
+  <line x1="320" y1="304" x2="363" y2="304" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+  <line x1="605" y1="304" x2="648" y2="304" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+
+  <!-- Direct Database Connection line from Service Layer -->
+  <path d="M 845 196 L 845 375 L 535 375 L 535 413" fill="none" stroke="#cc7c5e" stroke-width="1.5" marker-end="url(#arrow-brand)" />
+
+  <!-- SECTION 3: Supabase Backend (PostgreSQL 17) -->
+  <rect x="40" y="375" width="880" height="220" rx="10" fill="#22221f" stroke="#383834" stroke-width="1.2" />
+  <rect x="52" y="386" width="245" height="22" rx="4" fill="#2e2521" stroke="#5c3f34" stroke-width="1" />
+  <text x="174" y="401" text-anchor="middle" fill="#cc7c5e" font-size="11" font-weight="700" letter-spacing="0.5">SUPABASE BACKEND (POSTGRESQL 17)</text>
+
+  <!-- Database Components -->
+  <g transform="translate(60, 420)">
+    <rect width="260" height="155" rx="8" fill="url(#brand-grad)" stroke="#cc7c5e" stroke-width="1.3" />
+    <text x="130" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="700">Row-Level Security (RLS)</text>
+    <line x1="15" y1="40" x2="245" y2="40" stroke="#5c3f34" stroke-width="1" />
+    <text x="25" y="64" fill="#eed8ce" font-size="11">- Policy Engine on All 31 Tables</text>
+    <text x="25" y="86" fill="#eed8ce" font-size="11">- Multi-Property Tenant Isolation</text>
+    <text x="25" y="108" fill="#eed8ce" font-size="11">- Department Scoping Rules</text>
+    <text x="25" y="130" fill="#eed8ce" font-size="11">- Action Rights: View, Edit, Export</text>
+  </g>
+
+  <g transform="translate(350, 420)">
+    <rect width="260" height="155" rx="8" fill="url(#card-grad)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="130" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">Application Tables</text>
+    <line x1="15" y1="40" x2="245" y2="40" stroke="#333330" stroke-width="1" />
+    <text x="25" y="64" fill="#d6d3d1" font-size="11">- assets, asset_categories</text>
+    <text x="25" y="86" fill="#d6d3d1" font-size="11">- tickets, ticket_comments</text>
+    <text x="25" y="108" fill="#d6d3d1" font-size="11">- properties, departments</text>
+    <text x="25" y="130" fill="#d6d3d1" font-size="11">- amc_contracts, perishable_items</text>
+  </g>
+
+  <g transform="translate(640, 420)">
+    <rect width="260" height="155" rx="8" fill="url(#card-grad)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="130" y="28" text-anchor="middle" fill="#f5f5f4" font-size="13" font-weight="600">Auth &amp; Profile Sync</text>
+    <line x1="15" y1="40" x2="245" y2="40" stroke="#333330" stroke-width="1" />
+    <text x="25" y="64" fill="#d6d3d1" font-size="11">- auth.users (Credentials &amp; JWT)</text>
+    <text x="25" y="86" fill="#d6d3d1" font-size="11">- Sync Trigger on auth.users</text>
+    <text x="25" y="108" fill="#d6d3d1" font-size="11">- public.app_users (Role &amp; Scopes)</text>
+    <text x="25" y="130" fill="#d6d3d1" font-size="11">- app_user_can() Security RPC</text>
+  </g>
+
+  <!-- Connectors between DB blocks -->
+  <line x1="320" y1="497" x2="348" y2="497" stroke="#cc7c5e" stroke-width="1.5" marker-end="url(#arrow-brand)" />
+  <line x1="610" y1="497" x2="638" y2="497" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+  
+  <!-- Edge Function to Auth connection -->
+  <path d="M 485 333 L 485 355 L 770 355 L 770 418" fill="none" stroke="#78716c" stroke-width="1.5" marker-end="url(#arrow)" />
+</svg>

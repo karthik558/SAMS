@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 180" width="100%" height="100%" style="background:#1b1b19; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Brand gradients & cards -->
+    <linearGradient id="sec-card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#282825"/>
+      <stop offset="100%" stop-color="#21211f"/>
+    </linearGradient>
+    <linearGradient id="brand-card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a2a24"/>
+      <stop offset="100%" stop-color="#261e1b"/>
+    </linearGradient>
+
+    <!-- Markers -->
+    <marker id="flow-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#78716c"/>
+    </marker>
+    <marker id="flow-brand" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#cc7c5e"/>
+    </marker>
+    <marker id="flow-allow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#22c55e"/>
+    </marker>
+    <marker id="flow-deny" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 8 5 L 0 9 z" fill="#ef4444"/>
+    </marker>
+  </defs>
+
+  <!-- Container Outline -->
+  <rect x="2" y="2" width="916" height="176" rx="12" fill="#1c1c1a" stroke="#333330" stroke-width="1.5"/>
+
+  <!-- Step 0: Incoming Request -->
+  <g transform="translate(20, 50)">
+    <rect width="130" height="70" rx="8" fill="url(#sec-card)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="65" y="32" text-anchor="middle" fill="#f5f5f4" font-size="12" font-weight="600">Client Request</text>
+    <text x="65" y="49" text-anchor="middle" fill="#a8a29e" font-size="10">JWT Token</text>
+  </g>
+  <line x1="150" y1="85" x2="178" y2="85" stroke="#cc7c5e" stroke-width="1.5" marker-end="url(#flow-brand)" />
+
+  <!-- Step 1: System Role Check -->
+  <g transform="translate(180, 50)">
+    <rect width="160" height="70" rx="8" fill="url(#brand-card)" stroke="#cc7c5e" stroke-width="1.2" />
+    <text x="80" y="27" text-anchor="middle" fill="#cc7c5e" font-size="11" font-weight="700">1. Role Check</text>
+    <text x="80" y="44" text-anchor="middle" fill="#eed8ce" font-size="10">Admin, Manager,</text>
+    <text x="80" y="58" text-anchor="middle" fill="#eed8ce" font-size="10">or Staff Role</text>
+  </g>
+  <line x1="340" y1="85" x2="368" y2="85" stroke="#78716c" stroke-width="1.5" marker-end="url(#flow-arrow)" />
+
+  <!-- Step 2: Action Matrix Check -->
+  <g transform="translate(370, 50)">
+    <rect width="165" height="70" rx="8" fill="url(#sec-card)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="82" y="27" text-anchor="middle" fill="#f5f5f4" font-size="11" font-weight="600">2. Action Matrix</text>
+    <text x="82" y="44" text-anchor="middle" fill="#a8a29e" font-size="10">View, Create, Edit,</text>
+    <text x="82" y="58" text-anchor="middle" fill="#a8a29e" font-size="10">Delete, Export</text>
+  </g>
+  <line x1="535" y1="85" x2="563" y2="85" stroke="#78716c" stroke-width="1.5" marker-end="url(#flow-arrow)" />
+
+  <!-- Step 3: Data Scope Isolation -->
+  <g transform="translate(565, 50)">
+    <rect width="170" height="70" rx="8" fill="url(#sec-card)" stroke="#3e3e38" stroke-width="1.2" />
+    <text x="85" y="27" text-anchor="middle" fill="#f5f5f4" font-size="11" font-weight="600">3. Scope Isolation</text>
+    <text x="85" y="44" text-anchor="middle" fill="#a8a29e" font-size="10">Assigned Properties &amp;</text>
+    <text x="85" y="58" text-anchor="middle" fill="#a8a29e" font-size="10">Department Boundaries</text>
+  </g>
+
+  <!-- Output Paths: Allow & Deny -->
+  <path d="M 735 70 L 765 70 L 765 45 L 788 45" fill="none" stroke="#22c55e" stroke-width="1.5" marker-end="url(#flow-allow)" />
+  <path d="M 735 100 L 765 100 L 765 125 L 788 125" fill="none" stroke="#ef4444" stroke-width="1.5" marker-end="url(#flow-deny)" />
+
+  <!-- Result: Allow -->
+  <g transform="translate(790, 25)">
+    <rect width="115" height="40" rx="6" fill="#143020" stroke="#22c55e" stroke-width="1.2" />
+    <text x="57" y="25" text-anchor="middle" fill="#22c55e" font-size="11" font-weight="700">ALLOW (RLS)</text>
+  </g>
+
+  <!-- Result: Deny -->
+  <g transform="translate(790, 105)">
+    <rect width="115" height="40" rx="6" fill="#331818" stroke="#ef4444" stroke-width="1.2" />
+    <text x="57" y="25" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="700">DENY (403)</text>
+  </g>
+</svg>
