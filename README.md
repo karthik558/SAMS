@@ -48,31 +48,6 @@ The following diagram illustrates how clients, frontend routers, API boundaries,
   <img src="public/architecture.svg" alt="SAMS System Architecture" width="100%" />
 </p>
 
-```mermaid
-flowchart TD
-    subgraph Clients["Client Presentation Layer"]
-        User["Web and Mobile Browsers"] --> UI["SAMS Client Application (React 18 + Vite)"]
-        UI --> Router["App Router and Role Gate"]
-        Router --> State["React Query and Cache Layer"]
-        State --> Services["Service Abstraction Layer"]
-    end
-    
-    subgraph SecurityBoundary["Security and API Layer"]
-        Services --> Proxy["API Proxy / Reverse Route"]
-        Proxy --> EdgeAuth["Edge Function: account-security"]
-        Proxy --> EdgeMail["Edge Function: send-email"]
-    end
-    
-    subgraph Database["Supabase Backend (PostgreSQL 17)"]
-        Services --> RLS["Row-Level Security (RLS Engine)"]
-        RLS --> AppTables["31 Application Tables (assets, properties, tickets, etc.)"]
-        RLS --> Funcs["Security RPCs and app_user_can()"]
-        EdgeAuth --> AuthSchema["Supabase Auth (auth.users)"]
-        AuthSchema --> Trigger["User Synchronization Trigger"]
-        Trigger --> AppUsers["public.app_users Profile Table"]
-    end
-```
-
 ---
 
 ## Security Model and Access Control
@@ -90,15 +65,6 @@ Every authenticated request is checked against a three-dimensional permission mo
 <p align="center">
   <img src="public/security_flow.svg" alt="SAMS Authorization Hierarchy Flowchart" width="100%" />
 </p>
-
-```mermaid
-flowchart LR
-    Request["Incoming Request"] --> RoleCheck["1. System Role Check (Admin, Manager, Staff)"]
-    RoleCheck --> MatrixCheck["2. Action Matrix Check (View, Create, Edit, Delete, Export)"]
-    MatrixCheck --> ScopeCheck["3. Data Scope Isolation (Properties and Departments)"]
-    ScopeCheck --> Permit["Allow Operation"]
-    ScopeCheck --> Deny["Deny by RLS Policy"]
-```
 
 - **Roles:**
   - **Administrator:** Full administrative rights across all properties, users, and security settings.
