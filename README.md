@@ -20,7 +20,6 @@
   - [5. Deploy Backend Edge Functions](#5-deploy-backend-edge-functions)
   - [6. Start the Development Server](#6-start-the-development-server)
 - [How to Use SAMS](#how-to-use-sams)
-- [Data Analytics and Modeling](#data-analytics-and-modeling)
 - [Quality Assurance and Verification](#quality-assurance-and-verification)
 - [Production Deployment](#production-deployment)
 - [Quick Reference Summary](#quick-reference-summary)
@@ -285,27 +284,6 @@ Open your browser to `http://localhost:8000` and sign in with the administrator 
 
 ---
 
-## Data Analytics and Modeling
-
-For detailed asset lifecycle analytics, straight-line depreciation modeling, and maintenance velocity graphs, a dedicated Jupyter notebook is provided in the repository:
-
-- Notebook path: [`notebooks/asset_analytics.ipynb`](notebooks/asset_analytics.ipynb)
-
-The notebook includes:
-- Portfolio valuation across hardware, machinery, and facilities.
-- Straight-Line Depreciation (SLD) amortization curves over multi-year asset lifespans.
-- Maintenance ticket resolution rate versus incoming backlog volume.
-- Annual Maintenance Contract expiration timeline modeling.
-
-To run the notebook locally:
-
-```bash
-pip install jupyter matplotlib numpy
-jupyter notebook notebooks/asset_analytics.ipynb
-```
-
----
-
 ## Quality Assurance and Verification
 
 The repository includes a suite of security and regression tests:
@@ -353,6 +331,5 @@ The automated tests in `tests/security/` verify:
 - **Repository Root:** Single entry point for source code, schema, and configuration.
 - **Frontend Framework:** React 18 with TypeScript, Vite, Tailwind CSS, and Radix UI primitives.
 - **Database Schema:** Single unified database definition located at [`schema.sql`](schema.sql).
-- **Analytics Notebook:** Operational lifecycle graphs in [`notebooks/asset_analytics.ipynb`](notebooks/asset_analytics.ipynb).
 - **Security Standard:** Database-level PostgreSQL Row-Level Security, JWT validation, and scoped permission matrices.
 - **Port and Local URL:** Starts on port `8000` via `npm run dev`.
