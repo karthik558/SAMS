@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   ShieldCheck,
   Users,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Maximize2,
@@ -88,8 +89,10 @@ import Breadcrumbs from "@/components/layout/Breadcrumbs";
 import { useTablePreferences } from "@/components/table/useTablePreferences";
 import ColumnChooser, { type ColumnDef } from "@/components/table/ColumnChooser";
 import { listUserDepartmentAccess } from "@/services/userDeptAccess";
+import { Pagination } from "@/components/ui/pagination";
 
 const CATALOGUE_VIEW_KEY = "sams_assets_catalogue_view";
+const GROUPS_PER_PAGE = 25;
 
 function readCatalogueView(): any {
   try {
@@ -207,6 +210,7 @@ export default function Assets() {
   });
   const [allowedDepts, setAllowedDepts] = useState<string[] | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
   // Bulk action scoping: restrict property assignment options for managers
   const bulkPropertyOptions = useMemo(() => {
     if (role === 'admin') return propertyOptions;
@@ -635,6 +639,21 @@ export default function Assets() {
     }
     return Array.from(map.values());
   }, [sortedAssets]);
+
+  const pageCount = Math.max(1, Math.ceil(groupedRows.length / GROUPS_PER_PAGE));
+  const currentPage = Math.min(page, pageCount);
+  const pageStart = (currentPage - 1) * GROUPS_PER_PAGE;
+  const pageGroups = groupedRows.slice(pageStart, pageStart + GROUPS_PER_PAGE);
+  const pageMembers = pageGroups.flatMap((group) => group.members);
+  const selectedOnPage = pageMembers.filter((asset) => selectedIds.has(asset.id)).length;
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, filterType, filterProperty, sortBy, deptFilter, deptAll, savedView, range]);
+
+  useEffect(() => {
+    setPage((previous) => Math.min(previous, pageCount));
+  }, [pageCount]);
 
   const assetHighlights = useMemo(() => {
     const total = statsAssets.length;
@@ -1537,8 +1556,10 @@ export default function Assets() {
                   <CardDescription>All assets that match the filters and scope above</CardDescription>
                 </div>
               </div>
-              <div className="text-xs text-muted-foreground md:text-right bg-background/50 px-3 py-1 rounded-full border border-border/50">
-                Showing {groupedRows.length.toLocaleString()} group{groupedRows.length === 1 ? '' : 's'} • {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
+              <div role="status" className="text-xs text-muted-foreground md:text-right bg-background/50 px-3 py-1 rounded-full border border-border/50">
+                {groupedRows.length > 0
+                  ? `Showing ${(pageStart + 1).toLocaleString()}–${(pageStart + pageGroups.length).toLocaleString()} of ${groupedRows.length.toLocaleString()} groups`
+                  : "Showing 0 groups"} • {sortedAssets.length.toLocaleString()} item{sortedAssets.length === 1 ? '' : 's'}
               </div>
             </div>
           </CardHeader>
@@ -1555,7 +1576,7 @@ export default function Assets() {
               />
             ) : null}
             <div className={cn("cq-narrow-only space-y-3 p-4", groupedRows.length === 0 && "hidden")}>
-              {groupedRows.map((group) => {
+              {pageGroups.map((group) => {
                 const { rep, members, totalQty, key } = group;
                 const allSelected = members.every((m) => selectedIds.has(m.id));
                 return (
@@ -1601,11 +1622,19 @@ export default function Assets() {
                     {isVisible('select') && (
                     <TableHead className="w-10 pl-6">
                       <Checkbox
-                        aria-label="Select all"
-                        checked={selectedIds.size > 0 && selectedIds.size === sortedAssets.length}
+                        aria-label="Select all assets on this page"
+                        checked={pageMembers.length > 0 && selectedOnPage === pageMembers.length
+                          ? true
+                          : selectedOnPage > 0 ? "indeterminate" : false}
                         onCheckedChange={(checked) => {
-                          if (checked) setSelectedIds(new Set(sortedAssets.map(a => a.id)));
-                          else setSelectedIds(new Set());
+                          setSelectedIds((previous) => {
+                            const next = new Set(previous);
+                            for (const asset of pageMembers) {
+                              if (checked === true) next.add(asset.id);
+                              else next.delete(asset.id);
+                            }
+                            return next;
+                          });
                         }}
                       />
                     </TableHead>)}
@@ -1645,7 +1674,7 @@ export default function Assets() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupedRows.map((group) => {
+                {pageGroups.map((group) => {
                   const { rep, members, totalQty, key } = group;
                   const allSelected = members.every(m => selectedIds.has(m.id));
                   const isExpanded = expandedGroups.has(key);
@@ -2031,6 +2060,33 @@ export default function Assets() {
               </TableBody>
             </Table>
             </div>
+            {!loadError && pageCount > 1 && (
+              <Pagination aria-label="Asset catalogue pages" className="flex-wrap items-center gap-3 border-t border-border/60 p-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  <ChevronLeft aria-hidden="true" className="mr-1 h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  Page {currentPage} of {pageCount}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  Next
+                  <ChevronRight aria-hidden="true" className="ml-1 h-4 w-4" />
+                </Button>
+              </Pagination>
+            )}
           </CardContent>
       </Card>
 
