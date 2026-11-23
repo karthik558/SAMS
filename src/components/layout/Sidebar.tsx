@@ -132,12 +132,13 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
       return null;
     }
   }, []);
-  const [collapsed, setCollapsed] = useState(() => {
-    if (isTablet) return true;
+  const [preferredCollapsed, setPreferredCollapsed] = useState(() => {
     if (cachedPrefs?.sidebar_collapsed !== undefined) return cachedPrefs.sidebar_collapsed;
     if (initialCollapsed !== undefined) return initialCollapsed;
     try { return localStorage.getItem("sams_sidebar_collapsed") === "1"; } catch { return false; }
   });
+  const [tabletExpanded, setTabletExpanded] = useState(false);
+  const collapsed = preferredCollapsed || (isTablet && !tabletExpanded);
   const { isDark, toggleTheme } = useThemeToggle();
 
   const location = useLocation();
@@ -158,7 +159,7 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
   const homeHref = isDemoMode() ? "/demo" : "/";
   const { overallStatus } = useSystemStatus();
   useLayoutEffect(() => {
-    if (isTablet) setCollapsed(true);
+    if (!isTablet) setTabletExpanded(false);
   }, [isTablet]);
   useEffect(() => {
     (async () => {
@@ -301,7 +302,8 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
         setShowHelpCenter(detail.show_help_center);
       }
       if (detail && typeof detail.sidebar_collapsed === "boolean" && !isMobile) {
-        setCollapsed(detail.sidebar_collapsed);
+        setPreferredCollapsed(detail.sidebar_collapsed);
+        if (isTablet) setTabletExpanded(!detail.sidebar_collapsed);
       }
     };
     const storageHandler = (event: StorageEvent) => {
@@ -324,7 +326,7 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
       window.removeEventListener("storage", storageHandler);
       window.removeEventListener("user-preferences-changed", customHandler as any);
     };
-  }, [isMobile]);
+  }, [isMobile, isTablet]);
 
   const firstName = useMemo(() => {
     if (!userName) return "";
@@ -762,7 +764,8 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
             aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
             onClick={() => {
               const newState = !collapsed;
-              setCollapsed(newState);
+              setPreferredCollapsed(newState);
+              if (isTablet) setTabletExpanded(!newState);
               try { localStorage.setItem("sams_sidebar_collapsed", newState ? "1" : "0"); } catch {}
               const uid = getCurrentUserId();
               if (uid) {
