@@ -1,3 +1,4 @@
+import { useThemeToggle } from "@/hooks/use-theme-toggle";
 import { usePermissions } from "@/hooks/use-permissions";
 import { logout } from "@/services/auth";
 import { NavLink, useNavigate, Link } from 'react-router-dom';
@@ -14,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getUserPreferences, peekCachedUserPreferences } from '@/services/userPreferences';
+import { peekCachedUserPreferences } from '@/services/userPreferences';
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from '@/services/permissions';
 import { isDemoMode } from '@/lib/demo';
 import { isAuditActive, getActiveSession, getAssignment } from '@/services/audit';
@@ -46,37 +47,12 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
   const [hasAuditReports, setHasAuditReports] = useState(false);
   
   // Header-like state
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, toggleTheme } = useThemeToggle();
   const [, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [search, setSearch] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutHint, setShortcutHint] = useState("");
-
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    const root = document.documentElement;
-    if (next) {
-      root.classList.add("dark");
-      try { localStorage.setItem("theme", "dark"); } catch {}
-    } else {
-      root.classList.remove("dark");
-      try { localStorage.setItem("theme", "light"); } catch {}
-    }
-  };
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const dark = stored ? stored === "dark" : prefersDark;
-      setIsDark(dark);
-      const root = document.documentElement;
-      if (dark) root.classList.add("dark");
-      else root.classList.remove("dark");
-    } catch {}
-  }, []);
 
   useEffect(() => {
     try {
@@ -152,13 +128,6 @@ export function TopNavBar({ onMenuToggle }: TopNavBarProps) {
 
   useEffect(() => {
     (async () => {
-      try {
-        const uid = getCurrentUserId();
-        if (!uid) return;
-        const pref = await getUserPreferences(uid);
-        setShowNewsletter(!!pref.show_newsletter);
-        setShowHelpCenter(pref.show_help_center !== false);
-      } catch {}
       try {
         const raw = localStorage.getItem('auth_user');
         if (raw) { 

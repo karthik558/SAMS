@@ -1,6 +1,7 @@
+import { useThemeToggle } from "@/hooks/use-theme-toggle";
 import { usePermissions } from "@/hooks/use-permissions";
 import { logout } from "@/services/auth";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -43,7 +44,7 @@ import { listApprovals } from "@/services/approvals";
 import { listAssets, type Asset } from "@/services/assets";
 import { isAuditActive, getActiveSession, getAssignment } from "@/services/audit";
 import { getCurrentUserId, listUserPermissions, mergeDefaultsWithOverrides, type PageKey } from "@/services/permissions";
-import { getUserPreferences, peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
+import { peekCachedUserPreferences, upsertUserPreferences } from "@/services/userPreferences";
 import { hasSupabaseEnv, supabase } from "@/lib/supabaseClient";
 import { playNotificationSound } from "@/lib/sound";
 import { getAccessiblePropertyIdsForCurrentUser } from "@/services/userAccess";
@@ -115,10 +116,12 @@ const pageNameToKey: Record<string, PageKey | null> = {
 interface SidebarProps {
   className?: string;
   isMobile?: boolean;
+  isTablet?: boolean;
+  initialCollapsed?: boolean;
   onNavigate?: () => void;
 }
 
-export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
+export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNavigate }: SidebarProps) {
   const navigate = useNavigate();
   const permissionState = usePermissions();
   const cachedPrefs = useMemo(() => {
@@ -130,38 +133,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
     }
   }, []);
   const [collapsed, setCollapsed] = useState(() => {
+    if (isTablet) return true;
+    if (cachedPrefs?.sidebar_collapsed !== undefined) return cachedPrefs.sidebar_collapsed;
+    if (initialCollapsed !== undefined) return initialCollapsed;
     try { return localStorage.getItem("sams_sidebar_collapsed") === "1"; } catch { return false; }
   });
-  const [isDark, setIsDark] = useState(false);
+  const { isDark, toggleTheme } = useThemeToggle();
 
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    const root = document.documentElement;
-    if (next) {
-      root.classList.add("dark");
-      try { localStorage.setItem("theme", "dark"); } catch {}
-    } else {
-      root.classList.remove("dark");
-      try { localStorage.setItem("theme", "light"); } catch {}
-    }
-  };
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const dark = stored ? stored === "dark" : prefersDark;
-      setIsDark(dark);
-      // Sync with class in case it changed elsewhere
-      const root = document.documentElement;
-      if (root.classList.contains('dark') !== dark) {
-         if (dark) root.classList.add('dark'); else root.classList.remove('dark');
-      }
-    } catch {}
-  }, []);
-
-  const [isTablet, setIsTablet] = useState(false);
   const location = useLocation();
   const [perm, setPerm] = useState<Record<PageKey, { v: boolean; e: boolean }>>({} as any);
   const [pendingApprovals, setPendingApprovals] = useState<number>(0);
@@ -179,37 +157,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   const assetsByIdRef = useRef<Map<string, Asset> | null>(null);
   const homeHref = isDemoMode() ? "/demo" : "/";
   const { overallStatus } = useSystemStatus();
-  useEffect(() => {
-    (async () => {
-      try {
-        const uid = getCurrentUserId();
-        if (!uid) return;
-        const pref = await getUserPreferences(uid);
-        setShowNewsletter(!!pref.show_newsletter);
-        setShowHelpCenter(pref.show_help_center !== false);
-        if (pref.compact_mode || pref.density === 'compact' || pref.density === 'ultra') {
-          try { document.documentElement.classList.add('compact-ui'); if (pref.density === 'ultra') document.documentElement.classList.add('ultra-ui'); } catch {}
-        }
-        if (pref.sidebar_collapsed && !isMobile) setCollapsed(true);
-      } catch {}
-    })();
-  }, [isMobile]);
-
-  // Detect tablet viewport and collapse by default when entering tablet range
-  useEffect(() => {
-    const mql = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)');
-    const apply = () => {
-      const tablet = mql.matches;
-      // When entering tablet range, default to collapsed (but allow manual expand afterward)
-      if (tablet && !isTablet) {
-        setCollapsed(true);
-      }
-      setIsTablet(tablet);
-    };
-    try { mql.addEventListener('change', apply); } catch { mql.addListener(apply); }
-    // Initialize on mount
-    apply();
-    return () => { try { mql.removeEventListener('change', apply); } catch { mql.removeListener(apply); } };
+  useLayoutEffect(() => {
+    if (isTablet) setCollapsed(true);
   }, [isTablet]);
   useEffect(() => {
     (async () => {
@@ -777,7 +726,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
   return (
     <div
       className={cn(
-        "group/sidebar relative h-full overflow-hidden border-r border-sidebar-border transition-[width] duration-300 ease-in-out",
+        "group/sidebar relative h-full overflow-hidden border-r border-sidebar-border motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-in-out",
         "bg-sidebar text-sidebar-foreground",
         isMobile ? "w-full" : collapsed ? "w-[70px]" : "w-64",
         className

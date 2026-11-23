@@ -35,6 +35,7 @@ import RequireView from "@/components/session/RequireView";
 import { ConfirmProvider } from "@/components/common/ConfirmDialog";
 import { ConnectionStatus } from "@/components/common/ConnectionStatus";
 import { ThemeInitializer } from "@/components/common/ThemeInitializer";
+import StartupReady from "@/components/common/StartupReady";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -115,6 +116,15 @@ function AppShell() {
 
 const queryClient = new QueryClient();
 
+function StandalonePage() {
+  return (
+    <>
+      <StartupReady />
+      <Outlet />
+    </>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -126,14 +136,16 @@ const App = () => (
       <BrowserRouter>
         <ConfirmProvider>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          {/* Public minimal marketing website */}
-          <Route path="/site" element={<Website />} />
+          <Route element={<StandalonePage />}>
+            <Route path="/login" element={<Login />} />
+            <Route path="/site" element={<Website />} />
+            <Route path="/demo/login" element={<DemoLogin />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
           {/* Demo isolated routes */}
-          <Route path="/demo/login" element={<DemoLogin />} />
           <Route path="/demo/*" element={<DemoAppRouter />} />
           {/* Real asset data requires an authenticated session, including QR links. */}
-          <Route path="/assets/:id" element={<RequireAuth><RequireView page="assets"><AssetDetails /></RequireView></RequireAuth>} />
+          <Route path="/assets/:id" element={<RequireAuth><RequireView page="assets" standalone><AssetDetails /></RequireView></RequireAuth>} />
           <Route element={<AppShell />}>
             <Route path="/" element={<RequireView page="dashboard"><Index /></RequireView>} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />
@@ -151,7 +163,6 @@ const App = () => (
             <Route path="/status" element={<RequireView page="status"><Status /></RequireView>} />
             <Route path="/license" element={<RoleGate roles={['admin']}><LicensePage /></RoleGate>} />
           </Route>
-          <Route path="*" element={<NotFound />} />
         </Routes>
         </ConfirmProvider>
       </BrowserRouter>

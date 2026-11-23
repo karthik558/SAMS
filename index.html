@@ -30,17 +30,20 @@
 
   <body>
     <style>
-      /* Preloader overlay styles */
-      #preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:hsl(var(--background));z-index:9999;transition:opacity .25s ease, visibility .25s linear}
-      /* .dark #preloader{background:#272725} - Removed to let var(--background) handle it */
-      #preloader .spinner{width:64px;height:64px;display:inline-block;animation:spin 1.1s linear infinite;filter: drop-shadow(0 2px 6px rgba(0,0,0,0.15));}
+      #preloader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:hsl(var(--background, 40 12% 87%));z-index:9999;transition:opacity 160ms ease-out, visibility 160ms}
+      .dark #preloader{background:hsl(var(--background, 60 3% 15%))}
+      #preloader .spinner{width:64px;height:64px;animation:spin 1.1s linear infinite}
       @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-      #preloader.preloader-hide{opacity:0;visibility:hidden}
+      #preloader.preloader-hide{opacity:0;visibility:hidden;pointer-events:none}
+      #preloader.preloader-hide .spinner{animation-play-state:paused}
+      @media (prefers-reduced-motion: reduce){
+        #preloader{transition:none}
+        #preloader .spinner{animation:none}
+      }
     </style>
     <script type="module" src="/src/theme-init.ts"></script>
-    <!-- App preloader (hidden after React mounts) -->
     <div id="preloader" aria-hidden="true">
-      <img class="spinner" src="spinner.png" alt="Loading" />
+      <img class="spinner" src="/spinner.png" alt="" width="64" height="64" />
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

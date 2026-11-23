@@ -2,13 +2,16 @@ import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { TopNavBar } from "./TopNavBar";
 import { useEffect, useRef, useState } from "react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile, useIsTablet } from "@/hooks/use-mobile";
+import { usePermissions } from "@/hooks/use-permissions";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getUserPreferences, peekCachedUserPreferences } from "@/services/userPreferences";
+import { getUserPreferences, peekCachedUserPreferences, type UserPreferences } from "@/services/userPreferences";
 import { Home, Package, QrCode, ScanLine, Ticket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { HelpGuideProvider } from "@/components/help/HelpGuideProvider";
+import StartupReady from "@/components/common/StartupReady";
+import { isDemoMode } from "@/lib/demo";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,9 +36,12 @@ const ROUTE_TITLE_MAP: Record<string, string> = {
 
 export function Layout({ children }: LayoutProps) {
   const isMobile = useIsMobile();
+  const isTablet = useIsTablet();
+  const permissions = usePermissions();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [topNavMode, setTopNavMode] = useState<boolean>(false);
-  const [isTablet, setIsTablet] = useState<boolean>(false);
+  const [initialPreferences, setInitialPreferences] = useState<UserPreferences | null>();
+  const shellReady = initialPreferences !== undefined && !permissions.isPending;
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const redirectedRef = useRef(false);
@@ -62,17 +68,19 @@ export function Layout({ children }: LayoutProps) {
 
     main.addEventListener('scroll', handleScroll, { passive: true });
     return () => main.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [shellReady]);
 
   // Load navigation layout preference & reactive updates when settings page toggles it
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      let prefs: UserPreferences | null = null;
       try {
-        const uid = localStorage.getItem("current_user_id");
+        const uid = isDemoMode() ? null : localStorage.getItem("current_user_id");
         if (!uid) return;
-        const prefs = await getUserPreferences(uid);
-        if (!cancelled) setTopNavMode(!!prefs.top_nav_mode);
+        prefs = await getUserPreferences(uid);
+        if (cancelled) return;
+        setTopNavMode(!!prefs.top_nav_mode);
         // Apply some immediate UI classes on initial load
         try {
           const root = document.documentElement;
@@ -87,7 +95,11 @@ export function Layout({ children }: LayoutProps) {
             apply();
           }
         } catch {}
-      } catch {}
+      } catch {
+        // Use the default layout if preferences could not be loaded.
+      } finally {
+        if (!cancelled) setInitialPreferences(prefs);
+      }
     })();
     const storageHandler = (e: StorageEvent) => {
       if (e.key === 'user_preferences_patch') { // lightweight broadcast channel via localStorage event
@@ -135,15 +147,6 @@ export function Layout({ children }: LayoutProps) {
     window.addEventListener('storage', storageHandler);
     window.addEventListener('user-preferences-changed', sameTabHandler as any);
     return () => { cancelled = true; window.removeEventListener('storage', storageHandler); window.removeEventListener('user-preferences-changed', sameTabHandler as any); };
-  }, []);
-
-  // Detect tablet viewport (>=768px and <1024px) so TopNav applies only on desktop
-  useEffect(() => {
-    const mql = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)');
-    const apply = () => setIsTablet(mql.matches);
-    try { mql.addEventListener('change', apply); } catch { mql.addListener(apply); }
-    apply();
-    return () => { try { mql.removeEventListener('change', apply); } catch { mql.removeListener(apply); } };
   }, []);
 
   const effectiveTopNavMode = topNavMode && !isMobile && !isTablet;
@@ -243,14 +246,17 @@ export function Layout({ children }: LayoutProps) {
     } catch {}
   }, [navigate, pathname]);
 
+  if (!shellReady) return null;
+
   return (
     <HelpGuideProvider>
+      <StartupReady />
       <div className="flex h-dvh bg-background">
       <a href="#app-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-primary focus:px-4 focus:py-3 focus:text-primary-foreground">Skip to content</a>
       {/* Desktop Primary Navigation (Sidebar or TopNav) */}
       {!effectiveTopNavMode && (
         <div className="hidden md:block">
-          <Sidebar />
+          <Sidebar isTablet={isTablet} initialCollapsed={initialPreferences?.sidebar_collapsed} />
         </div>
       )}
 
