@@ -329,7 +329,7 @@ export default function Help() {
       <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "Help Center" }]} />
 
       {/* Hero Section */}
-      <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-12 shadow-sm sm:px-12 sm:py-16">
+      <div className="page-intro-surface relative overflow-hidden rounded-3xl border bg-card px-8 py-12 shadow-sm sm:px-12 sm:py-16">
         <div className="relative z-10 max-w-3xl space-y-6">
           <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
             How can we help you today?
@@ -351,8 +351,8 @@ export default function Help() {
         </div>
         
         {/* Decorative background element */}
-        <div className="absolute right-0 top-0 -z-10 h-full w-1/2 bg-gradient-to-l from-primary/5 to-transparent" />
-        <div className="absolute -right-20 -top-20 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute hidden dark:block right-0 top-0 -z-10 h-full w-1/2 bg-gradient-to-l from-primary/5 to-transparent" />
+        <div className="absolute hidden dark:block -right-20 -top-20 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">

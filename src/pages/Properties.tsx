@@ -507,7 +507,7 @@ export default function Properties() {
             </p>
           </div>
           {/* Decorative background element */}
-          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+          <div className="absolute hidden dark:block right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
         </div>
 
         {/* Toolbar */}

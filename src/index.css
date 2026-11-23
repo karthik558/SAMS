@@ -38,13 +38,13 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 40 14% 98%;
+    --background: 40 12% 87%;
     --foreground: 222 18% 14%;
 
-    --card: 0 0% 100%;
+    --card: 40 15% 92%;
     --card-foreground: 222 18% 14%;
 
-    --popover: 0 0% 100%;
+    --popover: 40 15% 93%;
     --popover-foreground: 222 18% 14%;
 
   /* Brand: #cc7c5e (hsl ~ 16.36 51.89% 58.43%) */
@@ -54,11 +54,11 @@ All colors MUST be HSL.
   --primary-action: 16 48% 43%;
   --primary-action-foreground: 0 0% 100%;
 
-    --secondary: 36 12% 95%;
+    --secondary: 36 12% 84%;
     --secondary-foreground: 222 14% 22%;
 
-    --muted: 36 10% 95%;
-    --muted-foreground: 220 8% 38%;
+    --muted: 36 12% 83%;
+    --muted-foreground: 220 10% 32%;
 
   /* Accent uses a light tint of the brand for subtle backgrounds */
   --accent: 16 52% 94%;
@@ -73,8 +73,8 @@ All colors MUST be HSL.
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 32 10% 88%;
-    --input: 32 10% 86%;
+    --border: 32 11% 72%;
+    --input: 32 9% 62%;
   /* Focus ring aligns with brand */
   --ring: 16.36 51.89% 58.43%;
 
@@ -93,19 +93,19 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    --sidebar-background: 36 18% 96.5%;
+    --sidebar-background: 28 13% 19%;
 
-    --sidebar-foreground: 222 12% 24%;
+    --sidebar-foreground: 38 24% 93%;
 
     --sidebar-primary: 16.36 51.89% 58.43%;
 
     --sidebar-primary-foreground: 0 0% 100%;
 
   /* Light mode sidebar hover/active background and text */
-  --sidebar-accent: 32 16% 92%;
-  --sidebar-accent-foreground: 222 18% 12%;
+  --sidebar-accent: 28 12% 28%;
+  --sidebar-accent-foreground: 38 30% 97%;
 
-    --sidebar-border: 32 12% 88%;
+    --sidebar-border: 28 12% 35%;
 
   --sidebar-ring: 16.36 51.89% 58.43%;
   }
@@ -260,6 +260,10 @@ All colors MUST be HSL.
 
 @layer components {
   .page-intro { @apply relative overflow-hidden rounded-2xl border border-border/70 bg-card p-5 shadow-soft md:p-7; }
+  :root:not(.dark) :is(.page-intro, .page-intro-surface) {
+    @apply border-border bg-muted;
+    background-image: none;
+  }
   .page-intro h1 + p { @apply mt-2 text-sm leading-6 text-muted-foreground; }
   .heading-xl { @apply text-2xl font-semibold tracking-tight md:text-3xl; }
   .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.18em] text-primary; }

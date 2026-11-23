@@ -321,7 +321,7 @@ export default function LicensePage() {
       <div className="space-y-4 print:hidden">
         <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "License" }]} />
         
-        <div className="relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
+        <div className="page-intro-surface relative overflow-hidden rounded-3xl border bg-card px-8 py-10 shadow-sm sm:px-12 sm:py-12">
           <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
             <div className="max-w-3xl space-y-4">
               <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
@@ -342,7 +342,7 @@ export default function LicensePage() {
               </Button>
             </div>
           </div>
-          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+          <div className="absolute hidden dark:block right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
         </div>
       </div>
 

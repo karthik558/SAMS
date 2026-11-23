@@ -153,9 +153,9 @@ export default function Newsletter() {
     <div className="space-y-8 md:space-y-10">
       <Breadcrumbs items={[{ label: 'Dashboard', to: '/' }, { label: 'Newsletter' }]} />
 
-      <section className="relative overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-xl">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,hsl(var(--primary))/0.12,transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_right,hsl(var(--muted))/0.35,transparent_60%)] opacity-80" />
+      <section className="page-intro-surface relative overflow-hidden rounded-2xl border border-border/60 bg-card/95 shadow-xl">
+        <div className="absolute inset-0 hidden dark:block bg-[radial-gradient(circle_at_top_left,hsl(var(--primary))/0.12,transparent_55%)]" />
+        <div className="absolute inset-0 hidden dark:block bg-[radial-gradient(circle_at_bottom_right,hsl(var(--muted))/0.35,transparent_60%)] opacity-80" />
         <div className="relative z-10 flex flex-col gap-8 p-6 sm:p-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl space-y-4">

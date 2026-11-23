@@ -876,7 +876,7 @@ export default function QRCodes() {
 
     <Breadcrumbs items={[{ label: "Dashboard", to: "/" }, { label: "QR Codes" }]} />
     <div className="page-intro">
-      <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
+      <div className="absolute hidden dark:block -right-20 -top-20 h-64 w-64 rounded-full bg-gradient-to-l from-primary/5 to-transparent blur-3xl" />
       <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="heading-xl">QR Code Management</h1>

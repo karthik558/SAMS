@@ -81,8 +81,11 @@ const badgeToneClasses: Record<BadgeTone, string> = {
   destructive: "border border-destructive/60 bg-destructive text-destructive-foreground shadow-sm dark:bg-destructive/80",
   warning: "border border-warning/60 bg-warning text-warning-foreground shadow-sm dark:bg-warning/80",
   primary: "border border-primary/50 bg-primary text-primary-foreground shadow-sm dark:bg-primary/80",
-  muted: "border border-border/60 bg-muted/70 text-foreground shadow-sm dark:bg-sidebar-accent dark:text-foreground",
+  muted: "border border-border/60 bg-sidebar-accent text-sidebar-foreground shadow-sm dark:text-foreground",
 };
+
+const navLinkFocus = "focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-ring";
+const activeNavSurface = "border border-sidebar-foreground/40 bg-sidebar-accent shadow-xs dark:border-border/80 dark:bg-card dark:shadow-sm";
 
 const navGroupBlueprint: Array<{ key: string; title: string; items: string[] }> = [
   { key: "workspace", title: "Workspace", items: ["Dashboard", "Properties", "Assets", "Scan QR"] },
@@ -608,7 +611,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   aria-label="Go to dashboard"
                 >
                   <div 
-                    className="h-10 w-32 bg-sidebar-primary transition-colors" 
+                    className="h-10 w-32 bg-sidebar-primary transition-colors"
                     style={{
                       maskImage: 'url("/sams_logo.png")',
                       maskSize: 'contain',
@@ -637,7 +640,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
           {groupedNav.map((group) => (
             <div key={group.key} className="space-y-1.5">
-              <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+              <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/80 dark:text-sidebar-foreground/50">
                 {group.title}
               </p>
               <div className="space-y-1">
@@ -649,16 +652,17 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     onClick={onNavigate}
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-200",
+                      navLinkFocus,
                       entry.isActive
-                        ? "bg-white text-foreground shadow-xs border border-border/40 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
-                        : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                        ? cn(activeNavSurface, "text-sidebar-accent-foreground dark:text-foreground")
+                        : "text-sidebar-foreground hover:bg-sidebar-accent/50 dark:text-sidebar-foreground/75 dark:hover:text-sidebar-foreground"
                     )}
                   >
                     <span className={cn(
                       "flex h-8 w-8 items-center justify-center rounded-lg transition-colors shrink-0",
                       entry.isActive
-                        ? "bg-primary/10 text-primary ring-1 ring-inset ring-primary/20"
-                        : "bg-sidebar-accent/50 text-sidebar-foreground/70"
+                        ? "bg-primary/10 text-sidebar-accent-foreground ring-1 ring-inset ring-primary/20 dark:text-primary"
+                        : "bg-sidebar-accent/50 text-sidebar-foreground dark:text-sidebar-foreground/70"
                     )}>
                       <entry.icon className="h-4 w-4" strokeWidth={1.8} />
                     </span>
@@ -710,7 +714,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                     <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
                       <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
                         <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                          <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
+                          <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary">
                             <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                           </div>
                         </span>
@@ -720,13 +724,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       </span>
                     </div>
                   ) : (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary ring-1 ring-primary/20">
                       <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                     </div>
                   )}
                   <div className="flex flex-col overflow-hidden min-w-0">
                     <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
-                    <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Staff'}</span>
+                    <span className="truncate text-[10px] text-sidebar-foreground/75 dark:text-muted-foreground capitalize">{role || 'Staff'}</span>
                   </div>
                 </div>
               </DropdownMenuTrigger>
@@ -789,7 +793,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
               aria-label="Go to dashboard"
             >
               <div 
-                className="h-10 w-40 bg-sidebar-primary transition-colors" 
+                className="h-10 w-40 bg-sidebar-primary transition-colors"
                 style={{
                   maskImage: 'url("/sams_logo.png")',
                   maskSize: 'contain',
@@ -843,9 +847,10 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                   end={entry.name === "Dashboard"}
                   className={cn(
                     "group/nav relative flex h-10 w-10 mx-auto items-center justify-center rounded-xl transition-all duration-200",
+                    navLinkFocus,
                     entry.isActive
-                      ? "bg-white text-primary shadow-xs border border-border/40 dark:bg-card dark:text-primary dark:border-border/80 dark:shadow-sm"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                      ? cn(activeNavSurface, "text-sidebar-accent-foreground dark:text-primary")
+                      : "text-sidebar-foreground hover:bg-sidebar-accent/60 dark:text-sidebar-foreground/70 dark:hover:text-sidebar-foreground"
                   )}
                   onClick={onNavigate}
                   title={entry.name}
@@ -863,7 +868,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
             // Expanded View: Grouped list
             groupedNav.map((group) => (
               <div key={group.key} className="space-y-1">
-                <h4 className="px-3 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/50 mb-1.5">
+                <h4 className="mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-sidebar-foreground/80 dark:text-sidebar-foreground/50">
                   {group.title}
                 </h4>
                 <div className="space-y-1">
@@ -874,16 +879,17 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       end={entry.name === "Dashboard"}
                       className={cn(
                         "group/nav flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-200",
+                        navLinkFocus,
                         entry.isActive
-                          ? "bg-white text-foreground shadow-xs border border-border/40 dark:bg-card dark:text-foreground dark:border-border/80 dark:shadow-sm"
-                          : "text-sidebar-foreground/75 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                          ? cn(activeNavSurface, "text-sidebar-accent-foreground dark:text-foreground")
+                          : "text-sidebar-foreground hover:bg-sidebar-accent/50 dark:text-sidebar-foreground/75 dark:hover:text-sidebar-foreground"
                       )}
                       onClick={onNavigate}
                     >
                       <entry.icon
                         className={cn(
                           "h-4 w-4 shrink-0 transition-colors",
-                          entry.isActive ? "text-primary" : "text-sidebar-foreground/60 group-hover/nav:text-sidebar-foreground"
+                          entry.isActive ? "text-sidebar-accent-foreground dark:text-primary" : "text-sidebar-foreground dark:text-sidebar-foreground/60 dark:group-hover/nav:text-sidebar-foreground"
                         )}
                         strokeWidth={2}
                       />
@@ -894,8 +900,8 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                             key={`${entry.name}-${badge.value}-${badge.tone}`}
                             className={cn(
                               "inline-flex h-5 min-w-5 items-center justify-center rounded-md px-1.5 text-[10px] font-bold ring-1 ring-inset",
-                              badge.tone === 'destructive' ? "bg-red-500/10 text-red-600 ring-red-500/20 dark:bg-red-500/20 dark:text-red-400" :
-                              badge.tone === 'warning' ? "bg-amber-500/10 text-amber-600 ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-400" :
+                              badge.tone === 'destructive' ? "bg-red-500/20 text-red-300 ring-red-500/20 dark:text-red-400" :
+                              badge.tone === 'warning' ? "bg-amber-500/20 text-amber-300 ring-amber-500/20 dark:text-amber-400" :
                               "bg-sidebar-accent text-sidebar-foreground ring-sidebar-border"
                             )}
                           >
@@ -930,14 +936,14 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                       <div className="relative flex h-9 w-9 shrink-0 items-center justify-center">
                         <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
                           <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                            <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary">
                               <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                             </div>
                           </span>
                         </span>
                       </div>
                     ) : (
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary ring-1 ring-primary/20">
                         <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                       </div>
                     )}
@@ -992,7 +998,7 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                         <div className="relative flex h-8 w-8 shrink-0 items-center justify-center">
                           <span className="relative flex h-full w-full items-center justify-center rounded-full bg-primary p-0.5 shadow-xs">
                             <span className="flex h-full w-full items-center justify-center rounded-full bg-sidebar-accent p-[1.5px]">
-                              <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-primary">
+                              <div className="flex h-full w-full items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary">
                                 <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                               </div>
                             </span>
@@ -1002,13 +1008,13 @@ export function Sidebar({ className, isMobile, onNavigate }: SidebarProps) {
                           </span>
                         </div>
                       ) : (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary ring-1 ring-primary/20">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sidebar-foreground dark:text-primary ring-1 ring-primary/20">
                           <span className="text-xs font-bold">{firstName.charAt(0)}</span>
                         </div>
                       )}
                       <div className="flex flex-col justify-center overflow-hidden min-w-0 leading-tight">
                         <span className="truncate text-xs font-semibold text-sidebar-foreground">{userName || 'User'}</span>
-                        <span className="truncate text-[10px] text-muted-foreground capitalize">{role || 'Staff'}</span>
+                        <span className="truncate text-[10px] text-sidebar-foreground/75 dark:text-muted-foreground capitalize">{role || 'Staff'}</span>
                       </div>
                     </div>
                   </DropdownMenuTrigger>

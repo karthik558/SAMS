@@ -94,12 +94,9 @@ export default function Settings() {
     const root = document.documentElement;
     const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
     
-    let bgValue = '40 20% 97%';
-
     // Only apply if in dark mode, but we set the variables on a special class or just override
     // Since .dark class sets these variables, we need to override them with higher specificity or inline styles on body/root when dark
     if (darkMode) {
-      bgValue = level.bg;
       root.style.setProperty('--background', level.bg);
       root.style.setProperty('--card', level.card);
       root.style.setProperty('--popover', level.card);
@@ -115,13 +112,7 @@ export default function Settings() {
       root.style.removeProperty('--card');
       root.style.removeProperty('--popover');
 
-      // Light mode sidebar background
-      const accent = ACCENT_COLORS.find(c => c.id === accentColor) || ACCENT_COLORS[0];
-      if (accent.sidebar) {
-        root.style.setProperty('--sidebar-background', accent.sidebar);
-      } else {
-        root.style.removeProperty('--sidebar-background');
-      }
+      root.style.removeProperty('--sidebar-background');
 
       // Light mode defaults
       root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
@@ -131,11 +122,12 @@ export default function Settings() {
     // Update theme-color meta tag to match background
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
+      const bgValue = getComputedStyle(root).getPropertyValue('--background').trim();
       metaThemeColor.setAttribute('content', `hsl(${bgValue})`);
     }
 
     localStorage.setItem('theme_dark_level', darkLevel);
-  }, [darkLevel, darkMode, accentColor]);
+  }, [darkLevel, darkMode]);
 
   // Initialize dark mode from existing theme preference immediately (before async load)
   useEffect(() => {
@@ -425,7 +417,7 @@ export default function Settings() {
           </p>
         </div>
         {/* Decorative background element */}
-        <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+        <div className="absolute hidden dark:block right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
       </div>
 
       <Tabs value={activeTab} onValueChange={(val) => setSearchParams({ tab: val })} className="space-y-8">

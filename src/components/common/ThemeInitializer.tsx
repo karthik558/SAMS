@@ -14,9 +14,7 @@ export function ThemeInitializer() {
 
       const level = DARK_LEVELS.find(l => l.id === darkLevel) || DARK_LEVELS[0];
       
-      let bgValue = '40 20% 97%';
       if (isDark) {
-        bgValue = level.bg;
         root.style.setProperty('--background', level.bg);
         root.style.setProperty('--card', level.card);
         root.style.setProperty('--popover', level.card);
@@ -30,13 +28,7 @@ export function ThemeInitializer() {
         root.style.removeProperty('--background');
         root.style.removeProperty('--card');
         root.style.removeProperty('--popover');
-        
-        // Light mode sidebar background (tint of accent)
-        if (accent.sidebar) {
-          root.style.setProperty('--sidebar-background', accent.sidebar);
-        } else {
-          root.style.removeProperty('--sidebar-background');
-        }
+        root.style.removeProperty('--sidebar-background');
         
         // Light mode defaults
         root.style.setProperty('--header-amc', 'hsl(33 100% 96%)'); // orange-50
@@ -46,6 +38,7 @@ export function ThemeInitializer() {
       // Update theme-color meta tag to match background
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
+        const bgValue = getComputedStyle(root).getPropertyValue('--background').trim();
         metaThemeColor.setAttribute('content', `hsl(${bgValue})`);
       }
     };

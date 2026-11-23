@@ -1013,7 +1013,7 @@ const Index = () => {
   return (
     <div className="min-w-0 space-y-6 md:space-y-8">
       {/* Hero Welcome Banner */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-background p-6 md:p-10 shadow-sm border border-primary/10">
+      <section className="page-intro-surface relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-background p-6 md:p-10 shadow-sm border border-primary/10">
         <div className="cq-hero relative z-10 flex flex-col gap-6">
           <div className="min-w-0 space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">

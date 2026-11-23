@@ -1239,7 +1239,7 @@ export default function Assets() {
             </div>
           </div>
           {/* Decorative background element */}
-          <div className="absolute right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
+          <div className="absolute hidden dark:block right-0 top-0 -z-10 h-full w-1/3 bg-gradient-to-l from-primary/5 to-transparent" />
         </div>
 
         <div className="cq-stats grid grid-cols-1 gap-3 sm:gap-4">

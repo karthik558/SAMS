@@ -20,11 +20,9 @@ try {
   // We can set other accent vars here if needed for the preloader
   
   // 3. Dark Level (Background)
-  let bgValue = '40 20% 97%';
   if (isDark) {
       const storedLevel = localStorage.getItem('theme_dark_level') || 'standard';
       const level = DARK_LEVELS.find(l => l.id === storedLevel) || DARK_LEVELS[0];
-      bgValue = level.bg;
       root.style.setProperty('--background', level.bg);
   } else {
       // Light mode default background
@@ -34,7 +32,8 @@ try {
   // Update theme-color meta tag to match background
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    metaThemeColor.setAttribute('content', `hsl(${bgValue})`);
+    const bgValue = getComputedStyle(root).getPropertyValue('--background').trim();
+    if (bgValue) metaThemeColor.setAttribute('content', `hsl(${bgValue})`);
   }
 
 } catch (e) {
