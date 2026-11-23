@@ -195,7 +195,7 @@ export function Layout({ children }: LayoutProps) {
   const mobileNavItems = [
     { label: "Home", path: navPrefix || "/", icon: Home },
     { label: "Assets", path: `${navPrefix}/assets`, icon: Package },
-    { label: "Scan", path: "/scan", icon: ScanLine },
+    { label: "Scan", path: `${navPrefix}/scan`, icon: ScanLine },
     { label: "QR", path: `${navPrefix}/qr-codes`, icon: QrCode },
     { label: "Tickets", path: `${navPrefix}/tickets`, icon: Ticket },
   ] as const;

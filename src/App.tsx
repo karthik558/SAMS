@@ -144,8 +144,8 @@ const App = () => (
           </Route>
           {/* Demo isolated routes */}
           <Route path="/demo/*" element={<DemoAppRouter />} />
-          {/* Real asset data requires an authenticated session, including QR links. */}
           <Route path="/assets/:id" element={<RequireAuth><RequireView page="assets" standalone><AssetDetails /></RequireView></RequireAuth>} />
+          <Route path="/demo/assets/:id" element={<RequireAuth><RequireView page="assets" standalone><AssetDetails /></RequireView></RequireAuth>} />
           <Route element={<AppShell />}>
             <Route path="/" element={<RequireView page="dashboard"><Index /></RequireView>} />
             <Route path="/assets" element={<RequireView page="assets"><Assets /></RequireView>} />

@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import Index from "@/pages/Index";
 import Assets from "@/pages/Assets";
-import AssetDetails from "@/pages/AssetDetails";
 import Properties from "@/pages/Properties";
 import QRCodes from "@/pages/QRCodes";
 import Approvals from "@/pages/Approvals";
@@ -12,6 +11,7 @@ import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 import Newsletter from "@/pages/Newsletter";
+import Scan from "@/pages/Scan";
 import { demoAuthKeys } from "@/lib/demo";
 
 function DemoRequireAuth({ children }: { children: React.ReactNode }) {
@@ -28,7 +28,7 @@ export default function DemoAppRouter() {
         <Routes>
           <Route index element={<Index />} />
           <Route path="assets" element={<Assets />} />
-          <Route path="assets/:id" element={<AssetDetails />} />
+          <Route path="scan" element={<Scan />} />
           <Route path="properties" element={<Properties />} />
           <Route path="qr-codes" element={<QRCodes />} />
           <Route path="reports" element={<Reports />} />

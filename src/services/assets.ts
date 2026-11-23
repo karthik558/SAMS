@@ -232,23 +232,11 @@ export async function getAssetById(id: string): Promise<Asset | null> {
   const cleanId = (id || "").trim();
   if (!cleanId) return null;
 
-  if (isDemoMode()) {
+  if (isDemoMode() || !hasSupabaseEnv) {
     const list = getDemoAssets();
     return list.find(a => a.id.toLowerCase() === cleanId.toLowerCase()) || null;
   }
-  if (hasSupabaseEnv) {
-    try {
-      const { data, error } = await supabase.from(table).select("*").eq("id", cleanId).maybeSingle();
-      if (!error && data) return toCamel(data);
-    } catch {
-      // Fall through to demo fallback
-    }
-  }
-  // Graceful fallback to demo assets when offline or not found
-  try {
-    const list = getDemoAssets();
-    return list.find(a => a.id.toLowerCase() === cleanId.toLowerCase()) || null;
-  } catch {
-    return null;
-  }
+  const { data, error } = await supabase.from(table).select("*").eq("id", cleanId).maybeSingle();
+  if (error) throw error;
+  return data ? toCamel(data) : null;
 }

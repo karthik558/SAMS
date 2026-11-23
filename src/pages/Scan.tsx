@@ -42,6 +42,7 @@ type BatchItem = {
 
 export default function Scan() {
   const navigate = useNavigate();
+  const routePrefix = isDemoMode() ? "/demo" : "";
   const confirm = useConfirm();
   const [hit, setHit] = useState<null | { id: string; asset: Awaited<ReturnType<typeof getAssetById>> }>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -389,7 +390,7 @@ export default function Scan() {
                           title="View asset"
                           onClick={() => {
                             stop();
-                            navigate(`/assets/${item.id}`);
+                            navigate(`${routePrefix}/assets/${encodeURIComponent(item.id)}`);
                           }}
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -556,7 +557,7 @@ export default function Scan() {
                     onClick={() => {
                       setBatchDialogOpen(false);
                       stop();
-                      navigate(`/assets/${item.id}`);
+                      navigate(`${routePrefix}/assets/${encodeURIComponent(item.id)}`);
                     }}
                     title="View Asset"
                   >
@@ -626,7 +627,7 @@ export default function Scan() {
                 <p>Property: {hit.asset?.property || "Not recorded"}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button onClick={() => navigate(`${isDemoMode() ? "/demo" : ""}/assets/${hit.id}`)}>Open asset</Button>
+                <Button onClick={() => navigate(`${routePrefix}/assets/${encodeURIComponent(hit.id)}`)}>Open asset</Button>
                 <Button variant="outline" onClick={() => navigate(`${isDemoMode() ? "/demo" : ""}/tickets?asset=${encodeURIComponent(hit.id)}`)}>Raise ticket</Button>
                 <Button variant="ghost" onClick={() => { void navigator.clipboard.writeText(hit.id); toast.success("Copied"); }}>Copy code</Button>
               </div>

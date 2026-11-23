@@ -240,7 +240,6 @@ export function Sidebar({ className, isMobile, isTablet, initialCollapsed, onNav
       const href = (() => {
         if (!demo) return item.href;
         if (item.href === "/") return "/demo";
-        if (item.href === "/scan") return "/scan";
         return `/demo${item.href}`;
       })();
 
